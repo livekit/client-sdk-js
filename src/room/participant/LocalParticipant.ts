@@ -851,6 +851,14 @@ export default class LocalParticipant extends Participant {
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
       track.mediaStreamTrack.getConstraints().channelCount === 2;
     const isStereo = opts.forceStereo ?? isStereoInput;
+    this.log.info(
+      'DEBUG isStereo: ',
+      isStereo,
+      ', forceStereo: ',
+      opts.forceStereo,
+      ', isStereoInput: ',
+      isStereoInput,
+    ); // REMOVE
 
     // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {

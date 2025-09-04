@@ -4,9 +4,10 @@ import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
+import { version } from '../version';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
+import { compareVersions, ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -297,7 +298,8 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, [], []);
+          const stereoMids = compareVersions(version, '3.0.0') >= 0 ? ['all'] : [];
+          ensureAudioNackAndStereo(media, stereoMids, []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
@@ -627,7 +629,7 @@ function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(mid)) {
+    if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtp.config.includes('stereo=1')) {

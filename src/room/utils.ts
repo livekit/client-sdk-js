@@ -418,6 +418,26 @@ export function getEmptyAudioStreamTrack() {
   return emptyAudioStreamTrack.clone();
 }
 
+export function getStereoAudioStreamTrack() {
+  const ctx = new AudioContext();
+  const oscLeft = ctx.createOscillator();
+  const oscRight = ctx.createOscillator();
+  oscLeft.frequency.value = 440;
+  oscRight.frequency.value = 220;
+  const merger = ctx.createChannelMerger(2);
+  oscLeft.connect(merger, 0, 0); // left channel
+  oscRight.connect(merger, 0, 1); // right channel
+  const dst = ctx.createMediaStreamDestination();
+  merger.connect(dst);
+  oscLeft.start();
+  oscRight.start();
+  const [stereoTrack] = dst.stream.getAudioTracks();
+  if (!stereoTrack) {
+    throw Error('Could not get stereo media stream audio track');
+  }
+  return stereoTrack;
+}
+
 export class Future<T> {
   promise: Promise<T>;
 
