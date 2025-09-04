@@ -82,8 +82,8 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3
       '@types/sdp-transform':
-        specifier: 2.4.10
-        version: 2.4.10
+        specifier: 2.15.0
+        version: 2.15.0
       '@types/ua-parser-js':
         specifier: 0.7.39
         version: 0.7.39
@@ -1313,8 +1313,8 @@ packages:
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
 
-  '@types/sdp-transform@2.4.10':
-    resolution: {integrity: sha512-999diMTpgQGt+dj+tAEQNvBAJYkOip83NJn1RruqNmqeLYNZpQnUX/YrugR+ekXvdJ9pdkZtYg1jiM3mG3NhRg==}
+  '@types/sdp-transform@2.15.0':
+    resolution: {integrity: sha512-ikIFF0EaYt/2XetIYYVeMj6SB52oVXFasJUXDzWHgzNJS5ep2Pbsu7f8f3Za+dEie8HQtt3Zr9mHYBpWT0XgxQ==}
 
   '@types/ua-parser-js@0.7.39':
     resolution: {integrity: sha512-P/oDfpofrdtF5xw433SPALpdSchtJmY7nsJItf8h3KXqOslkbySh8zq4dSWXH2oTjRvJ5PczVEoCZPow6GicLg==}
@@ -3447,8 +3447,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20250815:
-    resolution: {integrity: sha512-pUWzMiOyuu14oNnD+6FYpdZzMBzUyucgmKtCCXR6lE5H+ndo59vxUx8MZaB+QDEfSSobIzAtaLwW/kRzfhV2CA==}
+  typescript@6.0.0-dev.20250904:
+    resolution: {integrity: sha512-301ifUSj+fMMKRGYMLW8bIRhlpLxnqSwyBCCUlcjcNw6GBr5O3KI9mbnL3VW03cwGtV6+Zjs7hI7nFrTA0sLtQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5060,7 +5060,7 @@ snapshots:
 
   '@types/resolve@1.20.2': {}
 
-  '@types/sdp-transform@2.4.10': {}
+  '@types/sdp-transform@2.15.0': {}
 
   '@types/ua-parser-js@0.7.39': {}
 
@@ -5681,7 +5681,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20250815
+      typescript: 6.0.0-dev.20250904
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7522,7 +7522,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20250815: {}
+  typescript@6.0.0-dev.20250904: {}
 
   uc.micro@2.1.0: {}
 
