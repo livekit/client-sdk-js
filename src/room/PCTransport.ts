@@ -165,10 +165,11 @@ export default class PCTransport extends EventEmitter {
     } else if (sd.type === 'answer') {
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
+        const mid = getMidString(media.mid!);
         if (media.type === 'audio') {
           // munge sdp for opus bitrate settings
           this.trackBitrates.some((trackbr): boolean => {
-            if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
+            if (!trackbr.transceiver || mid != trackbr.transceiver.mid) {
               return false;
             }
 
@@ -597,6 +598,9 @@ function ensureAudioNackAndStereo(
   stereoMids: string[],
   nackMids: string[],
 ) {
+  // sdp-transform types don't include number however the parser outputs mids as numbers in some cases
+  const mid = getMidString(media.mid!);
+
   // found opus codec to add nack fb
   let opusPayload = 0;
   media.rtp.some((rtp): boolean => {
@@ -614,7 +618,7 @@ function ensureAudioNackAndStereo(
     }
 
     if (
-      nackMids.includes(media.mid!) &&
+      nackMids.includes(mid) &&
       !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
     ) {
       media.rtcpFb.push({
@@ -623,7 +627,7 @@ function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(media.mid!)) {
+    if (stereoMids.includes(mid)) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtp.config.includes('stereo=1')) {
@@ -646,6 +650,7 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   const sdpParsed = parse(offer.sdp ?? '');
   let opusPayload = 0;
   sdpParsed.media.forEach((media) => {
+    const mid = getMidString(media.mid!);
     if (media.type === 'audio') {
       media.rtp.some((rtp): boolean => {
         if (rtp.codec === 'opus') {
@@ -656,13 +661,13 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
       });
 
       if (media.rtcpFb?.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
-        nackMids.push(media.mid!);
+        nackMids.push(mid);
       }
 
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (fmtp.config.includes('sprop-stereo=1')) {
-            stereoMids.push(media.mid!);
+            stereoMids.push(mid);
           }
           return true;
         }
@@ -685,4 +690,8 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
       media.connection.version = 4;
     }
   }
+}
+
+function getMidString(mid: string | number) {
+  return typeof mid === 'number' ? mid.toFixed(0) : mid;
 }
