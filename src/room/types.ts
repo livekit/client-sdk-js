@@ -1,4 +1,5 @@
 import type { DataStream_Chunk, Encryption_Type } from '@livekit/protocol';
+import type { MediaDescription } from 'sdp-transform';
 import type { Future } from './utils';
 
 export type SimulationOptions = {
