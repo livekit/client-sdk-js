@@ -9,7 +9,6 @@ import {
   Encryption_Type,
   JoinResponse,
   ParticipantInfo,
-  ParticipantPermission,
   RequestResponse,
   RequestResponse_Reason,
   RpcAck,
@@ -451,16 +450,6 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
-  }
-
-  /** @internal */
-  setPermissions(permissions: ParticipantPermission): boolean {
-    const prevPermissions = this.permissions;
-    const changed = super.setPermissions(permissions);
-    if (changed && prevPermissions) {
-      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
-    }
-    return changed;
   }
 
   /** @internal */
