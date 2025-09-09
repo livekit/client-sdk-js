@@ -43,6 +43,7 @@ import type {
   RoomOptions,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
+import { ConnectionCredentials } from './ConnectionCredentials';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
@@ -169,6 +170,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
+
+  private connectionCredentials?: ConnectionCredentials;
 
   private disconnectLock: Mutex;
 
@@ -588,7 +591,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  async prepareConnection(url: string, token?: string) {
+  prepareConnection(connectionCredentials: ConnectionCredentials): Promise<void>;
+  prepareConnection(url: string): Promise<void>;
+  /** @deprecated Use room.prepareConnection(connectionCredentials) instead */
+  prepareConnection(url: string, token: string): Promise<void>;
+  async prepareConnection(
+    urlOrConnectionCredentials: ConnectionCredentials | string,
+    tokenOrUnknown?: string,
+  ) {
+    let url, token;
+    if (urlOrConnectionCredentials instanceof ConnectionCredentials) {
+      const result = await urlOrConnectionCredentials.generate();
+      url = result.serverUrl;
+      token = result.participantToken;
+    } else {
+      url = urlOrConnectionCredentials;
+      token = tokenOrUnknown;
+    }
+
     if (this.state !== ConnectionState.Disconnected) {
       return;
     }
@@ -612,7 +632,32 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect: {
+    (connectionCredentials: ConnectionCredentials, opts?: RoomConnectOptions): Promise<void>;
+    /** @deprecated Use room.connect(connectionCredentials, opts?: RoomConnectOptions) instead */
+    (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
+  } = async (urlOrConnectionCredentials, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
+    let opts: RoomConnectOptions = {};
+    if (
+      urlOrConnectionCredentials instanceof ConnectionCredentials &&
+      typeof tokenOrOpts !== 'string'
+    ) {
+      this.connectionCredentials = urlOrConnectionCredentials;
+      opts = tokenOrOpts ?? {};
+    } else if (typeof urlOrConnectionCredentials === 'string' && typeof tokenOrOpts === 'string') {
+      this.connectionCredentials = new ConnectionCredentials.Literal({
+        serverUrl: urlOrConnectionCredentials,
+        participantToken: tokenOrOpts,
+      });
+      opts = optsOrUnset ?? {};
+    } else {
+      throw new Error(
+        `Room.connect received invalid parameters - expected url/token or connectionCredentials, received ${urlOrConnectionCredentials}, ${tokenOrOpts}, ${optsOrUnset}`,
+      );
+    }
+
+    const { serverUrl: url, participantToken: token } = await this.connectionCredentials.generate();
+
     if (!isBrowserSupported()) {
       if (isReactNative()) {
         throw Error("WebRTC isn't detected, have you called registerGlobals?");

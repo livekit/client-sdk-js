@@ -11,6 +11,7 @@ import type {
 } from '../../src/index';
 import {
   BackupCodecPolicy,
+  ConnectionCredentials,
   ConnectionQuality,
   ConnectionState,
   DisconnectReason,
@@ -164,8 +165,13 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
+    const credentials = new ConnectionCredentials.Literal({
+      serverUrl: url,
+      participantToken: token,
+    });
+
     startTime = Date.now();
-    await room.prepareConnection(url, token);
+    await room.prepareConnection(credentials);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
     room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
@@ -407,7 +413,7 @@ const appActions = {
           reject(error);
         }
       });
-      await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
+      await Promise.all([room.connect(credentials, connectOptions), publishPromise]);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
