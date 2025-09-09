@@ -2,7 +2,12 @@ import { decodeJwt } from 'jose';
 
 export type ConnectionDetails = {
   serverUrl: string;
+
+  /** The name of the room to join. If omitted, a random new room name will be generated instead. */
   roomName?: string;
+
+  /** The identity of the participant the token should connect as connect as. If omitted, a random
+   * identity will be used instead. */
   participantName?: string;
   participantToken: string;
 };
@@ -83,16 +88,9 @@ export namespace ConnectionCredentials {
     }
   }
 
-  export type SandboxOptions = {
+  export type SandboxOptions = Pick<ConnectionDetails, 'roomName' | 'participantName'> & {
     sandboxId: string;
     baseUrl?: string;
-
-    /** The name of the room to join. If omitted, a random new room name will be generated instead. */
-    roomName?: string;
-
-    /** The identity of the participant the token should connect as connect as. If omitted, a random
-     * identity will be used instead. */
-    participantName?: string;
 
     /** Disable sandbox security related warning log if ConnectionCredentials.Sandbox is used in
      * production */
