@@ -88,7 +88,7 @@ export namespace ConnectionCredentials {
     }
   }
 
-  export type SandboxOptions = Pick<ConnectionDetails, 'roomName' | 'participantName'> & {
+  export type SandboxTokenServerOptions = Pick<ConnectionDetails, 'roomName' | 'participantName'> & {
     sandboxId: string;
     baseUrl?: string;
 
@@ -105,9 +105,9 @@ export namespace ConnectionCredentials {
    * For more info:
    * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
   export class SandboxTokenServer extends ConnectionCredentials {
-    protected options: SandboxOptions;
+    protected options: SandboxTokenServerOptions;
 
-    constructor(options: SandboxOptions) {
+    constructor(options: SandboxTokenServerOptions) {
       super();
       this.options = options;
 
