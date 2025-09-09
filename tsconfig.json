@@ -9,8 +9,7 @@
       "DOM.AsyncIterable",
       "ES2017",
       "ES2018.Promise",
-      "ES2021.WeakRef",
-      "ES2020.BigInt"
+      "ES2021.WeakRef"
     ],
     "rootDir": "./",
     "outDir": "dist",
