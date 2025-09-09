@@ -54,18 +54,6 @@ export abstract class ConnectionCredentials {
 }
 
 export namespace ConnectionCredentials {
-  /** ConnectionCredentials.Custom allows a user to define a manual function which generates new
-   * {@link ConnectionDetails} values on demand. Use this to get credentials from custom backends / etc.
-   * */
-  export class Custom extends ConnectionCredentials {
-    protected fetch: () => Promise<ConnectionDetails>;
-
-    constructor(handler: () => Promise<ConnectionDetails>) {
-      super();
-      this.fetch = handler;
-    }
-  }
-
   /** ConnectionCredentials.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
@@ -85,6 +73,18 @@ export namespace ConnectionCredentials {
         );
       }
       return this.payload;
+    }
+  }
+
+  /** ConnectionCredentials.Custom allows a user to define a manual function which generates new
+   * {@link ConnectionDetails} values on demand. Use this to get credentials from custom backends / etc.
+   * */
+  export class Custom extends ConnectionCredentials {
+    protected fetch: () => Promise<ConnectionDetails>;
+
+    constructor(handler: () => Promise<ConnectionDetails>) {
+      super();
+      this.fetch = handler;
     }
   }
 
