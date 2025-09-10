@@ -1,4 +1,5 @@
 import { decodeJwt } from 'jose';
+import log, { LoggerNames, getLogger } from '../logger';
 
 export type ConnectionDetails = {
   serverUrl: string;
@@ -54,21 +55,27 @@ export abstract class ConnectionCredentials {
 }
 
 export namespace ConnectionCredentials {
+  export type LiteralOptions = { loggerName?: string };
+
   /** ConnectionCredentials.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
   export class Literal extends ConnectionCredentials {
     payload: ConnectionDetails;
 
-    constructor(payload: ConnectionDetails) {
+    private log = log;
+
+    constructor(payload: ConnectionDetails, options?: LiteralOptions) {
       super();
       this.payload = payload;
+
+      this.log = getLogger(options?.loggerName ?? LoggerNames.ConnectionCredentials);
     }
 
     async fetch() {
       if (this.isCachedConnectionDetailsExpired()) {
         // FIXME: figure out a better logging solution?
-        console.warn(
+        this.log.warn(
           'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
         );
       }
@@ -94,6 +101,7 @@ export namespace ConnectionCredentials {
   > & {
     sandboxId: string;
     baseUrl?: string;
+    loggerName?: string;
 
     /** Disable sandbox security related warning log if ConnectionCredentials.Sandbox is used in
      * production */
@@ -110,13 +118,17 @@ export namespace ConnectionCredentials {
   export class SandboxTokenServer extends ConnectionCredentials {
     protected options: SandboxTokenServerOptions;
 
+    private log = log;
+
     constructor(options: SandboxTokenServerOptions) {
       super();
       this.options = options;
 
+      this.log = getLogger(options.loggerName ?? LoggerNames.ConnectionCredentials);
+
       if (process.env.NODE_ENV === 'production' && !this.options.disableSecurityWarning) {
         // FIXME: figure out a better logging solution?
-        console.warn(
+        this.log.warn(
           'ConnectionCredentials.SandboxTokenServer is meant for development, and is not security hardened. In production, implement your own token generation solution.',
         );
       }
