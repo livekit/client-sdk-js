@@ -167,7 +167,10 @@ export namespace ConnectionCredentials {
     }
   }
 
-  export type SandboxTokenServerOptions = Pick<Request, 'roomName' | 'participantName'> & {
+  export type SandboxTokenServerOptions = Pick<
+    Request,
+    'roomName' | 'participantName' | 'roomConfig'
+  > & {
     sandboxId: string;
     baseUrl?: string;
     loggerName?: string;
