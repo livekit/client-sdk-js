@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-add missing async
+internal typing fix - add missing async to postAction
