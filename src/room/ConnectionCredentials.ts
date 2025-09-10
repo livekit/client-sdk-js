@@ -12,14 +12,18 @@ export abstract class ConnectionCredentials {
   private cachedResponse: ConnectionCredentials.Response | null = null;
   private cachedRequest: ConnectionCredentials.Request = {};
 
-  protected isCachedResponseExpired() {
+  protected getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
     if (!token) {
-      return true;
+      return null;
     }
 
-    const jwtPayload = decodeJwt(token);
-    if (!jwtPayload.exp) {
+    return decodeJwt<{ roomConfig: ReturnType<RoomConfiguration['toJson']> }>(token);
+  }
+
+  protected isCachedResponseExpired() {
+    const jwtPayload = this.getCachedResponseJwtPayload();
+    if (!jwtPayload?.exp) {
       return true;
     }
     const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
@@ -27,6 +31,14 @@ export abstract class ConnectionCredentials {
 
     const now = new Date();
     return expiresAt >= now;
+  }
+
+  getCachedResponseRoomConfig() {
+    const roomConfigJsonValue = this.getCachedResponseJwtPayload()?.roomConfig;
+    if (!roomConfigJsonValue) {
+      return null;
+    }
+    return RoomConfiguration.fromJson(roomConfigJsonValue);
   }
 
   protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
@@ -71,6 +83,14 @@ export abstract class ConnectionCredentials {
     return this.cachedResponse!;
   }
 
+  async generateWithCachedRequest() {
+    if (this.isCachedResponseExpired()) {
+      await this.refresh();
+    }
+
+    return this.cachedResponse!;
+  }
+
   async refresh() {
     this.cachedResponse = await this.fetch(this.cachedRequest);
   }
@@ -82,17 +102,22 @@ export abstract class ConnectionCredentials {
 
 export namespace ConnectionCredentials {
   export type Request = {
-    /** The name of the room to join. If omitted, a random new room name will be generated instead. */
+    /** The name of the room being requested when generating credentials */
     roomName?: string;
 
-    /** The identity of the participant the token should connect as connect as. If omitted, a random
-     * identity will be used instead. */
+    /** The identity of the participant being requested for this client when generating credentials */
     participantName?: string;
 
+    /** 
+      * A RoomConfiguration object can be passed to include extra parameters when generating
+      * connection credentials - dispatching agents, defining egress settings, etc
+      * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
+      */
     roomConfig?: RoomConfiguration;
   };
   export type Response = {
     serverUrl: string;
+    participantToken: string;
 
     /** The name of the room to join. If omitted, a random new room name will be generated instead. */
     roomName?: string;
@@ -100,9 +125,6 @@ export namespace ConnectionCredentials {
     /** The identity of the participant the token should connect as connect as. If omitted, a random
      * identity will be used instead. */
     participantName?: string;
-    participantToken: string;
-
-    roomConfig?: RoomConfiguration;
   };
 
   export type LiteralOptions = { loggerName?: string };
@@ -146,8 +168,8 @@ export namespace ConnectionCredentials {
   }
 
   export type SandboxTokenServerOptions = Pick<
-    Response,
-    'roomName' | 'participantName' | 'roomConfig'
+    Request,
+    'roomName' | 'participantName'
   > & {
     sandboxId: string;
     baseUrl?: string;
