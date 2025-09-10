@@ -1,17 +1,6 @@
+import { RoomConfiguration } from '@livekit/protocol';
 import { decodeJwt } from 'jose';
 import log, { LoggerNames, getLogger } from '../logger';
-
-export type ConnectionDetails = {
-  serverUrl: string;
-
-  /** The name of the room to join. If omitted, a random new room name will be generated instead. */
-  roomName?: string;
-
-  /** The identity of the participant the token should connect as connect as. If omitted, a random
-   * identity will be used instead. */
-  participantName?: string;
-  participantToken: string;
-};
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
@@ -20,10 +9,11 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
  * ConnectionCredentials handles getting credentials for connecting to a new Room, caching
  * the last result and using it until it expires. */
 export abstract class ConnectionCredentials {
-  private cachedConnectionDetails: ConnectionDetails | null = null;
+  private cachedResponse: ConnectionCredentials.Response | null = null;
+  private cachedRequest: ConnectionCredentials.Request = {};
 
-  protected isCachedConnectionDetailsExpired() {
-    const token = this.cachedConnectionDetails?.participantToken;
+  protected isCachedResponseExpired() {
+    const token = this.cachedResponse?.participantToken;
     if (!token) {
       return true;
     }
@@ -39,33 +29,93 @@ export abstract class ConnectionCredentials {
     return expiresAt >= now;
   }
 
-  async generate() {
-    if (this.isCachedConnectionDetailsExpired()) {
+  protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
+    if (!this.cachedRequest) {
+      return false;
+    }
+
+    if (this.cachedRequest.roomName !== request.roomName) {
+      return false;
+    }
+    if (this.cachedRequest.participantName !== request.participantName) {
+      return false;
+    }
+    if (
+      (!this.cachedRequest.roomConfig && request.roomConfig) ||
+      (this.cachedRequest.roomConfig && !request.roomConfig)
+    ) {
+      return false;
+    }
+    if (
+      this.cachedRequest.roomConfig &&
+      request.roomConfig &&
+      !this.cachedRequest.roomConfig.equals(request.roomConfig)
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async generate(request: ConnectionCredentials.Request = {}) {
+    let shouldRefresh = this.isCachedResponseExpired();
+    if (!this.isSameAsCachedRequest(request)) {
+      this.cachedRequest = request;
+      shouldRefresh = true;
+    }
+
+    if (shouldRefresh) {
       await this.refresh();
     }
 
-    return this.cachedConnectionDetails!;
+    return this.cachedResponse!;
   }
 
   async refresh() {
-    this.cachedConnectionDetails = await this.fetch();
+    this.cachedResponse = await this.fetch(this.cachedRequest);
   }
 
-  protected abstract fetch(): Promise<ConnectionDetails>;
+  protected abstract fetch(
+    request: ConnectionCredentials.Request,
+  ): Promise<ConnectionCredentials.Response>;
 }
 
 export namespace ConnectionCredentials {
+  export type Request = {
+    /** The name of the room to join. If omitted, a random new room name will be generated instead. */
+    roomName?: string;
+
+    /** The identity of the participant the token should connect as connect as. If omitted, a random
+     * identity will be used instead. */
+    participantName?: string;
+
+    roomConfig?: RoomConfiguration;
+  };
+  export type Response = {
+    serverUrl: string;
+
+    /** The name of the room to join. If omitted, a random new room name will be generated instead. */
+    roomName?: string;
+
+    /** The identity of the participant the token should connect as connect as. If omitted, a random
+     * identity will be used instead. */
+    participantName?: string;
+    participantToken: string;
+
+    roomConfig?: RoomConfiguration;
+  };
+
   export type LiteralOptions = { loggerName?: string };
 
   /** ConnectionCredentials.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
   export class Literal extends ConnectionCredentials {
-    payload: ConnectionDetails;
+    payload: Response;
 
     private log = log;
 
-    constructor(payload: ConnectionDetails, options?: LiteralOptions) {
+    constructor(payload: Response, options?: LiteralOptions) {
       super();
       this.payload = payload;
 
@@ -73,7 +123,7 @@ export namespace ConnectionCredentials {
     }
 
     async fetch() {
-      if (this.isCachedConnectionDetailsExpired()) {
+      if (this.isCachedResponseExpired()) {
         // FIXME: figure out a better logging solution?
         this.log.warn(
           'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
@@ -84,20 +134,20 @@ export namespace ConnectionCredentials {
   }
 
   /** ConnectionCredentials.Custom allows a user to define a manual function which generates new
-   * {@link ConnectionDetails} values on demand. Use this to get credentials from custom backends / etc.
+   * {@link Response} values on demand. Use this to get credentials from custom backends / etc.
    * */
   export class Custom extends ConnectionCredentials {
-    protected fetch: () => Promise<ConnectionDetails>;
+    protected fetch: (request: Request) => Promise<Response>;
 
-    constructor(handler: () => Promise<ConnectionDetails>) {
+    constructor(handler: (request: Request) => Promise<Response>) {
       super();
       this.fetch = handler;
     }
   }
 
   export type SandboxTokenServerOptions = Pick<
-    ConnectionDetails,
-    'roomName' | 'participantName'
+    Response,
+    'roomName' | 'participantName' | 'roomConfig'
   > & {
     sandboxId: string;
     baseUrl?: string;
@@ -134,8 +184,13 @@ export namespace ConnectionCredentials {
       }
     }
 
-    async fetch() {
+    async fetch(request: Request) {
       const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
+
+      const roomName = this.options.roomName ?? request.roomName;
+      const participantName = this.options.participantName ?? request.participantName;
+      const roomConfig = this.options.roomConfig ?? request.roomConfig;
+
       const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
         method: 'POST',
         headers: {
@@ -143,19 +198,20 @@ export namespace ConnectionCredentials {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          roomName: this.options.roomName,
-          participantName: this.options.participantName,
+          roomName,
+          participantName,
+          roomConfig: roomConfig?.toJson(),
         }),
       });
 
       if (!response.ok) {
         throw new Error(
-          `Error generting token from sandbox token server: received ${response.status} / ${await response.text()}`,
+          `Error generating token from sandbox token server: received ${response.status} / ${await response.text()}`,
         );
       }
 
-      const body: ConnectionDetails = await response.json();
-      return body;
+      const body: Exclude<Response, 'roomConfig'> = await response.json();
+      return { ...body, roomConfig };
     }
   }
 }
