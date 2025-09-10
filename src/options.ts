@@ -1,4 +1,3 @@
-import type { RoomConfiguration } from '@livekit/protocol';
 import type { E2EEOptions } from './e2ee/types';
 import type { ConnectionCredentials } from './room/ConnectionCredentials';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
