@@ -10,6 +10,7 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
  * the last result and using it until it expires. */
 export abstract class ConnectionCredentials {
   private cachedResponse: ConnectionCredentials.Response | null = null;
+
   private cachedRequest: ConnectionCredentials.Request = {};
 
   protected getCachedResponseJwtPayload() {
