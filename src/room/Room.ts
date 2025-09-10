@@ -592,7 +592,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection(connectionCredentials: ConnectionCredentials, opts?: RoomPrepareConnectionOptions): Promise<void>;
+  prepareConnection(
+    connectionCredentials: ConnectionCredentials,
+    opts?: RoomPrepareConnectionOptions,
+  ): Promise<void>;
   prepareConnection(url: string, opts?: RoomPrepareConnectionOptions): Promise<void>;
   /** @deprecated Use room.prepareConnection(connectionCredentials) instead */
   prepareConnection(url: string, token?: string): Promise<void>;
@@ -601,11 +604,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     tokenOrOpts?: string | RoomPrepareConnectionOptions | undefined,
   ) {
     let url, token;
-    if (urlOrConnectionCredentials instanceof ConnectionCredentials && typeof tokenOrOpts !== 'string') {
-      const result = await urlOrConnectionCredentials.generate(tokenOrOpts?.connectionCredentialsRequest);
+    if (
+      urlOrConnectionCredentials instanceof ConnectionCredentials &&
+      typeof tokenOrOpts !== 'string'
+    ) {
+      const result = await urlOrConnectionCredentials.generate(
+        tokenOrOpts?.connectionCredentialsRequest,
+      );
       url = result.serverUrl;
       token = result.participantToken;
-    } else if (typeof urlOrConnectionCredentials === 'string' && (typeof tokenOrOpts === 'string' || typeof tokenOrOpts === 'undefined')) {
+    } else if (
+      typeof urlOrConnectionCredentials === 'string' &&
+      (typeof tokenOrOpts === 'string' || typeof tokenOrOpts === 'undefined')
+    ) {
       url = urlOrConnectionCredentials;
       token = tokenOrOpts;
     } else {
@@ -661,7 +672,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
 
-    const { serverUrl: url, participantToken: token } = await this.connectionCredentials.generate(opts?.connectionCredentialsRequest);
+    const { serverUrl: url, participantToken: token } = await this.connectionCredentials.generate(
+      opts?.connectionCredentialsRequest,
+    );
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {

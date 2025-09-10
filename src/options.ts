@@ -1,5 +1,6 @@
 import type { RoomConfiguration } from '@livekit/protocol';
 import type { E2EEOptions } from './e2ee/types';
+import type { ConnectionCredentials } from './room/ConnectionCredentials';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -8,7 +9,6 @@ import type {
   VideoCaptureOptions,
 } from './room/track/options';
 import type { AdaptiveStreamSettings } from './room/track/types';
-import type { ConnectionCredentials } from './room/ConnectionCredentials';
 
 export interface WebAudioSettings {
   audioContext: AudioContext;
@@ -146,14 +146,14 @@ export interface InternalRoomConnectOptions {
  */
 export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {
   /** Request payload sent to the ConnectionCredentials when generating new credentials.
-    * Use this to request a room/participant name, automatically dispatch agents, etc
-    */
+   * Use this to request a room/participant name, automatically dispatch agents, etc
+   */
   connectionCredentialsRequest?: ConnectionCredentials.Request;
 }
 
 export interface RoomPrepareConnectionOptions {
   /** Request payload sent to the ConnectionCredentials when generating new credentials.
-    * Use this to request a room/participant name, automatically dispatch agents, etc
-    */
+   * Use this to request a room/participant name, automatically dispatch agents, etc
+   */
   connectionCredentialsRequest?: ConnectionCredentials.Request;
 }

@@ -108,11 +108,11 @@ export namespace ConnectionCredentials {
     /** The identity of the participant being requested for this client when generating credentials */
     participantName?: string;
 
-    /** 
-      * A RoomConfiguration object can be passed to include extra parameters when generating
-      * connection credentials - dispatching agents, defining egress settings, etc
-      * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
-      */
+    /**
+     * A RoomConfiguration object can be passed to include extra parameters when generating
+     * connection credentials - dispatching agents, defining egress settings, etc
+     * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
+     */
     roomConfig?: RoomConfiguration;
   };
   export type Response = {
@@ -167,10 +167,7 @@ export namespace ConnectionCredentials {
     }
   }
 
-  export type SandboxTokenServerOptions = Pick<
-    Request,
-    'roomName' | 'participantName'
-  > & {
+  export type SandboxTokenServerOptions = Pick<Request, 'roomName' | 'participantName'> & {
     sandboxId: string;
     baseUrl?: string;
     loggerName?: string;
