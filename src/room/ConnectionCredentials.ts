@@ -110,8 +110,8 @@ export namespace ConnectionCredentials {
     participantName?: string;
 
     /**
-     * A RoomConfiguration object can be passed to include extra parameters when generating
-     * connection credentials - dispatching agents, defining egress settings, etc
+     * A RoomConfiguration object can be passed to request extra parameters should be included when
+     * generating connection credentials - dispatching agents, defining egress settings, etc
      * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
      */
     roomConfig?: RoomConfiguration;
@@ -119,13 +119,6 @@ export namespace ConnectionCredentials {
   export type Response = {
     serverUrl: string;
     participantToken: string;
-
-    /** The name of the room to join. If omitted, a random new room name will be generated instead. */
-    roomName?: string;
-
-    /** The identity of the participant the token should connect as connect as. If omitted, a random
-     * identity will be used instead. */
-    participantName?: string;
   };
 
   export type LiteralOptions = { loggerName?: string };
