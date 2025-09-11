@@ -11,7 +11,7 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 export abstract class ConnectionCredentials {
   private request: ConnectionCredentials.Request = {};
 
-  private cachedResponse: ConnectionCredentials.Response | null = null;
+  protected cachedResponse: ConnectionCredentials.Response | null = null;
 
   protected getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
@@ -129,13 +129,11 @@ export namespace ConnectionCredentials {
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
   export class Literal extends ConnectionCredentials {
-    payload: Response;
-
     private log = log;
 
     constructor(payload: Response, options?: LiteralOptions) {
       super();
-      this.payload = payload;
+      this.cachedResponse = payload;
 
       this.log = getLogger(options?.loggerName ?? LoggerNames.ConnectionCredentials);
     }
@@ -147,7 +145,7 @@ export namespace ConnectionCredentials {
           'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
         );
       }
-      return this.payload;
+      return this.cachedResponse!;
     }
   }
 
