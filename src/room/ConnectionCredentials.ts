@@ -13,6 +13,8 @@ export abstract class ConnectionCredentials {
 
   protected cachedResponse: ConnectionCredentials.Response | null = null;
 
+  private inProgressFetch: Promise<ConnectionCredentials.Response> | null = null;
+
   protected getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
     if (!token) {
@@ -95,7 +97,17 @@ export abstract class ConnectionCredentials {
   }
 
   async refresh() {
-    this.cachedResponse = await this.fetch(this.request);
+    if (this.inProgressFetch) {
+      await this.inProgressFetch;
+      return;
+    }
+
+    try {
+      this.inProgressFetch = this.fetch(this.request);
+      this.cachedResponse = await this.inProgressFetch;
+    } finally {
+      this.inProgressFetch = null;
+    }
   }
 
   protected abstract fetch(
