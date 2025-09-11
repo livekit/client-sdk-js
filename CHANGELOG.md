@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.15.7
+
+### Patch Changes
+
+- Ensure permission event is only emitted once for local participant - [#1643](https://github.com/livekit/client-sdk-js/pull/1643) ([@lukasIO](https://github.com/lukasIO))
+
+- internal typing fix - add missing async to postAction - [#1644](https://github.com/livekit/client-sdk-js/pull/1644) ([@1egoman](https://github.com/1egoman))
+
+- Ensure mid is always interpreted as string - [#1641](https://github.com/livekit/client-sdk-js/pull/1641) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.6
 
 ### Patch Changes
