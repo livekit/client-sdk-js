@@ -143,16 +143,4 @@ export interface InternalRoomConnectOptions {
 /**
  * Options for Room.connect()
  */
-export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {
-  /** Request payload sent to the ConnectionCredentials when generating new credentials.
-   * Use this to request a room/participant name, automatically dispatch agents, etc
-   */
-  connectionCredentialsRequest?: ConnectionCredentials.Request;
-}
-
-export interface RoomPrepareConnectionOptions {
-  /** Request payload sent to the ConnectionCredentials when generating new credentials.
-   * Use this to request a room/participant name, automatically dispatch agents, etc
-   */
-  connectionCredentialsRequest?: ConnectionCredentials.Request;
-}
+export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {}
