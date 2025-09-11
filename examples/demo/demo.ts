@@ -128,7 +128,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: e2eeEnabled
+      encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
     };
