@@ -70,9 +70,9 @@ export abstract class ConnectionCredentials {
   }
 
   /**
-    * Store request metadata which will be provide explicitly when fetching new credentials.
-    *
-    * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
+   * Store request metadata which will be provide explicitly when fetching new credentials.
+   *
+   * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
   setRequest(request: ConnectionCredentials.Request) {
     if (!this.isSameAsCachedRequest(request)) {
       this.cachedResponse = null;
