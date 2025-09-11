@@ -9,9 +9,8 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
  * ConnectionCredentials handles getting credentials for connecting to a new Room, caching
  * the last result and using it until it expires. */
 export abstract class ConnectionCredentials {
+  private request: ConnectionCredentials.Request = {};
   private cachedResponse: ConnectionCredentials.Response | null = null;
-
-  private cachedRequest: ConnectionCredentials.Request = {};
 
   protected getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
@@ -19,7 +18,7 @@ export abstract class ConnectionCredentials {
       return null;
     }
 
-    return decodeJwt<{ roomConfig: ReturnType<RoomConfiguration['toJson']> }>(token);
+    return decodeJwt<{ roomConfig?: ReturnType<RoomConfiguration['toJson']> }>(token);
   }
 
   protected isCachedResponseExpired() {
@@ -43,26 +42,26 @@ export abstract class ConnectionCredentials {
   }
 
   protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
-    if (!this.cachedRequest) {
+    if (!this.request) {
       return false;
     }
 
-    if (this.cachedRequest.roomName !== request.roomName) {
+    if (this.request.roomName !== request.roomName) {
       return false;
     }
-    if (this.cachedRequest.participantName !== request.participantName) {
+    if (this.request.participantName !== request.participantName) {
       return false;
     }
     if (
-      (!this.cachedRequest.roomConfig && request.roomConfig) ||
-      (this.cachedRequest.roomConfig && !request.roomConfig)
+      (!this.request.roomConfig && request.roomConfig) ||
+      (this.request.roomConfig && !request.roomConfig)
     ) {
       return false;
     }
     if (
-      this.cachedRequest.roomConfig &&
+      this.request.roomConfig &&
       request.roomConfig &&
-      !this.cachedRequest.roomConfig.equals(request.roomConfig)
+      !this.request.roomConfig.equals(request.roomConfig)
     ) {
       return false;
     }
@@ -70,21 +69,22 @@ export abstract class ConnectionCredentials {
     return true;
   }
 
-  async generate(request: ConnectionCredentials.Request = {}) {
-    let shouldRefresh = this.isCachedResponseExpired();
+  /**
+    * Store request metadata which will be provide explicitly when fetching new credentials.
+    *
+    * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
+  setRequest(request: ConnectionCredentials.Request) {
     if (!this.isSameAsCachedRequest(request)) {
-      this.cachedRequest = request;
-      shouldRefresh = true;
+      this.cachedResponse = null;
     }
-
-    if (shouldRefresh) {
-      await this.refresh();
-    }
-
-    return this.cachedResponse!;
+    this.request = request;
+  }
+  clearRequest() {
+    this.request = {};
+    this.cachedResponse = null;
   }
 
-  async generateWithCachedRequest() {
+  async generate() {
     if (this.isCachedResponseExpired()) {
       await this.refresh();
     }
@@ -93,7 +93,7 @@ export abstract class ConnectionCredentials {
   }
 
   async refresh() {
-    this.cachedResponse = await this.fetch(this.cachedRequest);
+    this.cachedResponse = await this.fetch(this.request);
   }
 
   protected abstract fetch(
