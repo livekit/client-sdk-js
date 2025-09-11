@@ -88,10 +88,19 @@ export interface InternalRoomOptions {
   webAudioMix: boolean | WebAudioSettings;
 
   /**
+   * @deprecated Use `encryption` instead.
+   */
+  e2ee?: E2EEOptions;
+
+  /**
    * @experimental
    * Options for enabling end-to-end encryption.
    */
-  e2ee?: E2EEOptions;
+  encryption?: E2EEOptions;
+
+  /**
+   * @experimental
+   */
 
   // TODO: add this back in for a subsequent release and deprecate `e2ee` above
   // /**
