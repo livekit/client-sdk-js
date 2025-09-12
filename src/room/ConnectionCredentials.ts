@@ -65,7 +65,7 @@ export namespace ConnectionCredentials {
   };
 
   /**
-   * RefreshableConnectionCredentials handles getting credentials for connecting to a new Room from
+   * ConnectionCredentials.Refreshable handles getting credentials for connecting to a new Room from
    * an async source, caching them and auto refreshing them if they expire. */
   export abstract class Refreshable extends ConnectionCredentials {
     private request: ConnectionCredentials.Request = {};
