@@ -135,7 +135,6 @@ export namespace ConnectionCredentials {
     participantToken: string;
   };
 
-  export type LiteralOptions = { loggerName?: string };
 
   /** ConnectionCredentials.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
@@ -143,16 +142,14 @@ export namespace ConnectionCredentials {
   export class Literal extends ConnectionCredentials {
     private log = log;
 
-    constructor(payload: Response, options?: LiteralOptions) {
+    constructor(payload: Response) {
       super();
       this.cachedResponse = payload;
-
-      this.log = getLogger(options?.loggerName ?? LoggerNames.ConnectionCredentials);
+      this.log = getLogger(LoggerNames.ConnectionCredentials);
     }
 
     async fetch() {
       if (this.isCachedResponseExpired()) {
-        // FIXME: figure out a better logging solution?
         this.log.warn(
           'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
         );
@@ -179,7 +176,6 @@ export namespace ConnectionCredentials {
   > & {
     sandboxId: string;
     baseUrl?: string;
-    loggerName?: string;
 
     /** Disable sandbox security related warning log if ConnectionCredentials.Sandbox is used in
      * production */
@@ -202,10 +198,9 @@ export namespace ConnectionCredentials {
       super();
       this.options = options;
 
-      this.log = getLogger(options.loggerName ?? LoggerNames.ConnectionCredentials);
+      this.log = getLogger(LoggerNames.ConnectionCredentials);
 
       if (process.env.NODE_ENV === 'production' && !this.options.disableSecurityWarning) {
-        // FIXME: figure out a better logging solution?
         this.log.warn(
           'ConnectionCredentials.SandboxTokenServer is meant for development, and is not security hardened. In production, implement your own token generation solution.',
         );
