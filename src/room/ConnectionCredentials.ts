@@ -5,15 +5,13 @@ import log, { LoggerNames, getLogger } from '../logger';
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
-/**
- * ConnectionCredentials handles getting credentials for connecting to a new Room, caching
- * the last result and using it until it expires. */
+/** ConnectionCredentials handles generating credentials for connecting to a new Room */
 export abstract class ConnectionCredentials {
-  private request: ConnectionCredentials.Request = {};
-
   protected cachedResponse: ConnectionCredentials.Response | null = null;
 
-  private inProgressFetch: Promise<ConnectionCredentials.Response> | null = null;
+  constructor(response: ConnectionCredentials.Response | null = null) {
+    this.cachedResponse = response;
+  }
 
   protected getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
@@ -44,77 +42,8 @@ export abstract class ConnectionCredentials {
     return RoomConfiguration.fromJson(roomConfigJsonValue);
   }
 
-  protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
-    if (!this.request) {
-      return false;
-    }
-
-    if (this.request.roomName !== request.roomName) {
-      return false;
-    }
-    if (this.request.participantName !== request.participantName) {
-      return false;
-    }
-    if (
-      (!this.request.roomConfig && request.roomConfig) ||
-      (this.request.roomConfig && !request.roomConfig)
-    ) {
-      return false;
-    }
-    if (
-      this.request.roomConfig &&
-      request.roomConfig &&
-      !this.request.roomConfig.equals(request.roomConfig)
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Store request metadata which will be provide explicitly when fetching new credentials.
-   *
-   * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
-  setRequest(request: ConnectionCredentials.Request) {
-    if (!this.isSameAsCachedRequest(request)) {
-      this.cachedResponse = null;
-    }
-    this.request = request;
-  }
-
-  clearRequest() {
-    this.request = {};
-    this.cachedResponse = null;
-  }
-
-  async generate() {
-    if (this.isCachedResponseExpired()) {
-      await this.refresh();
-    }
-
-    return this.cachedResponse!;
-  }
-
-  async refresh() {
-    if (this.inProgressFetch) {
-      await this.inProgressFetch;
-      return;
-    }
-
-    try {
-      this.inProgressFetch = this.fetch(this.request);
-      this.cachedResponse = await this.inProgressFetch;
-    } finally {
-      this.inProgressFetch = null;
-    }
-  }
-
-  protected abstract fetch(
-    request: ConnectionCredentials.Request,
-  ): Promise<ConnectionCredentials.Response>;
+  abstract generate(): Promise<ConnectionCredentials.Response>;
 }
-
 export namespace ConnectionCredentials {
   export type Request = {
     /** The name of the room being requested when generating credentials */
@@ -135,6 +64,84 @@ export namespace ConnectionCredentials {
     participantToken: string;
   };
 
+  /**
+   * RefreshableConnectionCredentials handles getting credentials for connecting to a new Room from
+   * an async source, caching them and auto refreshing them if they expire. */
+  export abstract class Refreshable extends ConnectionCredentials {
+    private request: ConnectionCredentials.Request = {};
+
+    private inProgressFetch: Promise<ConnectionCredentials.Response> | null = null;
+
+    protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
+      if (!this.request) {
+        return false;
+      }
+
+      if (this.request.roomName !== request.roomName) {
+        return false;
+      }
+      if (this.request.participantName !== request.participantName) {
+        return false;
+      }
+      if (
+        (!this.request.roomConfig && request.roomConfig) ||
+        (this.request.roomConfig && !request.roomConfig)
+      ) {
+        return false;
+      }
+      if (
+        this.request.roomConfig &&
+        request.roomConfig &&
+        !this.request.roomConfig.equals(request.roomConfig)
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+
+    /**
+     * Store request metadata which will be provide explicitly when fetching new credentials.
+     *
+     * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
+    setRequest(request: ConnectionCredentials.Request) {
+      if (!this.isSameAsCachedRequest(request)) {
+        this.cachedResponse = null;
+      }
+      this.request = request;
+    }
+
+    clearRequest() {
+      this.request = {};
+      this.cachedResponse = null;
+    }
+
+    async generate() {
+      if (this.isCachedResponseExpired()) {
+        await this.refresh();
+      }
+
+      return this.cachedResponse!;
+    }
+
+    async refresh() {
+      if (this.inProgressFetch) {
+        await this.inProgressFetch;
+        return;
+      }
+
+      try {
+        this.inProgressFetch = this.fetch(this.request);
+        this.cachedResponse = await this.inProgressFetch;
+      } finally {
+        this.inProgressFetch = null;
+      }
+    }
+
+    protected abstract fetch(
+      request: ConnectionCredentials.Request,
+    ): Promise<ConnectionCredentials.Response>;
+  }
 
   /** ConnectionCredentials.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
@@ -143,12 +150,11 @@ export namespace ConnectionCredentials {
     private log = log;
 
     constructor(payload: Response) {
-      super();
-      this.cachedResponse = payload;
+      super(payload);
       this.log = getLogger(LoggerNames.ConnectionCredentials);
     }
 
-    async fetch() {
+    async generate() {
       if (this.isCachedResponseExpired()) {
         this.log.warn(
           'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
@@ -161,7 +167,7 @@ export namespace ConnectionCredentials {
   /** ConnectionCredentials.Custom allows a user to define a manual function which generates new
    * {@link Response} values on demand. Use this to get credentials from custom backends / etc.
    * */
-  export class Custom extends ConnectionCredentials {
+  export class Custom extends ConnectionCredentials.Refreshable {
     protected fetch: (request: Request) => Promise<Response>;
 
     constructor(handler: (request: Request) => Promise<Response>) {
@@ -189,7 +195,7 @@ export namespace ConnectionCredentials {
    *
    * For more info:
    * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
-  export class SandboxTokenServer extends ConnectionCredentials {
+  export class SandboxTokenServer extends ConnectionCredentials.Refreshable {
     protected options: SandboxTokenServerOptions;
 
     private log = log;
