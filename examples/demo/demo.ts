@@ -121,7 +121,7 @@ const appActions = {
         videoCodec: preferredCodec || 'vp8',
         dtx: true,
         red: true,
-        forceStereo: true,
+        forceStereo: false,
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
