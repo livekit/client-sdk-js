@@ -1,4 +1,4 @@
-import { AudioTrackFeature } from '@livekit/protocol';
+import { AudioTrackFeature, SubscribedAudioCodec } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
@@ -6,9 +6,11 @@ import type { LoggerOptions } from '../types';
 import { isReactNative, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
-import type { AudioCaptureOptions } from './options';
+import type { AudioCaptureOptions, AudioCodec } from './options';
 import type { AudioProcessorOptions, TrackProcessor } from './processor/types';
 import { constraintsForOptions, detectSilence } from './utils';
+
+const refreshSubscribedAudioCodecAfterNewCodec = 5000;
 
 export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   /** @internal */
@@ -19,6 +21,8 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   private isKrispNoiseFilterEnabled = false;
 
   protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+
+  private subscribedCodecs?: SubscribedAudioCodec[];
 
   /**
    * boolean indicating whether enhanced noise cancellation is currently being used on this track
@@ -43,6 +47,28 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, loggerOptions);
     this.audioContext = audioContext;
     this.checkForSilence();
+  }
+
+  stop() {
+    this._mediaStreamTrack.getConstraints();
+    this.simulcastCodecs.forEach((trackInfo) => {
+      trackInfo.mediaStreamTrack.stop();
+    });
+    super.stop();
+  }
+
+  async pauseUpstream() {
+    await super.pauseUpstream();
+    for await (const sc of this.simulcastCodecs.values()) {
+      await sc.sender?.replaceTrack(null);
+    }
+  }
+
+  async resumeUpstream() {
+    await super.resumeUpstream();
+    for await (const sc of this.simulcastCodecs.values()) {
+      await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+    }
   }
 
   async mute(): Promise<typeof this> {
@@ -95,6 +121,13 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     }
   }
 
+  protected setTrackMuted(muted: boolean) {
+    super.setTrackMuted(muted);
+    for (const sc of this.simulcastCodecs.values()) {
+      sc.mediaStreamTrack.enabled = !muted;
+    }
+  }
+
   async restartTrack(options?: AudioCaptureOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
@@ -104,6 +137,13 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       }
     }
     await this.restart(constraints);
+
+    for await (const sc of this.simulcastCodecs.values()) {
+      if (sc.sender && sc.sender.transport?.state !== 'closed') {
+        sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+        await sc.sender.replaceTrack(sc.mediaStreamTrack);
+      }
+    }
   }
 
   protected async restart(constraints?: MediaTrackConstraints): Promise<typeof this> {
@@ -192,6 +232,9 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this.processor = processor;
       if (this.processor.processedTrack) {
         await this.sender?.replaceTrack(this.processor.processedTrack);
+        for await (const sc of this.simulcastCodecs.values()) {
+          await sc.sender?.replaceTrack(this.processor.processedTrack);
+        }
         this.processor.processedTrack.addEventListener(
           'enable-lk-krisp-noise-filter',
           this.handleKrispNoiseFilterEnable,
@@ -205,6 +248,55 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     } finally {
       unlock();
     }
+  }
+
+  setupSusbcribedCodecsRefresh() {
+    // browser will reenable disabled codec/layers after new codec has been published,
+    // so refresh subscribedCodecs after publish a new codec
+    setTimeout(() => {
+      if (this.subscribedCodecs) {
+        this.setPublishingCodecs(this.subscribedCodecs);
+      }
+    }, refreshSubscribedAudioCodecAfterNewCodec);
+  }
+
+  /**
+   * @internal
+   * Sets codecs that should be publishing, returns new codecs that have not yet
+   * been published
+   */
+  async setPublishingCodecs(codecs: SubscribedAudioCodec[]): Promise<AudioCodec[]> {
+    this.log.debug('setting publishing codecs', {
+      ...this.logContext,
+      codecs,
+      currentCodec: this.codec,
+    });
+    // only enable simulcast codec for preference codec setted
+    if (!this.codec && codecs.length > 0) {
+      return [];
+    }
+
+    this.subscribedCodecs = codecs;
+
+    const newCodecs: AudioCodec[] = [];
+    for await (const codec of codecs) {
+      if (!this.codec || this.codec === codec.codec) {
+        this.mediaStreamTrack.enabled = codec.enabled;
+        continue;
+      }
+
+      const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as AudioCodec);
+      this.log.debug(`try setPublishingCodec for ${codec.codec}`, {
+        ...this.logContext,
+        simulcastCodecInfo,
+      });
+      if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
+        if (codec.enabled) {
+          newCodecs.push(codec.codec as AudioCodec);
+        }
+      }
+    }
+    return newCodecs;
   }
 
   /**

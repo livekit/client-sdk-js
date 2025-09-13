@@ -115,6 +115,14 @@ export abstract class Track<
     return this._mediaStreamTrack;
   }
 
+  enabledMediaStreamTrack(): MediaStreamTrack | undefined {
+    if (this._mediaStreamTrack.enabled) {
+      return this._mediaStreamTrack;
+    }
+
+    return undefined;
+  }
+
   abstract get isLocal(): boolean;
 
   /**

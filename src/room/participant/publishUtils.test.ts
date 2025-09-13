@@ -137,7 +137,7 @@ describe('computeVideoEncodings', () => {
   //     const encodings = computeVideoEncodings(false, 100, 120, {
   //       simulcast: true,
   //       videoCodec: 'h264',
-  //       backupCodec: {
+  //       backupVideoCodec: {
   //         vp8: { maxBitrate: 1_000 },
   //         h264: { maxBitrate: 2_000 },
   //       },

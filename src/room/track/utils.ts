@@ -113,7 +113,11 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+    const mediaStreamTrack = track.enabledMediaStreamTrack();
+    if (!mediaStreamTrack) {
+      return false;
+    }
+    const source = ctx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
 
     source.connect(analyser);
     await sleep(timeOffset);

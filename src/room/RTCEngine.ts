@@ -24,6 +24,7 @@ import {
   SignalTarget,
   SpeakerInfo,
   type StreamStateUpdate,
+  SubscribedAudioCodecUpdate,
   SubscribedQualityUpdate,
   type SubscriptionPermissionUpdate,
   type SubscriptionResponse,
@@ -64,10 +65,11 @@ import {
 import { EngineEvent } from './events';
 import { RpcError } from './rpc';
 import CriticalTimers from './timers';
+import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
+import type { SimulcastTrackInfo } from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
-import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
@@ -75,6 +77,7 @@ import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
   compareVersions,
+  isAudioTrack,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -554,6 +557,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SubscribedQualityUpdate, update);
     };
 
+    this.client.onSubscribedAudioCodecUpdate = (update: SubscribedAudioCodecUpdate) => {
+      this.emit(EngineEvent.SubscribedAudioCodecUpdate, update);
+    };
+
     this.client.onRoomMoved = (res: RoomMovedResponse) => {
       this.participantSid = res.participant?.sid;
       if (this.latestJoinResponse) {
@@ -781,14 +788,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async createSimulcastSender(
-    track: LocalVideoTrack,
+    track: LocalAudioTrack | LocalVideoTrack,
     simulcastTrack: SimulcastTrackInfo,
-    opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
     // store RTCRtpSender
     if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+      return this.createSimulcastTransceiverSender(track, simulcastTrack, encodings);
     }
     if (supportsAddTrack()) {
       this.log.debug('using add-track fallback', this.logContext);
@@ -813,6 +819,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       streams.push(track.mediaStream);
     }
 
+    if (isAudioTrack(track)) {
+      track.codec = opts.audioCodec;
+    }
     if (isVideoTrack(track)) {
       track.codec = opts.videoCodec;
     }
@@ -831,9 +840,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async createSimulcastTransceiverSender(
-    track: LocalVideoTrack,
+    track: LocalAudioTrack | LocalVideoTrack,
     simulcastTrack: SimulcastTrackInfo,
-    opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (!this.pcManager) {
@@ -848,10 +856,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
-    if (!opts.videoCodec) {
-      return;
-    }
-    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+    track.setSimulcastTrackSender(simulcastTrack.codec, transceiver.sender);
+    track.setupSusbcribedCodecsRefresh();
     return transceiver.sender;
   }
 
@@ -1610,6 +1616,7 @@ export type EngineEventCallbacks = {
   subscriptionError: (resp: SubscriptionResponse) => void;
   subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
   subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
+  subscribedAudioCodecUpdate: (update: SubscribedAudioCodecUpdate) => void;
   localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
   localTrackSubscribed: (trackSid: string) => void;
   remoteMute: (trackSid: string, muted: boolean) => void;

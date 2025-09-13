@@ -600,6 +600,7 @@ export enum EngineEvent {
   SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
   RemoteMute = 'remoteMute',
   SubscribedQualityUpdate = 'subscribedQualityUpdate',
+  SubscribedAudioCodecUpdate = 'subscribedAudioCodecUpdate',
   LocalTrackUnpublished = 'localTrackUnpublished',
   LocalTrackSubscribed = 'localTrackSubscribed',
   Offline = 'offline',

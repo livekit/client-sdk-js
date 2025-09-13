@@ -7,9 +7,12 @@ import type {
 } from './track/options';
 import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
 
+export const defaultAudioCodec = 'opus';
 export const defaultVideoCodec = 'vp8';
 
 export const publishDefaults: TrackPublishDefaults = {
+  audioCodec: defaultAudioCodec,
+  backupAudioCodec: true,
   audioPreset: AudioPresets.music,
   dtx: true,
   red: true,

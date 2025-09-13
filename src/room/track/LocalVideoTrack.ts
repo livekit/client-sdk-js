@@ -19,21 +19,6 @@ import type { VideoCaptureOptions, VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
-export class SimulcastTrackInfo {
-  codec: VideoCodec;
-
-  mediaStreamTrack: MediaStreamTrack;
-
-  sender?: RTCRtpSender;
-
-  encodings?: RTCRtpEncodingParameters[];
-
-  constructor(codec: VideoCodec, mediaStreamTrack: MediaStreamTrack) {
-    this.codec = codec;
-    this.mediaStreamTrack = mediaStreamTrack;
-  }
-}
-
 const refreshSubscribedCodecAfterNewCodec = 5000;
 
 export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
@@ -43,9 +28,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   private prevStats?: Map<string, VideoSenderStats>;
 
   private encodings?: RTCRtpEncodingParameters[];
-
-  /* @internal */
-  simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<VideoCodec, SimulcastTrackInfo>();
 
   private subscribedCodecs?: SubscribedCodec[];
 
@@ -294,31 +276,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
   }
 
-  addSimulcastTrack(
-    codec: VideoCodec,
-    encodings?: RTCRtpEncodingParameters[],
-  ): SimulcastTrackInfo | undefined {
-    if (this.simulcastCodecs.has(codec)) {
-      this.log.error(`${codec} already added, skipping adding simulcast codec`, this.logContext);
-      return;
-    }
-    const simulcastCodecInfo: SimulcastTrackInfo = {
-      codec,
-      mediaStreamTrack: this.mediaStreamTrack.clone(),
-      sender: undefined,
-      encodings,
-    };
-    this.simulcastCodecs.set(codec, simulcastCodecInfo);
-    return simulcastCodecInfo;
-  }
-
-  setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
-    const simulcastCodecInfo = this.simulcastCodecs.get(codec);
-    if (!simulcastCodecInfo) {
-      return;
-    }
-    simulcastCodecInfo.sender = sender;
-
+  setupSusbcribedCodecsRefresh() {
     // browser will reenable disabled codec/layers after new codec has been published,
     // so refresh subscribedCodecs after publish a new codec
     setTimeout(() => {

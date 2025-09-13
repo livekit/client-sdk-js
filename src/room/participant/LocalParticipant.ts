@@ -17,6 +17,7 @@ import {
   RpcResponse,
   SimulcastCodec,
   SipDTMF,
+  SubscribedAudioCodecUpdate,
   SubscribedQualityUpdate,
   TrackInfo,
   TrackUnpublishedResponse,
@@ -29,7 +30,7 @@ import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
-import { defaultVideoCodec } from '../defaults';
+import { defaultAudioCodec, defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
   LivekitError,
@@ -47,20 +48,28 @@ import {
   byteLength,
 } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
-import LocalTrack from '../track/LocalTrack';
+import LocalTrack, { SimulcastTrackInfo } from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
 import { createLocalTracks } from '../track/create';
 import type {
   AudioCaptureOptions,
+  AudioCodec,
+  BackupAudioCodec,
   BackupVideoCodec,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   TrackPublishOptions,
   VideoCaptureOptions,
+  VideoCodec,
 } from '../track/options';
-import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
+import {
+  ScreenSharePresets,
+  VideoPresets,
+  isBackupAudioCodec,
+  isBackupVideoCodec,
+} from '../track/options';
 import {
   getLogContextFromTrack,
   getTrackSourceFromProto,
@@ -256,6 +265,7 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
+      .on(EngineEvent.SubscribedAudioCodecUpdate, this.handleSubscribedAudioCodecUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
@@ -1049,10 +1059,10 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
-      backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
       audioFeatures,
     });
 
+    let backupCodecPolicy = BackupCodecPolicy.PREFER_REGRESSION;
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
@@ -1147,15 +1157,56 @@ export default class LocalParticipant extends Participant {
         encodings,
         isSVCCodec(opts.videoCodec),
       );
+
+      if (opts.backupCodecPolicy) {
+        backupCodecPolicy = opts.backupCodecPolicy;
+      }
     } else if (track.kind === Track.Kind.Audio) {
+      req.simulcastCodecs = [
+        new SimulcastCodec({
+          codec: opts.audioCodec,
+          cid: track.mediaStreamTrack.id,
+        }),
+      ];
+
+      // set up backup
+      if (opts.backupAudioCodec === true) {
+        opts.backupAudioCodec = { codec: defaultAudioCodec };
+      }
+      if (
+        opts.backupAudioCodec &&
+        opts.audioCodec !== opts.backupAudioCodec.codec &&
+        // TODO remove this once e2ee is supported for backup codecs
+        req.encryption === Encryption_Type.NONE
+      ) {
+        // multi-codec simulcast requires dynacast
+        if (!this.roomOptions.dynacast) {
+          this.roomOptions.dynacast = true;
+        }
+        req.simulcastCodecs.push(
+          new SimulcastCodec({
+            codec: opts.backupAudioCodec.codec,
+            cid: '',
+          }),
+        );
+      }
+
       encodings = [
         {
-          maxBitrate: opts.audioPreset?.maxBitrate,
+          maxBitrate:
+            opts.audioCodec === 'pcma' || opts.audioCodec === 'pcmu'
+              ? 64000
+              : opts.audioPreset?.maxBitrate,
           priority: opts.audioPreset?.priority ?? 'high',
           networkPriority: opts.audioPreset?.priority ?? 'high',
         },
       ];
+
+      if (opts.backupAudioCodecPolicy) {
+        backupCodecPolicy = opts.backupAudioCodecPolicy;
+      }
     }
+    req.backupCodecPolicy = backupCodecPolicy;
 
     if (!this.engine || this.engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
@@ -1378,7 +1429,7 @@ export default class LocalParticipant extends Participant {
    */
   async publishAdditionalCodecForTrack(
     track: LocalTrack | MediaStreamTrack,
-    videoCodec: BackupVideoCodec,
+    codec: BackupAudioCodec | BackupVideoCodec,
     options?: TrackPublishOptions,
   ) {
     // TODO remove once e2ee is supported for backup tracks
@@ -1400,8 +1451,8 @@ export default class LocalParticipant extends Participant {
       throw new TrackInvalidError('track is not published');
     }
 
-    if (!isLocalVideoTrack(track)) {
-      throw new TrackInvalidError('track is not a video track');
+    if (!isLocalAudioTrack(track) && !isLocalVideoTrack(track)) {
+      throw new TrackInvalidError('track is not an audio or a video track');
     }
 
     const opts: TrackPublishOptions = {
@@ -1409,18 +1460,24 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
-    if (!encodings) {
-      this.log.info(
-        `backup codec has been disabled, ignoring request to add additional codec for track`,
-        {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-        },
-      );
-      return;
+    let simulcastTrack: SimulcastTrackInfo | undefined;
+    let encodings: RTCRtpEncodingParameters[] | undefined;
+    if (isLocalVideoTrack(track)) {
+      encodings = computeTrackBackupEncodings(track, codec as BackupVideoCodec, opts);
+      if (!encodings) {
+        this.log.info(
+          `backup codec has been disabled, ignoring request to add additional codec for track`,
+          {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+          },
+        );
+        return;
+      }
+      simulcastTrack = track.addSimulcastTrack(codec as VideoCodec, encodings);
+    } else {
+      simulcastTrack = track.addSimulcastTrack(codec as AudioCodec);
     }
-    const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
     if (!simulcastTrack) {
       return;
     }
@@ -1432,12 +1489,14 @@ export default class LocalParticipant extends Participant {
       sid: track.sid,
       simulcastCodecs: [
         {
-          codec: opts.videoCodec,
+          codec: simulcastTrack.codec,
           cid: simulcastTrack.mediaStreamTrack.id,
         },
       ],
     });
-    req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
+    if (encodings) {
+      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
+    }
 
     if (!this.engine || this.engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
@@ -1448,7 +1507,7 @@ export default class LocalParticipant extends Participant {
       if (encodings) {
         transceiverInit.sendEncodings = encodings;
       }
-      await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
+      await this.engine.createSimulcastSender(track, simulcastTrack, encodings);
 
       await this.engine.negotiate();
     };
@@ -1456,7 +1515,7 @@ export default class LocalParticipant extends Participant {
     const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
     const ti = rets[0];
 
-    this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
+    this.log.debug(`published ${codec} for track ${track.sid}`, {
       ...this.logContext,
       encodings,
       trackInfo: ti,
@@ -2106,12 +2165,39 @@ export default class LocalParticipant extends Participant {
     }
     const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
     for await (const codec of newCodecs) {
-      if (isBackupCodec(codec)) {
+      if (isBackupVideoCodec(codec)) {
         this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, {
           ...this.logContext,
           ...getLogContextFromTrack(pub),
         });
         await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
+      }
+    }
+  };
+
+  private handleSubscribedAudioCodecUpdate = async (update: SubscribedAudioCodecUpdate) => {
+    if (!this.roomOptions?.dynacast) {
+      return;
+    }
+    const pub = this.audioTrackPublications.get(update.trackSid);
+    if (!pub) {
+      this.log.warn('received subscribed audio codec update for unknown track', {
+        ...this.logContext,
+        trackSid: update.trackSid,
+      });
+      return;
+    }
+    if (!pub.audioTrack) {
+      return;
+    }
+    const newCodecs = await pub.audioTrack.setPublishingCodecs(update.subscribedAudioCodecs);
+    for await (const codec of newCodecs) {
+      if (isBackupAudioCodec(codec)) {
+        this.log.debug(`publish ${codec} for ${pub.audioTrack.sid}`, {
+          ...this.logContext,
+          ...getLogContextFromTrack(pub),
+        });
+        await this.publishAdditionalCodecForTrack(pub.audioTrack, codec, pub.options);
       }
     }
   };

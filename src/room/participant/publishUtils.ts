@@ -252,7 +252,6 @@ export function computeTrackBackupEncodings(
     });
   }
 
-  opts.videoCodec = videoCodec;
   // use backup encoding setting as videoEncoding for backup codec publishing
   opts.videoEncoding = opts.backupCodec.encoding;
 

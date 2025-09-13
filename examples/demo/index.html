@@ -32,16 +32,10 @@
             <div>
               <input type="text" class="form-control" id="token" />
             </div>
-            <div>
-              <b>E2EE key</b>
-            </div>
-            <div>
-              <input type="text" class="form-control" id="crypto-key" />
-            </div>
           </div>
 
           <!-- connect options -->
-          <div id="options-area">
+          <div id="connect-options-area">
             <div>
               <input type="checkbox" class="form-check-input" id="publish-option" checked />
               <label for="publish-option" class="form-check-label"> Publish </label>
@@ -56,7 +50,7 @@
             </div>
             <div>
               <input type="checkbox" class="form-check-input" id="adaptive-stream" checked />
-              <label for="adaptive-stream" class="form-check-label"> AdaptiveStream </label>
+              <label for="adaptive-stream" class="form-check-label"> Adaptive Stream </label>
             </div>
             <div>
               <input type="checkbox" class="form-check-input" id="force-turn" />
@@ -66,12 +60,57 @@
               <input type="checkbox" class="form-check-input" id="auto-subscribe" checked />
               <label for="auto-subscribe" class="form-check-label"> Auto Subscribe </label>
             </div>
+          </div>
+
+          <hr />
+
+          <h6>End to end encryption</h6>
+          <div id="connect-options-e2ee-area">
             <div>
               <input type="checkbox" class="form-check-input" id="e2ee" />
-              <label for="e2ee" class="form-check-label"> E2E Encryption </label>
+              <label for="e2ee" class="form-check-label">E2E Encryption</label>
+            </div>
+            <div>E2EE key</div>
+            <div>
+              <input type="text" class="form-control" id="crypto-key" />
+            </div>
+          </div>
+
+          <hr />
+
+          <h6>Audio codec(s)</h6>
+          <div id="connect-options-audio-area">
+            <div>
+              <select id="preferred-audio-codec" class="custom-select" style="width: auto"></select>
             </div>
             <div>
-              <select id="preferred-codec" class="custom-select" style="width: auto"></select>
+              <input type="checkbox" class="form-check-input" id="multicodec-audio-simulcast" />
+              <label for="multicodec-audio-simulcast" class="form-check-label"
+                >Multi codec simulcast
+              </label>
+            </div>
+            <div>
+              <input type="checkbox" class="form-check-input" id="dtx" checked />
+              <label for="dtx" class="form-check-label">DTX</label>
+            </div>
+            <div>
+              <input type="checkbox" class="form-check-input" id="test-stereo" />
+              <label for="test-stereo" class="form-check-label">Use test stereo track</label>
+            </div>
+          </div>
+
+          <hr />
+
+          <h6>Video codec(s)</h6>
+          <div id="connect-options-video-area">
+            <div>
+              <select id="preferred-video-codec" class="custom-select" style="width: auto"></select>
+            </div>
+            <div>
+              <input type="checkbox" class="form-check-input" id="multicodec-video-simulcast" />
+              <label for="multicodec-video-simulcast" class="form-check-label"
+                >Multi codec simulcast
+              </label>
             </div>
             <div>
               <select
@@ -81,13 +120,9 @@
                 disabled="true"
               ></select>
             </div>
-            <div>
-              <input type="checkbox" class="form-check-input" id="multicodec-simulcast" />
-              <label for="multicodec-simulcast" class="form-check-label"
-                >MultiCodec-Simulcast
-              </label>
-            </div>
           </div>
+
+          <hr />
 
           <!-- actions -->
           <div id="actions-area">
@@ -294,7 +329,7 @@
               class="btn btn-outline-secondary btn-sm"
               type="button"
               onclick="appActions.cancelChatReceive()"
-              style="display: none;"
+              style="display: none"
             >
               Cancel current receive
             </button>

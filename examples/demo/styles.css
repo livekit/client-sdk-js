@@ -7,7 +7,10 @@
   margin-bottom: 15px;
 }
 
-#options-area {
+#connect-options-area,
+#connect-options-e2ee-area,
+#connect-options-audio-area,
+#connect-options-video-area {
   display: flex;
   flex-wrap: wrap;
   margin-left: 1.25rem;
@@ -163,4 +166,9 @@
 .participant .volume-meter {
   position: absolute;
   z-index: 4;
+}
+
+.break {
+  flex-basis: 100%;
+  height: 0;
 }

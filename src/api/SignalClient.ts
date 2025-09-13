@@ -26,6 +26,7 @@ import {
   SimulateScenario,
   SpeakerInfo,
   StreamStateUpdate,
+  SubscribedAudioCodecUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermission,
   SubscriptionPermissionUpdate,
@@ -139,6 +140,8 @@ export class SignalClient {
   onStreamStateUpdate?: (update: StreamStateUpdate) => void;
 
   onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
+
+  onSubscribedAudioCodecUpdate?: (update: SubscribedAudioCodecUpdate) => void;
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
@@ -472,6 +475,7 @@ export class SignalClient {
     this.onOffer = undefined;
     this.onRemoteMuteChanged = undefined;
     this.onSubscribedQualityUpdate = undefined;
+    this.onSubscribedAudioCodecUpdate = undefined;
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
     this.onClose = undefined;
@@ -764,6 +768,10 @@ export class SignalClient {
     } else if (msg.case === 'subscribedQualityUpdate') {
       if (this.onSubscribedQualityUpdate) {
         this.onSubscribedQualityUpdate(msg.value);
+      }
+    } else if (msg.case === 'subscribedAudioCodecUpdate') {
+      if (this.onSubscribedAudioCodecUpdate) {
+        this.onSubscribedAudioCodecUpdate(msg.value);
       }
     } else if (msg.case === 'subscriptionPermissionUpdate') {
       if (this.onSubscriptionPermissionUpdate) {

@@ -7,13 +7,28 @@ import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
-import type { VideoCodec } from './options';
+import type { AudioCodec, VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { LocalTrackRecorder, isRecordingSupported } from './record';
 import type { ReplaceTrackOptions } from './types';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
 const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
+
+export class SimulcastTrackInfo {
+  codec: AudioCodec | VideoCodec;
+
+  mediaStreamTrack: MediaStreamTrack;
+
+  sender?: RTCRtpSender;
+
+  encodings?: RTCRtpEncodingParameters[];
+
+  constructor(codec: VideoCodec, mediaStreamTrack: MediaStreamTrack) {
+    this.codec = codec;
+    this.mediaStreamTrack = mediaStreamTrack;
+  }
+}
 
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
@@ -64,6 +79,12 @@ export default abstract class LocalTrack<
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
   protected trackChangeLock: Mutex;
+
+  /* @internal */
+  simulcastCodecs: Map<AudioCodec | VideoCodec, SimulcastTrackInfo> = new Map<
+    AudioCodec | VideoCodec,
+    SimulcastTrackInfo
+  >();
 
   /**
    *
@@ -131,6 +152,20 @@ export default abstract class LocalTrack<
 
   get mediaStreamTrack() {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
+  }
+
+  enabledMediaStreamTrack(): MediaStreamTrack | undefined {
+    if (this._mediaStreamTrack.enabled) {
+      return this._mediaStreamTrack;
+    }
+
+    for (const [, trackInfo] of this.simulcastCodecs) {
+      if (trackInfo.mediaStreamTrack.enabled) {
+        return trackInfo.mediaStreamTrack;
+      }
+    }
+
+    return undefined;
   }
 
   get isLocal() {
@@ -679,4 +714,30 @@ export default abstract class LocalTrack<
   }
 
   protected abstract monitorSender(): void;
+
+  addSimulcastTrack(
+    codec: AudioCodec | VideoCodec,
+    encodings?: RTCRtpEncodingParameters[],
+  ): SimulcastTrackInfo | undefined {
+    if (this.simulcastCodecs.has(codec)) {
+      this.log.error(`${codec} already added, skipping adding simulcast codec`, this.logContext);
+      return;
+    }
+    const simulcastCodecInfo: SimulcastTrackInfo = {
+      codec,
+      mediaStreamTrack: this.mediaStreamTrack.clone(),
+      sender: undefined,
+      encodings,
+    };
+    this.simulcastCodecs.set(codec, simulcastCodecInfo);
+    return simulcastCodecInfo;
+  }
+
+  setSimulcastTrackSender(codec: AudioCodec | VideoCodec, sender: RTCRtpSender) {
+    const simulcastCodecInfo = this.simulcastCodecs.get(codec);
+    if (!simulcastCodecInfo) {
+      return;
+    }
+    simulcastCodecInfo.sender = sender;
+  }
 }

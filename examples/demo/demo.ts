@@ -1,6 +1,7 @@
 //@ts-ignore
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
+  AudioCodec,
   ChatMessage,
   RoomConnectOptions,
   RoomOptions,
@@ -91,21 +92,33 @@ const appActions = {
   connectWithFormInput: async () => {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;
+
+    const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const simulcast = (<HTMLInputElement>$('simulcast')).checked;
     const dynacast = (<HTMLInputElement>$('dynacast')).checked;
-    const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
-    const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
-    const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
-    const scalabilityMode = (<HTMLSelectElement>$('scalability-mode')).value;
-    const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
+    const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
+
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
-    const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
-    let backupCodecPolicy: BackupCodecPolicy | undefined;
-    if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
-      backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
+    const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
+
+    const preferredAudioCodec = (<HTMLSelectElement>$('preferred-audio-codec')).value as AudioCodec;
+    let backupAudioCodecPolicy: BackupCodecPolicy | undefined;
+    if ((<HTMLInputElement>$('multicodec-audio-simulcast')).checked) {
+      backupAudioCodecPolicy = BackupCodecPolicy.SIMULCAST;
     }
+    const dtx = (<HTMLInputElement>$('dtx')).checked;
+    const testStereo = (<HTMLInputElement>$('test-stereo')).checked;
+
+    const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
+
+    const preferredVideoCodec = (<HTMLSelectElement>$('preferred-video-codec')).value as VideoCodec;
+    let backupVideoCodecPolicy: BackupCodecPolicy | undefined;
+    if ((<HTMLInputElement>$('multicodec-video-simulcast')).checked) {
+      backupVideoCodecPolicy = BackupCodecPolicy.SIMULCAST;
+    }
+    const scalabilityMode = (<HTMLSelectElement>$('scalability-mode')).value;
 
     updateSearchParams(url, token, cryptoKey);
 
@@ -118,13 +131,15 @@ const appActions = {
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
-        videoCodec: preferredCodec || 'vp8',
-        dtx: true,
-        red: true,
-        forceStereo: false,
-        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+        videoCodec: preferredVideoCodec || 'vp8',
+        backupCodecPolicy: backupVideoCodecPolicy,
         scalabilityMode: 'L3T3_KEY',
-        backupCodecPolicy: backupCodecPolicy,
+        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+        audioCodec: preferredAudioCodec || 'red',
+        backupAudioCodecPolicy: backupAudioCodecPolicy,
+        dtx,
+        red: true,
+        forceStereo: testStereo,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -133,6 +148,11 @@ const appActions = {
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
     };
+    if (roomOpts.publishDefaults?.audioCodec === 'red') {
+      roomOpts.publishDefaults.backupAudioCodec = true;
+    } else if (roomOpts.publishDefaults?.audioCodec === 'opus') {
+      roomOpts.publishDefaults.red = false;
+    }
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
@@ -1160,15 +1180,25 @@ async function acquireDeviceList() {
   handleDevicesChanged();
 }
 
-function populateSupportedCodecs() {
-  /*
-<option value="" selected>PreferredCodec</option>
-                <option value="vp8">VP8</option>
-                <option value="h264">H.264</option>
-                <option value="vp9">VP9</option>
-                <option value="av1">AV1</option>
-*/
-  const codecSelect = $('preferred-codec');
+function populateSupportedAudioCodecs() {
+  const codecSelect = $('preferred-audio-codec');
+  const options: string[][] = [
+    ['', 'Preferred codec'],
+    ['opus', 'Opus'],
+    ['red', 'Opus RED'],
+    ['pcma', 'G.711 A-Law'],
+    ['pcmu', 'G.711 Mu-Law'],
+  ];
+  for (const o of options) {
+    const n = document.createElement('option');
+    n.value = o[0];
+    n.appendChild(document.createTextNode(o[1]));
+    codecSelect.appendChild(n);
+  }
+}
+
+function populateSupportedVideoCodecs() {
+  const codecSelect = $('preferred-video-codec');
   const options: string[][] = [
     ['', 'Preferred codec'],
     ['h264', 'H.264'],
@@ -1227,7 +1257,7 @@ function populateScalabilityModes() {
     modeSelect.appendChild(n);
   }
 
-  const codecSelect = <HTMLSelectElement>$('preferred-codec');
+  const codecSelect = <HTMLSelectElement>$('preferred-video-codec');
   codecSelect.onchange = () => {
     if (isSVCCodec(codecSelect.value)) {
       modeSelect.removeAttribute('disabled');
@@ -1238,5 +1268,6 @@ function populateScalabilityModes() {
 }
 
 acquireDeviceList();
-populateSupportedCodecs();
+populateSupportedAudioCodecs();
+populateSupportedVideoCodecs();
 populateScalabilityModes();
