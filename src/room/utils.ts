@@ -60,6 +60,24 @@ export function supportsDynacast() {
   return supportsTransceiver();
 }
 
+export function supportsAudioRed(): boolean {
+  if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+
+  const capabilities = RTCRtpSender.getCapabilities('audio');
+  let hasAudioRed = false;
+  if (capabilities) {
+    for (const codec of capabilities.codecs) {
+      if (codec.mimeType.toLowerCase() === 'audio/red') {
+        hasAudioRed = true;
+        break;
+      }
+    }
+  }
+  return hasAudioRed;
+}
+
 export function supportsAV1(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
@@ -73,7 +91,7 @@ export function supportsAV1(): boolean {
   let hasAV1 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/AV1') {
+      if (codec.mimeType.toLowerCase() === 'video/av1') {
         hasAV1 = true;
         break;
       }
@@ -110,7 +128,7 @@ export function supportsVP9(): boolean {
   let hasVP9 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/VP9') {
+      if (codec.mimeType.toLowerCase() === 'video/vp9') {
         hasVP9 = true;
         break;
       }
@@ -128,7 +146,7 @@ export function supportsH265(): boolean {
   let hasH265 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/H265') {
+      if (codec.mimeType.toLowerCase() === 'video/h265') {
         hasH265 = true;
         break;
       }

@@ -102,6 +102,7 @@ import {
   isWeb,
   sleep,
   supportsAV1,
+  supportsAudioRed,
   supportsVP9,
 } from '../utils';
 import Participant from './Participant';
@@ -989,6 +990,13 @@ export default class LocalParticipant extends Participant {
       // Firefox does not work well with simulcasted screen share
       // we frequently get no data on layer 0 when enabled
       opts.simulcast = false;
+    }
+
+    if (opts.audioCodec === 'red' && !supportsAudioRed()) {
+      opts.audioCodec = undefined;
+    }
+    if (opts.audioCodec === undefined) {
+      opts.audioCodec = defaultAudioCodec;
     }
 
     // require full AV1/VP9 SVC support prior to using it
