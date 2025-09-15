@@ -593,7 +593,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   prepareConnection(connectionCredentials: ConnectionCredentials): Promise<void>;
   prepareConnection(url: string): Promise<void>;
-  /** @deprecated Use room.prepareConnection(connectionCredentials) instead */
+  /** @deprecated Use room.prepareConnection(new ConnectionCredentials.Literal({ serverUrl: "url", participantToken: "token" })) instead */
   prepareConnection(url: string, token?: string): Promise<void>;
   async prepareConnection(
     urlOrConnectionCredentials: ConnectionCredentials | string,
@@ -644,7 +644,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   connect: {
     (connectionCredentials: ConnectionCredentials, opts?: RoomConnectOptions): Promise<void>;
-    /** @deprecated Use room.connect(connectionCredentials, opts?: RoomConnectOptions) instead */
+    /** @deprecated Use room.connect(new ConnectionCredentials.Literal({ serverUrl: "url", participantToken: "token" }), opts?: RoomConnectOptions) instead */
     (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
   } = async (urlOrConnectionCredentials, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
     let opts: RoomConnectOptions = {};
