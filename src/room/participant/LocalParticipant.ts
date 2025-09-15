@@ -1601,7 +1601,7 @@ export default class LocalParticipant extends Participant {
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }
-        if (isLocalVideoTrack(track)) {
+        if (isLocalAudioTrack(track) || isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
               if (this.engine.removeTrack(trackInfo.sender)) {
