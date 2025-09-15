@@ -38,6 +38,7 @@ import {
   isRemoteTrack,
   setLogLevel,
   supportsAV1,
+  supportsAudioRed,
   supportsVP9,
 } from '../../src/index';
 import { getStereoAudioStreamTrack, isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
@@ -1184,11 +1185,13 @@ function populateSupportedAudioCodecs() {
   const codecSelect = $('preferred-audio-codec');
   const options: string[][] = [
     ['', 'Preferred codec'],
-    ['opus', 'Opus'],
-    ['red', 'Opus RED'],
     ['pcma', 'G.711 A-Law'],
     ['pcmu', 'G.711 Mu-Law'],
+    ['opus', 'Opus'],
   ];
+  if (supportsAudioRed()) {
+    options.push(['red', 'Opus RED']);
+  }
   for (const o of options) {
     const n = document.createElement('option');
     n.value = o[0];
