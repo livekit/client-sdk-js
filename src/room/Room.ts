@@ -983,7 +983,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @internal for testing
    */
   async simulateScenario(scenario: SimulationScenario, arg?: any) {
-    let postAction = () => {};
+    let postAction = async () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':

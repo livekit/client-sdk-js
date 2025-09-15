@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.15.6",
+  "version": "2.15.7",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -83,7 +83,7 @@
     "@size-limit/webpack": "^11.2.0",
     "@trivago/prettier-plugin-sort-imports": "^5.0.0",
     "@types/events": "^3.0.3",
-    "@types/sdp-transform": "2.4.10",
+    "@types/sdp-transform": "2.15.0",
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
