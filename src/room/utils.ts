@@ -22,7 +22,7 @@ import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import { type VideoCodec, videoCodecs } from './track/options';
+import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
@@ -569,6 +569,10 @@ export function createAudioAnalyser(
   };
 
   return { calculateVolume, analyser, cleanup };
+}
+
+export function isAudioCodec(maybeCodec: string): maybeCodec is AudioCodec {
+  return audioCodecs.includes(maybeCodec as AudioCodec);
 }
 
 export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
