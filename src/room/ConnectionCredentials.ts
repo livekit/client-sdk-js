@@ -19,7 +19,19 @@ export abstract class ConnectionCredentials {
       return null;
     }
 
-    return decodeJwt<{ roomConfig?: ReturnType<RoomConfiguration['toJson']> }>(token);
+    return decodeJwt<{
+      name?: string;
+      metadata?: string;
+      attributes?: Record<string, string>;
+      roomConfig?: ReturnType<RoomConfiguration['toJson']>;
+      video?: {
+        room?: string;
+        roomJoin?: boolean;
+        canPublish?: boolean;
+        canPublishData?: boolean;
+        canSubscribe?: boolean;
+      };
+    }>(token);
   }
 
   protected isCachedResponseExpired() {
@@ -42,6 +54,22 @@ export abstract class ConnectionCredentials {
     return RoomConfiguration.fromJson(roomConfigJsonValue);
   }
 
+  getCachedResponseParticipantName() {
+    return this.getCachedResponseJwtPayload()?.name ?? null;
+  }
+
+  getCachedResponseParticipantIdentity() {
+    return this.getCachedResponseJwtPayload()?.sub ?? null;
+  }
+
+  getCachedResponseParticipantMetadata() {
+    return this.getCachedResponseJwtPayload()?.metadata ?? null;
+  }
+
+  getCachedResponseParticipantAttributes() {
+    return this.getCachedResponseJwtPayload()?.attributes ?? null;
+  }
+
   abstract generate(): Promise<ConnectionCredentials.Response>;
 }
 export namespace ConnectionCredentials {
@@ -49,8 +77,17 @@ export namespace ConnectionCredentials {
     /** The name of the room being requested when generating credentials */
     roomName?: string;
 
-    /** The identity of the participant being requested for this client when generating credentials */
+    /** The name of the participant being requested for this client when generating credentials */
     participantName?: string;
+
+    /** The identity of the participant being requested for this client when generating credentials */
+    participantIdentity?: string;
+
+    /** Any participant metadata being included along with the credentials generation operation */
+    participantMetadata?: string;
+
+    /** Any participant attributes being included along with the credentials generation operation */
+    participantAttributes?: Record<string, string>;
 
     /**
      * A RoomConfiguration object can be passed to request extra parameters should be included when
