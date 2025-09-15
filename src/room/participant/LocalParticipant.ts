@@ -1634,16 +1634,18 @@ export default class LocalParticipant extends Participant {
     const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
 
+    let userPacket = new UserPacket({
+      participantIdentity: this.identity,
+      payload: data,
+      destinationIdentities,
+      topic,
+    });
+
     const packet = new DataPacket({
       kind: kind,
       value: {
         case: 'user',
-        value: new UserPacket({
-          participantIdentity: this.identity,
-          payload: data,
-          destinationIdentities,
-          topic,
-        }),
+        value: userPacket,
       },
     });
 

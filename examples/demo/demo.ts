@@ -50,7 +50,7 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   bitrateInterval: undefined as any,
-  e2eeKeyProvider: new ExternalE2EEKeyProvider(),
+  e2eeKeyProvider: new ExternalE2EEKeyProvider({ ratchetWindowSize: 100 }),
   chatMessages: new Map<string, { text: string; participant?: Participant }>(),
 };
 let currentRoom: Room | undefined;
@@ -128,7 +128,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: e2eeEnabled
+      encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
     };
@@ -273,6 +273,7 @@ const appActions = {
       try {
         for await (const chunk of reader.withAbortSignal(streamReaderAbortController.signal)) {
           message += chunk;
+          console.log('received message', message, participant);
           handleChatMessage(
             {
               id: info.id,
@@ -434,7 +435,7 @@ const appActions = {
   },
 
   toggleE2EE: async () => {
-    if (!currentRoom || !currentRoom.options.e2ee) {
+    if (!currentRoom || !currentRoom.hasE2EESetup) {
       return;
     }
     // read and set current key from input
@@ -488,7 +489,7 @@ const appActions = {
   },
 
   ratchetE2EEKey: async () => {
-    if (!currentRoom || !currentRoom.options.e2ee) {
+    if (!currentRoom || !currentRoom.hasE2EESetup) {
       return;
     }
     await state.e2eeKeyProvider.ratchetKey();
@@ -1043,7 +1044,7 @@ function setButtonsForState(connected: boolean) {
     'flip-video-button',
     'send-button',
   ];
-  if (currentRoom && currentRoom.options.e2ee) {
+  if (currentRoom && currentRoom.hasE2EESetup) {
     connectedSet.push('toggle-e2ee-button', 'e2ee-ratchet-button');
   }
   const disconnectedSet = ['connect-button'];

@@ -5,6 +5,7 @@ import {
   type DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -198,6 +199,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
+  get hasE2EESetup(): boolean {
+    return this.e2eeManager !== undefined;
+  }
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -241,6 +246,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
     );
 
+    if (this.options.e2ee || this.options.encryption) {
+      this.setupE2EE();
+    }
+
+    this.engine.e2eeManager = this.e2eeManager;
+
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
         'videoinput',
@@ -258,10 +269,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         'audiooutput',
         unwrapConstraint(this.options.audioOutput.deviceId),
       ).catch((e) => this.log.warn(`Could not set audio output: ${e.message}`, this.logContext));
-    }
-
-    if (this.options.e2ee) {
-      this.setupE2EE();
     }
 
     if (isWeb()) {
@@ -355,11 +362,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private setupE2EE() {
-    if (this.options.e2ee) {
-      if ('e2eeManager' in this.options.e2ee) {
-        this.e2eeManager = this.options.e2ee.e2eeManager;
+    // when encryption is enabled via `options.encryption`, we enable data channel encryption
+
+    const dcEncryptionEnabled = !!this.options.encryption;
+    const e2eeOptions = this.options.encryption || this.options.e2ee;
+
+    if (e2eeOptions) {
+      if ('e2eeManager' in e2eeOptions) {
+        this.e2eeManager = e2eeOptions.e2eeManager;
       } else {
-        this.e2eeManager = new E2EEManager(this.options.e2ee);
+        this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
       }
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,
@@ -443,6 +455,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.e2eeManager = this.e2eeManager;
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
@@ -789,7 +802,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.identity = pi.identity;
     this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
-    if (this.options.e2ee && this.e2eeManager) {
+    if (this.e2eeManager) {
       try {
         this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
       } catch (e: any) {
@@ -1711,11 +1724,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.setSubscriptionError(update.err);
   };
 
-  private handleDataPacket = (packet: DataPacket) => {
+  private handleDataPacket = (packet: DataPacket, encryptionType: Encryption_Type) => {
     // find the participant
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
-      this.handleUserPacket(participant, packet.value.value, packet.kind);
+      this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
@@ -1729,7 +1742,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       packet.value.case === 'streamChunk' ||
       packet.value.case === 'streamTrailer'
     ) {
-      this.handleDataStream(packet);
+      this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
       this.handleIncomingRpcRequest(
@@ -1747,11 +1760,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant: RemoteParticipant | undefined,
     userPacket: UserPacket,
     kind: DataPacket_Kind,
+    encryptionType: Encryption_Type,
   ) => {
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
+    this.emit(
+      RoomEvent.DataReceived,
+      userPacket.payload,
+      participant,
+      kind,
+      userPacket.topic,
+      encryptionType,
+    );
 
     // also emit on the participant
-    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
+    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind, encryptionType);
   };
 
   private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
@@ -1791,8 +1812,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.MetricsReceived, metrics, participant);
   };
 
-  private handleDataStream = (packet: DataPacket) => {
-    this.incomingDataStreamManager.handleDataStreamPacket(packet);
+  private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
+    this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
 
   private async handleIncomingRpcRequest(
@@ -2596,6 +2617,7 @@ export type RoomEventCallbacks = {
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
     topic?: string,
+    encryptionType?: Encryption_Type,
   ) => void;
   sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
   transcriptionReceived: (
