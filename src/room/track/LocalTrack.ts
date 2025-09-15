@@ -48,7 +48,7 @@ export default abstract class LocalTrack<
   }
 
   /** @internal */
-  codec?: VideoCodec;
+  codec?: AudioCodec | VideoCodec;
 
   get constraints() {
     return this._constraints;
