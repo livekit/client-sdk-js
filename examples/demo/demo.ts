@@ -567,7 +567,19 @@ const appActions = {
     if (!currentRoom) return;
     const textField = <HTMLInputElement>$('entry');
     if (textField.value) {
-      currentRoom.localParticipant.sendText(textField.value, { topic: 'lk.chat' });
+      let localParticipant = currentRoom.localParticipant;
+      let message = textField.value;
+      localParticipant.sendText(message, { topic: 'lk.chat' }).then((info) => {
+        handleChatMessage(
+          {
+            id: info.id,
+            timestamp: info.timestamp,
+            message: message,
+          },
+          localParticipant,
+        );
+      });
+
       textField.value = '';
     }
   },
