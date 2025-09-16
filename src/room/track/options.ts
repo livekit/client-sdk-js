@@ -390,17 +390,25 @@ export interface AudioPreset {
   priority?: RTCPriorityType;
 }
 
-const backupCodecs = ['vp8', 'h264'] as const;
+// `red` is not technically a codec, but treated as one in signalling protocol
+export const audioCodecs = ['opus', 'red'] as const;
+
+export type AudioCodec = (typeof audioCodecs)[number];
+
+const backupVideoCodecs = ['vp8', 'h264'] as const;
 
 export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1', 'h265'] as const;
 
 export type VideoCodec = (typeof videoCodecs)[number];
 
-export type BackupVideoCodec = (typeof backupCodecs)[number];
+export type BackupVideoCodec = (typeof backupVideoCodecs)[number];
 
-export function isBackupCodec(codec: string): codec is BackupVideoCodec {
-  return !!backupCodecs.find((backup) => backup === codec);
+export function isBackupVideoCodec(codec: string): codec is BackupVideoCodec {
+  return !!backupVideoCodecs.find((backup) => backup === codec);
 }
+
+/** @deprecated Use {@link isBackupVideoCodec} instead */
+export const isBackupCodec = isBackupVideoCodec;
 
 export enum BackupCodecPolicy {
   // codec regression is preferred, the sfu will try to regress codec if possible but not guaranteed
