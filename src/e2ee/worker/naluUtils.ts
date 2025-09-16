@@ -280,7 +280,12 @@ function findNALUIndices(stream: Uint8Array): number[] {
 
     // save current NALU
     if (start === 0) {
-      if (end !== start) throw TypeError('byte stream contains leading data');
+      // Skip leading data before first NALU - this can happen when the byte stream
+      // contains metadata or padding before the actual NALU data
+      if (end !== start) {
+        // Leading data detected, but we'll continue parsing from the next NALU
+        // instead of throwing an error to handle malformed streams gracefully
+      }
     } else {
       result.push(start);
     }
