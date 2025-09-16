@@ -569,14 +569,16 @@ const appActions = {
     if (textField.value) {
       let localParticipant = currentRoom.localParticipant;
       let message = textField.value;
-      localParticipant.sendText(message, { topic: 'lk.chat' })
-        .then((info) => {
-          handleChatMessage({
+      localParticipant.sendText(message, { topic: 'lk.chat' }).then((info) => {
+        handleChatMessage(
+          {
             id: info.id,
             timestamp: info.timestamp,
-            message: message
-          }, localParticipant);
-        });
+            message: message,
+          },
+          localParticipant,
+        );
+      });
 
       textField.value = '';
     }
