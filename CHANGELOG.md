@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.15.8
+
+### Patch Changes
+
+- Add preliminary support for data message decryption - [#1595](https://github.com/livekit/client-sdk-js/pull/1595) ([@lukasIO](https://github.com/lukasIO))
+
+- Add video autoplay attributes to PublishVideoCheck - [#1648](https://github.com/livekit/client-sdk-js/pull/1648) ([@Doomann](https://github.com/Doomann))
+
 ## 2.15.7
 
 ### Patch Changes
