@@ -390,6 +390,11 @@ export interface AudioPreset {
   priority?: RTCPriorityType;
 }
 
+// `red` is not technically a codec, but treated as one in signalling protocol
+export const audioCodecs = ['opus', 'red'] as const;
+
+export type AudioCodec = (typeof audioCodecs)[number];
+
 const backupCodecs = ['vp8', 'h264'] as const;
 
 export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1', 'h265'] as const;

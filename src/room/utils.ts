@@ -22,7 +22,7 @@ import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import { type VideoCodec, videoCodecs } from './track/options';
+import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
@@ -73,7 +73,7 @@ export function supportsAV1(): boolean {
   let hasAV1 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/AV1') {
+      if (codec.mimeType.toLowerCase() === 'video/av1') {
         hasAV1 = true;
         break;
       }
@@ -110,7 +110,7 @@ export function supportsVP9(): boolean {
   let hasVP9 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/VP9') {
+      if (codec.mimeType.toLowerCase() === 'video/vp9') {
         hasVP9 = true;
         break;
       }
@@ -128,7 +128,7 @@ export function supportsH265(): boolean {
   let hasH265 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
-      if (codec.mimeType === 'video/H265') {
+      if (codec.mimeType.toLowerCase() === 'video/h265') {
         hasH265 = true;
         break;
       }
@@ -531,6 +531,10 @@ export function createAudioAnalyser(
   };
 
   return { calculateVolume, analyser, cleanup };
+}
+
+export function isAudioCodec(maybeCodec: string): maybeCodec is AudioCodec {
+  return audioCodecs.includes(maybeCodec as AudioCodec);
 }
 
 export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
