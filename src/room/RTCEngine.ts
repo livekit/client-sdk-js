@@ -9,6 +9,9 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  EncryptedPacket,
+  EncryptedPacketPayload,
+  Encryption_Type,
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
@@ -45,6 +48,8 @@ import {
   SignalConnectionState,
   toProtoSessionDescription,
 } from '../api/SignalClient';
+import type { BaseE2EEManager } from '../e2ee/E2eeManager';
+import { asEncryptablePacket } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
@@ -121,6 +126,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * @internal
    */
   latestRemoteOfferId: number = 0;
+
+  /** @internal */
+  e2eeManager: BaseE2EEManager | undefined;
 
   get isClosed() {
     return this._isClosed;
@@ -735,12 +743,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+      } else if (dp.value?.case === 'encryptedPacket') {
+        if (!this.e2eeManager) {
+          this.log.error('Received encrypted packet but E2EE not set up', this.logContext);
+          return;
+        }
+        const decryptedData = await this.e2eeManager?.handleEncryptedData(
+          dp.value.value.encryptedValue,
+          dp.value.value.iv,
+          dp.participantIdentity,
+          dp.value.value.keyIndex,
+        );
+        const decryptedPacket = EncryptedPacketPayload.fromBinary(decryptedData.payload);
+        const newDp = new DataPacket({
+          value: decryptedPacket.value,
+        });
+        if (newDp.value?.case === 'user') {
+          // compatibility
+          applyUserDataCompat(newDp, newDp.value.value);
+        }
+        this.emit(EngineEvent.DataPacketReceived, newDp, dp.value.value.encryptionType);
       } else {
         if (dp.value?.case === 'user') {
           // compatibility
           applyUserDataCompat(dp, dp.value.value);
         }
-        this.emit(EngineEvent.DataPacketReceived, dp);
+        this.emit(EngineEvent.DataPacketReceived, dp, Encryption_Type.NONE);
       }
     } finally {
       unlock();
@@ -1215,11 +1243,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
+    if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
+      const encryptablePacket = asEncryptablePacket(packet);
+      if (encryptablePacket) {
+        const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());
+        packet.value = {
+          case: 'encryptedPacket',
+          value: new EncryptedPacket({
+            encryptedValue: encryptedData.payload,
+            iv: encryptedData.iv,
+            keyIndex: encryptedData.keyIndex,
+          }),
+        };
+      }
+    }
+
     if (kind === DataPacket_Kind.RELIABLE) {
       packet.sequence = this.reliableDataSequence;
       this.reliableDataSequence += 1;
     }
+
     const msg = packet.toBinary();
+
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       if (kind === DataPacket_Kind.RELIABLE) {
@@ -1600,7 +1645,7 @@ export type EngineEventCallbacks = {
     receiver: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-  dataPacketReceived: (packet: DataPacket) => void;
+  dataPacketReceived: (packet: DataPacket, encryptionType: Encryption_Type) => void;
   transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */
