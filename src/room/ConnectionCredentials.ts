@@ -219,10 +219,6 @@ export namespace ConnectionCredentials {
   > & {
     sandboxId: string;
     baseUrl?: string;
-
-    /** Disable sandbox security related warning log if ConnectionCredentials.Sandbox is used in
-     * production */
-    disableSecurityWarning?: boolean;
   };
 
   /** ConnectionCredentials.SandboxTokenServer queries a sandbox token server for credentials,
@@ -235,19 +231,9 @@ export namespace ConnectionCredentials {
   export class SandboxTokenServer extends ConnectionCredentials.Refreshable {
     protected options: SandboxTokenServerOptions;
 
-    private log = log;
-
     constructor(options: SandboxTokenServerOptions) {
       super();
       this.options = options;
-
-      this.log = getLogger(LoggerNames.ConnectionCredentials);
-
-      if (process.env.NODE_ENV === 'production' && !this.options.disableSecurityWarning) {
-        this.log.warn(
-          'ConnectionCredentials.SandboxTokenServer is meant for development, and is not security hardened. In production, implement your own token generation solution.',
-        );
-      }
     }
 
     async fetch(request: Request) {
