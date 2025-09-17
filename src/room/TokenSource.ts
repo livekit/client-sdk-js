@@ -5,11 +5,11 @@ import log, { LoggerNames, getLogger } from '../logger';
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
-/** ConnectionCredentials handles generating credentials for connecting to a new Room */
-export abstract class ConnectionCredentials {
-  protected cachedResponse: ConnectionCredentials.Response | null = null;
+/** TokenSource handles generating credentials for connecting to a new Room */
+export abstract class TokenSource {
+  protected cachedResponse: TokenSource.Response | null = null;
 
-  constructor(response: ConnectionCredentials.Response | null = null) {
+  constructor(response: TokenSource.Response | null = null) {
     this.cachedResponse = response;
   }
 
@@ -70,9 +70,9 @@ export abstract class ConnectionCredentials {
     return this.getCachedResponseJwtPayload()?.attributes ?? null;
   }
 
-  abstract generate(): Promise<ConnectionCredentials.Response>;
+  abstract generate(): Promise<TokenSource.Response>;
 }
-export namespace ConnectionCredentials {
+export namespace TokenSource {
   export type Request = {
     /** The name of the room being requested when generating credentials */
     roomName?: string;
@@ -102,14 +102,14 @@ export namespace ConnectionCredentials {
   };
 
   /**
-   * ConnectionCredentials.Refreshable handles getting credentials for connecting to a new Room from
+   * TokenSource.Refreshable handles getting credentials for connecting to a new Room from
    * an async source, caching them and auto refreshing them if they expire. */
-  export abstract class Refreshable extends ConnectionCredentials {
-    private request: ConnectionCredentials.Request = {};
+  export abstract class Refreshable extends TokenSource {
+    private request: TokenSource.Request = {};
 
-    private inProgressFetch: Promise<ConnectionCredentials.Response> | null = null;
+    private inProgressFetch: Promise<TokenSource.Response> | null = null;
 
-    protected isSameAsCachedRequest(request: ConnectionCredentials.Request) {
+    protected isSameAsCachedRequest(request: TokenSource.Request) {
       if (!this.request) {
         return false;
       }
@@ -140,8 +140,8 @@ export namespace ConnectionCredentials {
     /**
      * Store request metadata which will be provide explicitly when fetching new credentials.
      *
-     * @example new ConnectionCredentials.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
-    setRequest(request: ConnectionCredentials.Request) {
+     * @example new TokenSource.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
+    setRequest(request: TokenSource.Request) {
       if (!this.isSameAsCachedRequest(request)) {
         this.cachedResponse = null;
       }
@@ -175,36 +175,34 @@ export namespace ConnectionCredentials {
       }
     }
 
-    protected abstract fetch(
-      request: ConnectionCredentials.Request,
-    ): Promise<ConnectionCredentials.Response>;
+    protected abstract fetch(request: TokenSource.Request): Promise<TokenSource.Response>;
   }
 
-  /** ConnectionCredentials.Literal contains a single, literal set of credentials.
+  /** TokenSource.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
-  export class Literal extends ConnectionCredentials {
+  export class Literal extends TokenSource {
     private log = log;
 
     constructor(payload: Response) {
       super(payload);
-      this.log = getLogger(LoggerNames.ConnectionCredentials);
+      this.log = getLogger(LoggerNames.TokenSource);
     }
 
     async generate() {
       if (this.isCachedResponseExpired()) {
         this.log.warn(
-          'The credentials within ConnectionCredentials.Literal have expired, so any upcoming uses of them will likely fail.',
+          'The credentials within TokenSource.Literal have expired, so any upcoming uses of them will likely fail.',
         );
       }
       return this.cachedResponse!;
     }
   }
 
-  /** ConnectionCredentials.Custom allows a user to define a manual function which generates new
+  /** TokenSource.Custom allows a user to define a manual function which generates new
    * {@link Response} values on demand. Use this to get credentials from custom backends / etc.
    * */
-  export class Custom extends ConnectionCredentials.Refreshable {
+  export class Custom extends TokenSource.Refreshable {
     protected fetch: (request: Request) => Promise<Response>;
 
     constructor(handler: (request: Request) => Promise<Response>) {
@@ -221,14 +219,14 @@ export namespace ConnectionCredentials {
     baseUrl?: string;
   };
 
-  /** ConnectionCredentials.SandboxTokenServer queries a sandbox token server for credentials,
+  /** TokenSource.SandboxTokenServer queries a sandbox token server for credentials,
    * which supports quick prototyping / getting started types of use cases.
    *
    * This token provider is INSECURE and should NOT be used in production.
    *
    * For more info:
    * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
-  export class SandboxTokenServer extends ConnectionCredentials.Refreshable {
+  export class SandboxTokenServer extends TokenSource.Refreshable {
     protected options: SandboxTokenServerOptions;
 
     constructor(options: SandboxTokenServerOptions) {

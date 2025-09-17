@@ -12,7 +12,7 @@ export enum LogLevel {
 export enum LoggerNames {
   Default = 'livekit',
   Room = 'livekit-room',
-  ConnectionCredentials = 'livekit-connection-credentials',
+  TokenSource = 'livekit-connection-credentials',
   Participant = 'livekit-participant',
   Track = 'livekit-track',
   Publication = 'livekit-track-publication',
