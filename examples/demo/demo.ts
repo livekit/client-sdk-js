@@ -166,8 +166,8 @@ const appActions = {
     const room = new Room(roomOptions);
 
     const tokenSource = new TokenSource.Literal({
-      serverUrl: url,
-      participantToken: token,
+      server_url: url,
+      participant_token: token,
     });
 
     startTime = Date.now();

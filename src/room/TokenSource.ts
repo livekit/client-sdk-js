@@ -7,14 +7,14 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
 /** TokenSource handles generating credentials for connecting to a new Room */
 export abstract class TokenSource {
-  protected cachedResponse: TokenSource.Response | null = null;
+  protected cachedResponse: TokenSource.ResponsePayload | null = null;
 
-  constructor(response: TokenSource.Response | null = null) {
+  constructor(response: TokenSource.ResponsePayload | null = null) {
     this.cachedResponse = response;
   }
 
   getCachedResponseJwtPayload() {
-    const token = this.cachedResponse?.participantToken;
+    const token = this.cachedResponse?.participant_token;
     if (!token) {
       return null;
     }
@@ -46,66 +46,66 @@ export abstract class TokenSource {
     return expiresAt >= now;
   }
 
-  abstract generate(): Promise<TokenSource.Response>;
+  abstract generate(): Promise<TokenSource.ResponsePayload>;
 }
 export namespace TokenSource {
-  export type Request = {
+  export type RequestPayload = {
     /** The name of the room being requested when generating credentials */
-    roomName?: string;
+    room_name?: string;
 
     /** The name of the participant being requested for this client when generating credentials */
-    participantName?: string;
+    participant_name?: string;
 
     /** The identity of the participant being requested for this client when generating credentials */
-    participantIdentity?: string;
+    participant_identity?: string;
 
     /** Any participant metadata being included along with the credentials generation operation */
-    participantMetadata?: string;
+    participant_metadata?: string;
 
     /** Any participant attributes being included along with the credentials generation operation */
-    participantAttributes?: Record<string, string>;
+    participant_attributes?: Record<string, string>;
 
     /**
      * A RoomConfiguration object can be passed to request extra parameters should be included when
      * generating connection credentials - dispatching agents, defining egress settings, etc
      * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
      */
-    roomConfig?: RoomConfiguration;
+    room_config?: RoomConfiguration;
   };
-  export type Response = {
-    serverUrl: string;
-    participantToken: string;
+  export type ResponsePayload = {
+    server_url: string;
+    participant_token: string;
   };
 
   /**
    * TokenSource.Refreshable handles getting credentials for connecting to a new Room from
    * an async source, caching them and auto refreshing them if they expire. */
   export abstract class Refreshable extends TokenSource {
-    private request: TokenSource.Request = {};
+    private request: TokenSource.RequestPayload = {};
 
-    private inProgressFetch: Promise<TokenSource.Response> | null = null;
+    private inProgressFetch: Promise<TokenSource.ResponsePayload> | null = null;
 
-    protected isSameAsCachedRequest(request: TokenSource.Request) {
+    protected isSameAsCachedRequest(request: TokenSource.RequestPayload) {
       if (!this.request) {
         return false;
       }
 
-      if (this.request.roomName !== request.roomName) {
+      if (this.request.room_name !== request.room_name) {
         return false;
       }
-      if (this.request.participantName !== request.participantName) {
+      if (this.request.participant_name !== request.participant_name) {
         return false;
       }
       if (
-        (!this.request.roomConfig && request.roomConfig) ||
-        (this.request.roomConfig && !request.roomConfig)
+        (!this.request.room_config && request.room_config) ||
+        (this.request.room_config && !request.room_config)
       ) {
         return false;
       }
       if (
-        this.request.roomConfig &&
-        request.roomConfig &&
-        !this.request.roomConfig.equals(request.roomConfig)
+        this.request.room_config &&
+        request.room_config &&
+        !this.request.room_config.equals(request.room_config)
       ) {
         return false;
       }
@@ -117,7 +117,7 @@ export namespace TokenSource {
      * Store request metadata which will be provide explicitly when fetching new credentials.
      *
      * @example new TokenSource.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
-    setRequest(request: TokenSource.Request) {
+    setRequest(request: TokenSource.RequestPayload) {
       if (!this.isSameAsCachedRequest(request)) {
         this.cachedResponse = null;
       }
@@ -151,7 +151,9 @@ export namespace TokenSource {
       }
     }
 
-    protected abstract fetch(request: TokenSource.Request): Promise<TokenSource.Response>;
+    protected abstract fetch(
+      request: TokenSource.RequestPayload,
+    ): Promise<TokenSource.ResponsePayload>;
   }
 
   /** TokenSource.Literal contains a single, literal set of credentials.
@@ -160,7 +162,7 @@ export namespace TokenSource {
   export class Literal extends TokenSource {
     private log = log;
 
-    constructor(payload: Response) {
+    constructor(payload: ResponsePayload) {
       super(payload);
       this.log = getLogger(LoggerNames.TokenSource);
     }
@@ -176,20 +178,20 @@ export namespace TokenSource {
   }
 
   /** TokenSource.Custom allows a user to define a manual function which generates new
-   * {@link Response} values on demand. Use this to get credentials from custom backends / etc.
+   * {@link ResponsePayload} values on demand. Use this to get credentials from custom backends / etc.
    * */
   export class Custom extends TokenSource.Refreshable {
-    protected fetch: (request: Request) => Promise<Response>;
+    protected fetch: (request: RequestPayload) => Promise<ResponsePayload>;
 
-    constructor(handler: (request: Request) => Promise<Response>) {
+    constructor(handler: (request: RequestPayload) => Promise<ResponsePayload>) {
       super();
       this.fetch = handler;
     }
   }
 
   export type SandboxTokenServerOptions = Pick<
-    Request,
-    'roomName' | 'participantName' | 'roomConfig'
+    RequestPayload,
+    'room_name' | 'participant_name' | 'room_config'
   > & {
     sandboxId: string;
     baseUrl?: string;
@@ -210,12 +212,12 @@ export namespace TokenSource {
       this.options = options;
     }
 
-    async fetch(request: Request) {
+    async fetch(request: RequestPayload) {
       const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
 
-      const roomName = this.options.roomName ?? request.roomName;
-      const participantName = this.options.participantName ?? request.participantName;
-      const roomConfig = this.options.roomConfig ?? request.roomConfig;
+      const roomName = this.options.room_name ?? request.room_name;
+      const participantName = this.options.participant_name ?? request.participant_name;
+      const roomConfig = this.options.room_config ?? request.room_config;
 
       const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
         method: 'POST',
@@ -236,8 +238,11 @@ export namespace TokenSource {
         );
       }
 
-      const body: Exclude<Response, 'roomConfig'> = await response.json();
-      return { ...body, roomConfig };
+      const rawBody = await response.json();
+      return {
+        server_url: rawBody.serverUrl,
+        participant_token: rawBody.participantToken,
+      };
     }
   }
 }

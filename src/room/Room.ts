@@ -593,7 +593,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   prepareConnection(connectionCredentials: TokenSource): Promise<void>;
   prepareConnection(url: string): Promise<void>;
-  /** @deprecated Use room.prepareConnection(new TokenSource.Literal({ serverUrl: "url", participantToken: "token" })) instead */
+  /** @deprecated Use room.prepareConnection(new TokenSource.Literal({ server_url: "url", participant_token: "token" })) instead */
   prepareConnection(url: string, token?: string): Promise<void>;
   async prepareConnection(
     urlOrTokenSource: TokenSource | string,
@@ -602,8 +602,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let url, token;
     if (urlOrTokenSource instanceof TokenSource && typeof tokenOrUnknown !== 'string') {
       const result = await urlOrTokenSource.generate();
-      url = result.serverUrl;
-      token = result.participantToken;
+      url = result.server_url;
+      token = result.participant_token;
     } else if (
       typeof urlOrTokenSource === 'string' &&
       (typeof tokenOrUnknown === 'string' || typeof tokenOrUnknown === 'undefined')
@@ -641,7 +641,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   connect: {
     (connectionCredentials: TokenSource, opts?: RoomConnectOptions): Promise<void>;
-    /** @deprecated Use room.connect(new TokenSource.Literal({ serverUrl: "url", participantToken: "token" }), opts?: RoomConnectOptions) instead */
+    /** @deprecated Use room.connect(new TokenSource.Literal({ server_url: "url", participant_token: "token" }), opts?: RoomConnectOptions) instead */
     (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
   } = async (urlOrTokenSource, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
     let opts: RoomConnectOptions = {};
@@ -650,8 +650,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       opts = tokenOrOpts ?? {};
     } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
       this.connectionCredentials = new TokenSource.Literal({
-        serverUrl: urlOrTokenSource,
-        participantToken: tokenOrOpts,
+        server_url: urlOrTokenSource,
+        participant_token: tokenOrOpts,
       });
       opts = optsOrUnset ?? {};
     } else {
@@ -660,7 +660,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
 
-    const { serverUrl: url, participantToken: token } = await this.connectionCredentials.generate();
+    const { server_url: url, participant_token: token } =
+      await this.connectionCredentials.generate();
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {
