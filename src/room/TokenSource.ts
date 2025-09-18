@@ -13,7 +13,7 @@ export abstract class TokenSource {
     this.cachedResponse = response;
   }
 
-  protected getCachedResponseJwtPayload() {
+  getCachedResponseJwtPayload() {
     const token = this.cachedResponse?.participantToken;
     if (!token) {
       return null;
@@ -44,30 +44,6 @@ export abstract class TokenSource {
 
     const now = new Date();
     return expiresAt >= now;
-  }
-
-  getCachedResponseRoomConfig() {
-    const roomConfigJsonValue = this.getCachedResponseJwtPayload()?.roomConfig;
-    if (!roomConfigJsonValue) {
-      return null;
-    }
-    return RoomConfiguration.fromJson(roomConfigJsonValue);
-  }
-
-  getCachedResponseParticipantName() {
-    return this.getCachedResponseJwtPayload()?.name ?? null;
-  }
-
-  getCachedResponseParticipantIdentity() {
-    return this.getCachedResponseJwtPayload()?.sub ?? null;
-  }
-
-  getCachedResponseParticipantMetadata() {
-    return this.getCachedResponseJwtPayload()?.metadata ?? null;
-  }
-
-  getCachedResponseParticipantAttributes() {
-    return this.getCachedResponseJwtPayload()?.attributes ?? null;
   }
 
   abstract generate(): Promise<TokenSource.Response>;
