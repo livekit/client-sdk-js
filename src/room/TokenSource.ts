@@ -253,4 +253,60 @@ export namespace TokenSource {
       });
     }
   }
+
+  export type SandboxTokenServerV1Options = Pick<
+    RequestPayload,
+    'room_name' | 'participant_name' | 'room_config'
+  > & {
+    sandboxId: string;
+    baseUrl?: string;
+  };
+
+  /**
+   * A temporary v1 sandbox token server adaptor for backwards compatibility while the v2 endpoints
+   * are getting deployed.
+   *
+   * FIXME: get rid of this before merging the TokenSource pull request!!
+   * */
+  export class SandboxTokenServerV1 extends TokenSource.Refreshable {
+    protected options: SandboxTokenServerV1Options;
+
+    constructor(options: SandboxTokenServerV1Options) {
+      super();
+      this.options = options;
+    }
+
+    async fetch(request: RequestPayload) {
+      const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
+
+      const roomName = this.options.room_name ?? request.room_name;
+      const participantName = this.options.participant_name ?? request.participant_name;
+      const roomConfig = this.options.room_config ?? request.room_config;
+
+      const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
+        method: 'POST',
+        headers: {
+          'X-Sandbox-ID': this.options.sandboxId,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomName,
+          participantName,
+          roomConfig: roomConfig?.toJson(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Error generating token from sandbox token server: received ${response.status} / ${await response.text()}`,
+        );
+      }
+
+      const rawBody = await response.json();
+      return {
+        server_url: rawBody.serverUrl,
+        participant_token: rawBody.participantToken,
+      };
+    }
+  }
 }
