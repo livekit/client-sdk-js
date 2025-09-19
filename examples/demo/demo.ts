@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   ScreenSharePresets,
+  TokenSource,
   Track,
   TrackPublication,
   VideoPresets,
@@ -164,8 +165,13 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
+    const tokenSource = new TokenSource.Literal({
+      server_url: url,
+      participant_token: token,
+    });
+
     startTime = Date.now();
-    await room.prepareConnection(url, token);
+    await room.prepareConnection(tokenSource);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
     room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
@@ -407,7 +413,7 @@ const appActions = {
           reject(error);
         }
       });
-      await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
+      await Promise.all([room.connect(tokenSource, connectOptions), publishPromise]);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,

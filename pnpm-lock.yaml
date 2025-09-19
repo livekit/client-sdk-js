@@ -20,6 +20,9 @@ importers:
       events:
         specifier: ^3.3.0
         version: 3.3.0
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
@@ -2578,6 +2581,9 @@ packages:
     resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==}
     hasBin: true
 
+  jose@6.1.0:
+    resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -3447,8 +3453,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20250916:
-    resolution: {integrity: sha512-Xfuwn53pwofpt/hGVqLcqkqEN9u7jWpPAagOj2QgGmgOZH4P8pzPpwBB4piRkOqYdmiSg6qOP4xK3L9iNRTF6A==}
+  typescript@6.0.0-dev.20250917:
+    resolution: {integrity: sha512-Z2rzVGN5WBboY5ySTadfuJm+pouf2bVSzpMZCDVjuBYZvdvZqt9m80J2gbIPPxqQOcRngk0TYlw07zCKxjlWEg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5681,7 +5687,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20250916
+      typescript: 6.0.0-dev.20250917
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6605,6 +6611,8 @@ snapshots:
 
   jiti@2.4.2: {}
 
+  jose@6.1.0: {}
+
   js-tokens@4.0.0: {}
 
   js-tokens@9.0.1: {}
@@ -7522,7 +7530,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20250916: {}
+  typescript@6.0.0-dev.20250917: {}
 
   uc.micro@2.1.0: {}
 
