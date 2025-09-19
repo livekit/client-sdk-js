@@ -189,10 +189,46 @@ export namespace TokenSource {
     }
   }
 
-  export type SandboxTokenServerOptions = Pick<
-    RequestPayload,
-    'room_name' | 'participant_name' | 'room_config'
-  > & {
+  export type EndpointOptions = {
+    headers?: Record<string, string>;
+  };
+
+  export class Endpoint extends TokenSource.Refreshable {
+    protected url: string;
+
+    protected options: EndpointOptions | null;
+
+    constructor(url: string, options?: EndpointOptions) {
+      super();
+      this.url = url;
+      this.options = options ?? null;
+    }
+
+    async fetch(request: RequestPayload) {
+      const response = await fetch(this.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.options?.headers ?? {}),
+        },
+        body: JSON.stringify({
+          ...request,
+          room_config: request.room_config?.toJson({ useProtoFieldName: true }),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Error generating token from endpoint ${this.url}: received ${response.status} / ${await response.text()}`,
+        );
+      }
+
+      const body: ResponsePayload = await response.json();
+      return body;
+    }
+  }
+
+  export type SandboxTokenServerOptions = EndpointOptions & {
     sandboxId: string;
     baseUrl?: string;
   };
@@ -204,45 +240,17 @@ export namespace TokenSource {
    *
    * For more info:
    * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
-  export class SandboxTokenServer extends TokenSource.Refreshable {
-    protected options: SandboxTokenServerOptions;
-
+  export class SandboxTokenServer extends TokenSource.Endpoint {
     constructor(options: SandboxTokenServerOptions) {
-      super();
-      this.options = options;
-    }
+      const { sandboxId, baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
 
-    async fetch(request: RequestPayload) {
-      const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
-
-      const roomName = this.options.room_name ?? request.room_name;
-      const participantName = this.options.participant_name ?? request.participant_name;
-      const roomConfig = this.options.room_config ?? request.room_config;
-
-      const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
-        method: 'POST',
+      super(`${baseUrl}/api/v2/sandbox/connection-details`, {
+        ...rest,
         headers: {
-          'X-Sandbox-ID': this.options.sandboxId,
-          'Content-Type': 'application/json',
+          ...(rest?.headers ?? {}),
+          'X-Sandbox-ID': sandboxId,
         },
-        body: JSON.stringify({
-          roomName,
-          participantName,
-          roomConfig: roomConfig?.toJson(),
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error(
-          `Error generating token from sandbox token server: received ${response.status} / ${await response.text()}`,
-        );
-      }
-
-      const rawBody = await response.json();
-      return {
-        server_url: rawBody.serverUrl,
-        participant_token: rawBody.participantToken,
-      };
     }
   }
 }
