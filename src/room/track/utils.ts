@@ -119,7 +119,10 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
     await sleep(timeOffset);
     analyser.getByteTimeDomainData(dataArray);
     const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
-    ctx.close();
+    
+    source.disconnect();
+    analyser.disconnect();
+
     return !someNoise;
   }
   return false;
