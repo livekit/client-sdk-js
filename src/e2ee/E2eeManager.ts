@@ -49,7 +49,7 @@ export interface BaseE2EEManager {
     iv: Uint8Array,
     participantIdentity: string,
     keyIndex: number,
-  ): Promise<DecryptDataResponseMessage['data'] | EncryptDataResponseMessage['data']>;
+  ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
 }
 
