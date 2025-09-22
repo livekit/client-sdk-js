@@ -30,7 +30,7 @@ const clientDts = await rolldown({
       tsconfig: 'tsconfig.json',
       parallel: true,
       emitDtsOnly: true,
-      // tsgo: true,
+      tsgo: true,
     }),
   ],
 });
