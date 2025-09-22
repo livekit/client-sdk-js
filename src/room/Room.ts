@@ -171,7 +171,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  private connectionCredentials?: TokenSource;
+  private tokenSource?: TokenSource;
 
   private disconnectLock: Mutex;
 
@@ -591,7 +591,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection(connectionCredentials: TokenSource): Promise<void>;
+  prepareConnection(tokenSource: TokenSource): Promise<void>;
   prepareConnection(url: string): Promise<void>;
   /** @deprecated Use room.prepareConnection(new TokenSource.Literal({ server_url: "url", participant_token: "token" })) instead */
   prepareConnection(url: string, token?: string): Promise<void>;
@@ -612,7 +612,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       token = tokenOrUnknown;
     } else {
       throw new Error(
-        `Room.prepareConnection received invalid parameters - expected url, url/token or connectionCredentials, received ${urlOrTokenSource}, ${tokenOrUnknown}`,
+        `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrTokenSource}, ${tokenOrUnknown}`,
       );
     }
 
@@ -640,28 +640,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   connect: {
-    (connectionCredentials: TokenSource, opts?: RoomConnectOptions): Promise<void>;
+    (tokenSource: TokenSource, opts?: RoomConnectOptions): Promise<void>;
     /** @deprecated Use room.connect(new TokenSource.Literal({ server_url: "url", participant_token: "token" }), opts?: RoomConnectOptions) instead */
     (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
   } = async (urlOrTokenSource, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
     let opts: RoomConnectOptions = {};
     if (urlOrTokenSource instanceof TokenSource && typeof tokenOrOpts !== 'string') {
-      this.connectionCredentials = urlOrTokenSource;
+      this.tokenSource = urlOrTokenSource;
       opts = tokenOrOpts ?? {};
     } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
-      this.connectionCredentials = new TokenSource.Literal({
+      this.tokenSource = new TokenSource.Literal({
         server_url: urlOrTokenSource,
         participant_token: tokenOrOpts,
       });
       opts = optsOrUnset ?? {};
     } else {
       throw new Error(
-        `Room.connect received invalid parameters - expected url/token or connectionCredentials, received ${urlOrTokenSource}, ${tokenOrOpts}, ${optsOrUnset}`,
+        `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrTokenSource}, ${tokenOrOpts}, ${optsOrUnset}`,
       );
     }
 
-    const { server_url: url, participant_token: token } =
-      await this.connectionCredentials.generate();
+    const { server_url: url, participant_token: token } = await this.tokenSource.generate();
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {
@@ -1008,7 +1007,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
-      this.connectionCredentials?.generate();
+      this.tokenSource?.generate();
     } finally {
       unlock();
     }
