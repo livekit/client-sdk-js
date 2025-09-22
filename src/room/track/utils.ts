@@ -152,6 +152,7 @@ export function getNewAudioContext(): AudioContext | void {
         }
       };
 
+      // https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/statechange_event
       audioContext.addEventListener('statechange', () => {
         if (audioContext.state === 'closed') {
           window.document.body?.removeEventListener('click', handleResume);
