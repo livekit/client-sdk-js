@@ -602,8 +602,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let url, token;
     if (urlOrTokenSource instanceof TokenSource && typeof tokenOrUnknown !== 'string') {
       const result = await urlOrTokenSource.generate();
-      url = result.server_url;
-      token = result.participant_token;
+      url = result.serverUrl;
+      token = result.participantToken;
     } else if (
       typeof urlOrTokenSource === 'string' &&
       (typeof tokenOrUnknown === 'string' || typeof tokenOrUnknown === 'undefined')
@@ -650,8 +650,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       opts = tokenOrOpts ?? {};
     } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
       this.tokenSource = new TokenSource.Literal({
-        server_url: urlOrTokenSource,
-        participant_token: tokenOrOpts,
+        serverUrl: urlOrTokenSource,
+        participantToken: tokenOrOpts,
       });
       opts = optsOrUnset ?? {};
     } else {
@@ -660,7 +660,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
 
-    const { server_url: url, participant_token: token } = await this.tokenSource.generate();
+    const { serverUrl: url, participantToken: token } = await this.tokenSource.generate();
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {

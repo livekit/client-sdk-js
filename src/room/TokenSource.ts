@@ -1,20 +1,25 @@
-import { RoomConfiguration } from '@livekit/protocol';
+import { RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
 import { decodeJwt } from 'jose';
 import log, { LoggerNames, getLogger } from '../logger';
+import type { ValueToSnakeCase } from '../utils/camelToSnakeCase';
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
+type RoomConfigurationPayload = ValueToSnakeCase<
+  NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>
+>;
+
 /** TokenSource handles generating credentials for connecting to a new Room */
 export abstract class TokenSource {
-  protected cachedResponse: TokenSource.ResponsePayload | null = null;
+  protected cachedResponse: TokenSourceResponse | null = null;
 
-  constructor(response: TokenSource.ResponsePayload | null = null) {
-    this.cachedResponse = response;
+  constructor(response: TokenSource.PartialResponse | null = null) {
+    this.cachedResponse = response ? TokenSourceResponse.fromJson(response) : null;
   }
 
   getCachedResponseJwtPayload() {
-    const token = this.cachedResponse?.participant_token;
+    const token = this.cachedResponse?.participantToken;
     if (!token) {
       return null;
     }
@@ -23,7 +28,7 @@ export abstract class TokenSource {
       name?: string;
       metadata?: string;
       attributes?: Record<string, string>;
-      roomConfig?: ReturnType<RoomConfiguration['toJson']>;
+      roomConfig?: RoomConfigurationPayload;
       video?: {
         room?: string;
         roomJoin?: boolean;
@@ -46,90 +51,57 @@ export abstract class TokenSource {
     return expiresAt >= now;
   }
 
-  abstract generate(): Promise<TokenSource.ResponsePayload>;
+  abstract generate(): Promise<TokenSourceResponse>;
 }
 export namespace TokenSource {
-  export type RequestPayload = {
-    /** The name of the room being requested when generating credentials */
-    room_name?: string;
+  export type PartialRequest = NonNullable<ConstructorParameters<typeof TokenSourceRequest>[0]>;
+  export type PartialResponse = NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>;
 
-    /** The name of the participant being requested for this client when generating credentials */
-    participant_name?: string;
+  /** The `TokenSource` request object sent to the server as part of fetching a refreshable
+   * `TokenSource` like Endpoint or SandboxTokenServer.
+   *
+   * Use this as a type for your request body if implementing a server endpoint in node.js.
+   */
+  export type RequestPayload = ValueToSnakeCase<PartialRequest>;
 
-    /** The identity of the participant being requested for this client when generating credentials */
-    participant_identity?: string;
-
-    /** Any participant metadata being included along with the credentials generation operation */
-    participant_metadata?: string;
-
-    /** Any participant attributes being included along with the credentials generation operation */
-    participant_attributes?: Record<string, string>;
-
-    /**
-     * A RoomConfiguration object can be passed to request extra parameters should be included when
-     * generating connection credentials - dispatching agents, defining egress settings, etc
-     * @see https://docs.livekit.io/home/get-started/authentication/#room-configuration
-     */
-    room_config?: RoomConfiguration;
-  };
-  export type ResponsePayload = {
-    server_url: string;
-    participant_token: string;
-  };
+  /** The `TokenSource` response object sent from the server as part of fetching a refreshable
+   * `TokenSource` like Endpoint or SandboxTokenServer.
+   *
+   * Use this as a type for your response body if implementing a server endpoint in node.js.
+   */
+  export type ResponsePayload = ValueToSnakeCase<PartialResponse>;
 
   /**
    * TokenSource.Refreshable handles getting credentials for connecting to a new Room from
    * an async source, caching them and auto refreshing them if they expire. */
   export abstract class Refreshable extends TokenSource {
-    private request: TokenSource.RequestPayload = {};
+    private request = new TokenSourceRequest();
 
     private inProgressFetch: Promise<TokenSource.ResponsePayload> | null = null;
 
-    protected isSameAsCachedRequest(request: TokenSource.RequestPayload) {
-      if (!this.request) {
-        return false;
-      }
-
-      if (this.request.room_name !== request.room_name) {
-        return false;
-      }
-      if (this.request.participant_name !== request.participant_name) {
-        return false;
-      }
-      if (
-        (!this.request.room_config && request.room_config) ||
-        (this.request.room_config && !request.room_config)
-      ) {
-        return false;
-      }
-      if (
-        this.request.room_config &&
-        request.room_config &&
-        !this.request.room_config.equals(request.room_config)
-      ) {
-        return false;
-      }
-
-      return true;
+    protected isSameAsCachedRequest(request: TokenSourceRequest) {
+      return TokenSourceRequest.equals(this.request, request);
     }
 
     /**
      * Store request metadata which will be provide explicitly when fetching new credentials.
      *
      * @example new TokenSource.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
-    setRequest(request: TokenSource.RequestPayload) {
-      if (!this.isSameAsCachedRequest(request)) {
+    setRequest(request: PartialRequest) {
+      const parsedRequest = new TokenSourceRequest(request);
+
+      if (!this.isSameAsCachedRequest(parsedRequest)) {
         this.cachedResponse = null;
       }
-      this.request = request;
+      this.request = parsedRequest;
     }
 
     clearRequest() {
-      this.request = {};
+      this.request = new TokenSourceRequest();
       this.cachedResponse = null;
     }
 
-    async generate() {
+    async generate(): Promise<TokenSourceResponse> {
       if (this.isCachedResponseExpired()) {
         await this.refresh();
       }
@@ -143,12 +115,23 @@ export namespace TokenSource {
         return;
       }
 
+      const requestPayload = this.request.toJson({
+        useProtoFieldName: true,
+      }) as TokenSource.RequestPayload;
+      let responsePayload;
+
       try {
-        this.inProgressFetch = this.fetch(this.request);
-        this.cachedResponse = await this.inProgressFetch;
+        this.inProgressFetch = this.fetch(requestPayload);
+        responsePayload = await this.inProgressFetch;
       } finally {
         this.inProgressFetch = null;
       }
+
+      this.cachedResponse = TokenSourceResponse.fromJson(responsePayload, {
+        // NOTE: it could be possible that the responsePayload could contain more fields than just
+        // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+        ignoreUnknownFields: true,
+      });
     }
 
     protected abstract fetch(
@@ -159,17 +142,18 @@ export namespace TokenSource {
   export class Literal extends TokenSource {
     private log = log;
 
-    constructor(payload: ResponsePayload) {
+    constructor(payload: PartialResponse) {
       super(payload);
       this.log = getLogger(LoggerNames.TokenSource);
     }
 
-    async generate() {
+    async generate(): Promise<TokenSourceResponse> {
       if (this.isCachedResponseExpired()) {
         this.log.warn(
           'The credentials within TokenSource.Literal have expired, so any upcoming uses of them will likely fail.',
         );
       }
+
       return this.cachedResponse!;
     }
   }
@@ -177,8 +161,8 @@ export namespace TokenSource {
   /** TokenSource.Literal contains a single, literal set of credentials.
    * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
-  export function literal(payload: ResponsePayload) {
-    return new Literal(payload);
+  export function literal(response: PartialResponse) {
+    return new Literal(response);
   }
 
   export class Custom extends TokenSource.Refreshable {
@@ -191,7 +175,9 @@ export namespace TokenSource {
   }
 
   /** TokenSource.Custom allows a user to define a manual function which generates new
-   * {@link ResponsePayload} values on demand. Use this to get credentials from custom backends / etc.
+   * {@link ResponsePayload} values on demand.
+   *
+   * Use this to get credentials from custom backends / etc.
    * */
   export function custom(handler: (request: RequestPayload) => Promise<ResponsePayload>) {
     return new Custom(handler);
@@ -212,17 +198,14 @@ export namespace TokenSource {
       this.options = options ?? null;
     }
 
-    async fetch(request: RequestPayload) {
+    async fetch(request: TokenSource.RequestPayload): Promise<TokenSource.ResponsePayload> {
       const response = await fetch(this.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(this.options?.headers ?? {}),
         },
-        body: JSON.stringify({
-          ...request,
-          room_config: request.room_config?.toJson({ useProtoFieldName: true }),
-        }),
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {
@@ -231,7 +214,7 @@ export namespace TokenSource {
         );
       }
 
-      const body: ResponsePayload = await response.json();
+      const body: TokenSource.ResponsePayload = await response.json();
       return body;
     }
   }
@@ -308,7 +291,7 @@ export namespace TokenSource {
         body: JSON.stringify({
           roomName,
           participantName,
-          roomConfig: roomConfig?.toJson(),
+          roomConfig,
         }),
       });
 

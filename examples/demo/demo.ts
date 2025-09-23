@@ -166,8 +166,8 @@ const appActions = {
     const room = new Room(roomOptions);
 
     const tokenSource = TokenSource.literal({
-      server_url: url,
-      participant_token: token,
+      serverUrl: url,
+      participantToken: token,
     });
 
     startTime = Date.now();
