@@ -1,7 +1,6 @@
 // @ts-check
 import { rolldown } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
-import del from 'rollup-plugin-delete';
 import { minify } from 'rollup-plugin-esbuild';
 import packageJson from './package.json' with { type: 'json' };
 
@@ -11,40 +10,35 @@ export function kebabCaseToPascalCase(string = '') {
   );
 }
 
-const inputPlugins = [del({ targets: 'dist/*' })];
-
-const clientBundle = await rolldown({
-  input: 'src/index.ts',
-  plugins: inputPlugins,
-});
-
-const workerBundle = await rolldown({
-  input: 'src/e2ee/worker/e2ee.worker.ts',
-  plugins: inputPlugins,
-});
-
-const clientDts = await rolldown({
-  input: 'src/index.ts',
-  plugins: [
-    dts({
-      tsconfig: 'tsconfig.json',
-      parallel: true,
-      emitDtsOnly: true,
-      tsgo: true,
-    }),
-  ],
-});
-
-const workerDts = await rolldown({
-  input: 'src/e2ee/worker/e2ee.worker.ts',
-  plugins: [
-    dts({
-      tsconfig: 'tsconfig.json',
-      emitDtsOnly: true,
-      tsgo: true,
-    }),
-  ],
-});
+const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
+  rolldown({
+    input: 'src/index.ts',
+  }),
+  rolldown({
+    input: 'src/e2ee/worker/e2ee.worker.ts',
+  }),
+  rolldown({
+    input: 'src/index.ts',
+    plugins: [
+      dts({
+        tsconfig: 'tsconfig.json',
+        parallel: true,
+        emitDtsOnly: true,
+        tsgo: true,
+      }),
+    ],
+  }),
+  rolldown({
+    input: 'src/e2ee/worker/e2ee.worker.ts',
+    plugins: [
+      dts({
+        tsconfig: 'tsconfig.json',
+        emitDtsOnly: true,
+        tsgo: true,
+      }),
+    ],
+  }),
+]);
 
 await Promise.all([
   clientBundle.write({
