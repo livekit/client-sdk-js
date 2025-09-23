@@ -156,9 +156,6 @@ export namespace TokenSource {
     ): Promise<TokenSource.ResponsePayload>;
   }
 
-  /** TokenSource.Literal contains a single, literal set of credentials.
-   * Note that refreshing credentials isn't implemented, because there is only one set provided.
-   * */
   export class Literal extends TokenSource {
     private log = log;
 
@@ -177,9 +174,13 @@ export namespace TokenSource {
     }
   }
 
-  /** TokenSource.Custom allows a user to define a manual function which generates new
-   * {@link ResponsePayload} values on demand. Use this to get credentials from custom backends / etc.
+  /** TokenSource.Literal contains a single, literal set of credentials.
+   * Note that refreshing credentials isn't implemented, because there is only one set provided.
    * */
+  export function literal(payload: ResponsePayload) {
+    return new Literal(payload);
+  }
+
   export class Custom extends TokenSource.Refreshable {
     protected fetch: (request: RequestPayload) => Promise<ResponsePayload>;
 
@@ -187,6 +188,13 @@ export namespace TokenSource {
       super();
       this.fetch = handler;
     }
+  }
+
+  /** TokenSource.Custom allows a user to define a manual function which generates new
+   * {@link ResponsePayload} values on demand. Use this to get credentials from custom backends / etc.
+   * */
+  export function custom(handler: (request: RequestPayload) => Promise<ResponsePayload>) {
+    return new Custom(handler);
   }
 
   export type EndpointOptions = {
@@ -228,18 +236,15 @@ export namespace TokenSource {
     }
   }
 
+  export function endpoint(url: string, options?: EndpointOptions) {
+    return new Endpoint(url, options);
+  }
+
   export type SandboxTokenServerOptions = EndpointOptions & {
     sandboxId: string;
     baseUrl?: string;
   };
 
-  /** TokenSource.SandboxTokenServer queries a sandbox token server for credentials,
-   * which supports quick prototyping / getting started types of use cases.
-   *
-   * This token provider is INSECURE and should NOT be used in production.
-   *
-   * For more info:
-   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
   export class SandboxTokenServer extends TokenSource.Endpoint {
     constructor(options: SandboxTokenServerOptions) {
       const { sandboxId, baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
@@ -252,6 +257,17 @@ export namespace TokenSource {
         },
       });
     }
+  }
+
+  /** TokenSource.SandboxTokenServer queries a sandbox token server for credentials,
+   * which supports quick prototyping / getting started types of use cases.
+   *
+   * This token provider is INSECURE and should NOT be used in production.
+   *
+   * For more info:
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
+  export function sandboxTokenServer(options: SandboxTokenServerOptions) {
+    return new SandboxTokenServer(options);
   }
 
   export type SandboxTokenServerV1Options = Pick<

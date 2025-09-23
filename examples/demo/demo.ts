@@ -165,7 +165,7 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    const tokenSource = new TokenSource.Literal({
+    const tokenSource = TokenSource.literal({
       server_url: url,
       participant_token: token,
     });
