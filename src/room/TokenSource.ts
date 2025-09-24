@@ -12,10 +12,10 @@ type RoomConfigurationPayload = ValueToSnakeCase<
 
 /** TokenSource handles generating credentials for connecting to a new Room */
 export abstract class TokenSource {
-  protected cachedResponse: TokenSourceResponse | null = null;
+  protected cachedResponse: TokenSource.Response | null = null;
 
   constructor(response: TokenSource.PartialResponse | null = null) {
-    this.cachedResponse = response ? TokenSourceResponse.fromJson(response) : null;
+    this.cachedResponse = response ? TokenSource.Response.fromJson(response) : null;
   }
 
   getCachedResponseJwtPayload() {
@@ -51,11 +51,17 @@ export abstract class TokenSource {
     return expiresAt >= now;
   }
 
-  abstract generate(): Promise<TokenSourceResponse>;
+  abstract generate(): Promise<TokenSource.Response>;
 }
 export namespace TokenSource {
-  export type PartialRequest = NonNullable<ConstructorParameters<typeof TokenSourceRequest>[0]>;
-  export type PartialResponse = NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>;
+  export const Request = TokenSourceRequest;
+  export type Request = TokenSourceRequest;
+
+  export const Response = TokenSourceResponse;
+  export type Response = TokenSourceResponse;
+
+  export type PartialRequest = NonNullable<ConstructorParameters<typeof TokenSource.Request>[0]>;
+  export type PartialResponse = NonNullable<ConstructorParameters<typeof TokenSource.Response>[0]>;
 
   /** The `TokenSource` request object sent to the server as part of fetching a refreshable
    * `TokenSource` like Endpoint or SandboxTokenServer.
@@ -75,12 +81,12 @@ export namespace TokenSource {
    * TokenSource.Refreshable handles getting credentials for connecting to a new Room from
    * an async source, caching them and auto refreshing them if they expire. */
   export abstract class Refreshable extends TokenSource {
-    private request = new TokenSourceRequest();
+    private request = new TokenSource.Request();
 
-    private inProgressFetch: Promise<TokenSource.ResponsePayload> | null = null;
+    private inProgressFetch: Promise<TokenSource.Response> | null = null;
 
-    protected isSameAsCachedRequest(request: TokenSourceRequest) {
-      return TokenSourceRequest.equals(this.request, request);
+    protected isSameAsCachedRequest(request: TokenSource.Request) {
+      return TokenSource.Request.equals(this.request, request);
     }
 
     /**
@@ -88,7 +94,7 @@ export namespace TokenSource {
      *
      * @example new TokenSource.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
     setRequest(request: PartialRequest) {
-      const parsedRequest = new TokenSourceRequest(request);
+      const parsedRequest = new TokenSource.Request(request);
 
       if (!this.isSameAsCachedRequest(parsedRequest)) {
         this.cachedResponse = null;
@@ -97,11 +103,11 @@ export namespace TokenSource {
     }
 
     clearRequest() {
-      this.request = new TokenSourceRequest();
+      this.request = new TokenSource.Request();
       this.cachedResponse = null;
     }
 
-    async generate(): Promise<TokenSourceResponse> {
+    async generate(): Promise<TokenSource.Response> {
       if (this.isCachedResponseExpired()) {
         await this.refresh();
       }
@@ -115,28 +121,15 @@ export namespace TokenSource {
         return;
       }
 
-      const requestPayload = this.request.toJson({
-        useProtoFieldName: true,
-      }) as TokenSource.RequestPayload;
-      let responsePayload;
-
       try {
-        this.inProgressFetch = this.fetch(requestPayload);
-        responsePayload = await this.inProgressFetch;
+        this.inProgressFetch = this.fetch(this.request);
+        this.cachedResponse = await this.inProgressFetch;
       } finally {
         this.inProgressFetch = null;
       }
-
-      this.cachedResponse = TokenSourceResponse.fromJson(responsePayload, {
-        // NOTE: it could be possible that the responsePayload could contain more fields than just
-        // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
-        ignoreUnknownFields: true,
-      });
     }
 
-    protected abstract fetch(
-      request: TokenSource.RequestPayload,
-    ): Promise<TokenSource.ResponsePayload>;
+    protected abstract fetch(request: TokenSource.Request): Promise<TokenSource.Response>;
   }
 
   export class Literal extends TokenSource {
@@ -147,7 +140,7 @@ export namespace TokenSource {
       this.log = getLogger(LoggerNames.TokenSource);
     }
 
-    async generate(): Promise<TokenSourceResponse> {
+    async generate(): Promise<TokenSource.Response> {
       if (this.isCachedResponseExpired()) {
         this.log.warn(
           'The credentials within TokenSource.Literal have expired, so any upcoming uses of them will likely fail.',
@@ -166,9 +159,9 @@ export namespace TokenSource {
   }
 
   export class Custom extends TokenSource.Refreshable {
-    protected fetch: (request: RequestPayload) => Promise<ResponsePayload>;
+    protected fetch: (request: TokenSource.Request) => Promise<TokenSource.Response>;
 
-    constructor(handler: (request: RequestPayload) => Promise<ResponsePayload>) {
+    constructor(handler: (request: TokenSource.Request) => Promise<TokenSource.Response>) {
       super();
       this.fetch = handler;
     }
@@ -179,7 +172,7 @@ export namespace TokenSource {
    *
    * Use this to get credentials from custom backends / etc.
    * */
-  export function custom(handler: (request: RequestPayload) => Promise<ResponsePayload>) {
+  export function custom(handler: (request: TokenSource.Request) => Promise<TokenSource.Response>) {
     return new Custom(handler);
   }
 
@@ -198,14 +191,18 @@ export namespace TokenSource {
       this.options = options ?? null;
     }
 
-    async fetch(request: TokenSource.RequestPayload): Promise<TokenSource.ResponsePayload> {
+    async fetch(request: TokenSource.Request): Promise<TokenSource.Response> {
+      const requestPayload = request.toJson({
+        useProtoFieldName: true,
+      }) as TokenSource.RequestPayload;
+
       const response = await fetch(this.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(this.options?.headers ?? {}),
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
@@ -215,7 +212,11 @@ export namespace TokenSource {
       }
 
       const body: TokenSource.ResponsePayload = await response.json();
-      return body;
+      return TokenSourceResponse.fromJson(body, {
+        // NOTE: it could be possible that the response body could contain more fields than just
+        // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+        ignoreUnknownFields: true,
+      });
     }
   }
 
@@ -275,12 +276,16 @@ export namespace TokenSource {
       this.options = options;
     }
 
-    async fetch(request: RequestPayload) {
+    async fetch(request: TokenSource.Request) {
+      const requestPayload = request.toJson({
+        useProtoFieldName: true,
+      }) as TokenSource.RequestPayload;
+
       const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
 
-      const roomName = this.options.room_name ?? request.room_name;
-      const participantName = this.options.participant_name ?? request.participant_name;
-      const roomConfig = this.options.room_config ?? request.room_config;
+      const roomName = this.options.room_name ?? requestPayload.room_name;
+      const participantName = this.options.participant_name ?? requestPayload.participant_name;
+      const roomConfig = this.options.room_config ?? requestPayload.room_config;
 
       const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
         method: 'POST',
@@ -302,10 +307,7 @@ export namespace TokenSource {
       }
 
       const rawBody = await response.json();
-      return {
-        server_url: rawBody.serverUrl,
-        participant_token: rawBody.participantToken,
-      };
+      return TokenSource.Response.fromJson(rawBody);
     }
   }
 }
