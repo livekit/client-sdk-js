@@ -244,7 +244,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     const trackIsSilent = await detectSilence(this);
     if (trackIsSilent) {
       if (!this.isMuted) {
-        this.log.warn('silence detected on local audio track', this.logContext);
+        this.log.debug('silence detected on local audio track', this.logContext);
       }
       this.emit(TrackEvent.AudioSilenceDetected);
     }
