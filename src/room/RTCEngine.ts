@@ -217,7 +217,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient(undefined, this.loggerOptions);
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
-    this.registerOnLineListener();
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
     this.dcBufferStatus = new Map([
@@ -277,6 +276,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.negotiate();
       }
 
+      this.registerOnLineListener();
       this.clientConfiguration = joinResponse.clientConfiguration;
       this.emit(EngineEvent.SignalConnected, joinResponse);
       return joinResponse;
