@@ -16,7 +16,7 @@ export abstract class BaseTokenSource implements ITokenSource, ITokenSourceInter
 
   protected fetchMutex = new Mutex();
 
-  abstract getToken(): Promise<TokenResponse>;
+  abstract updateToken(): Promise<TokenResponse>;
 }
 
 export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTokenSource {
@@ -34,7 +34,7 @@ export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTok
     this.endpointOptions = options ?? {};
   }
 
-  async getToken(): Promise<TokenResponse> {
+  async updateToken(): Promise<TokenResponse> {
     const unlock = await this.fetchMutex.lock();
     try {
       if (
@@ -88,7 +88,7 @@ export class TokenSourceCustom extends BaseTokenSource {
     this.handler = handler;
   }
 
-  async getToken(): Promise<TokenResponse> {
+  async updateToken(): Promise<TokenResponse> {
     const unlock = await this.fetchMutex.lock();
     try {
       if (this.latestTokenResponse && !isTokenExpired(this.latestTokenResponse)) {

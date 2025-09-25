@@ -602,7 +602,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) {
     let url, token;
     if (urlOrTokenSource instanceof BaseTokenSource && typeof tokenOrUnknown !== 'string') {
-      const result = await urlOrTokenSource.getToken();
+      const result = await urlOrTokenSource.updateToken();
       url = result.serverUrl;
       token = result.participantToken;
     } else if (
@@ -651,7 +651,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       opts = tokenOrOpts ?? {};
     } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
       this.tokenSource = {
-        getToken: () =>
+        updateToken: () =>
           Promise.resolve({
             serverUrl: urlOrTokenSource,
             participantToken: tokenOrOpts,
@@ -664,7 +664,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
 
-    const { serverUrl: url, participantToken: token } = await this.tokenSource.getToken();
+    const { serverUrl: url, participantToken: token } = await this.tokenSource.updateToken();
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {
@@ -1011,7 +1011,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
-      this.tokenSource?.getToken();
+      this.tokenSource?.updateToken();
     } finally {
       unlock();
     }

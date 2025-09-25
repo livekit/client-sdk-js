@@ -17,7 +17,7 @@ export type TokenSourceOrCallback =
   | (() => PromiseLike<TokenResponse> | TokenResponse);
 
 export interface ITokenSource {
-  getToken(): Promise<TokenResponse>;
+  updateToken(): Promise<TokenResponse>;
 }
 
 export interface IStandardTokenSource extends ITokenSource {
