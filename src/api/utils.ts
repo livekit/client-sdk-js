@@ -1,3 +1,4 @@
+import { SignalResponse } from '@livekit/protocol';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
 export function createRtcUrl(url: string, searchParams: URLSearchParams) {
@@ -20,4 +21,13 @@ function ensureTrailingSlash(path: string) {
 function appendUrlPath(urlObj: URL, path: string) {
   urlObj.pathname = `${ensureTrailingSlash(urlObj.pathname)}${path}`;
   return urlObj.toString();
+}
+
+export function parseSignalResponse(value: ArrayBuffer | string) {
+  if (typeof value === 'string') {
+    return SignalResponse.fromJson(JSON.parse(value), { ignoreUnknownFields: true });
+  } else if (value instanceof ArrayBuffer) {
+    return SignalResponse.fromBinary(new Uint8Array(value));
+  }
+  throw new Error(`could not decode websocket message: ${typeof value}`);
 }
