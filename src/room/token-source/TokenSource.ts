@@ -24,7 +24,7 @@ export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTok
 
   private endpointOptions: EndpointOptions;
 
-  private latestTokenResponse: TokenResponse | null = null;
+  private cachedTokenRespone: TokenResponse | null = null;
 
   private needsRefresh: boolean = true;
 
@@ -38,19 +38,23 @@ export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTok
     const unlock = await this.fetchMutex.lock();
     try {
       if (
-        this.latestTokenResponse &&
-        !isTokenExpired(this.latestTokenResponse) &&
+        this.cachedTokenRespone &&
+        !isTokenExpired(this.cachedTokenRespone) &&
         !this.needsRefresh
       ) {
-        return this.latestTokenResponse;
+        return this.cachedTokenRespone;
       }
       const tokenRequest = await fetch(this.url, {
         ...this.endpointOptions,
-        body: new TokenSourceRequest(this.options).toJsonString(),
+        body: new TokenSourceRequest(this.options).toJsonString({ useProtoFieldName: true }),
       }).then((res) => res.json());
 
-      const tokenResponse = TokenSourceResponse.fromJson(tokenRequest);
-      this.latestTokenResponse = tokenResponse;
+      const tokenResponse = TokenSourceResponse.fromJson(tokenRequest, {
+        // NOTE: it could be possible that the responsePayload could contain more fields than just
+        // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+        ignoreUnknownFields: true,
+      });
+      this.cachedTokenRespone = tokenResponse;
       return tokenResponse;
     } finally {
       unlock();
@@ -65,8 +69,8 @@ export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTok
   }
 
   /** @internal */
-  getLatestTokenResponsePayload(): TokenPayload | null {
-    const token = this.latestTokenResponse?.participantToken;
+  getCachedResponseJwtPayload(): TokenPayload | null {
+    const token = this.cachedTokenRespone?.participantToken;
     if (!token) {
       return null;
     }
