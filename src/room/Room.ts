@@ -46,7 +46,6 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { TokenSource } from './TokenSource';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -68,6 +67,8 @@ import { type ConnectionQuality, ParticipantKind } from './participant/Participa
 import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
+import type { ITokenSource, TokenSourceOrCallback } from './token-source';
+import { BaseTokenSource } from './token-source/TokenSource';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -171,7 +172,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  private tokenSource?: TokenSource;
+  private tokenSource?: ITokenSource;
 
   private disconnectLock: Mutex;
 
@@ -591,17 +592,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection(tokenSource: TokenSource): Promise<void>;
+  prepareConnection(tokenSource: TokenSourceOrCallback): Promise<void>;
   prepareConnection(url: string): Promise<void>;
   /** @deprecated Use room.prepareConnection(new TokenSource.Literal({ server_url: "url", participant_token: "token" })) instead */
   prepareConnection(url: string, token?: string): Promise<void>;
   async prepareConnection(
-    urlOrTokenSource: TokenSource | string,
+    urlOrTokenSource: TokenSourceOrCallback | string,
     tokenOrUnknown?: string | undefined,
   ) {
     let url, token;
-    if (urlOrTokenSource instanceof TokenSource && typeof tokenOrUnknown !== 'string') {
-      const result = await urlOrTokenSource.generate();
+    if (urlOrTokenSource instanceof BaseTokenSource && typeof tokenOrUnknown !== 'string') {
+      const result = await urlOrTokenSource.getToken();
       url = result.serverUrl;
       token = result.participantToken;
     } else if (
@@ -640,19 +641,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   connect: {
-    (tokenSource: TokenSource, opts?: RoomConnectOptions): Promise<void>;
+    (tokenSource: TokenSourceOrCallback, opts?: RoomConnectOptions): Promise<void>;
     /** @deprecated Use room.connect(new TokenSource.Literal({ server_url: "url", participant_token: "token" }), opts?: RoomConnectOptions) instead */
     (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
   } = async (urlOrTokenSource, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
     let opts: RoomConnectOptions = {};
-    if (urlOrTokenSource instanceof TokenSource && typeof tokenOrOpts !== 'string') {
+    if (urlOrTokenSource instanceof BaseTokenSource && typeof tokenOrOpts !== 'string') {
       this.tokenSource = urlOrTokenSource;
       opts = tokenOrOpts ?? {};
     } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
-      this.tokenSource = new TokenSource.Literal({
-        serverUrl: urlOrTokenSource,
-        participantToken: tokenOrOpts,
-      });
+      this.tokenSource = {
+        getToken: () =>
+          Promise.resolve({
+            serverUrl: urlOrTokenSource,
+            participantToken: tokenOrOpts,
+          }),
+      };
       opts = optsOrUnset ?? {};
     } else {
       throw new Error(
@@ -660,7 +664,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
 
-    const { serverUrl: url, participantToken: token } = await this.tokenSource.generate();
+    const { serverUrl: url, participantToken: token } = await this.tokenSource.getToken();
 
     if (!isBrowserSupported()) {
       if (isReactNative()) {
@@ -1007,7 +1011,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
-      this.tokenSource?.generate();
+      this.tokenSource?.getToken();
     } finally {
       unlock();
     }

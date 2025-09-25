@@ -66,7 +66,7 @@ export * from './room/errors';
 export * from './room/events';
 export * from './room/track/Track';
 export * from './room/track/create';
-export { TokenSource } from './room/TokenSource';
+export * as TokenSource from './room/token-source';
 export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/track/facingMode';
 export * from './room/track/options';
 export * from './room/track/processor/types';
