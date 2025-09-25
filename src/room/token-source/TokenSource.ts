@@ -1,3 +1,5 @@
+import { Mutex } from '@livekit/mutex';
+import { TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
 import type {
   EndpointOptions,
   IStandardTokenSource,
@@ -11,6 +13,8 @@ import { areTokenOptionsEqual, decodeTokenPayload, isTokenExpired } from './util
 
 export abstract class BaseTokenSource implements ITokenSource, ITokenSourceInternal {
   protected options: TokenOptions = {};
+
+  protected fetchMutex = new Mutex();
 
   abstract getToken(): Promise<TokenResponse>;
 }
@@ -31,19 +35,26 @@ export class TokenSourceEndpoint extends BaseTokenSource implements IStandardTok
   }
 
   async getToken(): Promise<TokenResponse> {
-    if (
-      this.latestTokenResponse &&
-      !isTokenExpired(this.latestTokenResponse) &&
-      !this.needsRefresh
-    ) {
-      return this.latestTokenResponse;
+    const unlock = await this.fetchMutex.lock();
+    try {
+      if (
+        this.latestTokenResponse &&
+        !isTokenExpired(this.latestTokenResponse) &&
+        !this.needsRefresh
+      ) {
+        return this.latestTokenResponse;
+      }
+      const tokenRequest = await fetch(this.url, {
+        ...this.endpointOptions,
+        body: new TokenSourceRequest(this.options).toJsonString(),
+      }).then((res) => res.json());
+
+      const tokenResponse = TokenSourceResponse.fromJson(tokenRequest);
+      this.latestTokenResponse = tokenResponse;
+      return tokenResponse;
+    } finally {
+      unlock();
     }
-    const tokenResponse = (await fetch(this.url, {
-      ...this.endpointOptions,
-      body: JSON.stringify(this.options),
-    }).then((res) => res.json())) as TokenResponse;
-    this.latestTokenResponse = tokenResponse;
-    return tokenResponse;
   }
 
   setTokenOptions(options: TokenOptions): void {
@@ -74,11 +85,16 @@ export class TokenSourceCustom extends BaseTokenSource {
   }
 
   async getToken(): Promise<TokenResponse> {
-    if (this.latestTokenResponse && !isTokenExpired(this.latestTokenResponse)) {
-      return this.latestTokenResponse;
+    const unlock = await this.fetchMutex.lock();
+    try {
+      if (this.latestTokenResponse && !isTokenExpired(this.latestTokenResponse)) {
+        return this.latestTokenResponse;
+      }
+      const tokenResponse = await this.handler(this.options);
+      this.latestTokenResponse = tokenResponse;
+      return tokenResponse;
+    } finally {
+      unlock();
     }
-    const tokenResponse = await this.handler(this.options);
-    this.latestTokenResponse = tokenResponse;
-    return tokenResponse;
   }
 }
