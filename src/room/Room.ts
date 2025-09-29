@@ -46,7 +46,6 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { TokenSource } from './TokenSource';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -170,8 +169,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
-
-  private tokenSource?: TokenSource;
 
   private disconnectLock: Mutex;
 
@@ -591,31 +588,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection(tokenSource: TokenSource): Promise<void>;
-  prepareConnection(url: string): Promise<void>;
-  /** @deprecated Use room.prepareConnection(new TokenSource.Literal({ server_url: "url", participant_token: "token" })) instead */
-  prepareConnection(url: string, token?: string): Promise<void>;
-  async prepareConnection(
-    urlOrTokenSource: TokenSource | string,
-    tokenOrUnknown?: string | undefined,
-  ) {
-    let url, token;
-    if (urlOrTokenSource instanceof TokenSource && typeof tokenOrUnknown !== 'string') {
-      const result = await urlOrTokenSource.generate();
-      url = result.serverUrl;
-      token = result.participantToken;
-    } else if (
-      typeof urlOrTokenSource === 'string' &&
-      (typeof tokenOrUnknown === 'string' || typeof tokenOrUnknown === 'undefined')
-    ) {
-      url = urlOrTokenSource;
-      token = tokenOrUnknown;
-    } else {
-      throw new Error(
-        `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrTokenSource}, ${tokenOrUnknown}`,
-      );
-    }
-
+  async prepareConnection(url: string, token?: string) {
     if (this.state !== ConnectionState.Disconnected) {
       return;
     }
@@ -639,29 +612,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  connect: {
-    (tokenSource: TokenSource, opts?: RoomConnectOptions): Promise<void>;
-    /** @deprecated Use room.connect(new TokenSource.Literal({ server_url: "url", participant_token: "token" }), opts?: RoomConnectOptions) instead */
-    (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
-  } = async (urlOrTokenSource, tokenOrOpts, optsOrUnset?: unknown): Promise<void> => {
-    let opts: RoomConnectOptions = {};
-    if (urlOrTokenSource instanceof TokenSource && typeof tokenOrOpts !== 'string') {
-      this.tokenSource = urlOrTokenSource;
-      opts = tokenOrOpts ?? {};
-    } else if (typeof urlOrTokenSource === 'string' && typeof tokenOrOpts === 'string') {
-      this.tokenSource = new TokenSource.Literal({
-        serverUrl: urlOrTokenSource,
-        participantToken: tokenOrOpts,
-      });
-      opts = optsOrUnset ?? {};
-    } else {
-      throw new Error(
-        `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrTokenSource}, ${tokenOrOpts}, ${optsOrUnset}`,
-      );
-    }
-
-    const { serverUrl: url, participantToken: token } = await this.tokenSource.generate();
-
+  connect = async (url: string, token: string, opts?: RoomConnectOptions) => {
     if (!isBrowserSupported()) {
       if (isReactNative()) {
         throw Error("WebRTC isn't detected, have you called registerGlobals?");
@@ -1007,7 +958,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
-      this.tokenSource?.generate();
     } finally {
       unlock();
     }
