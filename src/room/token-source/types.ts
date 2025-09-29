@@ -34,7 +34,7 @@ export type TokenPayload = JWTPayload & {
   };
   roomConfig?: RoomConfigurationObject,
 };
-type RoomConfigurationObject = NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>;
+export type RoomConfigurationObject = NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>;
 
 
 /** A Fixed TokenSource is a token source that takes no parameters and returns a completely

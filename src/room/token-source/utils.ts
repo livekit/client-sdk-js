@@ -1,6 +1,6 @@
 import { decodeJwt } from "jose";
 import { RoomConfiguration, type TokenSourceResponse } from "@livekit/protocol";
-import type { RoomConfigurationPayload, TokenPayload } from "./types";
+import type { RoomConfigurationObject, TokenPayload } from "./types";
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
@@ -25,7 +25,7 @@ export function decodeTokenPayload(token: string) {
   const mappedPayload: TokenPayload = {
     ...rest,
     roomConfig: payload.roomConfig
-      ? RoomConfiguration.fromJson(payload.roomConfig as Record<string, any>) as RoomConfigurationPayload
+      ? RoomConfiguration.fromJson(payload.roomConfig as Record<string, any>) as RoomConfigurationObject
       : undefined,
   };
 
