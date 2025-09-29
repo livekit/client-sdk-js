@@ -1,85 +1,17 @@
 import { Mutex } from '@livekit/mutex';
 import { RoomAgentDispatch, RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
-import { decodeJwt, type JWTPayload } from 'jose';
+import { TokenSourceConfigurable, TokenSourceFixed, type TokenSourceOptions, type TokenSourceResponseObject } from './types';
+import { decodeTokenPayload, isResponseExpired } from './utils';
 
-const ONE_SECOND_IN_MILLISECONDS = 1000;
-const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
-
-export type TokenSourceResponseObject = Required<NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>>;
-
-type RoomConfigurationPayload = NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>;
-
-
-export abstract class TokenSourceFixed {
-  abstract fetch(): Promise<TokenSourceResponseObject>;
-}
-
-export type TokenSourceOptions = {
-  roomName?: string;
-  participantName?: string;
-  participantIdentity?: string;
-  participantMetadata?: string;
-  participantAttributes?: { [key: string]: string };
-
-  agentName?: string;
-};
-
-export abstract class TokenSourceConfigurable {
-  abstract fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject>;
-}
-
-export type TokenSourceBase = TokenSourceFixed | TokenSourceConfigurable;
-
-
-
-function isResponseExpired(response: TokenSourceResponse) {
-  const jwtPayload = decodeTokenPayload(response.participantToken);
-  if (!jwtPayload?.exp) {
-    return true;
-  }
-  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
-  const expiresAt = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
-
-  const now = new Date();
-  return expiresAt >= now;
-}
-
-type TokenPayload = JWTPayload & {
-  name?: string;
-  metadata?: string;
-  attributes?: Record<string, string>;
-  video?: {
-    room?: string;
-    roomJoin?: boolean;
-    canPublish?: boolean;
-    canPublishData?: boolean;
-    canSubscribe?: boolean;
-  };
-  roomConfig?: RoomConfigurationPayload,
-};
-
-function decodeTokenPayload(token: string) {
-  const payload = decodeJwt<Omit<TokenPayload, 'roomConfig'>>(token);
-
-  const { roomConfig, ...rest } = payload;
-
-  const mappedPayload: TokenPayload = {
-    ...rest,
-    roomConfig: payload.roomConfig
-      ? RoomConfiguration.fromJson(payload.roomConfig as Record<string, any>) as RoomConfigurationPayload
-      : undefined,
-  };
-
-  return mappedPayload;
-}
-
-export abstract class TokenSourceRefreshable extends TokenSourceConfigurable {
+/** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
+  * until a) it expires or b) the {@link TokenSourceOptions} provided to .fetch(...) change. */
+abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedOptions: TokenSourceOptions | null = null;
   private cachedResponse: TokenSourceResponse | null = null;
 
   private fetchMutex = new Mutex();
 
-  protected isSameAsCachedOptions(options: TokenSourceOptions) {
+  private isSameAsCachedOptions(options: TokenSourceOptions) {
     if (!this.cachedOptions) {
       return false;
     }
@@ -106,7 +38,7 @@ export abstract class TokenSourceRefreshable extends TokenSourceConfigurable {
     return true;
   }
 
-  protected shouldUseCachedValue(options: TokenSourceOptions) {
+  private shouldReturnCachedValueFromFetch(options: TokenSourceOptions) {
     if (!this.cachedResponse) {
       return false;
     }
@@ -129,14 +61,14 @@ export abstract class TokenSourceRefreshable extends TokenSourceConfigurable {
   async fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject> {
     const unlock = await this.fetchMutex.lock();
     try {
-      if (this.shouldUseCachedValue(options)) {
+      if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
       this.cachedOptions = options;
 
       const tokenResponse = await this.update(options);
       this.cachedResponse = tokenResponse;
-      return tokenResponse;
+      return tokenResponse.toJson() as TokenSourceResponseObject;
     } finally {
       unlock();
     }
@@ -166,8 +98,7 @@ export class TokenSourceLiteral extends TokenSourceFixed {
 
 
 type CustomFn = (options: TokenSourceOptions) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
-
-class TokenSourceCustom extends TokenSourceRefreshable {
+export class TokenSourceCustom extends TokenSourceCached {
   private customFn: CustomFn;
   constructor(customFn: CustomFn) {
     super();
@@ -186,7 +117,7 @@ class TokenSourceCustom extends TokenSourceRefreshable {
 
     return TokenSourceResponse.fromJson(result, {
       // NOTE: it could be possible that the response body could contain more fields than just
-      // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+      // what's in TokenSourceResponse depending on the implementation
       ignoreUnknownFields: true,
     });
   }
@@ -195,7 +126,7 @@ class TokenSourceCustom extends TokenSourceRefreshable {
 
 export type EndpointOptions = Omit<RequestInit, 'body'>;
 
-class TokenSourceEndpoint extends TokenSourceRefreshable {
+export class TokenSourceEndpoint extends TokenSourceCached {
   private url: string;
   private endpointOptions: EndpointOptions;
 
@@ -205,25 +136,42 @@ class TokenSourceEndpoint extends TokenSourceRefreshable {
     this.endpointOptions = options;
   }
 
-  protected async update(options: TokenSourceOptions) {
-    // NOTE: I don't like the repetitive nature of this, `options` shouldn't be a thing,
-    // `request` should just be passed through instead...
+  private createRequestFromOptions(options: TokenSourceOptions) {
     const request = new TokenSourceRequest();
-    request.roomName = options.roomName;
-    request.participantName = options.participantName;
-    request.participantIdentity = options.participantIdentity;
-    request.participantMetadata = options.participantMetadata;
-    request.participantAttributes = options.participantAttributes ?? {};
-    request.roomConfig = options.agentName ? (
-      new RoomConfiguration({
-        agents: [
-          new RoomAgentDispatch({
+
+    for (const key of Object.keys(options) as Array<keyof TokenSourceOptions>) {
+      switch (key) {
+        case 'roomName':
+        case 'participantName':
+        case 'participantIdentity':
+        case 'participantMetadata':
+          request[key] = options[key];
+          break;
+
+        case 'participantAttributes':
+          request.participantAttributes = options.participantAttributes ?? {};
+          break;
+
+        case 'agentName':
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          request.roomConfig.agents.push(new RoomAgentDispatch({
             agentName: options.agentName,
             metadata: '', // FIXME: how do I support this? Maybe make agentName -> agentToDispatch?
-          }),
-        ],
-      })
-    ) : undefined;
+          }));
+          break;
+
+        default:
+          // ref: https://stackoverflow.com/a/58009992
+          const exhaustiveCheckedKey: never = key;
+          throw new Error(`Options key ${exhaustiveCheckedKey} not being included in forming request!`);
+      }
+    }
+
+    return request;
+  }
+
+  protected async update(options: TokenSourceOptions) {
+    const request = this.createRequestFromOptions(options);
 
     const response = await fetch(this.url, {
       ...this.endpointOptions,
@@ -232,7 +180,9 @@ class TokenSourceEndpoint extends TokenSourceRefreshable {
         'Content-Type': 'application/json',
         ...this.endpointOptions.headers,
       },
-      body: request.toJsonString(),
+      body: request.toJsonString({
+        useProtoFieldName: true
+      }),
     });
 
     if (!response.ok) {
@@ -268,14 +218,15 @@ export class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
 }
 
 export const TokenSource = {
-  /** TokenSource.literal contains a single, literal set of credentials. */
+  /** TokenSource.literal contains a single, literal set of {@link TokenSourceResponseObject}
+    * credentials, either provided directly or returned from a provided function. */
   literal(literalOrFn: LiteralOrFn) {
     return new TokenSourceLiteral(literalOrFn);
   },
 
   /**
    * TokenSource.custom allows a user to define a manual function which generates new
-   * {@link ResponsePayload} values on demand.
+   * {@link TokenSourceResponseObject} values on demand.
    *
    * Use this to get credentials from custom backends / etc.
    */
