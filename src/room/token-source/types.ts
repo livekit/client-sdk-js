@@ -1,13 +1,17 @@
 import { RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
 import type { JWTPayload } from 'jose';
+import type { ValueToSnakeCase } from '../../utils/camelToSnakeCase';
 // The below imports are being linked in tsdoc comments, so they have to be imported even if they
 // aren't being used.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { TokenSourceLiteral, TokenSourceEndpoint, TokenSourceCustom } from './TokenSource';
-import type { ValueToSnakeCase } from '../../utils/camelToSnakeCase';
+import type { TokenSourceCustom, TokenSourceEndpoint, TokenSourceLiteral } from './TokenSource';
 
-export type TokenSourceRequestObject = Required<NonNullable<ConstructorParameters<typeof TokenSourceRequest>[0]>>;
-export type TokenSourceResponseObject = Required<NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>>;
+export type TokenSourceRequestObject = Required<
+  NonNullable<ConstructorParameters<typeof TokenSourceRequest>[0]>
+>;
+export type TokenSourceResponseObject = Required<
+  NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>
+>;
 
 /** The `TokenSource` request object sent to the server as part of fetching a configurable
  * `TokenSource` like {@link TokenSourceEndpoint}.
@@ -35,16 +39,17 @@ export type TokenPayload = JWTPayload & {
     canPublishData?: boolean;
     canSubscribe?: boolean;
   };
-  roomConfig?: RoomConfigurationObject,
+  roomConfig?: RoomConfigurationObject;
 };
-export type RoomConfigurationObject = NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>;
-
+export type RoomConfigurationObject = NonNullable<
+  ConstructorParameters<typeof RoomConfiguration>[0]
+>;
 
 /** A Fixed TokenSource is a token source that takes no parameters and returns a completely
-  * independant value on each fetch() call.
-  *
-  * The most common downstream implementer is {@link TokenSourceLiteral}.
-  */
+ * independently derived value on each fetch() call.
+ *
+ * The most common downstream implementer is {@link TokenSourceLiteral}.
+ */
 export abstract class TokenSourceFixed {
   abstract fetch(): Promise<TokenSourceResponseObject>;
 }
@@ -60,16 +65,16 @@ export type TokenSourceOptions = {
 };
 
 /** A Configurable TokenSource is a token source that takes a
-  * {@link TokenSourceOptions} object as input and returns a deterministic
-  * {@link TokenSourceResponseObject} output based on the options specified.
-  *
-  * For example, if options.participantName is set, it should be expected that
-  * all tokens that are generated will have participant name field set to the
-  * provided value.
-  *
-  * A few common downstream implementers are {@link TokenSourceEndpoint}
-  * and {@link TokenSourceCustom}.
-  */
+ * {@link TokenSourceOptions} object as input and returns a deterministic
+ * {@link TokenSourceResponseObject} output based on the options specified.
+ *
+ * For example, if options.participantName is set, it should be expected that
+ * all tokens that are generated will have participant name field set to the
+ * provided value.
+ *
+ * A few common downstream implementers are {@link TokenSourceEndpoint}
+ * and {@link TokenSourceCustom}.
+ */
 export abstract class TokenSourceConfigurable {
   abstract fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject>;
 }

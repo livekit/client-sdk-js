@@ -1,10 +1,20 @@
 import { Mutex } from '@livekit/mutex';
-import { RoomAgentDispatch, RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
-import { TokenSourceConfigurable, TokenSourceFixed, type TokenSourceOptions, type TokenSourceResponseObject } from './types';
+import {
+  RoomAgentDispatch,
+  RoomConfiguration,
+  TokenSourceRequest,
+  TokenSourceResponse,
+} from '@livekit/protocol';
+import {
+  TokenSourceConfigurable,
+  TokenSourceFixed,
+  type TokenSourceOptions,
+  type TokenSourceResponseObject,
+} from './types';
 import { decodeTokenPayload, isResponseExpired } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
-  * until a) it expires or b) the {@link TokenSourceOptions} provided to .fetch(...) change. */
+ * until a) it expires or b) the {@link TokenSourceOptions} provided to .fetch(...) change. */
 abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedOptions: TokenSourceOptions | null = null;
 
@@ -78,8 +88,9 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
   protected abstract update(options: TokenSourceOptions): Promise<TokenSourceResponse>;
 }
 
-
-type LiteralOrFn = TokenSourceResponseObject | (() => TokenSourceResponseObject | Promise<TokenSourceResponseObject>);
+type LiteralOrFn =
+  | TokenSourceResponseObject
+  | (() => TokenSourceResponseObject | Promise<TokenSourceResponseObject>);
 export class TokenSourceLiteral extends TokenSourceFixed {
   private literalOrFn: LiteralOrFn;
 
@@ -97,8 +108,9 @@ export class TokenSourceLiteral extends TokenSourceFixed {
   }
 }
 
-
-type CustomFn = (options: TokenSourceOptions) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
+type CustomFn = (
+  options: TokenSourceOptions,
+) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
 export class TokenSourceCustom extends TokenSourceCached {
   private customFn: CustomFn;
 
@@ -124,7 +136,6 @@ export class TokenSourceCustom extends TokenSourceCached {
     });
   }
 }
-
 
 export type EndpointOptions = Omit<RequestInit, 'body'>;
 
@@ -157,16 +168,20 @@ export class TokenSourceEndpoint extends TokenSourceCached {
 
         case 'agentName':
           request.roomConfig = request.roomConfig ?? new RoomConfiguration();
-          request.roomConfig.agents.push(new RoomAgentDispatch({
-            agentName: options.agentName,
-            metadata: '', // FIXME: how do I support this? Maybe make agentName -> agentToDispatch?
-          }));
+          request.roomConfig.agents.push(
+            new RoomAgentDispatch({
+              agentName: options.agentName,
+              metadata: '', // FIXME: how do I support this? Maybe make agentName -> agentToDispatch?
+            }),
+          );
           break;
 
         default:
           // ref: https://stackoverflow.com/a/58009992
           const exhaustiveCheckedKey: never = key;
-          throw new Error(`Options key ${exhaustiveCheckedKey} not being included in forming request!`);
+          throw new Error(
+            `Options key ${exhaustiveCheckedKey} not being included in forming request!`,
+          );
       }
     }
 
@@ -184,7 +199,7 @@ export class TokenSourceEndpoint extends TokenSourceCached {
         ...this.endpointOptions.headers,
       },
       body: request.toJsonString({
-        useProtoFieldName: true
+        useProtoFieldName: true,
       }),
     });
 
@@ -222,7 +237,7 @@ export class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
 
 export const TokenSource = {
   /** TokenSource.literal contains a single, literal set of {@link TokenSourceResponseObject}
-    * credentials, either provided directly or returned from a provided function. */
+   * credentials, either provided directly or returned from a provided function. */
   literal(literalOrFn: LiteralOrFn) {
     return new TokenSourceLiteral(literalOrFn);
   },
