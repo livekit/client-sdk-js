@@ -1,5 +1,8 @@
 import { RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
 import type { JWTPayload } from 'jose';
+// The below imports are being linked in tsdoc comments, so they have to be imported even if they
+// aren't being used.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { TokenSourceLiteral, TokenSourceEndpoint, TokenSourceCustom } from './TokenSource';
 import type { ValueToSnakeCase } from '../../utils/camelToSnakeCase';
 

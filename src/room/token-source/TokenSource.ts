@@ -7,6 +7,7 @@ import { decodeTokenPayload, isResponseExpired } from './utils';
   * until a) it expires or b) the {@link TokenSourceOptions} provided to .fetch(...) change. */
 abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedOptions: TokenSourceOptions | null = null;
+
   private cachedResponse: TokenSourceResponse | null = null;
 
   private fetchMutex = new Mutex();
@@ -100,6 +101,7 @@ export class TokenSourceLiteral extends TokenSourceFixed {
 type CustomFn = (options: TokenSourceOptions) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
 export class TokenSourceCustom extends TokenSourceCached {
   private customFn: CustomFn;
+
   constructor(customFn: CustomFn) {
     super();
     this.customFn = customFn;
@@ -128,6 +130,7 @@ export type EndpointOptions = Omit<RequestInit, 'body'>;
 
 export class TokenSourceEndpoint extends TokenSourceCached {
   private url: string;
+
   private endpointOptions: EndpointOptions;
 
   constructor(url: string, options: EndpointOptions = {}) {
