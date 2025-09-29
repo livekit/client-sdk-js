@@ -1,313 +1,307 @@
-import { RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
-import { decodeJwt } from 'jose';
-import log, { LoggerNames, getLogger } from '../logger';
-import type { ValueToSnakeCase } from '../utils/camelToSnakeCase';
+import { Mutex } from '@livekit/mutex';
+import { RoomAgentDispatch, RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
+import { decodeJwt, type JWTPayload } from 'jose';
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
-type RoomConfigurationPayload = ValueToSnakeCase<
-  NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>
->;
+export type TokenSourceResponseObject = Required<NonNullable<ConstructorParameters<typeof TokenSourceResponse>[0]>>;
 
-/** TokenSource handles generating credentials for connecting to a new Room */
-export abstract class TokenSource {
-  protected cachedResponse: TokenSource.Response | null = null;
+type RoomConfigurationPayload = NonNullable<ConstructorParameters<typeof RoomConfiguration>[0]>;
 
-  constructor(response: TokenSource.PartialResponse | null = null) {
-    this.cachedResponse = response ? TokenSource.Response.fromJson(response) : null;
+
+export abstract class TokenSourceFixed {
+  abstract fetch(): Promise<TokenSourceResponseObject>;
+}
+
+export type TokenSourceOptions = {
+  roomName?: string;
+  participantName?: string;
+  participantIdentity?: string;
+  participantMetadata?: string;
+  participantAttributes?: { [key: string]: string };
+
+  agentName?: string;
+};
+
+export abstract class TokenSourceConfigurable {
+  abstract fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject>;
+}
+
+export type TokenSourceBase = TokenSourceFixed | TokenSourceConfigurable;
+
+
+
+function isResponseExpired(response: TokenSourceResponse) {
+  const jwtPayload = decodeTokenPayload(response.participantToken);
+  if (!jwtPayload?.exp) {
+    return true;
+  }
+  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
+  const expiresAt = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
+
+  const now = new Date();
+  return expiresAt >= now;
+}
+
+type TokenPayload = JWTPayload & {
+  name?: string;
+  metadata?: string;
+  attributes?: Record<string, string>;
+  video?: {
+    room?: string;
+    roomJoin?: boolean;
+    canPublish?: boolean;
+    canPublishData?: boolean;
+    canSubscribe?: boolean;
+  };
+  roomConfig?: RoomConfigurationPayload,
+};
+
+function decodeTokenPayload(token: string) {
+  const payload = decodeJwt<Omit<TokenPayload, 'roomConfig'>>(token);
+
+  const { roomConfig, ...rest } = payload;
+
+  const mappedPayload: TokenPayload = {
+    ...rest,
+    roomConfig: payload.roomConfig
+      ? RoomConfiguration.fromJson(payload.roomConfig as Record<string, any>) as RoomConfigurationPayload
+      : undefined,
+  };
+
+  return mappedPayload;
+}
+
+export abstract class TokenSourceRefreshable extends TokenSourceConfigurable {
+  private cachedOptions: TokenSourceOptions | null = null;
+  private cachedResponse: TokenSourceResponse | null = null;
+
+  private fetchMutex = new Mutex();
+
+  protected isSameAsCachedOptions(options: TokenSourceOptions) {
+    if (!this.cachedOptions) {
+      return false;
+    }
+
+    for (const key of Object.keys(this.cachedOptions) as Array<keyof TokenSourceOptions>) {
+      switch (key) {
+        case 'roomName':
+        case 'participantName':
+        case 'participantIdentity':
+        case 'participantMetadata':
+        case 'participantAttributes':
+        case 'agentName':
+          if (this.cachedOptions[key] !== options[key]) {
+            return false;
+          }
+          break;
+        default:
+          // ref: https://stackoverflow.com/a/58009992
+          const exhaustiveCheckedKey: never = key;
+          throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
+      }
+    }
+
+    return true;
+  }
+
+  protected shouldUseCachedValue(options: TokenSourceOptions) {
+    if (!this.cachedResponse) {
+      return false;
+    }
+    if (isResponseExpired(this.cachedResponse)) {
+      return false;
+    }
+    if (this.isSameAsCachedOptions(options)) {
+      return false;
+    }
+    return true;
   }
 
   getCachedResponseJwtPayload() {
-    const token = this.cachedResponse?.participantToken;
-    if (!token) {
+    if (!this.cachedResponse) {
       return null;
     }
-
-    return decodeJwt<{
-      name?: string;
-      metadata?: string;
-      attributes?: Record<string, string>;
-      roomConfig?: RoomConfigurationPayload;
-      video?: {
-        room?: string;
-        roomJoin?: boolean;
-        canPublish?: boolean;
-        canPublishData?: boolean;
-        canSubscribe?: boolean;
-      };
-    }>(token);
+    return decodeTokenPayload(this.cachedResponse.participantToken);
   }
 
-  protected isCachedResponseExpired() {
-    const jwtPayload = this.getCachedResponseJwtPayload();
-    if (!jwtPayload?.exp) {
-      return true;
+  async fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject> {
+    const unlock = await this.fetchMutex.lock();
+    try {
+      if (this.shouldUseCachedValue(options)) {
+        return this.cachedResponse!.toJson() as TokenSourceResponseObject;
+      }
+      this.cachedOptions = options;
+
+      const tokenResponse = await this.update(options);
+      this.cachedResponse = tokenResponse;
+      return tokenResponse;
+    } finally {
+      unlock();
     }
-    const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
-    const expiresAt = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
-
-    const now = new Date();
-    return expiresAt >= now;
   }
 
-  abstract generate(): Promise<TokenSource.Response>;
+  protected abstract update(options: TokenSourceOptions): Promise<TokenSourceResponse>;
 }
-export namespace TokenSource {
-  export const Request = TokenSourceRequest;
-  export type Request = TokenSourceRequest;
 
-  export const Response = TokenSourceResponse;
-  export type Response = TokenSourceResponse;
 
-  export type PartialRequest = NonNullable<ConstructorParameters<typeof TokenSource.Request>[0]>;
-  export type PartialResponse = NonNullable<ConstructorParameters<typeof TokenSource.Response>[0]>;
+type LiteralOrFn = TokenSourceResponseObject | (() => TokenSourceResponseObject | Promise<TokenSourceResponseObject>);
+export class TokenSourceLiteral extends TokenSourceFixed {
+  private literalOrFn: LiteralOrFn;
 
-  /** The `TokenSource` request object sent to the server as part of fetching a refreshable
-   * `TokenSource` like Endpoint or SandboxTokenServer.
-   *
-   * Use this as a type for your request body if implementing a server endpoint in node.js.
-   */
-  export type RequestPayload = ValueToSnakeCase<PartialRequest>;
+  constructor(literalOrFn: LiteralOrFn) {
+    super();
+    this.literalOrFn = literalOrFn;
+  }
 
-  /** The `TokenSource` response object sent from the server as part of fetching a refreshable
-   * `TokenSource` like Endpoint or SandboxTokenServer.
-   *
-   * Use this as a type for your response body if implementing a server endpoint in node.js.
-   */
-  export type ResponsePayload = ValueToSnakeCase<PartialResponse>;
+  async fetch(): Promise<TokenSourceResponseObject> {
+    if (typeof this.literalOrFn === 'function') {
+      return this.literalOrFn();
+    } else {
+      return this.literalOrFn;
+    }
+  }
+}
+
+
+type CustomFn = (options: TokenSourceOptions) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
+
+class TokenSourceCustom extends TokenSourceRefreshable {
+  private customFn: CustomFn;
+  constructor(customFn: CustomFn) {
+    super();
+    this.customFn = customFn;
+  }
+
+  protected async update(options: TokenSourceOptions) {
+    const resultMaybePromise = this.customFn(options);
+
+    let result;
+    if (resultMaybePromise instanceof Promise) {
+      result = await resultMaybePromise;
+    } else {
+      result = resultMaybePromise;
+    }
+
+    return TokenSourceResponse.fromJson(result, {
+      // NOTE: it could be possible that the response body could contain more fields than just
+      // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+      ignoreUnknownFields: true,
+    });
+  }
+}
+
+
+export type EndpointOptions = Omit<RequestInit, 'body'>;
+
+class TokenSourceEndpoint extends TokenSourceRefreshable {
+  private url: string;
+  private endpointOptions: EndpointOptions;
+
+  constructor(url: string, options: EndpointOptions = {}) {
+    super();
+    this.url = url;
+    this.endpointOptions = options;
+  }
+
+  protected async update(options: TokenSourceOptions) {
+    // NOTE: I don't like the repetitive nature of this, `options` shouldn't be a thing,
+    // `request` should just be passed through instead...
+    const request = new TokenSourceRequest();
+    request.roomName = options.roomName;
+    request.participantName = options.participantName;
+    request.participantIdentity = options.participantIdentity;
+    request.participantMetadata = options.participantMetadata;
+    request.participantAttributes = options.participantAttributes ?? {};
+    request.roomConfig = options.agentName ? (
+      new RoomConfiguration({
+        agents: [
+          new RoomAgentDispatch({
+            agentName: options.agentName,
+            metadata: '', // FIXME: how do I support this? Maybe make agentName -> agentToDispatch?
+          }),
+        ],
+      })
+    ) : undefined;
+
+    const response = await fetch(this.url, {
+      ...this.endpointOptions,
+      method: this.endpointOptions.method ?? 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.endpointOptions.headers,
+      },
+      body: request.toJsonString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Error generating token from endpoint ${this.url}: received ${response.status} / ${await response.text()}`,
+      );
+    }
+
+    const body = await response.json();
+    return TokenSourceResponse.fromJson(body, {
+      // NOTE: it could be possible that the response body could contain more fields than just
+      // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+      ignoreUnknownFields: true,
+    });
+  }
+}
+
+export type SandboxTokenServerOptions = {
+  baseUrl?: string;
+};
+
+export class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
+  constructor(sandboxId: string, options: SandboxTokenServerOptions) {
+    const { baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
+
+    super(`${baseUrl}/api/v2/sandbox/connection-details`, {
+      ...rest,
+      headers: {
+        'X-Sandbox-ID': sandboxId,
+      },
+    });
+  }
+}
+
+export const TokenSource = {
+  /** TokenSource.literal contains a single, literal set of credentials. */
+  literal(literalOrFn: LiteralOrFn) {
+    return new TokenSourceLiteral(literalOrFn);
+  },
 
   /**
-   * TokenSource.Refreshable handles getting credentials for connecting to a new Room from
-   * an async source, caching them and auto refreshing them if they expire. */
-  export abstract class Refreshable extends TokenSource {
-    private request = new TokenSource.Request();
-
-    private inProgressFetch: Promise<TokenSource.Response> | null = null;
-
-    protected isSameAsCachedRequest(request: TokenSource.Request) {
-      return TokenSource.Request.equals(this.request, request);
-    }
-
-    /**
-     * Store request metadata which will be provide explicitly when fetching new credentials.
-     *
-     * @example new TokenSource.Custom((request /* <= This value! *\/) => ({ serverUrl: "...", participantToken: "..." })) */
-    setRequest(request: PartialRequest) {
-      const parsedRequest = new TokenSource.Request(request);
-
-      if (!this.isSameAsCachedRequest(parsedRequest)) {
-        this.cachedResponse = null;
-      }
-      this.request = parsedRequest;
-    }
-
-    clearRequest() {
-      this.request = new TokenSource.Request();
-      this.cachedResponse = null;
-    }
-
-    async generate(): Promise<TokenSource.Response> {
-      if (this.isCachedResponseExpired()) {
-        await this.refresh();
-      }
-
-      return this.cachedResponse!;
-    }
-
-    async refresh() {
-      if (this.inProgressFetch) {
-        await this.inProgressFetch;
-        return;
-      }
-
-      try {
-        this.inProgressFetch = this.fetch(this.request);
-        this.cachedResponse = await this.inProgressFetch;
-      } finally {
-        this.inProgressFetch = null;
-      }
-    }
-
-    protected abstract fetch(request: TokenSource.Request): Promise<TokenSource.Response>;
-  }
-
-  export class Literal extends TokenSource {
-    private log = log;
-
-    constructor(payload: PartialResponse) {
-      super(payload);
-      this.log = getLogger(LoggerNames.TokenSource);
-    }
-
-    async generate(): Promise<TokenSource.Response> {
-      if (this.isCachedResponseExpired()) {
-        this.log.warn(
-          'The credentials within TokenSource.Literal have expired, so any upcoming uses of them will likely fail.',
-        );
-      }
-
-      return this.cachedResponse!;
-    }
-  }
-
-  /** TokenSource.Literal contains a single, literal set of credentials.
-   * Note that refreshing credentials isn't implemented, because there is only one set provided.
-   * */
-  export function literal(response: PartialResponse) {
-    return new Literal(response);
-  }
-
-  export class Custom extends TokenSource.Refreshable {
-    protected fetch: (request: TokenSource.Request) => Promise<TokenSource.Response>;
-
-    constructor(handler: (request: TokenSource.Request) => Promise<TokenSource.Response>) {
-      super();
-      this.fetch = handler;
-    }
-  }
-
-  /** TokenSource.Custom allows a user to define a manual function which generates new
+   * TokenSource.custom allows a user to define a manual function which generates new
    * {@link ResponsePayload} values on demand.
    *
    * Use this to get credentials from custom backends / etc.
-   * */
-  export function custom(handler: (request: TokenSource.Request) => Promise<TokenSource.Response>) {
-    return new Custom(handler);
-  }
+   */
+  custom(customFn: CustomFn) {
+    return new TokenSourceCustom(customFn);
+  },
 
-  export type EndpointOptions = {
-    headers?: Record<string, string>;
-  };
+  /**
+   * TokenSource.endpoint creates a token source that fetches credentials from a given URL using
+   * the standard endpoint format:
+   * FIXME: add docs link here in the future!
+   */
+  endpoint(url: string, options: EndpointOptions = {}) {
+    return new TokenSourceEndpoint(url, options);
+  },
 
-  export class Endpoint extends TokenSource.Refreshable {
-    protected url: string;
-
-    protected options: EndpointOptions | null;
-
-    constructor(url: string, options?: EndpointOptions) {
-      super();
-      this.url = url;
-      this.options = options ?? null;
-    }
-
-    async fetch(request: TokenSource.Request): Promise<TokenSource.Response> {
-      const requestPayload = request.toJson({
-        useProtoFieldName: true,
-      }) as TokenSource.RequestPayload;
-
-      const response = await fetch(this.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.options?.headers ?? {}),
-        },
-        body: JSON.stringify(requestPayload),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Error generating token from endpoint ${this.url}: received ${response.status} / ${await response.text()}`,
-        );
-      }
-
-      const body: TokenSource.ResponsePayload = await response.json();
-      return TokenSourceResponse.fromJson(body, {
-        // NOTE: it could be possible that the response body could contain more fields than just
-        // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
-        ignoreUnknownFields: true,
-      });
-    }
-  }
-
-  export function endpoint(url: string, options?: EndpointOptions) {
-    return new Endpoint(url, options);
-  }
-
-  export type SandboxTokenServerOptions = EndpointOptions & {
-    sandboxId: string;
-    baseUrl?: string;
-  };
-
-  export class SandboxTokenServer extends TokenSource.Endpoint {
-    constructor(options: SandboxTokenServerOptions) {
-      const { sandboxId, baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
-
-      super(`${baseUrl}/api/v2/sandbox/connection-details`, {
-        ...rest,
-        headers: {
-          ...(rest?.headers ?? {}),
-          'X-Sandbox-ID': sandboxId,
-        },
-      });
-    }
-  }
-
-  /** TokenSource.SandboxTokenServer queries a sandbox token server for credentials,
+  /**
+   * TokenSource.sandboxTokenServer queries a sandbox token server for credentials,
    * which supports quick prototyping / getting started types of use cases.
    *
    * This token provider is INSECURE and should NOT be used in production.
    *
    * For more info:
-   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server */
-  export function sandboxTokenServer(options: SandboxTokenServerOptions) {
-    return new SandboxTokenServer(options);
-  }
-
-  export type SandboxTokenServerV1Options = Pick<
-    RequestPayload,
-    'room_name' | 'participant_name' | 'room_config'
-  > & {
-    sandboxId: string;
-    baseUrl?: string;
-  };
-
-  /**
-   * A temporary v1 sandbox token server adaptor for backwards compatibility while the v2 endpoints
-   * are getting deployed.
-   *
-   * FIXME: get rid of this before merging the TokenSource pull request!!
-   * */
-  export class SandboxTokenServerV1 extends TokenSource.Refreshable {
-    protected options: SandboxTokenServerV1Options;
-
-    constructor(options: SandboxTokenServerV1Options) {
-      super();
-      this.options = options;
-    }
-
-    async fetch(request: TokenSource.Request) {
-      const requestPayload = request.toJson({
-        useProtoFieldName: true,
-      }) as TokenSource.RequestPayload;
-
-      const baseUrl = this.options.baseUrl ?? 'https://cloud-api.livekit.io';
-
-      const roomName = this.options.room_name ?? requestPayload.room_name;
-      const participantName = this.options.participant_name ?? requestPayload.participant_name;
-      const roomConfig = this.options.room_config ?? requestPayload.room_config;
-
-      const response = await fetch(`${baseUrl}/api/sandbox/connection-details`, {
-        method: 'POST',
-        headers: {
-          'X-Sandbox-ID': this.options.sandboxId,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          roomName,
-          participantName,
-          roomConfig,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Error generating token from sandbox token server: received ${response.status} / ${await response.text()}`,
-        );
-      }
-
-      const rawBody = await response.json();
-      return TokenSource.Response.fromJson(rawBody);
-    }
-  }
-}
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
+   */
+  sandboxTokenServer(sandboxId: string, options: SandboxTokenServerOptions) {
+    return new TokenSourceSandboxTokenServer(sandboxId, options);
+  },
+};
