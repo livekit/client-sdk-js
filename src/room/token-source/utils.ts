@@ -1,6 +1,6 @@
 import { RoomConfiguration, type TokenSourceResponse } from '@livekit/protocol';
 import { decodeJwt } from 'jose';
-import type { RoomConfigurationObject, TokenPayload } from './types';
+import type { RoomConfigurationObject, TokenPayload, TokenSourceFetchOptions } from './types';
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
@@ -32,4 +32,35 @@ export function decodeTokenPayload(token: string) {
   };
 
   return mappedPayload;
+}
+
+export function extractTokenSourceOptionsFromObject<
+  Input extends TokenSourceFetchOptions & Rest,
+  Rest extends object,
+>(input: Input): TokenSourceFetchOptions {
+  const options: TokenSourceFetchOptions = {};
+
+  for (const key of Object.keys(input) as Array<keyof TokenSourceFetchOptions>) {
+    switch (key) {
+      case 'roomName':
+      case 'participantName':
+      case 'participantIdentity':
+      case 'participantMetadata':
+      case 'agentName':
+      case 'agentMetadata':
+        options[key] = input[key];
+        break;
+
+      case 'participantAttributes':
+        options.participantAttributes = options.participantAttributes ?? {};
+        break;
+
+      default:
+        // ref: https://stackoverflow.com/a/58009992
+        key satisfies never;
+        break;
+    }
+  }
+
+  return options;
 }
