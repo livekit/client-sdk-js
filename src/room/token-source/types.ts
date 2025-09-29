@@ -80,4 +80,4 @@ export abstract class TokenSourceConfigurable {
 }
 
 /** A TokenSource is a mechanism for fetching credentials required to connect to a LiveKit Room. */
-export type TokenSource = TokenSourceFixed | TokenSourceConfigurable;
+export type TokenSourceBase = TokenSourceFixed | TokenSourceConfigurable;
