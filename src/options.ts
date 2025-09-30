@@ -1,5 +1,6 @@
 import type { E2EEOptions } from './e2ee/types';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
+import type { TokenSource } from './room/token-source/types';
 import type {
   AudioCaptureOptions,
   AudioOutputOptions,
@@ -110,12 +111,18 @@ export interface InternalRoomOptions {
   // encryption?: E2EEOptions;
 
   loggerName?: string;
+
+  tokenSource: TokenSource;
 }
 
 /**
  * Options for when creating a new room
  */
 export interface RoomOptions extends Partial<InternalRoomOptions> {}
+
+export interface RoomOptionsWithTokenSource extends Partial<InternalRoomOptions> {
+  tokenSource: TokenSource;
+}
 
 /**
  * @internal

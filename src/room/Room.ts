@@ -41,6 +41,7 @@ import type {
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
+  RoomOptionsWithTokenSource,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
@@ -74,7 +75,6 @@ import {
   type TokenSourceOptions,
   type TokenSourceResponseObject,
 } from './token-source/types';
-import { extractTokenSourceOptionsFromObject } from './token-source/utils';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -134,7 +134,7 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  RoomTokenSource extends TokenSource | undefined = TokenSource | undefined,
+  OPTIONS extends RoomOptionsWithTokenSource | RoomOptions = RoomOptions,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -180,7 +180,7 @@ class Room<
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  private tokenSource?: RoomTokenSource;
+  private tokenSource?: TokenSource;
 
   private tokenSourceOptions: TokenSourceOptions = {};
 
@@ -221,7 +221,7 @@ class Room<
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: RoomOptions) {
+  constructor(options?: OPTIONS) {
     super();
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
@@ -299,22 +299,6 @@ class Room<
         });
       }
     }
-  }
-
-  static withTokenSource<TS extends TokenSourceFixed>(
-    tokenSource: TS,
-    options?: RoomOptions,
-  ): Room<TS>;
-  static withTokenSource<TS extends TokenSourceConfigurable>(
-    tokenSource: TS,
-    options?: RoomOptions & TokenSourceOptions,
-  ): Room<TS>;
-  static withTokenSource(tokenSource: TokenSource, options?: RoomOptions & TokenSourceOptions) {
-    const tokenSourceOptions = extractTokenSourceOptionsFromObject(options ?? {});
-    const room = new Room<TokenSource>(options);
-    room.tokenSource = tokenSource;
-    room.tokenSourceOptions = tokenSourceOptions;
-    return room;
   }
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
@@ -628,13 +612,12 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: RoomTokenSource extends undefined
+  prepareConnection: OPTIONS extends RoomOptionsWithTokenSource
     ? {
-        /** @deprecated use Room.withTokenSource(tokenSource, roomOpts) instead. */
-        (url: string, token?: string): Promise<void>;
+        (): Promise<void>;
       }
     : {
-        (): Promise<void>;
+        (url: string, token?: string): Promise<void>;
       } = async (urlOrUnset?: string, tokenOrUnset?: string) => {
     let url;
     let token = tokenOrUnset;
@@ -674,13 +657,12 @@ class Room<
     }
   };
 
-  connect: RoomTokenSource extends undefined
+  connect: OPTIONS extends RoomOptionsWithTokenSource
     ? {
-        /** @deprecated use Room.withTokenSource(tokenSource, roomOpts) instead. */
-        (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
+        (opts?: RoomConnectOptions): Promise<void>;
       }
     : {
-        (opts?: RoomConnectOptions): Promise<void>;
+        (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
       } = async (
     urlOrOpts: RoomConnectOptions extends undefined ? string : any,
     tokenOrUnset?: string,
