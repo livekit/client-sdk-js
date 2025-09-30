@@ -3,7 +3,7 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
-  RoomOptions,
+  RoomOptionsWithTokenSource,
   ScalabilityMode,
   SimulationScenario,
   VideoCaptureOptions,
@@ -109,7 +109,8 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
-    const roomOpts: RoomOptions = {
+    const roomOpts: RoomOptionsWithTokenSource = {
+      tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
       adaptiveStream,
       dynacast,
       audioOutput: {
@@ -151,22 +152,17 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
+    await appActions.connectToRoom(roomOpts, connectOpts, shouldPublish);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
 
   connectToRoom: async (
-    url: string,
-    token: string,
-    roomOptions?: RoomOptions,
+    roomOptions?: RoomOptionsWithTokenSource,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
-    const room = new Room({
-      roomOptions,
-      tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
-    });
+    const room = new Room(roomOptions);
 
     startTime = Date.now();
     await room.prepareConnection();
