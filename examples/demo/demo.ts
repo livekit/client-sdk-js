@@ -163,10 +163,10 @@ const appActions = {
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
-    const room = Room.withTokenSource(
-      TokenSource.literal({ serverUrl: url, participantToken: token }),
+    const room = new Room({
       roomOptions,
-    );
+      tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
+    });
 
     startTime = Date.now();
     await room.prepareConnection();
