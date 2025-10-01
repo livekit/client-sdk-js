@@ -12,14 +12,17 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.41.0
-        version: 1.41.0
+        specifier: 1.42.0
+        version: 1.42.0
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
       events:
         specifier: ^3.3.0
         version: 3.3.0
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
@@ -1039,8 +1042,8 @@ packages:
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
 
-  '@livekit/protocol@1.41.0':
-    resolution: {integrity: sha512-bozBB39VSbd0IjRBwShMlLskqkd9weWJNskaB1CVpcEO9UUI1gMwAtBJOKYblzZJT9kE1SJa3L4oWWwsZMzSXw==}
+  '@livekit/protocol@1.42.0':
+    resolution: {integrity: sha512-42sYSCay2PZrn5yHHt+O3RQpTElcTrA7bqg7iYbflUApeerA5tUCJDr8Z4abHsYHVKjqVUbkBq/TPmT3X6aYOQ==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -2578,6 +2581,9 @@ packages:
     resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==}
     hasBin: true
 
+  jose@6.1.0:
+    resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -3447,8 +3453,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20250916:
-    resolution: {integrity: sha512-Xfuwn53pwofpt/hGVqLcqkqEN9u7jWpPAagOj2QgGmgOZH4P8pzPpwBB4piRkOqYdmiSg6qOP4xK3L9iNRTF6A==}
+  typescript@6.0.0-dev.20250923:
+    resolution: {integrity: sha512-Aiy0yklpKnRJkElhXO/bB2DhosYfL+j4RiUinq6C58ncyDOjuKn5wk6O5rds4n4AOobAqMjLU55H5q7bEyDcMQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4818,7 +4824,7 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.41.0':
+  '@livekit/protocol@1.42.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
@@ -5681,7 +5687,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20250916
+      typescript: 6.0.0-dev.20250923
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6605,6 +6611,8 @@ snapshots:
 
   jiti@2.4.2: {}
 
+  jose@6.1.0: {}
+
   js-tokens@4.0.0: {}
 
   js-tokens@9.0.1: {}
@@ -7522,7 +7530,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20250916: {}
+  typescript@6.0.0-dev.20250923: {}
 
   uc.micro@2.1.0: {}
 
