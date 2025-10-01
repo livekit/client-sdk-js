@@ -54,7 +54,7 @@ export abstract class TokenSourceFixed {
   abstract fetch(): Promise<TokenSourceResponseObject>;
 }
 
-export type TokenSourceOptions = {
+export type TokenSourceFetchOptions = {
   roomName?: string;
   participantName?: string;
   participantIdentity?: string;
@@ -65,7 +65,7 @@ export type TokenSourceOptions = {
 };
 
 /** A Configurable TokenSource is a token source that takes a
- * {@link TokenSourceOptions} object as input and returns a deterministic
+ * {@link TokenSourceFetchOptions} object as input and returns a deterministic
  * {@link TokenSourceResponseObject} output based on the options specified.
  *
  * For example, if options.participantName is set, it should be expected that
@@ -76,7 +76,7 @@ export type TokenSourceOptions = {
  * and {@link TokenSourceCustom}.
  */
 export abstract class TokenSourceConfigurable {
-  abstract fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject>;
+  abstract fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject>;
 }
 
 /** A TokenSource is a mechanism for fetching credentials required to connect to a LiveKit Room. */

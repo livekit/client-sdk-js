@@ -7,27 +7,29 @@ import {
 } from '@livekit/protocol';
 import {
   TokenSourceConfigurable,
+  type TokenSourceFetchOptions,
   TokenSourceFixed,
-  type TokenSourceOptions,
   type TokenSourceResponseObject,
 } from './types';
 import { decodeTokenPayload, isResponseExpired } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
- * until a) it expires or b) the {@link TokenSourceOptions} provided to .fetch(...) change. */
+ * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
 abstract class TokenSourceCached extends TokenSourceConfigurable {
-  private cachedOptions: TokenSourceOptions | null = null;
+  private cachedFetchOptions: TokenSourceFetchOptions | null = null;
 
   private cachedResponse: TokenSourceResponse | null = null;
 
   private fetchMutex = new Mutex();
 
-  private isSameAsCachedOptions(options: TokenSourceOptions) {
-    if (!this.cachedOptions) {
+  private isSameAsCachedFetchOptions(options: TokenSourceFetchOptions) {
+    if (!this.cachedFetchOptions) {
       return false;
     }
 
-    for (const key of Object.keys(this.cachedOptions) as Array<keyof TokenSourceOptions>) {
+    for (const key of Object.keys(this.cachedFetchOptions) as Array<
+      keyof TokenSourceFetchOptions
+    >) {
       switch (key) {
         case 'roomName':
         case 'participantName':
@@ -35,7 +37,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
         case 'participantMetadata':
         case 'participantAttributes':
         case 'agentName':
-          if (this.cachedOptions[key] !== options[key]) {
+          if (this.cachedFetchOptions[key] !== options[key]) {
             return false;
           }
           break;
@@ -49,14 +51,14 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     return true;
   }
 
-  private shouldReturnCachedValueFromFetch(options: TokenSourceOptions) {
+  private shouldReturnCachedValueFromFetch(fetchOptions: TokenSourceFetchOptions) {
     if (!this.cachedResponse) {
       return false;
     }
     if (isResponseExpired(this.cachedResponse)) {
       return false;
     }
-    if (this.isSameAsCachedOptions(options)) {
+    if (this.isSameAsCachedFetchOptions(fetchOptions)) {
       return false;
     }
     return true;
@@ -69,13 +71,13 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     return decodeTokenPayload(this.cachedResponse.participantToken);
   }
 
-  async fetch(options: TokenSourceOptions): Promise<TokenSourceResponseObject> {
+  async fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject> {
     const unlock = await this.fetchMutex.lock();
     try {
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
-      this.cachedOptions = options;
+      this.cachedFetchOptions = options;
 
       const tokenResponse = await this.update(options);
       this.cachedResponse = tokenResponse;
@@ -85,7 +87,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     }
   }
 
-  protected abstract update(options: TokenSourceOptions): Promise<TokenSourceResponse>;
+  protected abstract update(options: TokenSourceFetchOptions): Promise<TokenSourceResponse>;
 }
 
 type LiteralOrFn =
@@ -109,7 +111,7 @@ export class TokenSourceLiteral extends TokenSourceFixed {
 }
 
 type CustomFn = (
-  options: TokenSourceOptions,
+  options: TokenSourceFetchOptions,
 ) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
 export class TokenSourceCustom extends TokenSourceCached {
   private customFn: CustomFn;
@@ -119,7 +121,7 @@ export class TokenSourceCustom extends TokenSourceCached {
     this.customFn = customFn;
   }
 
-  protected async update(options: TokenSourceOptions) {
+  protected async update(options: TokenSourceFetchOptions) {
     const resultMaybePromise = this.customFn(options);
 
     let result;
@@ -150,10 +152,10 @@ export class TokenSourceEndpoint extends TokenSourceCached {
     this.endpointOptions = options;
   }
 
-  private createRequestFromOptions(options: TokenSourceOptions) {
+  private createRequestFromOptions(options: TokenSourceFetchOptions) {
     const request = new TokenSourceRequest();
 
-    for (const key of Object.keys(options) as Array<keyof TokenSourceOptions>) {
+    for (const key of Object.keys(options) as Array<keyof TokenSourceFetchOptions>) {
       switch (key) {
         case 'roomName':
         case 'participantName':
@@ -188,7 +190,7 @@ export class TokenSourceEndpoint extends TokenSourceCached {
     return request;
   }
 
-  protected async update(options: TokenSourceOptions) {
+  protected async update(options: TokenSourceFetchOptions) {
     const request = this.createRequestFromOptions(options);
 
     const response = await fetch(this.url, {
