@@ -612,7 +612,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions) => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (!isBrowserSupported()) {
       if (isReactNative()) {
         throw Error("WebRTC isn't detected, have you called registerGlobals?");
