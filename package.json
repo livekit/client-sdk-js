@@ -25,10 +25,10 @@
   "typesVersions": {
     "<4.8": {
       "./dist/src/index.d.ts": [
-        "./dist/ts4.2/src/index.d.ts"
+        "./dist/ts4.2/index.d.ts"
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
-        "./dist/ts4.2/dist/src/e2ee/worker/e2ee.worker.d.ts"
+        "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
       ]
     }
   },
