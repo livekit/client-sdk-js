@@ -37,6 +37,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
         case 'participantMetadata':
         case 'participantAttributes':
         case 'agentName':
+        case 'agentMetadata':
           if (this.cachedFetchOptions[key] !== options[key]) {
             return false;
           }
@@ -170,12 +171,18 @@ export class TokenSourceEndpoint extends TokenSourceCached {
 
         case 'agentName':
           request.roomConfig = request.roomConfig ?? new RoomConfiguration();
-          request.roomConfig.agents.push(
-            new RoomAgentDispatch({
-              agentName: options.agentName,
-              metadata: '', // FIXME: how do I support this? Maybe make agentName -> agentToDispatch?
-            }),
-          );
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].agentName = options.agentName!;
+          break;
+
+        case 'agentMetadata':
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].metadata = options.agentMetadata!;
           break;
 
         default:

@@ -62,6 +62,7 @@ export type TokenSourceFetchOptions = {
   participantAttributes?: { [key: string]: string };
 
   agentName?: string;
+  agentMetadata?: string;
 };
 
 /** A Configurable TokenSource is a token source that takes a
