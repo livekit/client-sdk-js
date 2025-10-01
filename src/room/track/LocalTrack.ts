@@ -670,7 +670,7 @@ export default abstract class LocalTrack<
   }
 
   /** @internal */
-  getPreConnectBuffer() {
+  getPreConnectBuffer(): ReadableStream<Uint8Array> | undefined {
     return this.localTrackRecorder?.byteStream;
   }
 
