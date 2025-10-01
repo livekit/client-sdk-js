@@ -453,7 +453,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
       } else if (connectionState === PCTransportState.FAILED) {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        if (this.pcState === PCState.Connected) {
+        if (this.pcState === PCState.Connected || this.pcState === PCState.Reconnecting) {
           this.pcState = PCState.Disconnected;
           this.fullReconnectOnNext = true;
           this.handleDisconnect(
