@@ -279,7 +279,7 @@ export const TokenSource = {
    * For more info:
    * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
    */
-  sandboxTokenServer(sandboxId: string, options: SandboxTokenServerOptions) {
+  sandboxTokenServer(sandboxId: string, options: SandboxTokenServerOptions = {}) {
     return new TokenSourceSandboxTokenServer(sandboxId, options);
   },
 };
