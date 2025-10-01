@@ -162,4 +162,16 @@ describe('extractMaxAgeFromRequestHeaders', () => {
     headers.set('Cache-Control', 'max-age=-100');
     expect(extractMaxAgeFromRequestHeaders(headers)).toBeUndefined();
   });
+
+  it('ignores non standard cache control custom-max-age values', () => {
+    const headers = new Headers();
+    headers.set('Cache-Control', 'custom-max-age=7200');
+    expect(extractMaxAgeFromRequestHeaders(headers)).toBeUndefined();
+  });
+
+  it('still works with comma separated non standard cache control custom-max-age values', () => {
+    const headers = new Headers();
+    headers.set('Cache-Control', 'custom-max-age=7200,max-age=3600');
+    expect(extractMaxAgeFromRequestHeaders(headers)).toBe(3600);
+  });
 });
