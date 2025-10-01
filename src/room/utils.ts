@@ -720,3 +720,14 @@ export function splitUtf8(s: string, n: number): Uint8Array[] {
   }
   return result;
 }
+
+export function extractMaxAgeFromRequestHeaders(headers: Headers): number | undefined {
+  const cacheControl = headers.get('Cache-Control');
+  if (cacheControl) {
+    const maxAge = cacheControl.match(/max-age=(\d+)/)?.[1];
+    if (maxAge) {
+      return parseInt(maxAge, 10);
+    }
+  }
+  return undefined;
+}
