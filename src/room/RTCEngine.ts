@@ -267,7 +267,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       // create offer
       if (!this.subscriberPrimary || joinResponse.fastPublish) {
-        this.negotiate();
+        this.negotiate().catch((err) => {
+          log.error(err, this.logContext);
+        });
       }
 
       this.registerOnLineListener();
@@ -1338,7 +1340,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (needNegotiation) {
       // start negotiation
-      this.negotiate();
+      this.negotiate().catch((err) => {
+        log.error(err, this.logContext);
+      });
     }
 
     const targetChannel = this.dataChannelForKind(kind, subscriber);
