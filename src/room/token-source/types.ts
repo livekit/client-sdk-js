@@ -51,6 +51,7 @@ export type RoomConfigurationObject = NonNullable<
  * The most common downstream implementer is {@link TokenSourceLiteral}.
  */
 export abstract class TokenSourceFixed {
+  type = 'f' as const;
   abstract fetch(): Promise<TokenSourceResponseObject>;
 }
 
@@ -77,6 +78,7 @@ export type TokenSourceFetchOptions = {
  * and {@link TokenSourceCustom}.
  */
 export abstract class TokenSourceConfigurable {
+  type = 'c' as const;
   abstract fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject>;
 }
 
