@@ -29,7 +29,7 @@ let isEncryptionEnabled: boolean = false;
 
 let useSharedKey: boolean = false;
 
-let sifTrailer: Uint8Array | undefined;
+let sifTrailer: NonSharedUint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
@@ -301,7 +301,7 @@ function emitRatchetedKeys(
   postMessage(msg);
 }
 
-function handleSifTrailer(trailer: Uint8Array) {
+function handleSifTrailer(trailer: NonSharedUint8Array) {
   sifTrailer = trailer;
   participantCryptors.forEach((c) => {
     c.setSifTrailer(trailer);

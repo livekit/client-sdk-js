@@ -724,8 +724,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           return;
         }
         const decryptedData = await this.e2eeManager?.handleEncryptedData(
-          dp.value.value.encryptedValue,
-          dp.value.value.iv,
+          dp.value.value.encryptedValue as NonSharedUint8Array,
+          dp.value.value.iv as NonSharedUint8Array,
           dp.participantIdentity,
           dp.value.value.keyIndex,
         );
@@ -1222,7 +1222,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
       const encryptablePacket = asEncryptablePacket(packet);
       if (encryptablePacket) {
-        const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());
+        const encryptedData = await this.e2eeManager.encryptData(
+          encryptablePacket.toBinary() as NonSharedUint8Array,
+        );
         packet.value = {
           case: 'encryptedPacket',
           value: new EncryptedPacket({
@@ -1239,7 +1241,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDataSequence += 1;
     }
 
-    const msg = packet.toBinary();
+    const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {

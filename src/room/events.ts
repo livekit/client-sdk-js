@@ -225,7 +225,7 @@ export enum RoomEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
+   * args: (payload: NonSharedUint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
    */
   DataReceived = 'dataReceived',
 
@@ -469,7 +469,7 @@ export enum ParticipantEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args: (payload: Uint8Array, kind: [[DataPacket_Kind]])
+   * args: (payload: NonSharedUint8Array, kind: [[DataPacket_Kind]])
    */
   DataReceived = 'dataReceived',
 

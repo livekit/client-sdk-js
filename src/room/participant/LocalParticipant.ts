@@ -1629,7 +1629,7 @@ export default class LocalParticipant extends Participant {
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
    * @param options optionally specify a `reliable`, `topic` and `destination`
    */
-  async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
+  async publishData(data: NonSharedUint8Array, options: DataPublishOptions = {}): Promise<void> {
     const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
     const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
