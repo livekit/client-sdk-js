@@ -1,7 +1,7 @@
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
 import { ConnectionError, ConnectionErrorReason } from './errors';
-import { isCloud } from './utils';
+import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
 export class RegionUrlProvider {
   private serverUrl: URL;
@@ -12,7 +12,7 @@ export class RegionUrlProvider {
 
   private lastUpdateAt: number = 0;
 
-  private settingsCacheTime = 3_000;
+  private settingsCacheTimeInMs = 3_000;
 
   private attemptedRegions: RegionInfo[] = [];
 
@@ -37,7 +37,7 @@ export class RegionUrlProvider {
     if (!this.isCloud()) {
       throw Error('region availability is only supported for LiveKit Cloud domains');
     }
-    if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTime) {
+    if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTimeInMs) {
       this.regionSettings = await this.fetchRegionSettings(abortSignal);
     }
     const regionsLeft = this.regionSettings.regions.filter(
@@ -64,6 +64,11 @@ export class RegionUrlProvider {
       signal,
     });
     if (regionSettingsResponse.ok) {
+      const maxAge = extractMaxAgeFromRequestHeaders(regionSettingsResponse.headers);
+      if (maxAge) {
+        log.debug(`setting local region settings cache time to ${maxAge} seconds`);
+        this.settingsCacheTimeInMs = maxAge * 1000;
+      }
       const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
       this.lastUpdateAt = Date.now();
       return regionSettings;
