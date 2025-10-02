@@ -3,7 +3,7 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
-  RoomOptionsWithTokenSource,
+  RoomOptionsWithTokenSourceFixed,
   ScalabilityMode,
   SimulationScenario,
   TokenSourceConfigurable,
@@ -26,6 +26,7 @@ import {
   RemoteTrackPublication,
   Room,
   RoomEvent,
+  RoomOptions,
   ScreenSharePresets,
   TokenSource,
   Track,
@@ -136,7 +137,7 @@ const appActions = {
       encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
-    } satisfies RoomOptionsWithTokenSource;
+    } satisfies RoomOptionsWithTokenSourceFixed;
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
@@ -161,7 +162,7 @@ const appActions = {
   },
 
   connectToRoom: async (
-    roomOptions?: RoomOptionsWithTokenSource<TokenSourceFixed>,
+    roomOptions?: RoomOptionsWithTokenSourceFixed,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {

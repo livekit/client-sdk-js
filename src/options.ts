@@ -16,7 +16,7 @@ export interface WebAudioSettings {
 /**
  * @internal
  */
-export interface InternalRoomOptions {
+export interface InternalRoomOptions extends Partial<TokenSourceFetchOptions> {
   /**
    * AdaptiveStream lets LiveKit automatically manage quality of subscribed
    * video tracks to optimize for bandwidth and CPU.
@@ -102,26 +102,23 @@ export interface InternalRoomOptions {
   loggerName?: string;
 
   tokenSource?: TokenSourceConfigurable | TokenSourceFixed;
-  tokenSourceFetchOptions?: TokenSourceFetchOptions;
 }
 
 /**
  * Options for when creating a new room
  */
-export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
+export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>> {}
 
-export interface RoomOptionsWithTokenSourceConfigurable extends Partial<Omit<InternalRoomOptions, 'encryption'>> {
+export interface RoomOptionsWithTokenSourceConfigurable extends Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>> {
   tokenSource: TokenSourceConfigurable;
-  tokenSourceFetchOptions: TokenSourceFetchOptions;
 }
 
-export interface RoomOptionsWithTokenSourceFixed extends Partial<Omit<InternalRoomOptions, 'encryption'>> {
+export interface RoomOptionsWithTokenSourceFixed extends Partial<
+  Omit<InternalRoomOptions, 'tokenSource' | keyof TokenSourceFetchOptions | 'encryption'> &
+  { [P in keyof TokenSourceFetchOptions]: never }
+> {
   tokenSource: TokenSourceFixed;
 }
-
-export type RoomOptionsWithTokenSource<
-  TokenSource extends TokenSourceConfigurable | TokenSourceFixed = TokenSourceConfigurable | TokenSourceFixed,
-> = TokenSource extends TokenSourceConfigurable ? RoomOptionsWithTokenSourceConfigurable : RoomOptionsWithTokenSourceFixed;
 
 /**
  * @internal
