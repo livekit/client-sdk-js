@@ -70,7 +70,6 @@ import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from 
 import CriticalTimers from './timers';
 import {
   TokenSourceConfigurable,
-  type TokenSourceFetchOptions,
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './token-source/types';
@@ -178,10 +177,6 @@ class Room<
 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
-
-  private tokenSource?: Options extends RoomOptionsWithTokenSource<infer TS> ? TS : never;
-
-  private tokenSourceFetchOptions: TokenSourceFetchOptions = {};
 
   private disconnectLock: Mutex;
 
@@ -593,10 +588,10 @@ class Room<
     });
 
   async tokenSourceFetch(): Promise<TokenSourceResponseObject | null> {
-    if (this.tokenSource instanceof TokenSourceConfigurable) {
-      return this.tokenSource.fetch(this.tokenSourceFetchOptions);
-    } else if (this.tokenSource instanceof TokenSourceFixed) {
-      return this.tokenSource.fetch();
+    if (this.options.tokenSource instanceof TokenSourceConfigurable) {
+      return this.options.tokenSource.fetch(this.options.tokenSourceFetchOptions ?? {});
+    } else if (this.options.tokenSource instanceof TokenSourceFixed) {
+      return this.options.tokenSource.fetch();
     } else {
       return null;
     }
