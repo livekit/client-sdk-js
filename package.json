@@ -70,10 +70,10 @@
     "@types/dom-mediacapture-record": "^1"
   },
   "devDependencies": {
-    "@babel/core": "7.28.3",
+    "@babel/core": "7.28.4",
     "@babel/preset-env": "7.28.3",
     "@bufbuild/protoc-gen-es": "^1.10.0",
-    "@changesets/cli": "2.29.5",
+    "@changesets/cli": "2.29.7",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@rollup/plugin-babel": "6.0.4",
     "@rollup/plugin-commonjs": "28.0.6",
@@ -98,14 +98,14 @@
     "happy-dom": "^17.2.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
-    "rollup": "4.46.2",
+    "rollup": "4.52.3",
     "rollup-plugin-delete": "^2.1.0",
     "rollup-plugin-typescript2": "0.36.0",
     "size-limit": "^11.2.0",
-    "typedoc": "0.28.10",
+    "typedoc": "0.28.13",
     "typedoc-plugin-no-inherit": "1.6.1",
     "typescript": "5.8.3",
-    "vite": "7.1.2",
+    "vite": "7.1.8",
     "vitest": "^3.0.0"
   },
   "packageManager": "pnpm@10.14.0"
