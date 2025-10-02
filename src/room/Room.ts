@@ -133,7 +133,7 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  OPTIONS extends RoomOptionsWithTokenSource | RoomOptions = RoomOptions,
+  Options extends RoomOptionsWithTokenSource | RoomOptions = RoomOptions,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -179,7 +179,7 @@ class Room<
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  private tokenSource?: TokenSourceConfigurable | TokenSourceFixed;
+  private tokenSource?: Options extends RoomOptionsWithTokenSource<infer TS> ? TS : never;
 
   private tokenSourceFetchOptions: TokenSourceFetchOptions = {};
 
@@ -220,7 +220,7 @@ class Room<
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: OPTIONS) {
+  constructor(options?: Options) {
     super();
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
@@ -611,7 +611,7 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: OPTIONS extends RoomOptionsWithTokenSource
+  prepareConnection: Options extends RoomOptionsWithTokenSource
     ? {
         (): Promise<void>;
       }
@@ -656,7 +656,7 @@ class Room<
     }
   };
 
-  connect: OPTIONS extends RoomOptionsWithTokenSource
+  connect: Options extends RoomOptionsWithTokenSource
     ? {
         (opts?: RoomConnectOptions): Promise<void>;
       }
