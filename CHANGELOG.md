@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.15.8
+
+### Patch Changes
+
+- Add preliminary support for data message decryption - [#1595](https://github.com/livekit/client-sdk-js/pull/1595) ([@lukasIO](https://github.com/lukasIO))
+
+- Add video autoplay attributes to PublishVideoCheck - [#1648](https://github.com/livekit/client-sdk-js/pull/1648) ([@Doomann](https://github.com/Doomann))
+
+- Ensure handleDisconnect is called also when already in Reconnecting state - [#1671](https://github.com/livekit/client-sdk-js/pull/1671) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix TS 5.9 generic Uint8Array declaration when inferred - [#1668](https://github.com/livekit/client-sdk-js/pull/1668) ([@lukasIO](https://github.com/lukasIO))
+
+- Properly clean up event listeners in getNewAudioContext() - [#1660](https://github.com/livekit/client-sdk-js/pull/1660) ([@indexds](https://github.com/indexds))
+
+- Avoid uncaught errors related to send/disconnect races - [#1674](https://github.com/livekit/client-sdk-js/pull/1674) ([@bryfox](https://github.com/bryfox))
+
+- Register online listener in engine's join - [#1658](https://github.com/livekit/client-sdk-js/pull/1658) ([@lukasIO](https://github.com/lukasIO))
+
+- add TokenSource token fetching abstraction - [#1645](https://github.com/livekit/client-sdk-js/pull/1645) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.7
 
 ### Patch Changes
