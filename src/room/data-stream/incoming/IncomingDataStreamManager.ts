@@ -124,6 +124,9 @@ export default class IncomingDataStreamManager {
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
       const outOfBandFailureRejectingFuture = new Future<never>();
+      outOfBandFailureRejectingFuture.promise.catch((err) => {
+        this.log.error(err);
+      });
 
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
@@ -178,6 +181,10 @@ export default class IncomingDataStreamManager {
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
       const outOfBandFailureRejectingFuture = new Future<never>();
+      outOfBandFailureRejectingFuture.promise.catch((err) => {
+        this.log.error(err);
+      });
+
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
         mimeType: streamHeader.mimeType,
