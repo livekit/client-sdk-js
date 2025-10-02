@@ -1,6 +1,6 @@
 import type { E2EEOptions } from './e2ee/types';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
-import type { TokenSourceConfigurable, TokenSourceFetchOptions, TokenSourceFixed } from './room/token-source/types';
+import type { TokenSourceConfigurable, TokenSourceFixed } from './room/token-source/types';
 import type {
   AudioCaptureOptions,
   AudioOutputOptions,
@@ -107,10 +107,8 @@ export interface InternalRoomOptions {
  */
 export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
 
-export interface RoomOptionsWithTokenSource<
-  TokenSource extends TokenSourceConfigurable | TokenSourceFixed = TokenSourceConfigurable | TokenSourceFixed,
-> extends Partial<InternalRoomOptions> {
-  tokenSource: TokenSource;
+export interface RoomOptionsWithTokenSource extends Partial<InternalRoomOptions> {
+  tokenSource: TokenSourceConfigurable | TokenSourceFixed;
 }
 
 /**

@@ -113,7 +113,6 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { extractTokenSourceOptionsFromObject } from './token-source/utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -180,7 +179,9 @@ class Room<
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  /* private */ tokenSource?: Options extends RoomOptionsWithTokenSource<infer TS> ? TS : never;
+  private tokenSource?: Options extends RoomOptionsWithTokenSource<infer TS> ? TS : never;
+
+  private tokenSourceFetchOptions: TokenSourceFetchOptions = {};
 
   private disconnectLock: Mutex;
 
@@ -591,9 +592,9 @@ class Room<
       cleanup();
     });
 
-  private async tokenSourceFetch(options: TokenSourceFetchOptions = {}): Promise<TokenSourceResponseObject | null> {
+  async tokenSourceFetch(): Promise<TokenSourceResponseObject | null> {
     if (this.tokenSource instanceof TokenSourceConfigurable) {
-      return this.tokenSource.fetch(options);
+      return this.tokenSource.fetch(this.tokenSourceFetchOptions);
     } else if (this.tokenSource instanceof TokenSourceFixed) {
       return this.tokenSource.fetch();
     } else {
@@ -610,25 +611,26 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection = (async (
-    urlOrOptionsOrUnset?: string | TokenSourceFetchOptions,
-    tokenOrUnset?: string
-  ) => {
+  prepareConnection: Options extends RoomOptionsWithTokenSource
+    ? {
+        (): Promise<void>;
+      }
+    : {
+        (url: string, token?: string): Promise<void>;
+      } = async (urlOrUnset?: string, tokenOrUnset?: string) => {
     let url;
     let token = tokenOrUnset;
 
-    if (typeof urlOrOptionsOrUnset === 'string') {
-      url = urlOrOptionsOrUnset;
+    const tokenSourceFetchResponse = await this.tokenSourceFetch();
+    if (tokenSourceFetchResponse) {
+      url = tokenSourceFetchResponse.serverUrl;
+      token = token ?? tokenSourceFetchResponse.participantToken;
+    } else if (typeof urlOrUnset === 'string') {
+      url = urlOrUnset;
     } else {
-      const tokenSourceFetchResponse = await this.tokenSourceFetch(urlOrOptionsOrUnset);
-      if (tokenSourceFetchResponse) {
-        url = tokenSourceFetchResponse.serverUrl;
-        token = token ?? tokenSourceFetchResponse.participantToken;
-      } else {
-        throw new Error(
-          `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrOptionsOrUnset}, ${tokenOrUnset}.`,
-        );
-      }
+      throw new Error(
+        `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrUnset}, ${tokenOrUnset}.`,
+      );
     }
 
     if (this.state !== ConnectionState.Disconnected) {
@@ -652,10 +654,16 @@ class Room<
     } catch (e) {
       this.log.warn('could not prepare connection', { ...this.logContext, error: e });
     }
-  }) as RoomPrepareConnectionFn<Options>;
+  };
 
-  connect = (async (
-    urlOrOpts: string | RoomConnectOptions | (TokenSourceFetchOptions & RoomConnectOptions),
+  connect: Options extends RoomOptionsWithTokenSource
+    ? {
+        (opts?: RoomConnectOptions): Promise<void>;
+      }
+    : {
+        (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
+      } = async (
+    urlOrOpts: RoomConnectOptions extends undefined ? string : any,
     tokenOrUnset?: string,
     optsOrUnset?: RoomConnectOptions,
   ) => {
@@ -663,22 +671,15 @@ class Room<
     let token: string;
     let opts: RoomConnectOptions | undefined;
 
-    if (typeof urlOrOpts === 'string' && typeof tokenOrUnset === 'string') {
+    const tokenSourceFetchResponse = await this.tokenSourceFetch();
+    if (tokenSourceFetchResponse && typeof urlOrOpts !== 'string') {
+      url = tokenSourceFetchResponse.serverUrl;
+      token = tokenSourceFetchResponse.participantToken;
+      opts = urlOrOpts;
+    } else if (typeof urlOrOpts === 'string' && typeof tokenOrUnset === 'string') {
       url = urlOrOpts;
       token = tokenOrUnset;
       opts = optsOrUnset;
-    } else if (typeof urlOrOpts !== 'string') {
-      const [tokenSourceFetchOptions, roomConnectOptions] = extractTokenSourceOptionsFromObject<RoomConnectOptions>(urlOrOpts);
-      const tokenSourceFetchResponse = await this.tokenSourceFetch(tokenSourceFetchOptions);
-      if (tokenSourceFetchResponse) {
-        url = tokenSourceFetchResponse.serverUrl;
-        token = tokenSourceFetchResponse.participantToken;
-        opts = roomConnectOptions;
-      } else {
-        throw new Error(
-          `Room.connect constructed without TokenSource received invalid parameters - expected url/token, received ${urlOrOpts}`,
-        );
-      }
     } else {
       throw new Error(
         `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrOpts}, ${tokenOrUnset}, ${optsOrUnset}`,
@@ -813,7 +814,7 @@ class Room<
     );
 
     return this.connectFuture.promise;
-  }) as RoomConnectFn<Options>;
+  };
 
   private connectSignal = async (
     url: string,
@@ -1030,6 +1031,7 @@ class Room<
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
+      this.tokenSourceFetch();
     } finally {
       unlock();
     }
@@ -2726,30 +2728,4 @@ export type RoomEventCallbacks = {
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
   participantActive: (participant: Participant) => void;
-};
-
-type RoomPrepareConnectionFn<
-  Options extends RoomOptionsWithTokenSource | RoomOptions
-> = Options extends RoomOptionsWithTokenSource<infer TokenSource> ? (
-  TokenSource extends TokenSourceFixed ? {
-    (): Promise<void>;
-  } : {
-    (options?: TokenSourceFetchOptions): Promise<void>;
-  }
-) : {
-  /** @deprecated */
-  (url: string, token?: string): Promise<void>;
-};
-
-type RoomConnectFn<
-  Options extends RoomOptionsWithTokenSource | RoomOptions
-> = Options extends RoomOptionsWithTokenSource<infer TokenSource> ? (
-  TokenSource extends TokenSourceFixed ? {
-    (options?: RoomConnectOptions): Promise<void>;
-  } : {
-    (options?: RoomConnectOptions & TokenSourceFetchOptions): Promise<void>;
-  }
-) : {
-  /** @deprecated */
-  (url: string, token: string): Promise<void>;
 };

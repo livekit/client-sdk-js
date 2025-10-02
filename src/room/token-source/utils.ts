@@ -35,10 +35,9 @@ export function decodeTokenPayload(token: string) {
 }
 
 export function extractTokenSourceOptionsFromObject<
+  Input extends TokenSourceFetchOptions & Rest,
   Rest extends object,
-  Input extends TokenSourceFetchOptions & Rest = TokenSourceFetchOptions & Rest,
->(input: Input): [TokenSourceFetchOptions, Rest] {
-  const output: Partial<Input> = { ...input };
+>(input: Input): TokenSourceFetchOptions {
   const options: TokenSourceFetchOptions = {};
 
   for (const key of Object.keys(input) as Array<keyof TokenSourceFetchOptions>) {
@@ -50,12 +49,10 @@ export function extractTokenSourceOptionsFromObject<
       case 'agentName':
       case 'agentMetadata':
         options[key] = input[key];
-        delete output[key];
         break;
 
       case 'participantAttributes':
         options.participantAttributes = options.participantAttributes ?? {};
-        delete output.participantAttributes;
         break;
 
       default:
@@ -65,5 +62,5 @@ export function extractTokenSourceOptionsFromObject<
     }
   }
 
-  return [options, output as Rest];
+  return options;
 }
