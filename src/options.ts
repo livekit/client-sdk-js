@@ -92,12 +92,11 @@ export interface InternalRoomOptions {
   //  */
   e2ee?: E2EEOptions;
 
-  // TODO: add this back in for a subsequent release and deprecate `e2ee` above
-  // /**
-  //  * @experimental
-  //  * Options for enabling end-to-end encryption.
-  //  */
-  // encryption?: E2EEOptions;
+  /**
+   * @experimental
+   * Options for enabling end-to-end encryption.
+   */
+  encryption?: E2EEOptions;
 
   loggerName?: string;
 }
@@ -105,7 +104,7 @@ export interface InternalRoomOptions {
 /**
  * Options for when creating a new room
  */
-export interface RoomOptions extends Partial<InternalRoomOptions> {}
+export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
 
 /**
  * @internal
