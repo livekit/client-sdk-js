@@ -6,6 +6,9 @@ import type {
   RoomOptionsWithTokenSource,
   ScalabilityMode,
   SimulationScenario,
+  TokenSourceConfigurable,
+  TokenSourceFixed,
+  TokenSourceLiteral,
   VideoCaptureOptions,
   VideoCodec,
 } from '../../src/index';
@@ -109,7 +112,7 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
-    const roomOpts: RoomOptionsWithTokenSource = {
+    const roomOpts = {
       tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
       adaptiveStream,
       dynacast,
@@ -133,7 +136,7 @@ const appActions = {
       encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
-    };
+    } satisfies RoomOptionsWithTokenSource;
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
@@ -158,7 +161,7 @@ const appActions = {
   },
 
   connectToRoom: async (
-    roomOptions?: RoomOptionsWithTokenSource,
+    roomOptions?: RoomOptionsWithTokenSource<TokenSourceFixed>,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
