@@ -42,11 +42,11 @@ export interface BaseE2EEManager {
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
-  setSifTrailer(trailer: Uint8Array): void;
-  encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']>;
+  setSifTrailer(trailer: NonSharedUint8Array): void;
+  encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
   handleEncryptedData(
-    payload: Uint8Array,
-    iv: Uint8Array,
+    payload: NonSharedUint8Array,
+    iv: NonSharedUint8Array,
     participantIdentity: string,
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
@@ -131,7 +131,7 @@ export class E2EEManager
   /**
    * @internal
    */
-  setSifTrailer(trailer: Uint8Array) {
+  setSifTrailer(trailer: NonSharedUint8Array) {
     if (!trailer || trailer.length === 0) {
       log.warn("ignoring server sent trailer as it's empty");
     } else {
@@ -291,7 +291,7 @@ export class E2EEManager
       );
   }
 
-  async encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']> {
+  async encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']> {
     if (!this.worker) {
       throw Error('could not encrypt data, worker is missing');
     }
@@ -314,8 +314,8 @@ export class E2EEManager
   }
 
   handleEncryptedData(
-    payload: Uint8Array,
-    iv: Uint8Array,
+    payload: NonSharedUint8Array,
+    iv: NonSharedUint8Array,
     participantIdentity: string,
     keyIndex: number,
   ) {
@@ -404,7 +404,7 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postSifTrailer(trailer: Uint8Array) {
+  private postSifTrailer(trailer: NonSharedUint8Array) {
     if (!this.worker) {
       throw Error('could not post SIF trailer, worker is missing');
     }

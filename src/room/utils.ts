@@ -696,12 +696,12 @@ export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
   return !p.isLocal;
 }
 
-export function splitUtf8(s: string, n: number): Uint8Array[] {
+export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
   if (n < 4) {
     throw new Error('n must be at least 4 due to utf8 encoding rules');
   }
   // adapted from https://stackoverflow.com/a/6043797
-  const result: Uint8Array[] = [];
+  const result: NonSharedUint8Array[] = [];
   let encoded = new TextEncoder().encode(s);
   while (encoded.length > n) {
     let k = n;

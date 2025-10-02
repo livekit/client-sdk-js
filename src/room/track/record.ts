@@ -51,7 +51,7 @@ export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
       start: (controller) => {
         streamController = controller;
         dataListener = async (event: BlobEvent) => {
-          let data: Uint8Array;
+          let data: NonSharedUint8Array;
 
           if (event.data.arrayBuffer) {
             const arrayBuffer = await event.data.arrayBuffer();

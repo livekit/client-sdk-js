@@ -537,6 +537,6 @@ export type TrackEventCallbacks = {
   trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
   audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
   timeSyncUpdate: (update: { timestamp: number; rtpTimestamp: number }) => void;
-  preConnectBufferFlushed: (buffer: Uint8Array[]) => void;
+  preConnectBufferFlushed: (buffer: NonSharedUint8Array[]) => void;
   cpuConstrained: () => void;
 };

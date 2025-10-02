@@ -261,7 +261,7 @@ describe('ParticipantKeyHandler', () => {
 
       await keyHandler.setKey(originalMaterial);
 
-      const ciphertexts: Uint8Array[] = [];
+      const ciphertexts: NonSharedUint8Array[] = [];
 
       const plaintext = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
@@ -354,8 +354,8 @@ describe('ParticipantKeyHandler', () => {
     async function encrypt(
       participantKeyHandler: ParticipantKeyHandler,
       keyIndex: number,
-      iv: Uint8Array,
-      data: Uint8Array,
+      iv: NonSharedUint8Array,
+      data: NonSharedUint8Array,
     ): Promise<ArrayBuffer> {
       return crypto.subtle.encrypt(
         {
@@ -370,7 +370,7 @@ describe('ParticipantKeyHandler', () => {
     async function decrypt(
       participantKeyHandler: ParticipantKeyHandler,
       keyIndex: number,
-      iv: Uint8Array,
+      iv: NonSharedUint8Array,
       cipherText: ArrayBuffer,
     ): Promise<ArrayBuffer> {
       return crypto.subtle.decrypt(

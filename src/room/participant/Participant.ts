@@ -410,7 +410,7 @@ export type ParticipantEventCallbacks = {
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (
-    payload: Uint8Array,
+    payload: NonSharedUint8Array,
     kind: DataPacket_Kind,
     encryptionType?: Encryption_Type,
   ) => void;
