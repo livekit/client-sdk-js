@@ -151,6 +151,15 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   return 'setSinkId' in elm;
 }
 
+/**
+ * Checks whether or not setting an audio output via {@link Room#setActiveDevice}
+ * is supported for the current browser.
+ */
+export function supportsAudioOutputSelection(): boolean {
+  // Note: this is method publicly exported under a user friendly name and currently only proxying `supportsSetSinkId`
+  return supportsSetSinkId();
+}
+
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
     return false;
