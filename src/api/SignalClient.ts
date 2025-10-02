@@ -95,6 +95,9 @@ export enum SignalConnectionState {
   DISCONNECTED,
 }
 
+/** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
+const MAX_WS_CLOSE_TIME = 250;
+
 /** @internal */
 export class SignalClient {
   requestQueue: AsyncQueue;
@@ -305,7 +308,6 @@ export class SignalClient {
         abortSignal?.removeEventListener('abort', abortHandler);
         this.startPingInterval();
         this.startReadingLoop(connection.readable.getReader(), firstMessage);
-        console.info('setting stream writer');
         this.streamWriter = connection.writable.getWriter();
 
         this.ws!.closed.then((closeInfo) => {
@@ -363,7 +365,6 @@ export class SignalClient {
               } else if (reason instanceof ConnectionError) {
                 throw reason;
               } else {
-                console.error(reason);
                 throw new ConnectionError(
                   `Encountered unknown websocket error during connection: ${reason}`,
                   ConnectionErrorReason.InternalError,
@@ -496,7 +497,7 @@ export class SignalClient {
         const closePromise = this.ws.closed;
         this.ws = undefined;
         this.streamWriter = undefined;
-        await Promise.race([closePromise, sleep(250)]);
+        await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { ...this.logContext, error: e });
