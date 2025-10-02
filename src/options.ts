@@ -107,8 +107,10 @@ export interface InternalRoomOptions {
  */
 export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
 
-export interface RoomOptionsWithTokenSource extends Partial<InternalRoomOptions> {
-  tokenSource: TokenSourceConfigurable | TokenSourceFixed;
+export interface RoomOptionsWithTokenSource<
+  TokenSource extends TokenSourceConfigurable | TokenSourceFixed = TokenSourceConfigurable | TokenSourceFixed,
+> extends Partial<InternalRoomOptions> {
+  tokenSource: TokenSource;
 }
 
 /**
