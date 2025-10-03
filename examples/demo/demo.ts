@@ -130,10 +130,10 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      encryption: e2eeEnabled
-        ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
-        : undefined,
-    } satisfies RoomOptionsWithTokenSourceFixed;
+      // encryption: e2eeEnabled
+      //   ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
+      //   : undefined,
+    };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
