@@ -34,6 +34,34 @@ export function decodeTokenPayload(token: string) {
   return mappedPayload;
 }
 
+/** Given two TokenSourceFetchOptions values, check to see if they are deep equal. */
+export function areTokenSourceFetchOptionsEqual(
+  a: TokenSourceFetchOptions,
+  b: TokenSourceFetchOptions,
+) {
+  for (const key of Object.keys(a) as Array<keyof TokenSourceFetchOptions>) {
+    switch (key) {
+      case 'roomName':
+      case 'participantName':
+      case 'participantIdentity':
+      case 'participantMetadata':
+      case 'participantAttributes':
+      case 'agentName':
+      case 'agentMetadata':
+        if (a[key] !== b[key]) {
+          return false;
+        }
+        break;
+      default:
+        // ref: https://stackoverflow.com/a/58009992
+        const exhaustiveCheckedKey: never = key;
+        throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
+    }
+  }
+
+  return true;
+}
+
 export function extractTokenSourceFetchOptionsFromObject<
   Input extends TokenSourceFetchOptions & Rest,
   Rest extends object,

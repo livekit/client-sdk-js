@@ -11,7 +11,7 @@ import {
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './types';
-import { decodeTokenPayload, isResponseExpired } from './utils';
+import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseExpired } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
@@ -27,29 +27,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       return false;
     }
 
-    for (const key of Object.keys(this.cachedFetchOptions) as Array<
-      keyof TokenSourceFetchOptions
-    >) {
-      switch (key) {
-        case 'roomName':
-        case 'participantName':
-        case 'participantIdentity':
-        case 'participantMetadata':
-        case 'participantAttributes':
-        case 'agentName':
-        case 'agentMetadata':
-          if (this.cachedFetchOptions[key] !== options[key]) {
-            return false;
-          }
-          break;
-        default:
-          // ref: https://stackoverflow.com/a/58009992
-          const exhaustiveCheckedKey: never = key;
-          throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
-      }
-    }
-
-    return true;
+    return areTokenSourceFetchOptionsEqual(this.cachedFetchOptions, options);
   }
 
   private shouldReturnCachedValueFromFetch(fetchOptions: TokenSourceFetchOptions) {
