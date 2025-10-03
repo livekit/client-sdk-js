@@ -3,12 +3,9 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
-  RoomOptionsWithTokenSourceFixed,
+  RoomOptionsTokenSourceFixed,
   ScalabilityMode,
   SimulationScenario,
-  TokenSourceConfigurable,
-  TokenSourceFixed,
-  TokenSourceLiteral,
   VideoCaptureOptions,
   VideoCodec,
 } from '../../src/index';
@@ -26,7 +23,6 @@ import {
   RemoteTrackPublication,
   Room,
   RoomEvent,
-  RoomOptions,
   ScreenSharePresets,
   TokenSource,
   Track,
@@ -113,7 +109,7 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
-    const roomOpts = {
+    const roomOpts: RoomOptionsTokenSourceFixed = {
       tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
       adaptiveStream,
       dynacast,
@@ -162,7 +158,7 @@ const appActions = {
   },
 
   connectToRoom: async (
-    roomOptions?: RoomOptionsWithTokenSourceFixed,
+    roomOptions?: RoomOptionsTokenSourceFixed,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
