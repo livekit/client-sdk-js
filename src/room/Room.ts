@@ -41,6 +41,8 @@ import type {
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
+  RoomOptionsLegacy,
+  RoomOptionsToInternalRoomOptions,
   RoomOptionsTokenSourceConfigurable,
   RoomOptionsTokenSourceFixed,
 } from '../options';
@@ -72,9 +74,9 @@ import CriticalTimers from './timers';
 import {
   TokenSourceConfigurable,
   TokenSourceFixed,
-  type TokenSourceFetchOptions,
   type TokenSourceResponseObject,
 } from './token-source/types';
+import { extractTokenSourceOptionsFromObject } from './token-source/utils';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -114,7 +116,6 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { extractTokenSourceOptionsFromObject } from './token-source/utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -126,8 +127,6 @@ export enum ConnectionState {
 
 const connectionReconcileFrequency = 4 * 1000;
 
-type BlockTokenSourceFetchOptions = { [P in keyof TokenSourceFetchOptions]: never };
-
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -137,7 +136,10 @@ type BlockTokenSourceFetchOptions = { [P in keyof TokenSourceFetchOptions]: neve
  * @noInheritDoc
  */
 class Room<
-  Options extends (RoomOptionsTokenSourceFixed & BlockTokenSourceFetchOptions) | RoomOptionsTokenSourceConfigurable | (RoomOptions & BlockTokenSourceFetchOptions) = RoomOptions,
+  Options extends
+    | RoomOptionsLegacy
+    | RoomOptionsTokenSourceFixed
+    | RoomOptionsTokenSourceConfigurable = RoomOptions,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -159,7 +161,7 @@ class Room<
   localParticipant: LocalParticipant;
 
   /** options of room */
-  options: InternalRoomOptions;
+  options: RoomOptionsToInternalRoomOptions<Options>;
 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
@@ -225,7 +227,10 @@ class Room<
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();
-    this.options = { ...roomOptionDefaults, ...options };
+    this.options = {
+      ...roomOptionDefaults,
+      ...options,
+    } as RoomOptionsToInternalRoomOptions<Options>;
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
@@ -593,10 +598,16 @@ class Room<
     });
 
   async tokenSourceFetch(): Promise<TokenSourceResponseObject | null> {
-    if (this.options.tokenSource instanceof TokenSourceConfigurable) {
+    if (
+      'tokenSource' in this.options &&
+      this.options.tokenSource instanceof TokenSourceConfigurable
+    ) {
       const tokenSourceFetchOptions = extractTokenSourceOptionsFromObject(this.options);
       return this.options.tokenSource.fetch(tokenSourceFetchOptions);
-    } else if (this.options.tokenSource instanceof TokenSourceFixed) {
+    } else if (
+      'tokenSource' in this.options &&
+      this.options.tokenSource instanceof TokenSourceFixed
+    ) {
       return this.options.tokenSource.fetch();
     } else {
       return null;
@@ -612,7 +623,9 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
+  prepareConnection: Options extends
+    | RoomOptionsTokenSourceConfigurable
+    | RoomOptionsTokenSourceFixed
     ? {
         (): Promise<void>;
       }

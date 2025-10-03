@@ -1,6 +1,10 @@
 import type { E2EEOptions } from './e2ee/types';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
-import type { TokenSourceConfigurable, TokenSourceFetchOptions, TokenSourceFixed } from './room/token-source/types';
+import type {
+  TokenSourceConfigurable,
+  TokenSourceFetchOptions,
+  TokenSourceFixed,
+} from './room/token-source/types';
 import type {
   AudioCaptureOptions,
   AudioOutputOptions,
@@ -97,29 +101,67 @@ interface InternalRoomOptionsBase {
   encryption?: E2EEOptions;
 
   loggerName?: string;
-
-  tokenSource?: TokenSourceConfigurable | TokenSourceFixed;
 }
+
+type InternalRoomOptionsLegacy = InternalRoomOptionsBase;
+
+type InternalRoomOptionsTokenSourceFixed = InternalRoomOptionsBase & {
+  tokenSource: TokenSourceFixed;
+};
+
+type InternalRoomOptionsTokenSourceConfigurable = InternalRoomOptionsBase &
+  TokenSourceFetchOptions & {
+    tokenSource: TokenSourceConfigurable;
+  };
 
 /**
  * @internal
  */
-export type InternalRoomOptions = InternalRoomOptionsBase & Partial<TokenSourceFetchOptions> & {
-  tokenSource?: TokenSourceFixed | TokenSourceConfigurable;
-};
+export type InternalRoomOptions =
+  | InternalRoomOptionsLegacy
+  | InternalRoomOptionsTokenSourceFixed
+  | InternalRoomOptionsTokenSourceConfigurable;
+
+/**
+ * @internal
+ */
+export type RoomOptionsToInternalRoomOptions<Options extends RoomOptions> =
+  | (Options extends RoomOptionsTokenSourceFixed ? InternalRoomOptionsTokenSourceFixed : never)
+  | (Options extends RoomOptionsTokenSourceConfigurable
+      ? InternalRoomOptionsTokenSourceConfigurable
+      : never)
+  | (Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
+      ? never
+      : InternalRoomOptionsLegacy);
+
+type RoomOptionsBase = Partial<Omit<InternalRoomOptionsBase, 'encryption'>>;
+
+/**
+ * This type isn't necesarily required but helps guide users in an editor against accidentally
+ * including token source fetch options in the room constructor params for "fixed" token sources.
+ * Otherwise since the Room constructor `Options` generic "extends" RoomOptions, extra fields could
+ * be included.
+ */
+type BlockTokenSourceFetchOptions = { [P in keyof TokenSourceFetchOptions]: never };
+
+export type RoomOptionsLegacy = RoomOptionsBase & { tokenSource?: never };
+export type RoomOptionsTokenSourceFixed = RoomOptionsBase &
+  BlockTokenSourceFetchOptions & {
+    tokenSource: TokenSourceFixed;
+  };
+
+export type RoomOptionsTokenSourceConfigurable = RoomOptionsBase &
+  Partial<TokenSourceFetchOptions> & {
+    tokenSource: TokenSourceConfigurable;
+  };
 
 /**
  * Options for when creating a new room
  */
-export type RoomOptions = Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>>;
-
-export type RoomOptionsTokenSourceFixed = RoomOptions & {
-  tokenSource: TokenSourceFixed;
-};
-
-export type RoomOptionsTokenSourceConfigurable = RoomOptions & TokenSourceFetchOptions & {
-  tokenSource: TokenSourceConfigurable;
-};
+export type RoomOptions =
+  | RoomOptionsLegacy
+  | RoomOptionsTokenSourceFixed
+  | RoomOptionsTokenSourceConfigurable;
 
 /**
  * @internal
