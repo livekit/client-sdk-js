@@ -677,7 +677,7 @@ class Room<
     : {
         (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
       } = async (
-    urlOrOpts: RoomConnectOptions extends undefined ? string : any,
+    urlOrOptsOrUnset: string | RoomConnectOptions | undefined,
     tokenOrUnset?: string,
     optsOrUnset?: RoomConnectOptions,
   ) => {
@@ -686,17 +686,17 @@ class Room<
     let opts: RoomConnectOptions | undefined;
 
     const tokenSourceFetchResponse = await this.tokenSourceFetch();
-    if (tokenSourceFetchResponse && typeof urlOrOpts !== 'string') {
+    if (tokenSourceFetchResponse && typeof urlOrOptsOrUnset !== 'string') {
       url = tokenSourceFetchResponse.serverUrl;
       token = tokenSourceFetchResponse.participantToken;
-      opts = urlOrOpts;
-    } else if (typeof urlOrOpts === 'string' && typeof tokenOrUnset === 'string') {
-      url = urlOrOpts;
+      opts = urlOrOptsOrUnset;
+    } else if (typeof urlOrOptsOrUnset === 'string' && typeof tokenOrUnset === 'string') {
+      url = urlOrOptsOrUnset;
       token = tokenOrUnset;
       opts = optsOrUnset;
     } else {
       throw new Error(
-        `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrOpts}, ${tokenOrUnset}, ${optsOrUnset}`,
+        `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrOptsOrUnset}, ${tokenOrUnset}, ${optsOrUnset}`,
       );
     }
 
