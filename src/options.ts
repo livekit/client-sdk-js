@@ -13,10 +13,7 @@ export interface WebAudioSettings {
   audioContext: AudioContext;
 }
 
-/**
- * @internal
- */
-export interface InternalRoomOptions extends Partial<TokenSourceFetchOptions> {
+interface InternalRoomOptionsBase {
   /**
    * AdaptiveStream lets LiveKit automatically manage quality of subscribed
    * video tracks to optimize for bandwidth and CPU.
@@ -105,20 +102,24 @@ export interface InternalRoomOptions extends Partial<TokenSourceFetchOptions> {
 }
 
 /**
+ * @internal
+ */
+export type InternalRoomOptions = InternalRoomOptionsBase & Partial<TokenSourceFetchOptions> & {
+  tokenSource?: TokenSourceFixed | TokenSourceConfigurable;
+};
+
+/**
  * Options for when creating a new room
  */
-export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>> {}
+export type RoomOptions = Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>>;
 
-export interface RoomOptionsWithTokenSourceConfigurable extends Partial<Omit<InternalRoomOptions, 'tokenSource' | 'encryption'>> {
-  tokenSource: TokenSourceConfigurable;
-}
-
-export interface RoomOptionsWithTokenSourceFixed extends Partial<
-  Omit<InternalRoomOptions, 'tokenSource' | keyof TokenSourceFetchOptions | 'encryption'> &
-  { [P in keyof TokenSourceFetchOptions]: never }
-> {
+export type RoomOptionsTokenSourceFixed = RoomOptions & {
   tokenSource: TokenSourceFixed;
-}
+};
+
+export type RoomOptionsTokenSourceConfigurable = RoomOptions & TokenSourceFetchOptions & {
+  tokenSource: TokenSourceConfigurable;
+};
 
 /**
  * @internal

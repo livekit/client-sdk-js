@@ -41,8 +41,8 @@ import type {
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
-  RoomOptionsWithTokenSourceConfigurable,
-  RoomOptionsWithTokenSourceFixed,
+  RoomOptionsTokenSourceConfigurable,
+  RoomOptionsTokenSourceFixed,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
@@ -72,6 +72,7 @@ import CriticalTimers from './timers';
 import {
   TokenSourceConfigurable,
   TokenSourceFixed,
+  type TokenSourceFetchOptions,
   type TokenSourceResponseObject,
 } from './token-source/types';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -125,6 +126,8 @@ export enum ConnectionState {
 
 const connectionReconcileFrequency = 4 * 1000;
 
+type BlockTokenSourceFetchOptions = { [P in keyof TokenSourceFetchOptions]: never };
+
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -134,7 +137,7 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  Options extends RoomOptionsWithTokenSourceFixed | RoomOptionsWithTokenSourceConfigurable | RoomOptions = RoomOptions,
+  Options extends (RoomOptionsTokenSourceFixed & BlockTokenSourceFetchOptions) | RoomOptionsTokenSourceConfigurable | (RoomOptions & BlockTokenSourceFetchOptions) = RoomOptions,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -609,7 +612,7 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: Options extends RoomOptionsWithTokenSourceConfigurable | RoomOptionsWithTokenSourceFixed
+  prepareConnection: Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
     ? {
         (): Promise<void>;
       }
@@ -654,7 +657,7 @@ class Room<
     }
   };
 
-  connect: Options extends RoomOptionsWithTokenSourceConfigurable | RoomOptionsWithTokenSourceFixed
+  connect: Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
     ? {
         (opts?: RoomConnectOptions): Promise<void>;
       }
