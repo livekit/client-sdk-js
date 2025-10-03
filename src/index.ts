@@ -68,7 +68,10 @@ export * from './room/track/Track';
 export * from './room/track/create';
 export * from './room/token-source/TokenSource';
 export * from './room/token-source/types';
-export { areTokenSourceFetchOptionsEqual } from './room/token-source/utils';
+export {
+  areTokenSourceFetchOptionsEqual,
+  extractTokenSourceFetchOptionsFromObject,
+} from './room/token-source/utils';
 export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/track/facingMode';
 export * from './room/track/options';
 export * from './room/track/processor/types';

@@ -598,7 +598,7 @@ class Room<
       'tokenSource' in this.options &&
       this.options.tokenSource instanceof TokenSourceConfigurable
     ) {
-      const tokenSourceFetchOptions = extractTokenSourceFetchOptionsFromObject(this.options);
+      const tokenSourceFetchOptions = extractTokenSourceFetchOptionsFromObject(this.options)[0];
       return this.options.tokenSource.fetch(tokenSourceFetchOptions);
     } else if (
       'tokenSource' in this.options &&

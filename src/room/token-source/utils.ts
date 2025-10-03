@@ -62,10 +62,14 @@ export function areTokenSourceFetchOptionsEqual(
   return true;
 }
 
+/** Given an object that contains TokenSourceFetchOptions key/value pairs and other key/value
+ * pairs, partition them into two separate objects and return them.
+ */
 export function extractTokenSourceFetchOptionsFromObject<
-  Input extends TokenSourceFetchOptions & Rest,
   Rest extends object,
->(input: Input): TokenSourceFetchOptions {
+  Input extends TokenSourceFetchOptions & Rest = TokenSourceFetchOptions & Rest,
+>(input: Input): [TokenSourceFetchOptions, Rest] {
+  const output: Partial<Input> = { ...input };
   const options: TokenSourceFetchOptions = {};
 
   for (const key of Object.keys(input) as Array<keyof TokenSourceFetchOptions>) {
@@ -77,10 +81,12 @@ export function extractTokenSourceFetchOptionsFromObject<
       case 'agentName':
       case 'agentMetadata':
         options[key] = input[key];
+        delete output[key];
         break;
 
       case 'participantAttributes':
         options.participantAttributes = options.participantAttributes ?? {};
+        delete output.participantAttributes;
         break;
 
       default:
@@ -90,5 +96,5 @@ export function extractTokenSourceFetchOptionsFromObject<
     }
   }
 
-  return options;
+  return [options, output as Rest];
 }
