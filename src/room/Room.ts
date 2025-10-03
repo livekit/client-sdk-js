@@ -41,7 +41,6 @@ import type {
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
-  RoomOptionsLegacy,
   RoomOptionsToInternalRoomOptions,
   RoomOptionsTokenSourceConfigurable,
   RoomOptionsTokenSourceFixed,
@@ -136,10 +135,7 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  Options extends
-    | RoomOptionsLegacy
-    | RoomOptionsTokenSourceFixed
-    | RoomOptionsTokenSourceConfigurable = RoomOptions,
+  Options extends RoomOptions = RoomOptions,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
