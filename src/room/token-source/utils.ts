@@ -1,6 +1,6 @@
 import { RoomConfiguration, type TokenSourceResponse } from '@livekit/protocol';
 import { decodeJwt } from 'jose';
-import type { RoomConfigurationObject, TokenPayload } from './types';
+import type { RoomConfigurationObject, TokenPayload, TokenSourceFetchOptions } from './types';
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
@@ -32,4 +32,69 @@ export function decodeTokenPayload(token: string) {
   };
 
   return mappedPayload;
+}
+
+/** Given two TokenSourceFetchOptions values, check to see if they are deep equal. */
+export function areTokenSourceFetchOptionsEqual(
+  a: TokenSourceFetchOptions,
+  b: TokenSourceFetchOptions,
+) {
+  for (const key of Object.keys(a) as Array<keyof TokenSourceFetchOptions>) {
+    switch (key) {
+      case 'roomName':
+      case 'participantName':
+      case 'participantIdentity':
+      case 'participantMetadata':
+      case 'participantAttributes':
+      case 'agentName':
+      case 'agentMetadata':
+        if (a[key] !== b[key]) {
+          return false;
+        }
+        break;
+      default:
+        // ref: https://stackoverflow.com/a/58009992
+        const exhaustiveCheckedKey: never = key;
+        throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
+    }
+  }
+
+  return true;
+}
+
+/** Given an object that contains TokenSourceFetchOptions key/value pairs and other key/value
+ * pairs, partition them into two separate objects and return them.
+ */
+export function extractTokenSourceFetchOptionsFromObject<
+  Rest extends object,
+  Input extends TokenSourceFetchOptions & Rest = TokenSourceFetchOptions & Rest,
+>(input: Input): [TokenSourceFetchOptions, Rest] {
+  const output: Partial<Input> = { ...input };
+  const options: TokenSourceFetchOptions = {};
+
+  for (const key of Object.keys(input) as Array<keyof TokenSourceFetchOptions>) {
+    switch (key) {
+      case 'roomName':
+      case 'participantName':
+      case 'participantIdentity':
+      case 'participantMetadata':
+      case 'agentName':
+      case 'agentMetadata':
+        options[key] = input[key];
+        delete output[key];
+        break;
+
+      case 'participantAttributes':
+        options.participantAttributes = options.participantAttributes ?? {};
+        delete output.participantAttributes;
+        break;
+
+      default:
+        // ref: https://stackoverflow.com/a/58009992
+        key satisfies never;
+        break;
+    }
+  }
+
+  return [options, output as Rest];
 }

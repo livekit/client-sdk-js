@@ -41,6 +41,9 @@ import type {
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
+  RoomOptionsToInternalRoomOptions,
+  RoomOptionsTokenSourceConfigurable,
+  RoomOptionsTokenSourceFixed,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
@@ -67,6 +70,12 @@ import { type ConnectionQuality, ParticipantKind } from './participant/Participa
 import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
+import {
+  TokenSourceConfigurable,
+  TokenSourceFixed,
+  type TokenSourceResponseObject,
+} from './token-source/types';
+import { extractTokenSourceFetchOptionsFromObject } from './token-source/utils';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -125,7 +134,9 @@ const connectionReconcileFrequency = 4 * 1000;
  *
  * @noInheritDoc
  */
-class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
+class Room<
+  Options extends RoomOptions = RoomOptions,
+> extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
   /**
@@ -146,7 +157,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   localParticipant: LocalParticipant;
 
   /** options of room */
-  options: InternalRoomOptions;
+  options: RoomOptionsToInternalRoomOptions<Options>;
 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
@@ -207,12 +218,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: RoomOptions) {
+  constructor(options?: Options) {
     super();
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();
-    this.options = { ...roomOptionDefaults, ...options };
+    this.options = {
+      ...roomOptionDefaults,
+      ...options,
+    } as RoomOptionsToInternalRoomOptions<Options>;
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
@@ -579,6 +593,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       cleanup();
     });
 
+  async tokenSourceFetch(): Promise<TokenSourceResponseObject | null> {
+    if (
+      'tokenSource' in this.options &&
+      this.options.tokenSource instanceof TokenSourceConfigurable
+    ) {
+      const tokenSourceFetchOptions = extractTokenSourceFetchOptionsFromObject(this.options)[0];
+      return this.options.tokenSource.fetch(tokenSourceFetchOptions);
+    } else if (
+      'tokenSource' in this.options &&
+      this.options.tokenSource instanceof TokenSourceFixed
+    ) {
+      return this.options.tokenSource.fetch();
+    } else {
+      return null;
+    }
+  }
+
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
    * to speed up the connection attempt. This function will
@@ -588,7 +619,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  async prepareConnection(url: string, token?: string) {
+  prepareConnection: Options extends
+    | RoomOptionsTokenSourceConfigurable
+    | RoomOptionsTokenSourceFixed
+    ? {
+        (): Promise<void>;
+      }
+    : {
+        (url: string, token?: string): Promise<void>;
+      } = async (urlOrUnset?: string, tokenOrUnset?: string) => {
+    let url;
+    let token;
+
+    const tokenSourceFetchResponse = await this.tokenSourceFetch();
+    if (tokenSourceFetchResponse) {
+      url = tokenSourceFetchResponse.serverUrl;
+      token = tokenSourceFetchResponse.participantToken;
+    } else if (typeof urlOrUnset === 'string') {
+      url = urlOrUnset;
+      token = tokenOrUnset;
+    } else {
+      throw new Error(
+        `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrUnset}, ${tokenOrUnset}.`,
+      );
+    }
+
     if (this.state !== ConnectionState.Disconnected) {
       return;
     }
@@ -610,9 +665,38 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (e) {
       this.log.warn('could not prepare connection', { ...this.logContext, error: e });
     }
-  }
+  };
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect: Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
+    ? {
+        (opts?: RoomConnectOptions): Promise<void>;
+      }
+    : {
+        (url: string, token: string, opts?: RoomConnectOptions): Promise<void>;
+      } = async (
+    urlOrOptsOrUnset: string | RoomConnectOptions | undefined,
+    tokenOrUnset?: string,
+    optsOrUnset?: RoomConnectOptions,
+  ) => {
+    let url: string;
+    let token: string;
+    let opts: RoomConnectOptions | undefined;
+
+    const tokenSourceFetchResponse = await this.tokenSourceFetch();
+    if (tokenSourceFetchResponse && typeof urlOrOptsOrUnset !== 'string') {
+      url = tokenSourceFetchResponse.serverUrl;
+      token = tokenSourceFetchResponse.participantToken;
+      opts = urlOrOptsOrUnset;
+    } else if (typeof urlOrOptsOrUnset === 'string' && typeof tokenOrUnset === 'string') {
+      url = urlOrOptsOrUnset;
+      token = tokenOrUnset;
+      opts = optsOrUnset;
+    } else {
+      throw new Error(
+        `Room.connect received invalid parameters - expected url/token or tokenSource, received ${urlOrOptsOrUnset}, ${tokenOrUnset}, ${optsOrUnset}`,
+      );
+    }
+
     if (!isBrowserSupported()) {
       if (isReactNative()) {
         throw Error("WebRTC isn't detected, have you called registerGlobals?");
@@ -958,6 +1042,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
       this.engine = undefined;
+      this.tokenSourceFetch();
     } finally {
       unlock();
     }

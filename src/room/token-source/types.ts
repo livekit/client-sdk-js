@@ -45,12 +45,18 @@ export type RoomConfigurationObject = NonNullable<
   ConstructorParameters<typeof RoomConfiguration>[0]
 >;
 
+/** This symbol is used to tag fixed / configurable token sources
+ * so that typescript can use a TokenSourceFixed / TokenSourceConfigurable
+ * as a discriminated union key. It should not be public. */
+const implementation = Symbol('implementation');
+
 /** A Fixed TokenSource is a token source that takes no parameters and returns a completely
  * independently derived value on each fetch() call.
  *
  * The most common downstream implementer is {@link TokenSourceLiteral}.
  */
 export abstract class TokenSourceFixed {
+  [implementation] = 'fixed' as const;
   abstract fetch(): Promise<TokenSourceResponseObject>;
 }
 
@@ -77,6 +83,7 @@ export type TokenSourceFetchOptions = {
  * and {@link TokenSourceCustom}.
  */
 export abstract class TokenSourceConfigurable {
+  [implementation] = 'configurable' as const;
   abstract fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject>;
 }
 

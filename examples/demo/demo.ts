@@ -3,7 +3,7 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
-  RoomOptions,
+  RoomOptionsTokenSourceFixed,
   ScalabilityMode,
   SimulationScenario,
   VideoCaptureOptions,
@@ -24,6 +24,7 @@ import {
   Room,
   RoomEvent,
   ScreenSharePresets,
+  TokenSource,
   Track,
   TrackPublication,
   VideoPresets,
@@ -108,7 +109,8 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
-    const roomOpts: RoomOptions = {
+    const roomOpts: RoomOptionsTokenSourceFixed = {
+      tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
       adaptiveStream,
       dynacast,
       audioOutput: {
@@ -128,9 +130,9 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      encryption: e2eeEnabled
-        ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
-        : undefined,
+      // encryption: e2eeEnabled
+      //   ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
+      //   : undefined,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
@@ -150,22 +152,20 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
+    await appActions.connectToRoom(roomOpts, connectOpts, shouldPublish);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
 
   connectToRoom: async (
-    url: string,
-    token: string,
-    roomOptions?: RoomOptions,
+    roomOptions?: RoomOptionsTokenSourceFixed,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
     startTime = Date.now();
-    await room.prepareConnection(url, token);
+    await room.prepareConnection();
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
     room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
@@ -407,7 +407,7 @@ const appActions = {
           reject(error);
         }
       });
-      await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
+      await Promise.all([room.connect(connectOptions), publishPromise]);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
