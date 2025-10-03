@@ -629,14 +629,15 @@ class Room<
         (url: string, token?: string): Promise<void>;
       } = async (urlOrUnset?: string, tokenOrUnset?: string) => {
     let url;
-    let token = tokenOrUnset;
+    let token;
 
     const tokenSourceFetchResponse = await this.tokenSourceFetch();
     if (tokenSourceFetchResponse) {
       url = tokenSourceFetchResponse.serverUrl;
-      token = token ?? tokenSourceFetchResponse.participantToken;
+      token = tokenSourceFetchResponse.participantToken;
     } else if (typeof urlOrUnset === 'string') {
       url = urlOrUnset;
+      token = tokenOrUnset;
     } else {
       throw new Error(
         `Room.prepareConnection received invalid parameters - expected url, url/token or tokenSource, received ${urlOrUnset}, ${tokenOrUnset}.`,
