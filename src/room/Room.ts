@@ -75,7 +75,7 @@ import {
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './token-source/types';
-import { extractTokenSourceOptionsFromObject } from './token-source/utils';
+import { extractTokenSourceFetchOptionsFromObject } from './token-source/utils';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -598,7 +598,7 @@ class Room<
       'tokenSource' in this.options &&
       this.options.tokenSource instanceof TokenSourceConfigurable
     ) {
-      const tokenSourceFetchOptions = extractTokenSourceOptionsFromObject(this.options);
+      const tokenSourceFetchOptions = extractTokenSourceFetchOptionsFromObject(this.options);
       return this.options.tokenSource.fetch(tokenSourceFetchOptions);
     } else if (
       'tokenSource' in this.options &&

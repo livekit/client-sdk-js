@@ -34,7 +34,7 @@ export function decodeTokenPayload(token: string) {
   return mappedPayload;
 }
 
-export function extractTokenSourceOptionsFromObject<
+export function extractTokenSourceFetchOptionsFromObject<
   Input extends TokenSourceFetchOptions & Rest,
   Rest extends object,
 >(input: Input): TokenSourceFetchOptions {
