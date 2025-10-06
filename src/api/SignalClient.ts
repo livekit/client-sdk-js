@@ -347,6 +347,7 @@ export class SignalClient {
               state: this.state,
             });
             this.handleOnClose(closeInfo.reason ?? 'unknown');
+            return;
           });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
             if (this.state !== SignalConnectionState.CONNECTED) {
@@ -357,8 +358,10 @@ export class SignalClient {
                 if (resp.status.toFixed(0).startsWith('4')) {
                   const msg = await resp.text();
                   reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
+                  return;
                 } else if (reason instanceof ConnectionError) {
                   reject(reason);
+                  return;
                 } else {
                   reject(
                     new ConnectionError(
@@ -367,6 +370,7 @@ export class SignalClient {
                       resp.status,
                     ),
                   );
+                  return;
                 }
               } catch (e) {
                 reject(
@@ -377,15 +381,16 @@ export class SignalClient {
                         ConnectionErrorReason.ServerUnreachable,
                       ),
                 );
+                return;
               }
             }
             // other errors, handle
             this.handleWSError(reason);
             reject(reason);
+            return;
           });
           clearTimeout(wsTimeout);
           if (!connection) {
-            this.log.error('No connection found, but also no error');
             return;
           }
           const signalReader = connection.readable.getReader();
@@ -413,6 +418,7 @@ export class SignalClient {
             }
             handleSignalConnected(connection);
             resolve(firstSignalResponse.message.value);
+            return;
           } else if (
             this.state === SignalConnectionState.RECONNECTING &&
             firstSignalResponse.message.case !== 'leave'
@@ -421,12 +427,14 @@ export class SignalClient {
             handleSignalConnected(connection, firstSignalResponse);
             if (firstSignalResponse.message?.case === 'reconnect') {
               resolve(firstSignalResponse.message.value);
+              return;
             } else {
               this.log.info(
                 'declaring signal reconnected without reconnect response received',
                 this.logContext,
               );
               resolve(undefined);
+              return;
             }
           } else if (
             this.isEstablishingConnection &&
@@ -440,6 +448,7 @@ export class SignalClient {
                 firstSignalResponse.message.value.reason,
               ),
             );
+            return;
           } else if (!opts.reconnect) {
             // non-reconnect case, should receive join response first
             reject(
@@ -448,10 +457,12 @@ export class SignalClient {
                 ConnectionErrorReason.InternalError,
               ),
             );
+            return;
           }
         } catch (e) {
           clearTimeout(wsTimeout);
           reject(e);
+          return;
         }
       } finally {
         unlock();

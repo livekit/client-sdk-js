@@ -52,11 +52,6 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       ws.close(code, reason);
 
     this.opened = new Promise((resolve, reject) => {
-      const rejectHandler = (ev: Event) => {
-        if ('reason' in ev) {
-          reject(ev.reason);
-        }
-      };
       ws.onopen = () => {
         resolve({
           readable: new ReadableStream<T>({
@@ -78,9 +73,9 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           protocol: ws.protocol,
           extensions: ws.extensions,
         });
-        ws.removeEventListener('error', rejectHandler);
+        ws.removeEventListener('error', reject);
       };
-      ws.addEventListener('error', rejectHandler);
+      ws.addEventListener('error', reject);
     });
 
     this.closed = new Promise<WebSocketCloseInfo>((resolve, reject) => {

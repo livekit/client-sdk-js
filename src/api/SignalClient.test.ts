@@ -146,8 +146,6 @@ describe('SignalClient.connect', () => {
 
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-      console.log('joined successfully');
-
       // Setup reconnect with non-reconnect message (e.g., participant update)
       const updateSignalResponse = createSignalResponse('update', { participants: [] });
       const reconnectMockReadable = createMockReadableStream([updateSignalResponse]);
