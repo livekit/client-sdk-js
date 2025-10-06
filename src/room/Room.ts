@@ -132,7 +132,10 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  RoomTokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = TokenSourceFixed | TokenSourceConfigurable | null,
+  RoomTokenSource extends TokenSourceFixed | TokenSourceConfigurable | null =
+    | TokenSourceFixed
+    | TokenSourceConfigurable
+    | null,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -221,11 +224,17 @@ class Room<
   constructor(tokenSource: RoomTokenSource, options?: RoomOptions<RoomTokenSource>);
   /** @deprecated */
   constructor(options?: RoomOptions);
-  constructor(tokenSourceOrOptions?: RoomTokenSource | RoomOptions, optionsOrUnset?: RoomOptions<RoomTokenSource>) {
+  constructor(
+    tokenSourceOrOptions?: RoomTokenSource | RoomOptions,
+    optionsOrUnset?: RoomOptions<RoomTokenSource>,
+  ) {
     super();
 
     let options: RoomOptions<RoomTokenSource>;
-    if (tokenSourceOrOptions instanceof TokenSourceConfigurable || tokenSourceOrOptions instanceof TokenSourceFixed) {
+    if (
+      tokenSourceOrOptions instanceof TokenSourceConfigurable ||
+      tokenSourceOrOptions instanceof TokenSourceFixed
+    ) {
       this.tokenSource = tokenSourceOrOptions;
       options = optionsOrUnset ?? {};
     } else {

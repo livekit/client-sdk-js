@@ -110,19 +110,22 @@ type InternalRoomOptionsTokenSourceConfigurable = InternalRoomOptionsBase & Toke
  * @internal
  */
 export type InternalRoomOptions<
-  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = TokenSourceFixed | TokenSourceConfigurable | null
-> = TokenSource extends TokenSourceConfigurable ? (
-  InternalRoomOptionsTokenSourceConfigurable
-) : InternalRoomOptionsLegacyOrTokenSourceFixed;
+  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null =
+    | TokenSourceFixed
+    | TokenSourceConfigurable
+    | null,
+> = TokenSource extends TokenSourceConfigurable
+  ? InternalRoomOptionsTokenSourceConfigurable
+  : InternalRoomOptionsLegacyOrTokenSourceFixed;
 
 /**
  * @internal
  */
 export type RoomOptionsToInternalRoomOptions<
   Options extends RoomOptions<TokenSourceFixed | TokenSourceConfigurable | null>,
-> = Options extends RoomOptionsTokenSourceConfigurable ? (
-  InternalRoomOptionsTokenSourceConfigurable
-) : InternalRoomOptionsLegacyOrTokenSourceFixed
+> = Options extends RoomOptionsTokenSourceConfigurable
+  ? InternalRoomOptionsTokenSourceConfigurable
+  : InternalRoomOptionsLegacyOrTokenSourceFixed;
 
 type RoomOptionsBase = Partial<Omit<InternalRoomOptionsBase, 'encryption'>>;
 
@@ -140,9 +143,11 @@ export type RoomOptionsTokenSourceConfigurable = RoomOptionsBase & Partial<Token
 /**
  * Options for when creating a new room
  */
-export type RoomOptions<TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = null> = TokenSource extends TokenSourceConfigurable ? (
-  RoomOptionsTokenSourceConfigurable
-) : RoomOptionsLegacyOrTokenSourceFixed;
+export type RoomOptions<
+  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = null,
+> = TokenSource extends TokenSourceConfigurable
+  ? RoomOptionsTokenSourceConfigurable
+  : RoomOptionsLegacyOrTokenSourceFixed;
 
 /**
  * @internal
