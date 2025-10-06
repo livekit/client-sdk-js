@@ -11,6 +11,71 @@ vi.mock('./WebSocketStream');
 // Mock fetch for validation endpoint
 global.fetch = vi.fn();
 
+// Test Helpers
+function createJoinResponse() {
+  return new JoinResponse({
+    room: { name: 'test-room', sid: 'room-sid' },
+    participant: { sid: 'participant-sid', identity: 'test-user' },
+    pingTimeout: 30,
+    pingInterval: 10,
+  });
+}
+
+function createSignalResponse(
+  messageCase: 'join' | 'reconnect' | 'leave' | 'update',
+  value: any,
+): SignalResponse {
+  return new SignalResponse({
+    message: { case: messageCase, value },
+  });
+}
+
+function createMockReadableStream(responses: SignalResponse[]): ReadableStream<ArrayBuffer> {
+  return new ReadableStream<ArrayBuffer>({
+    async start(controller) {
+      for (const response of responses) {
+        controller.enqueue(response.toBinary().buffer as ArrayBuffer);
+      }
+    },
+  });
+}
+
+function createMockConnection(readable: ReadableStream<ArrayBuffer>): WebSocketConnection {
+  return {
+    readable,
+    writable: new WritableStream(),
+    protocol: '',
+    extensions: '',
+  };
+}
+
+interface MockWebSocketStreamOptions {
+  connection?: WebSocketConnection;
+  opened?: Promise<WebSocketConnection>;
+  closed?: Promise<WebSocketCloseInfo>;
+  readyState?: number;
+}
+
+function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
+  const {
+    connection,
+    opened = connection ? Promise.resolve(connection) : new Promise(() => {}),
+    closed = new Promise(() => {}),
+    readyState = 1,
+  } = options;
+
+  return vi.mocked(WebSocketStream).mockImplementationOnce(
+    () =>
+      ({
+        url: 'wss://test.livekit.io',
+        opened,
+        closed,
+        close: vi.fn(),
+        readyState,
+      }) as any,
+  );
+}
+
 describe('SignalClient.connect', () => {
   let signalClient: SignalClient;
 
@@ -28,41 +93,12 @@ describe('SignalClient.connect', () => {
 
   describe('Happy Path - Initial Join', () => {
     it('should successfully connect and receive join response', async () => {
-      const joinResponse = new JoinResponse({
-        room: { name: 'test-room', sid: 'room-sid' },
-        participant: { sid: 'participant-sid', identity: 'test-user' },
-        pingTimeout: 30,
-        pingInterval: 10,
-      });
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
 
-      const signalResponse = new SignalResponse({
-        message: { case: 'join', value: joinResponse },
-      });
-
-      // Setup mock that immediately provides the join response
-      const mockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(signalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const mockConnection: WebSocketConnection = {
-        readable: mockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(mockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: mockConnection });
 
       const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
@@ -74,40 +110,12 @@ describe('SignalClient.connect', () => {
   describe('Happy Path - Reconnect', () => {
     it('should successfully reconnect and receive reconnect response', async () => {
       // First, set up initial connection
-      const joinResponse = new JoinResponse({
-        room: { name: 'test-room', sid: 'room-sid' },
-        participant: { sid: 'participant-sid', identity: 'test-user' },
-        pingTimeout: 30,
-        pingInterval: 10,
-      });
+      const joinResponse = createJoinResponse();
+      const joinSignalResponse = createSignalResponse('join', joinResponse);
+      const initialMockReadable = createMockReadableStream([joinSignalResponse]);
+      const initialMockConnection = createMockConnection(initialMockReadable);
 
-      const joinSignalResponse = new SignalResponse({
-        message: { case: 'join', value: joinResponse },
-      });
-
-      const initialMockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(joinSignalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const initialMockConnection: WebSocketConnection = {
-        readable: initialMockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementationOnce(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(initialMockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: initialMockConnection });
 
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
@@ -115,34 +123,11 @@ describe('SignalClient.connect', () => {
       const reconnectResponse = new ReconnectResponse({
         iceServers: [],
       });
+      const reconnectSignalResponse = createSignalResponse('reconnect', reconnectResponse);
+      const reconnectMockReadable = createMockReadableStream([reconnectSignalResponse]);
+      const reconnectMockConnection = createMockConnection(reconnectMockReadable);
 
-      const reconnectSignalResponse = new SignalResponse({
-        message: { case: 'reconnect', value: reconnectResponse },
-      });
-
-      const reconnectMockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(reconnectSignalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const reconnectMockConnection: WebSocketConnection = {
-        readable: reconnectMockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementationOnce(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(reconnectMockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: reconnectMockConnection });
 
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
@@ -152,76 +137,23 @@ describe('SignalClient.connect', () => {
 
     it('should handle reconnect with non-reconnect message (edge case)', async () => {
       // First, initial connection
-      const joinResponse = new JoinResponse({
-        room: { name: 'test-room', sid: 'room-sid' },
-        participant: { sid: 'participant-sid', identity: 'test-user' },
-        pingTimeout: 30,
-        pingInterval: 10,
-      });
+      const joinResponse = createJoinResponse();
+      const joinSignalResponse = createSignalResponse('join', joinResponse);
+      const initialMockReadable = createMockReadableStream([joinSignalResponse]);
+      const initialMockConnection = createMockConnection(initialMockReadable);
 
-      const joinSignalResponse = new SignalResponse({
-        message: { case: 'join', value: joinResponse },
-      });
-
-      const initialMockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(joinSignalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const initialMockConnection: WebSocketConnection = {
-        readable: initialMockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementationOnce(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(initialMockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: initialMockConnection });
 
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
       console.log('joined successfully');
 
       // Setup reconnect with non-reconnect message (e.g., participant update)
-      const updateSignalResponse = new SignalResponse({
-        message: {
-          case: 'update',
-          value: { participants: [] },
-        },
-      });
+      const updateSignalResponse = createSignalResponse('update', { participants: [] });
+      const reconnectMockReadable = createMockReadableStream([updateSignalResponse]);
+      const reconnectMockConnection = createMockConnection(reconnectMockReadable);
 
-      const reconnectMockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(updateSignalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const reconnectMockConnection: WebSocketConnection = {
-        readable: reconnectMockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementationOnce(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(reconnectMockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: reconnectMockConnection });
 
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
@@ -233,16 +165,7 @@ describe('SignalClient.connect', () => {
 
   describe('Failure Case - Timeout', () => {
     it('should reject with timeout error when websocket connection takes too long', async () => {
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: new Promise(() => {}), // Never resolves
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 0,
-          }) as any,
-      );
+      mockWebSocketStream({ readyState: 0 }); // Never resolves
 
       const shortTimeoutOptions = {
         ...defaultOptions,
@@ -252,12 +175,6 @@ describe('SignalClient.connect', () => {
       await expect(
         signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions),
       ).rejects.toThrow(ConnectionError);
-
-      // await expect(
-      //   signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions),
-      // ).rejects.toMatchObject({
-      //   reason: ConnectionErrorReason.ServerUnreachable,
-      // });
     });
   });
 
@@ -291,16 +208,10 @@ describe('SignalClient.connect', () => {
 
   describe('Failure Case - WebSocket Connection Errors', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.reject(new Error('Connection failed')),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 3,
-          }) as any,
-      );
+      mockWebSocketStream({
+        opened: Promise.reject(new Error('Connection failed')),
+        readyState: 3,
+      });
 
       // Mock fetch to return 403
       (global.fetch as any).mockResolvedValueOnce({
@@ -318,16 +229,10 @@ describe('SignalClient.connect', () => {
     });
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.reject(new Error('Connection failed')),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 3,
-          }) as any,
-      );
+      mockWebSocketStream({
+        opened: Promise.reject(new Error('Connection failed')),
+        readyState: 3,
+      });
 
       // Mock fetch to throw (network error)
       (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
@@ -346,16 +251,10 @@ describe('SignalClient.connect', () => {
         500,
       );
 
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.reject(customError),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 3,
-          }) as any,
-      );
+      mockWebSocketStream({
+        opened: Promise.reject(customError),
+        readyState: 3,
+      });
 
       // Mock fetch to return 500
       (global.fetch as any).mockResolvedValueOnce({
@@ -379,24 +278,9 @@ describe('SignalClient.connect', () => {
           controller.close();
         },
       });
+      const mockConnection = createMockConnection(mockReadable);
 
-      const mockConnection: WebSocketConnection = {
-        readable: mockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(mockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: mockConnection });
 
       await expect(
         signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
@@ -412,34 +296,11 @@ describe('SignalClient.connect', () => {
       const leaveRequest = new LeaveRequest({
         reason: 1, // Some disconnect reason
       });
+      const signalResponse = createSignalResponse('leave', leaveRequest);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
 
-      const signalResponse = new SignalResponse({
-        message: { case: 'leave', value: leaveRequest },
-      });
-
-      const mockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(signalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const mockConnection: WebSocketConnection = {
-        readable: mockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(mockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: mockConnection });
 
       await expect(
         signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
@@ -460,34 +321,11 @@ describe('SignalClient.connect', () => {
       const reconnectResponse = new ReconnectResponse({
         iceServers: [],
       });
+      const signalResponse = createSignalResponse('reconnect', reconnectResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
 
-      const signalResponse = new SignalResponse({
-        message: { case: 'reconnect', value: reconnectResponse },
-      });
-
-      const mockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(signalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const mockConnection: WebSocketConnection = {
-        readable: mockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(mockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: mockConnection });
 
       await expect(
         signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
@@ -533,40 +371,12 @@ describe('SignalClient.connect', () => {
     it('should set state to CONNECTING when joining', async () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
 
-      const joinResponse = new JoinResponse({
-        room: { name: 'test-room', sid: 'room-sid' },
-        participant: { sid: 'participant-sid', identity: 'test-user' },
-        pingTimeout: 30,
-        pingInterval: 10,
-      });
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
 
-      const signalResponse = new SignalResponse({
-        message: { case: 'join', value: joinResponse },
-      });
-
-      const mockReadable = new ReadableStream<ArrayBuffer>({
-        async start(controller) {
-          controller.enqueue(signalResponse.toBinary().buffer as ArrayBuffer);
-        },
-      });
-
-      const mockConnection: WebSocketConnection = {
-        readable: mockReadable,
-        writable: new WritableStream(),
-        protocol: '',
-        extensions: '',
-      };
-
-      vi.mocked(WebSocketStream).mockImplementation(
-        () =>
-          ({
-            url: 'wss://test.livekit.io',
-            opened: Promise.resolve(mockConnection),
-            closed: new Promise(() => {}),
-            close: vi.fn(),
-            readyState: 1,
-          }) as any,
-      );
+      mockWebSocketStream({ connection: mockConnection });
 
       const joinPromise = signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
