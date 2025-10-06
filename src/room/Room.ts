@@ -40,7 +40,6 @@ import type {
   InternalRoomConnectOptions,
   RoomConnectOptions,
   RoomOptions,
-  RoomOptionsLegacyOrTokenSourceFixed,
   RoomOptionsToInternalRoomOptions,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
@@ -133,8 +132,7 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = null,
-  Options extends RoomOptions<TokenSource> = RoomOptionsLegacyOrTokenSourceFixed,
+  RoomTokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = TokenSourceFixed | TokenSourceConfigurable | null,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -156,10 +154,10 @@ class Room<
   localParticipant: LocalParticipant;
 
   /** options of room */
-  options: RoomOptionsToInternalRoomOptions<Options>;
+  options: RoomOptionsToInternalRoomOptions<RoomOptions<RoomTokenSource>>;
 
   /** The token source passed in the constructor, or null */
-  tokenSource: TokenSource;
+  tokenSource: RoomTokenSource;
 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
@@ -220,17 +218,18 @@ class Room<
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: Options);
-  constructor(tokenSource: TokenSource, options?: Options);
-  constructor(tokenSourceOrOptions?: TokenSource | Options, optionsOrUnset?: Options) {
+  constructor(tokenSource: RoomTokenSource, options?: RoomOptions<RoomTokenSource>);
+  /** @deprecated */
+  constructor(options?: RoomOptions);
+  constructor(tokenSourceOrOptions?: RoomTokenSource | RoomOptions, optionsOrUnset?: RoomOptions<RoomTokenSource>) {
     super();
 
-    let options;
+    let options: RoomOptions<RoomTokenSource>;
     if (tokenSourceOrOptions instanceof TokenSourceConfigurable || tokenSourceOrOptions instanceof TokenSourceFixed) {
       this.tokenSource = tokenSourceOrOptions;
       options = optionsOrUnset ?? {};
     } else {
-      this.tokenSource = null as TokenSource;
+      this.tokenSource = null as RoomTokenSource;
       options = tokenSourceOrOptions ?? {};
     }
 
@@ -240,7 +239,7 @@ class Room<
     this.options = {
       ...roomOptionDefaults,
       ...options,
-    } as RoomOptionsToInternalRoomOptions<Options>;
+    } as RoomOptionsToInternalRoomOptions<RoomOptions<RoomTokenSource>>;
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
@@ -608,17 +607,11 @@ class Room<
     });
 
   async tokenSourceFetch(): Promise<TokenSourceResponseObject | null> {
-    if (
-      'tokenSource' in this.options &&
-      this.options.tokenSource instanceof TokenSourceConfigurable
-    ) {
+    if (this.tokenSource instanceof TokenSourceConfigurable) {
       const tokenSourceFetchOptions = extractTokenSourceFetchOptionsFromObject(this.options)[0];
-      return this.options.tokenSource.fetch(tokenSourceFetchOptions);
-    } else if (
-      'tokenSource' in this.options &&
-      this.options.tokenSource instanceof TokenSourceFixed
-    ) {
-      return this.options.tokenSource.fetch();
+      return this.tokenSource.fetch(tokenSourceFetchOptions);
+    } else if (this.tokenSource instanceof TokenSourceFixed) {
+      return this.tokenSource.fetch();
     } else {
       return null;
     }
@@ -633,7 +626,7 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: TokenSource extends TokenSourceFixed | TokenSourceConfigurable
+  prepareConnection: RoomTokenSource extends TokenSourceFixed | TokenSourceConfigurable
     ? {
         (): Promise<void>;
       }
@@ -679,7 +672,7 @@ class Room<
     }
   };
 
-  connect: TokenSource extends TokenSourceFixed | TokenSourceConfigurable
+  connect: RoomTokenSource extends TokenSourceFixed | TokenSourceConfigurable
     ? {
         (opts?: RoomConnectOptions): Promise<void>;
       }
@@ -844,7 +837,7 @@ class Room<
     token: string,
     engine: RTCEngine,
     connectOptions: InternalRoomConnectOptions,
-    roomOptions: RoomOptionsToInternalRoomOptions<Options>,
+    roomOptions: RoomOptionsToInternalRoomOptions<RoomOptions<RoomTokenSource>>,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
     const joinResponse = await engine.join(

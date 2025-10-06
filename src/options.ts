@@ -109,9 +109,11 @@ type InternalRoomOptionsTokenSourceConfigurable = InternalRoomOptionsBase & Toke
 /**
  * @internal
  */
-export type InternalRoomOptions<TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null> = TokenSource extends TokenSourceConfigurable ? (
-  InternalRoomOptionsLegacyOrTokenSourceFixed
-) : InternalRoomOptionsTokenSourceConfigurable;
+export type InternalRoomOptions<
+  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = TokenSourceFixed | TokenSourceConfigurable | null
+> = TokenSource extends TokenSourceConfigurable ? (
+  InternalRoomOptionsTokenSourceConfigurable
+) : InternalRoomOptionsLegacyOrTokenSourceFixed;
 
 /**
  * @internal
