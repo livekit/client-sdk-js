@@ -103,36 +103,24 @@ interface InternalRoomOptionsBase {
   loggerName?: string;
 }
 
-type InternalRoomOptionsLegacy = InternalRoomOptionsBase;
-
-type InternalRoomOptionsTokenSourceFixed = InternalRoomOptionsBase & {
-  tokenSource: TokenSourceFixed;
-};
-
-type InternalRoomOptionsTokenSourceConfigurable = InternalRoomOptionsBase &
-  TokenSourceFetchOptions & {
-    tokenSource: TokenSourceConfigurable;
-  };
+type InternalRoomOptionsLegacyOrTokenSourceFixed = InternalRoomOptionsBase;
+type InternalRoomOptionsTokenSourceConfigurable = InternalRoomOptionsBase & TokenSourceFetchOptions;
 
 /**
  * @internal
  */
-export type InternalRoomOptions =
-  | InternalRoomOptionsLegacy
-  | InternalRoomOptionsTokenSourceFixed
-  | InternalRoomOptionsTokenSourceConfigurable;
+export type InternalRoomOptions<TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null> = TokenSource extends TokenSourceConfigurable ? (
+  InternalRoomOptionsLegacyOrTokenSourceFixed
+) : InternalRoomOptionsTokenSourceConfigurable;
 
 /**
  * @internal
  */
-export type RoomOptionsToInternalRoomOptions<Options extends RoomOptions> =
-  | (Options extends RoomOptionsTokenSourceFixed ? InternalRoomOptionsTokenSourceFixed : never)
-  | (Options extends RoomOptionsTokenSourceConfigurable
-      ? InternalRoomOptionsTokenSourceConfigurable
-      : never)
-  | (Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
-      ? never
-      : InternalRoomOptionsLegacy);
+export type RoomOptionsToInternalRoomOptions<
+  Options extends RoomOptions<TokenSourceFixed | TokenSourceConfigurable | null>,
+> = Options extends RoomOptionsTokenSourceConfigurable ? (
+  InternalRoomOptionsTokenSourceConfigurable
+) : InternalRoomOptionsLegacyOrTokenSourceFixed
 
 type RoomOptionsBase = Partial<Omit<InternalRoomOptionsBase, 'encryption'>>;
 
@@ -144,24 +132,15 @@ type RoomOptionsBase = Partial<Omit<InternalRoomOptionsBase, 'encryption'>>;
  */
 type BlockTokenSourceFetchOptions = { [P in keyof TokenSourceFetchOptions]: never };
 
-export type RoomOptionsLegacy = RoomOptionsBase & { tokenSource?: never };
-export type RoomOptionsTokenSourceFixed = RoomOptionsBase &
-  BlockTokenSourceFetchOptions & {
-    tokenSource: TokenSourceFixed;
-  };
-
-export type RoomOptionsTokenSourceConfigurable = RoomOptionsBase &
-  Partial<TokenSourceFetchOptions> & {
-    tokenSource: TokenSourceConfigurable;
-  };
+export type RoomOptionsLegacyOrTokenSourceFixed = RoomOptionsBase & BlockTokenSourceFetchOptions;
+export type RoomOptionsTokenSourceConfigurable = RoomOptionsBase & Partial<TokenSourceFetchOptions>;
 
 /**
  * Options for when creating a new room
  */
-export type RoomOptions =
-  | RoomOptionsLegacy
-  | RoomOptionsTokenSourceFixed
-  | RoomOptionsTokenSourceConfigurable;
+export type RoomOptions<TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = null> = TokenSource extends TokenSourceConfigurable ? (
+  RoomOptionsTokenSourceConfigurable
+) : RoomOptionsLegacyOrTokenSourceFixed;
 
 /**
  * @internal

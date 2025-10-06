@@ -3,9 +3,10 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
-  RoomOptionsTokenSourceFixed,
+  RoomOptions,
   ScalabilityMode,
   SimulationScenario,
+  TokenSourceConfigurable,
   VideoCaptureOptions,
   VideoCodec,
 } from '../../src/index';
@@ -109,8 +110,7 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
-    const roomOpts: RoomOptionsTokenSourceFixed = {
-      tokenSource: TokenSource.literal({ serverUrl: url, participantToken: token }),
+    const roomOpts: RoomOptions = {
       adaptiveStream,
       dynacast,
       audioOutput: {
@@ -152,17 +152,23 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(roomOpts, connectOpts, shouldPublish);
+    await appActions.connectToRoom(
+      TokenSource.literal({ serverUrl: url, participantToken: token }),
+      roomOpts,
+      connectOpts,
+      shouldPublish,
+    );
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
 
-  connectToRoom: async (
-    roomOptions?: RoomOptionsTokenSourceFixed,
+  connectToRoom: async <TS extends TokenSourceFixed | TokenSourceConfigurable>(
+    tokenSource: TS,
+    roomOptions?: RoomOptions<TS>,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
-    const room = new Room(roomOptions);
+    const room = new Room(tokenSource, roomOptions);
 
     startTime = Date.now();
     await room.prepareConnection();

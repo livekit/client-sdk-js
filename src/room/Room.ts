@@ -38,12 +38,10 @@ import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
-  InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
+  RoomOptionsLegacyOrTokenSourceFixed,
   RoomOptionsToInternalRoomOptions,
-  RoomOptionsTokenSourceConfigurable,
-  RoomOptionsTokenSourceFixed,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
@@ -135,7 +133,8 @@ const connectionReconcileFrequency = 4 * 1000;
  * @noInheritDoc
  */
 class Room<
-  Options extends RoomOptions = RoomOptions,
+  TokenSource extends TokenSourceFixed | TokenSourceConfigurable | null = null,
+  Options extends RoomOptions<TokenSource> = RoomOptionsLegacyOrTokenSourceFixed,
 > extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
@@ -158,6 +157,9 @@ class Room<
 
   /** options of room */
   options: RoomOptionsToInternalRoomOptions<Options>;
+
+  /** The token source passed in the constructor, or null */
+  tokenSource: TokenSource;
 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
@@ -218,8 +220,20 @@ class Room<
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: Options) {
+  constructor(options?: Options);
+  constructor(tokenSource: TokenSource, options?: Options);
+  constructor(tokenSourceOrOptions?: TokenSource | Options, optionsOrUnset?: Options) {
     super();
+
+    let options;
+    if (tokenSourceOrOptions instanceof TokenSourceConfigurable || tokenSourceOrOptions instanceof TokenSourceFixed) {
+      this.tokenSource = tokenSourceOrOptions;
+      options = optionsOrUnset ?? {};
+    } else {
+      this.tokenSource = null as TokenSource;
+      options = tokenSourceOrOptions ?? {};
+    }
+
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();
@@ -619,9 +633,7 @@ class Room<
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to if a token is provided.
    */
-  prepareConnection: Options extends
-    | RoomOptionsTokenSourceConfigurable
-    | RoomOptionsTokenSourceFixed
+  prepareConnection: TokenSource extends TokenSourceFixed | TokenSourceConfigurable
     ? {
         (): Promise<void>;
       }
@@ -667,7 +679,7 @@ class Room<
     }
   };
 
-  connect: Options extends RoomOptionsTokenSourceConfigurable | RoomOptionsTokenSourceFixed
+  connect: TokenSource extends TokenSourceFixed | TokenSourceConfigurable
     ? {
         (opts?: RoomConnectOptions): Promise<void>;
       }
@@ -832,7 +844,7 @@ class Room<
     token: string,
     engine: RTCEngine,
     connectOptions: InternalRoomConnectOptions,
-    roomOptions: InternalRoomOptions,
+    roomOptions: RoomOptionsToInternalRoomOptions<Options>,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
     const joinResponse = await engine.join(
