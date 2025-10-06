@@ -370,6 +370,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (e2eeOptions) {
       if ('e2eeManager' in e2eeOptions) {
         this.e2eeManager = e2eeOptions.e2eeManager;
+        this.e2eeManager.isDataChannelEncryptionEnabled = dcEncryptionEnabled;
       } else {
         this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
       }
