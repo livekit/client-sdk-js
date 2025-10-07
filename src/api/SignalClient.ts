@@ -386,7 +386,10 @@ export class SignalClient {
           const firstSignalResponse = parseSignalResponse(firstMessage.value);
 
           // Validate the first message
-          const validation = this.validateFirstMessage(firstSignalResponse, opts.reconnect ?? false);
+          const validation = this.validateFirstMessage(
+            firstSignalResponse,
+            opts.reconnect ?? false,
+          );
 
           if (!validation.isValid) {
             reject(validation.error);
@@ -915,10 +918,7 @@ export class SignalClient {
           shouldProcessFirstMessage: true,
         };
       }
-    } else if (
-      this.isEstablishingConnection &&
-      firstSignalResponse.message?.case === 'leave'
-    ) {
+    } else if (this.isEstablishingConnection && firstSignalResponse.message?.case === 'leave') {
       return {
         isValid: false,
         error: new ConnectionError(
@@ -941,10 +941,7 @@ export class SignalClient {
 
     return {
       isValid: false,
-      error: new ConnectionError(
-        'Unexpected first message',
-        ConnectionErrorReason.InternalError,
-      ),
+      error: new ConnectionError('Unexpected first message', ConnectionErrorReason.InternalError),
     };
   }
 

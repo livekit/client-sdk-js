@@ -609,11 +609,7 @@ describe('SignalClient.handleConnectionError', () => {
     const handleMethod = (signalClient as any).handleConnectionError;
     if (handleMethod) {
       const error = new Error('Connection failed');
-      const result = await handleMethod.call(
-        signalClient,
-        error,
-        'wss://test.livekit.io/validate',
-      );
+      const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
       expect(result).toBeInstanceOf(ConnectionError);
       expect(result.reason).toBe(ConnectionErrorReason.NotAllowed);
@@ -656,11 +652,7 @@ describe('SignalClient.handleConnectionError', () => {
     const handleMethod = (signalClient as any).handleConnectionError;
     if (handleMethod) {
       const error = new Error('Connection failed');
-      const result = await handleMethod.call(
-        signalClient,
-        error,
-        'wss://test.livekit.io/validate',
-      );
+      const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
       expect(result).toBeInstanceOf(ConnectionError);
       expect(result.reason).toBe(ConnectionErrorReason.InternalError);
@@ -674,11 +666,7 @@ describe('SignalClient.handleConnectionError', () => {
     const handleMethod = (signalClient as any).handleConnectionError;
     if (handleMethod) {
       const error = new Error('Connection failed');
-      const result = await handleMethod.call(
-        signalClient,
-        error,
-        'wss://test.livekit.io/validate',
-      );
+      const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
       expect(result).toBeInstanceOf(ConnectionError);
       expect(result.reason).toBe(ConnectionErrorReason.ServerUnreachable);
@@ -686,20 +674,13 @@ describe('SignalClient.handleConnectionError', () => {
   });
 
   it('should handle fetch throwing ConnectionError', async () => {
-    const fetchError = new ConnectionError(
-      'Fetch failed',
-      ConnectionErrorReason.ServerUnreachable,
-    );
+    const fetchError = new ConnectionError('Fetch failed', ConnectionErrorReason.ServerUnreachable);
     (global.fetch as any).mockRejectedValueOnce(fetchError);
 
     const handleMethod = (signalClient as any).handleConnectionError;
     if (handleMethod) {
       const error = new Error('Connection failed');
-      const result = await handleMethod.call(
-        signalClient,
-        error,
-        'wss://test.livekit.io/validate',
-      );
+      const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
       expect(result).toBe(fetchError);
     }
