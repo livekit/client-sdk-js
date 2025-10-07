@@ -734,6 +734,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const decryptedPacket = EncryptedPacketPayload.fromBinary(decryptedData.payload);
         const newDp = new DataPacket({
           value: decryptedPacket.value,
+          participantIdentity: dp.participantIdentity,
+          participantSid: dp.participantSid,
         });
         if (newDp.value?.case === 'user') {
           // compatibility
