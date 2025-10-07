@@ -46,11 +46,7 @@ import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import {
-  type WebSocketCloseInfo,
-  type WebSocketConnection,
-  WebSocketStream,
-} from './WebSocketStream';
+import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import { createRtcUrl, createValidateUrl, parseSignalResponse } from './utils';
 
 // internal options
