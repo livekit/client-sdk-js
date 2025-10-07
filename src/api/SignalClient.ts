@@ -416,11 +416,9 @@ export class SignalClient {
             : undefined;
           handleSignalConnected(connection, firstMessageToProcess);
           resolve(validation.response);
-          return;
         } catch (e) {
           clearTimeout(wsTimeout);
           reject(e);
-          return;
         }
       } finally {
         unlock();
