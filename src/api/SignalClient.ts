@@ -438,16 +438,17 @@ export class SignalClient {
             this.state === SignalConnectionState.RECONNECTING &&
             firstSignalResponse.message.case !== 'leave'
           ) {
-            // in reconnecting, any message received means signal reconnected and we still need to process it
-            handleSignalConnected(connection, firstSignalResponse);
             if (firstSignalResponse.message?.case === 'reconnect') {
+              handleSignalConnected(connection);
               resolve(firstSignalResponse.message.value);
               return;
             } else {
-              this.log.info(
+              // in reconnecting, any message received means signal reconnected and we still need to process it
+              this.log.debug(
                 'declaring signal reconnected without reconnect response received',
                 this.logContext,
               );
+              handleSignalConnected(connection, firstSignalResponse);
               resolve(undefined);
               return;
             }
