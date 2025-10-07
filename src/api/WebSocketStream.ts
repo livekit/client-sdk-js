@@ -1,4 +1,5 @@
 // https://github.com/CarterLi/websocketstream-polyfill
+import { sleep } from '../room/utils';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readable: ReadableStream<T>;
@@ -78,10 +79,35 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       ws.addEventListener('error', reject);
     });
 
-    this.closed = new Promise<WebSocketCloseInfo>((resolve) => {
+    this.closed = new Promise<WebSocketCloseInfo>((resolve, reject) => {
+      const rejectHandler = async () => {
+        const closePromise = new Promise<CloseEvent>((res) => {
+          if (ws.readyState === WebSocket.CLOSED) return;
+          else {
+            ws.addEventListener(
+              'close',
+              (closeEv: CloseEvent) => {
+                res(closeEv);
+              },
+              { once: true },
+            );
+          }
+        });
+        const reason = await Promise.race([sleep(250), closePromise]);
+        if (!reason) {
+          console.warn('Encountered unspecified websocket error without a timely close event');
+          reject(new Error('Encountered unspecified websocket error without a timely close event'));
+        } else {
+          // if we can infer the close reason from the close event then resolve the promise, we don't need to throw
+          resolve(reason);
+        }
+      };
       ws.onclose = ({ code, reason }) => {
         resolve({ closeCode: code, reason });
+        ws.removeEventListener('error', rejectHandler);
       };
+
+      ws.addEventListener('error', rejectHandler);
     });
 
     if (options.signal) {
