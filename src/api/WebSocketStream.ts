@@ -78,12 +78,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       ws.addEventListener('error', reject);
     });
 
-    this.closed = new Promise<WebSocketCloseInfo>((resolve, reject) => {
+    this.closed = new Promise<WebSocketCloseInfo>((resolve) => {
       ws.onclose = ({ code, reason }) => {
         resolve({ closeCode: code, reason });
-        ws.removeEventListener('error', reject);
       };
-      ws.addEventListener('error', reject);
     });
 
     if (options.signal) {

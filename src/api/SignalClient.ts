@@ -46,7 +46,11 @@ import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
+import {
+  type WebSocketCloseInfo,
+  type WebSocketConnection,
+  WebSocketStream,
+} from './WebSocketStream';
 import { createRtcUrl, createValidateUrl, parseSignalResponse } from './utils';
 
 // internal options
@@ -329,26 +333,37 @@ export class SignalClient {
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl, { signal: combinedAbort });
 
         try {
-          this.ws.closed.then((closeInfo) => {
-            if (this.isEstablishingConnection) {
-              reject(
-                new ConnectionError(
-                  `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
-                  ConnectionErrorReason.InternalError,
-                ),
-              );
-            }
-
-            this.log.warn(`websocket closed`, {
-              ...this.logContext,
-              reason: closeInfo.reason,
-              code: closeInfo.closeCode,
-              wasClean: closeInfo.closeCode === 1000,
-              state: this.state,
+          this.ws.closed
+            .then((closeInfo) => {
+              if (this.isEstablishingConnection) {
+                reject(
+                  new ConnectionError(
+                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+                    ConnectionErrorReason.InternalError,
+                  ),
+                );
+              }
+              if (closeInfo.closeCode !== 1000) {
+                this.log.warn(`websocket closed`, {
+                  ...this.logContext,
+                  reason: closeInfo.reason,
+                  code: closeInfo.closeCode,
+                  wasClean: closeInfo.closeCode === 1000,
+                  state: this.state,
+                });
+              }
+              return;
+            })
+            .catch((reason) => {
+              if (this.isEstablishingConnection) {
+                reject(
+                  new ConnectionError(
+                    `Websocket error during a (re)connection attempt: ${reason}`,
+                    ConnectionErrorReason.InternalError,
+                  ),
+                );
+              }
             });
-            this.handleOnClose(closeInfo.reason ?? 'unknown');
-            return;
-          });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
@@ -513,7 +528,7 @@ export class SignalClient {
         this.state = SignalConnectionState.DISCONNECTING;
       }
       if (this.ws) {
-        this.ws.close();
+        this.ws.close({ closeCode: 1000, reason: 'Close method called on signal client' });
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
         const closePromise = this.ws.closed;
