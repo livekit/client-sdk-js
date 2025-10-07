@@ -95,7 +95,6 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
         });
         const reason = await Promise.race([sleep(250), closePromise]);
         if (!reason) {
-          console.warn('Encountered unspecified websocket error without a timely close event');
           reject(new Error('Encountered unspecified websocket error without a timely close event'));
         } else {
           // if we can infer the close reason from the close event then resolve the promise, we don't need to throw
