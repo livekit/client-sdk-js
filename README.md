@@ -333,9 +333,10 @@ const configurableResponse = await configurable.fetch({ agentName: "agent to dis
 room.connect(configurableResponse.serverUrl, configurableResponse.participantToken);
 ```
 
-|             | via pre-generated credentials | via a request to a url | via custom logic |
-|fixed        | TokenSource.literal | N/A | TokenSource.literal(async () => { /* ... */ }) |
-|configurable | &mdash; | TokenSource.endpoint or TokenSource.sandboxTokenServer  | TokenSource.custom |
+|Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
+|-------------|--|--|--|
+|Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
+|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.sandboxTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
 
 #### TokenSource.Literal
 A fixed token source which returns a static set of credentials or a computed set of credentials
