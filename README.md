@@ -95,6 +95,13 @@ const room = new Room({
   },
 });
 
+// get your url from livekit's dashboard, or point it at a self hosted livekit deployment
+const url = "ws://localhost:7800";
+
+// generate a token by making a request to a endpoint using the livekit server sdk or
+// using a prebuilt TokenSource (documented below)
+const token = "...";
+
 // pre-warm connection, this can be called as early as your page is loaded
 room.prepareConnection(url, token);
 
@@ -107,7 +114,7 @@ room
   .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 // connect to room
-await room.connect('ws://localhost:7800', token);
+await room.connect(url, token);
 console.log('connected to room', room.name);
 
 // publish local camera and mic tracks
@@ -302,6 +309,99 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
     console.log(level, msg, enhancedContext);
   }
 });
+```
+
+### Generating a url/token with `TokenSource`
+
+A pre-implemented set of credentials fetching utilities. Once one is constructed, call `fetch` on
+to generate a new set of credentials.
+
+There are two types of `TokenSource`'s - fixed and configurable. Configurable token sources can be
+passed options as part of the generation process, allowing your to customize the token that they
+generate. Fixed token sources generate their credentials fully indepentantly and don't allow for
+output customization.
+
+```ts
+// Fixed token sources don't take any parameters as part of `fetch`:
+const fixed: TokenSourceFixed = /* ... */;
+const fixedResponse = await fixed.fetch();
+room.connect(fixedResponse.serverUrl, fixedResponse.participantToken);
+
+// Configurable token sources can optionally take parameters to change what is encoded into the token:
+const configurable: TokenSourceConfigurable = /* ... */;
+const configurableResponse = await configurable.fetch({ agentName: "agent to dispatch" } /* <-- here */);
+room.connect(configurableResponse.serverUrl, configurableResponse.participantToken);
+```
+
+|             | via pre-generated credentials | via a request to a url | via custom logic |
+|fixed        | TokenSource.literal | N/A | TokenSource.literal(async () => { /* ... */ }) |
+|configurable | &mdash; | TokenSource.endpoint or TokenSource.sandboxTokenServer  | TokenSource.custom |
+
+#### TokenSource.Literal
+A fixed token source which returns a static set of credentials or a computed set of credentials
+with no external input on each call.
+
+Example:
+```ts
+const literal1 = TokenSource.literal({ serverUrl: "ws://localhost:7800", participantToken: "..." });
+await literal1.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+
+const literal2 = TokenSource.literal(async () => ({ serverUrl: "ws://localhost:7800", participantToken: "..." }));
+await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+```
+
+#### TokenSource.Endpoint
+A configurable token source which makes a request to an endpoint to generate credentials. By
+default, a `POST` request with a `Content-Type: application/json` header is made, and the request
+body is expected to follow the [standard token format](FIXME: add docs link here!). If
+credentials generation is successful, the endpoints returns a 2xx status code with a body following
+the [standard token response format](FIXME: add docs link here!).
+
+Example:
+```ts
+const endpoint1 = TokenSource.endpoint("http://example.com/credentials-endpoint");
+await endpoint1.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+
+const endpoint2 = TokenSource.endpoint("http://example.com/credentials-endpoint", {
+  // For all supported options below, see https://developer.mozilla.org/en-US/docs/Web/API/RequestInit
+  method: "PUT",
+  headers: {
+    "X-Custom-Header": "custom header value",
+  },
+});
+await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+```
+
+#### TokenSource.SandboxTokenServer
+A configurable token source which makes a request to a
+[sandbox token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
+a LiveKit-hosted token generation mechanism. This is an inherently insecure token generation
+mechanism and should only be used for prototyping / NOT used in production.
+
+One parameter is required - the sandbox id from the dashboard. This is the `token-server-xxxxxx`
+value in `https://token-server-xxxxxx.sandbox.livekit.io`.
+
+Example:
+```ts
+const sandbox = TokenSource.sandboxTokenServer("token-server-xxxxxx");
+await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+```
+
+#### TokenSource.Custom
+A fully custom configurable token source that allows one to consume any end application-specific
+token generation mechanism.
+
+Note that it is expected that all options passed into `fetch` will always be encoded into the
+output token. If you'd rather implement a fixed version of this TokenSource, see
+`TokenSource.literal(async () => { /* ... */ })`.
+
+Example:
+```ts
+const sandbox = TokenSource.custom(async (options) => {
+  // generate token info via custom means here
+  return { serverUrl: "...", participantToken: "... options encoded in here ..." };
+});
+await sandbox.fetch({ agentName: "agent to dispatch" });
 ```
 
 ### RPC
