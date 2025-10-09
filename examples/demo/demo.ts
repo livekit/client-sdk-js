@@ -15,7 +15,6 @@ import {
   ConnectionState,
   DisconnectReason,
   ExternalE2EEKeyProvider,
-  LocalAudioTrack,
   LogLevel,
   MediaDeviceFailure,
   Participant,
@@ -39,7 +38,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { getStereoAudioStreamTrack, isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
+import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -398,16 +397,7 @@ const appActions = {
       const publishPromise = new Promise<void>(async (resolve, reject) => {
         try {
           if (shouldPublish) {
-            if (roomOptions?.publishDefaults?.forceStereo) {
-              const track = await getStereoAudioStreamTrack();
-              const localTrack = new LocalAudioTrack(track);
-              localTrack.source = Track.Source.Microphone;
-              await room.localParticipant.publishTrack(localTrack);
-
-              await room.localParticipant.setCameraEnabled(true);
-            } else {
-              await room.localParticipant.enableCameraAndMicrophone();
-            }
+            await room.localParticipant.enableCameraAndMicrophone();
             appendLog(`tracks published in ${Date.now() - startTime}ms`);
             updateButtonsForPublishState();
           }
