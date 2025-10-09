@@ -9,6 +9,9 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  EncryptedPacket,
+  EncryptedPacketPayload,
+  Encryption_Type,
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
@@ -44,6 +47,8 @@ import {
   SignalConnectionState,
   toProtoSessionDescription,
 } from '../api/SignalClient';
+import type { BaseE2EEManager } from '../e2ee/E2eeManager';
+import { asEncryptablePacket } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
@@ -117,6 +122,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * @internal
    */
   latestRemoteOfferId: number = 0;
+
+  /** @internal */
+  e2eeManager: BaseE2EEManager | undefined;
 
   get isClosed() {
     return this._isClosed;
@@ -205,7 +213,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient(undefined, this.loggerOptions);
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
-    this.registerOnLineListener();
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
     this.dcBufferStatus = new Map([
@@ -262,9 +269,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       // create offer
       if (!this.subscriberPrimary || joinResponse.fastPublish) {
-        this.negotiate();
+        this.negotiate().catch((err) => {
+          log.error(err, this.logContext);
+        });
       }
 
+      this.registerOnLineListener();
       this.clientConfiguration = joinResponse.clientConfiguration;
       this.emit(EngineEvent.SignalConnected, joinResponse);
       return joinResponse;
@@ -447,7 +457,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
       } else if (connectionState === PCTransportState.FAILED) {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        if (this.pcState === PCState.Connected) {
+        if (this.pcState === PCState.Connected || this.pcState === PCState.Reconnecting) {
           this.pcState = PCState.Disconnected;
 
           this.handleDisconnect(
@@ -727,12 +737,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+      } else if (dp.value?.case === 'encryptedPacket') {
+        if (!this.e2eeManager) {
+          this.log.error('Received encrypted packet but E2EE not set up', this.logContext);
+          return;
+        }
+        const decryptedData = await this.e2eeManager?.handleEncryptedData(
+          dp.value.value.encryptedValue,
+          dp.value.value.iv,
+          dp.participantIdentity,
+          dp.value.value.keyIndex,
+        );
+        const decryptedPacket = EncryptedPacketPayload.fromBinary(decryptedData.payload);
+        const newDp = new DataPacket({
+          value: decryptedPacket.value,
+          participantIdentity: dp.participantIdentity,
+          participantSid: dp.participantSid,
+        });
+        if (newDp.value?.case === 'user') {
+          // compatibility
+          applyUserDataCompat(newDp, newDp.value.value);
+        }
+        this.emit(EngineEvent.DataPacketReceived, newDp, dp.value.value.encryptionType);
       } else {
         if (dp.value?.case === 'user') {
           // compatibility
           applyUserDataCompat(dp, dp.value.value);
         }
-        this.emit(EngineEvent.DataPacketReceived, dp);
+        this.emit(EngineEvent.DataPacketReceived, dp, Encryption_Type.NONE);
       }
     } finally {
       unlock();
@@ -1208,11 +1240,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
+    if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
+      const encryptablePacket = asEncryptablePacket(packet);
+      if (encryptablePacket) {
+        const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());
+        packet.value = {
+          case: 'encryptedPacket',
+          value: new EncryptedPacket({
+            encryptedValue: encryptedData.payload,
+            iv: encryptedData.iv,
+            keyIndex: encryptedData.keyIndex,
+          }),
+        };
+      }
+    }
+
     if (kind === DataPacket_Kind.RELIABLE) {
       packet.sequence = this.reliableDataSequence;
       this.reliableDataSequence += 1;
     }
+
     const msg = packet.toBinary();
+
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       if (kind === DataPacket_Kind.RELIABLE) {
@@ -1310,7 +1359,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (needNegotiation) {
       // start negotiation
-      this.negotiate();
+      this.negotiate().catch((err) => {
+        log.error(err, this.logContext);
+      });
     }
 
     const targetChannel = this.dataChannelForKind(kind, subscriber);
@@ -1591,7 +1642,7 @@ export type EngineEventCallbacks = {
     receiver: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-  dataPacketReceived: (packet: DataPacket) => void;
+  dataPacketReceived: (packet: DataPacket, encryptionType: Encryption_Type) => void;
   transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */

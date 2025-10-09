@@ -8,6 +8,7 @@ import {
   DataStream_OperationType,
   DataStream_TextHeader,
   DataStream_Trailer,
+  Encryption_Type,
 } from '@livekit/protocol';
 import { type StructuredLogger } from '../../../logger';
 import type RTCEngine from '../../RTCEngine';
@@ -104,6 +105,9 @@ export default class OutgoingDataStreamManager {
       topic: options?.topic ?? '',
       size: options?.totalSize,
       attributes: options?.attributes,
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
     };
     const header = new DataStream_Header({
       streamId,
@@ -231,6 +235,9 @@ export default class OutgoingDataStreamManager {
       attributes: options?.attributes,
       size: options?.totalSize,
       name: options?.name ?? 'unknown',
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
     };
 
     const header = new DataStream_Header({

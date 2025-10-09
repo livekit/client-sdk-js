@@ -11,15 +11,19 @@ import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
+import { Future, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
+  DecryptDataRequestMessage,
+  DecryptDataResponseMessage,
   E2EEManagerOptions,
   E2EEWorkerMessage,
   EnableMessage,
   EncodeMessage,
+  EncryptDataRequestMessage,
+  EncryptDataResponseMessage,
   InitMessage,
   KeyInfo,
   RTPVideoMapMessage,
@@ -35,8 +39,17 @@ import { isE2EESupported, isScriptTransformSupported } from './utils';
 export interface BaseE2EEManager {
   setup(room: Room): void;
   setupEngine(engine: RTCEngine): void;
+  isEnabled: boolean;
+  isDataChannelEncryptionEnabled: boolean;
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
   setSifTrailer(trailer: Uint8Array): void;
+  encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']>;
+  handleEncryptedData(
+    payload: Uint8Array,
+    iv: Uint8Array,
+    participantIdentity: string,
+    keyIndex: number,
+  ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
 }
 
@@ -55,11 +68,26 @@ export class E2EEManager
 
   private keyProvider: BaseKeyProvider;
 
-  constructor(options: E2EEManagerOptions) {
+  private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data']>> = new Map();
+
+  private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data']>> = new Map();
+
+  private dataChannelEncryptionEnabled: boolean;
+
+  constructor(options: E2EEManagerOptions, dcEncryptionEnabled: boolean) {
     super();
     this.keyProvider = options.keyProvider;
     this.worker = options.worker;
     this.encryptionEnabled = false;
+    this.dataChannelEncryptionEnabled = dcEncryptionEnabled;
+  }
+
+  get isEnabled(): boolean {
+    return this.encryptionEnabled;
+  }
+
+  get isDataChannelEncryptionEnabled(): boolean {
+    return this.isEnabled && this.dataChannelEncryptionEnabled;
   }
 
   /**
@@ -160,6 +188,19 @@ export class E2EEManager
           data.keyIndex,
         );
         break;
+
+      case 'decryptDataResponse':
+        const decryptFuture = this.decryptDataRequests.get(data.uuid);
+        if (decryptFuture?.resolve) {
+          decryptFuture.resolve(data);
+        }
+        break;
+      case 'encryptDataResponse':
+        const encryptFuture = this.encryptDataRequests.get(data.uuid);
+        if (encryptFuture?.resolve) {
+          encryptFuture.resolve(data as EncryptDataResponseMessage['data']);
+        }
+        break;
       default:
         break;
     }
@@ -248,6 +289,57 @@ export class E2EEManager
       .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
         this.postRatchetRequest(participantId, keyIndex),
       );
+  }
+
+  async encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']> {
+    if (!this.worker) {
+      throw Error('could not encrypt data, worker is missing');
+    }
+    const uuid = crypto.randomUUID();
+    const msg: EncryptDataRequestMessage = {
+      kind: 'encryptDataRequest',
+      data: {
+        uuid,
+        payload: data,
+        participantIdentity: this.room!.localParticipant.identity,
+      },
+    };
+    const future = new Future<EncryptDataResponseMessage['data']>();
+    future.onFinally = () => {
+      this.encryptDataRequests.delete(uuid);
+    };
+    this.encryptDataRequests.set(uuid, future);
+    this.worker.postMessage(msg);
+    return future!.promise!;
+  }
+
+  handleEncryptedData(
+    payload: Uint8Array,
+    iv: Uint8Array,
+    participantIdentity: string,
+    keyIndex: number,
+  ) {
+    if (!this.worker) {
+      throw Error('could not handle encrypted data, worker is missing');
+    }
+    const uuid = crypto.randomUUID();
+    const msg: DecryptDataRequestMessage = {
+      kind: 'decryptDataRequest',
+      data: {
+        uuid,
+        payload,
+        iv,
+        participantIdentity,
+        keyIndex,
+      },
+    };
+    const future = new Future<DecryptDataResponseMessage['data']>();
+    future.onFinally = () => {
+      this.decryptDataRequests.delete(uuid);
+    };
+    this.decryptDataRequests.set(uuid, future);
+    this.worker.postMessage(msg);
+    return future.promise;
   }
 
   private postRatchetRequest(participantIdentity?: string, keyIndex?: number) {

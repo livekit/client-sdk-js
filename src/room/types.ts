@@ -136,6 +136,7 @@ export interface BaseStreamInfo {
   /** total size in bytes for finite streams and undefined for streams of unknown size */
   size?: number;
   attributes?: Record<string, string>;
+  encryptionType: Encryption_Type;
 }
 export interface ByteStreamInfo extends BaseStreamInfo {
   name: string;

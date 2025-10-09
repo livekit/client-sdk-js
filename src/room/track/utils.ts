@@ -147,10 +147,18 @@ export function getNewAudioContext(): AudioContext | void {
           }
         } catch (e) {
           console.warn('Error trying to auto-resume audio context', e);
+        } finally {
+          window.document.body?.removeEventListener('click', handleResume);
         }
-
-        window.document.body?.removeEventListener('click', handleResume);
       };
+
+      // https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/statechange_event
+      audioContext.addEventListener('statechange', () => {
+        if (audioContext.state === 'closed') {
+          window.document.body?.removeEventListener('click', handleResume);
+        }
+      });
+
       window.document.body.addEventListener('click', handleResume);
     }
     return audioContext;
