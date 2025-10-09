@@ -4,10 +4,9 @@ import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
-import { version } from '../version';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { compareVersions, ddExtensionURI, isSVCCodec, isSafari } from './utils';
+import { ddExtensionURI, isClientV3, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -298,7 +297,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          const stereoMids = compareVersions(version, '3.0.0') >= 0 ? ['all'] : [];
+          const stereoMids = isClientV3 ? ['all'] : [];
           ensureAudioNackAndStereo(media, stereoMids, []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
