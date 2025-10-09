@@ -50,6 +50,7 @@ import {
   isVideoTrack,
   supportsAV1,
   supportsAdaptiveStream,
+  supportsAudioOutputSelection,
   supportsDynacast,
   supportsVP9,
 } from './room/utils';
@@ -121,6 +122,7 @@ export {
   setLogLevel,
   supportsAV1,
   supportsAdaptiveStream,
+  supportsAudioOutputSelection,
   supportsDynacast,
   supportsVP9,
   Mutex,
