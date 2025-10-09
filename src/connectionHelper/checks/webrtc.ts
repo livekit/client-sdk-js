@@ -38,7 +38,7 @@ export class WebRTCCheck extends Checker {
         }
       };
 
-      if (this.room.engine.pcManager) {
+      if (this.room.engine.pcManager?.subscriber) {
         this.room.engine.pcManager.subscriber.onIceCandidateError = (ev) => {
           if (ev instanceof RTCPeerConnectionIceErrorEvent) {
             this.appendWarning(

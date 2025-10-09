@@ -99,6 +99,13 @@ export interface InternalRoomOptions {
   encryption?: E2EEOptions;
 
   loggerName?: string;
+
+  /**
+   * @experimental
+   * only supported on LiveKit Cloud
+   * and LiveKit OSS >= 1.9.2
+   */
+  singlePeerConnection: boolean;
 }
 
 /**

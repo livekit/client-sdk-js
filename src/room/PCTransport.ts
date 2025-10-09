@@ -167,7 +167,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         const mid = getMidString(media.mid!);
         if (media.type === 'audio') {
-          // mung sdp for opus bitrate settings
+          // munge sdp for opus bitrate settings
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.transceiver || mid != trackbr.transceiver.mid) {
               return false;
@@ -297,7 +297,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, [], []);
+          ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
@@ -378,6 +378,10 @@ export default class PCTransport extends EventEmitter {
 
   addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
     return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  }
+
+  addTransceiverOfKind(kind: 'audio' | 'video', transceiverInit: RTCRtpTransceiverInit) {
+    return this.pc.addTransceiver(kind, transceiverInit);
   }
 
   addTrack(track: MediaStreamTrack) {
@@ -623,7 +627,7 @@ function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(mid)) {
+    if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtp.config.includes('stereo=1')) {

@@ -4,10 +4,13 @@ import {
   AudioTrackFeature,
   ClientInfo,
   ConnectionQualityUpdate,
+  ConnectionSettings,
   DisconnectReason,
+  JoinRequest,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  MediaSectionsRequirement,
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
@@ -38,6 +41,7 @@ import {
   UpdateTrackSettings,
   UpdateVideoLayers,
   VideoLayer,
+  WrappedJoinRequest,
   protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -66,6 +70,7 @@ export interface SignalOptions {
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
+  singlePeerConnection: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -154,6 +159,8 @@ export class SignalClient {
   onLocalTrackSubscribed?: (trackSid: string) => void;
 
   onRoomMoved?: (res: RoomMovedResponse) => void;
+
+  onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -271,7 +278,9 @@ export class SignalClient {
 
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params = createConnectionParams(token, clientInfo, opts);
+    const params = opts.singlePeerConnection
+      ? createJoinRequestConnectionParams(token, clientInfo, opts)
+      : createConnectionParams(token, clientInfo, opts);
     const rtcUrl = createRtcUrl(url, params);
     const validateUrl = createValidateUrl(rtcUrl);
 
@@ -459,6 +468,7 @@ export class SignalClient {
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
     this.onClose = undefined;
+    this.onMediaSectionsRequirement = undefined;
   };
 
   async close(updateState: boolean = true) {
@@ -772,6 +782,10 @@ export class SignalClient {
       if (this.onRoomMoved) {
         this.onRoomMoved(msg.value);
       }
+    } else if (msg.case === 'mediaSectionsRequirement') {
+      if (this.onMediaSectionsRequirement) {
+        this.onMediaSectionsRequirement(msg.value);
+      }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
     }
@@ -1060,6 +1074,34 @@ function createConnectionParams(
     // @ts-ignore
     params.set('network', navigator.connection.type);
   }
+
+  return params;
+}
+
+function createJoinRequestConnectionParams(
+  token: string,
+  info: ClientInfo,
+  opts: ConnectOpts,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set('access_token', token);
+
+  const joinRequest = new JoinRequest({
+    clientInfo: info,
+    connectionSettings: new ConnectionSettings({
+      autoSubscribe: !!opts.autoSubscribe,
+      adaptiveStream: !!opts.adaptiveStream,
+    }),
+    reconnect: !!opts.reconnect,
+    participantSid: opts.sid ? opts.sid : undefined,
+  });
+  if (opts.reconnectReason) {
+    joinRequest.reconnectReason = opts.reconnectReason;
+  }
+  const wrappedJoinRequest = new WrappedJoinRequest({
+    joinRequest: joinRequest.toBinary(),
+  });
+  params.set('join_request', btoa(new TextDecoder('utf-8').decode(wrappedJoinRequest.toBinary())));
 
   return params;
 }

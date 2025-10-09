@@ -108,5 +108,5 @@
     "vite": "7.1.8",
     "vitest": "^3.0.0"
   },
-  "packageManager": "pnpm@10.14.0"
+  "packageManager": "pnpm@10.15.0"
 }

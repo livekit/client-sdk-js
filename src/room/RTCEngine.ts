@@ -15,6 +15,7 @@ import {
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
+  MediaSectionsRequirement,
   ParticipantInfo,
   ReconnectReason,
   type ReconnectResponse,
@@ -425,7 +426,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager = new PCTransportManager(
       rtcConfig,
-      joinResponse.subscriberPrimary,
+      this.options.singlePeerConnection
+        ? 'publisher-only'
+        : joinResponse.subscriberPrimary
+          ? 'subscriber-primary'
+          : 'publisher-primary',
       this.loggerOptions,
     );
 
@@ -481,6 +486,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     this.pcManager.onTrack = (ev: RTCTrackEvent) => {
+      // this fires after the underlying transceiver is stopped and potentially
+      // peer connection closed, so do not bubble up if there are no streams
+      if (ev.streams.length === 0) return;
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
@@ -564,6 +572,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.latestJoinResponse.room = res.room;
       }
       this.emit(EngineEvent.RoomMoved, res);
+    };
+
+    this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
+      const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
+      for (let i: number = 0; i < requirement.numAudios; i++) {
+        this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
+      }
+      for (let i: number = 0; i < requirement.numVideos; i++) {
+        this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      }
+
+      this.negotiate();
     };
 
     this.client.onClose = () => {
@@ -1480,8 +1500,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
     }
-    const previousAnswer = this.pcManager.subscriber.getLocalDescription();
-    const previousOffer = this.pcManager.subscriber.getRemoteDescription();
+    const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
+    const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
+    const previousSubscriberOffer = this.pcManager.subscriber?.getRemoteDescription();
+    const previousSubscriberAnswer = this.pcManager.subscriber?.getLocalDescription();
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1503,18 +1525,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer: previousAnswer
-          ? toProtoSessionDescription({
-              sdp: previousAnswer.sdp,
-              type: previousAnswer.type,
-            })
-          : undefined,
-        offer: previousOffer
-          ? toProtoSessionDescription({
-              sdp: previousOffer.sdp,
-              type: previousOffer.type,
-            })
-          : undefined,
+        answer: this.options.singlePeerConnection
+          ? previousPublisherAnswer
+            ? toProtoSessionDescription({
+                sdp: previousPublisherAnswer.sdp,
+                type: previousPublisherAnswer.type,
+              })
+            : undefined
+          : previousSubscriberAnswer
+            ? toProtoSessionDescription({
+                sdp: previousSubscriberAnswer.sdp,
+                type: previousSubscriberAnswer.type,
+              })
+            : undefined,
+        offer: this.options.singlePeerConnection
+          ? previousPublisherOffer
+            ? toProtoSessionDescription({
+                sdp: previousPublisherOffer.sdp,
+                type: previousPublisherOffer.type,
+              })
+            : undefined
+          : previousSubscriberOffer
+            ? toProtoSessionDescription({
+                sdp: previousSubscriberOffer.sdp,
+                type: previousSubscriberOffer.type,
+              })
+            : undefined,
         subscription: new UpdateSubscription({
           trackSids,
           subscribe: !autoSubscribe,
@@ -1611,7 +1647,7 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (packet: DataPacket, encryptionType: Encryption_Type) => void;
   transcriptionReceived: (transcription: Transcription) => void;
-  transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  transportsCreated: (publisher: PCTransport, subscriber?: PCTransport) => void;
   /** @internal */
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
