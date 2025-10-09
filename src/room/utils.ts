@@ -119,6 +119,8 @@ export function supportsVP9(): boolean {
   return hasVP9;
 }
 
+export const isClientV3 = compareVersions(version, '3.0.0') >= 0;
+
 export function supportsH265(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;

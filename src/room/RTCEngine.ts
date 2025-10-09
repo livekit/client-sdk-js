@@ -48,7 +48,6 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
-import { version } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -74,7 +73,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
-  compareVersions,
+  isClientV3,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -1472,34 +1471,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer:
-          compareVersions(version, '3.0.0') >= 0
-            ? previousPublisherAnswer
-              ? toProtoSessionDescription({
-                  sdp: previousPublisherAnswer.sdp,
-                  type: previousPublisherAnswer.type,
-                })
-              : undefined
-            : previousSubscriberAnswer
-              ? toProtoSessionDescription({
-                  sdp: previousSubscriberAnswer.sdp,
-                  type: previousSubscriberAnswer.type,
-                })
-              : undefined,
-        offer:
-          compareVersions(version, '3.0.0') >= 0
-            ? previousPublisherOffer
-              ? toProtoSessionDescription({
-                  sdp: previousPublisherOffer.sdp,
-                  type: previousPublisherOffer.type,
-                })
-              : undefined
-            : previousSubscriberOffer
-              ? toProtoSessionDescription({
-                  sdp: previousSubscriberOffer.sdp,
-                  type: previousSubscriberOffer.type,
-                })
-              : undefined,
+        answer: isClientV3
+          ? previousPublisherAnswer
+            ? toProtoSessionDescription({
+                sdp: previousPublisherAnswer.sdp,
+                type: previousPublisherAnswer.type,
+              })
+            : undefined
+          : previousSubscriberAnswer
+            ? toProtoSessionDescription({
+                sdp: previousSubscriberAnswer.sdp,
+                type: previousSubscriberAnswer.type,
+              })
+            : undefined,
+        offer: isClientV3
+          ? previousPublisherOffer
+            ? toProtoSessionDescription({
+                sdp: previousPublisherOffer.sdp,
+                type: previousPublisherOffer.type,
+              })
+            : undefined
+          : previousSubscriberOffer
+            ? toProtoSessionDescription({
+                sdp: previousSubscriberOffer.sdp,
+                type: previousSubscriberOffer.type,
+              })
+            : undefined,
         subscription: new UpdateSubscription({
           trackSids,
           subscribe: !autoSubscribe,

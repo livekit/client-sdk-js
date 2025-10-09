@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "3.0.0",
+  "version": "2.15.8",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -17,11 +17,16 @@
       "require": "./dist/livekit-client.e2ee.worker.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
     "<4.8": {
-      "./dist/src/index.d.ts": ["./dist/ts4.2/src/index.d.ts"],
+      "./dist/src/index.d.ts": [
+        "./dist/ts4.2/src/index.d.ts"
+      ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/dist/src/e2ee/worker/e2ee.worker.d.ts"
       ]

@@ -48,9 +48,8 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { compareVersions, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isClientV3, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import { version } from '../version';
 import { createRtcUrl, createValidateUrl } from './utils';
 
 // internal options
@@ -270,10 +269,9 @@ export class SignalClient {
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params =
-      compareVersions(version, '3.0.0') >= 0
-        ? createJoinRequestConnectionParams(token, clientInfo, opts)
-        : createConnectionParams(token, clientInfo, opts);
+    const params = isClientV3
+      ? createJoinRequestConnectionParams(token, clientInfo, opts)
+      : createConnectionParams(token, clientInfo, opts);
     const rtcUrl = createRtcUrl(url, params);
     const validateUrl = createValidateUrl(rtcUrl);
 
