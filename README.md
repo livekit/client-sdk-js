@@ -313,13 +313,13 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 
 ### Generating a url/token with `TokenSource`
 
-A pre-implemented set of credentials fetching utilities. Once one is constructed, call `fetch` on
-to generate a new set of credentials.
+A pre-implemented set of credentials fetching utilities. Once a `TokenSource` is constructed, call
+`fetch` to generate a new set of credentials.
 
 There are two types of `TokenSource`'s - fixed and configurable. Configurable token sources can be
-passed options as part of the generation process, allowing your to customize the token that they
-generate. Fixed token sources generate their credentials fully indepentantly and don't allow for
-output customization.
+passed options as part of the generation process, allowing you to customize the token that they
+generate. Fixed token sources generate static credentials and don't accept parameters that can
+effect the generated token.
 
 ```ts
 // Fixed token sources don't take any parameters as part of `fetch`:
@@ -340,7 +340,7 @@ room.connect(configurableResponse.serverUrl, configurableResponse.participantTok
 
 #### TokenSource.Literal
 A fixed token source which returns a static set of credentials or a computed set of credentials
-with no external input on each call.
+with no external input required on each call.
 
 Example:
 ```ts
@@ -355,7 +355,7 @@ await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: 
 A configurable token source which makes a request to an endpoint to generate credentials. By
 default, a `POST` request with a `Content-Type: application/json` header is made, and the request
 body is expected to follow the [standard token format](FIXME: add docs link here!). If
-credentials generation is successful, the endpoints returns a 2xx status code with a body following
+credentials generation is successful, the endpoint returns a 2xx status code with a body following
 the [standard token response format](FIXME: add docs link here!).
 
 Example:
@@ -376,8 +376,10 @@ await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...",
 #### TokenSource.SandboxTokenServer
 A configurable token source which makes a request to a
 [sandbox token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
-a LiveKit-hosted token generation mechanism. This is an inherently insecure token generation
-mechanism and should only be used for prototyping / NOT used in production.
+a LiveKit-hosted token generation mechanism.
+
+This token generation mechanism is inherently insecure and should only be used for
+prototyping; do NOT use in production.
 
 One parameter is required - the sandbox id from the dashboard. This is the `token-server-xxxxxx`
 value in `https://token-server-xxxxxx.sandbox.livekit.io`.
@@ -389,7 +391,7 @@ await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", 
 ```
 
 #### TokenSource.Custom
-A fully custom configurable token source that allows one to consume any end application-specific
+A fully custom configurable token source that allows you to consume any end application-specific
 token generation mechanism.
 
 Note that it is expected that all options passed into `fetch` will always be encoded into the
