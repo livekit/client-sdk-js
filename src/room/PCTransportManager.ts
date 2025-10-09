@@ -6,7 +6,7 @@ import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
-import { sleep } from './utils';
+import { isClientV3, sleep } from './utils';
 
 export enum PCTransportState {
   NEW,
@@ -17,10 +17,11 @@ export enum PCTransportState {
   CLOSED,
 }
 
-export class PCTransportManager {
+type PCMode = 'subscriber-primary' | 'publisher-primary' | 'publisher-only';
+export class PCTransportManager<Mode extends PCMode = 'publisher-primary'> {
   public publisher: PCTransport;
 
-  public subscriber: PCTransport;
+  public subscriber?: PCTransport;
 
   public peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
@@ -29,6 +30,9 @@ export class PCTransportManager {
   }
 
   public get needsSubscriber() {
+    if (isClientV3) {
+      return false;
+    }
     return this.isSubscriberConnectionRequired;
   }
 
@@ -39,7 +43,7 @@ export class PCTransportManager {
   public onStateChange?: (
     state: PCTransportState,
     pubState: RTCPeerConnectionState,
-    subState: RTCPeerConnectionState,
+    subState?: RTCPeerConnectionState,
   ) => void;
 
   public onIceCandidate?: (ev: RTCIceCandidate, target: SignalTarget) => void;
@@ -64,25 +68,33 @@ export class PCTransportManager {
 
   private loggerOptions: LoggerOptions;
 
-  constructor(
-    rtcConfig: RTCConfiguration,
-    subscriberPrimary: boolean,
-    loggerOptions: LoggerOptions,
-  ) {
+  constructor(rtcConfig: RTCConfiguration, mode: Mode, loggerOptions: LoggerOptions) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
 
-    this.isPublisherConnectionRequired = !subscriberPrimary;
-    this.isSubscriberConnectionRequired = subscriberPrimary;
+    this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
+    this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
     this.publisher = new PCTransport(rtcConfig, loggerOptions);
-    this.subscriber = new PCTransport(rtcConfig, loggerOptions);
+    if (mode !== 'publisher-only') {
+      this.subscriber = new PCTransport(rtcConfig, loggerOptions);
+      this.subscriber.onConnectionStateChange = this.updateState;
+      this.subscriber.onIceConnectionStateChange = this.updateState;
+      this.subscriber.onSignalingStatechange = this.updateState;
+      this.subscriber.onIceCandidate = (candidate) => {
+        this.onIceCandidate?.(candidate, SignalTarget.SUBSCRIBER);
+      };
+      // in subscriber primary mode, server side opens sub data channels.
+      this.subscriber.onDataChannel = (ev) => {
+        this.onDataChannel?.(ev);
+      };
+      this.subscriber.onTrack = (ev) => {
+        this.onTrack?.(ev);
+      };
+    }
 
     this.publisher.onConnectionStateChange = this.updateState;
-    this.subscriber.onConnectionStateChange = this.updateState;
     this.publisher.onIceConnectionStateChange = this.updateState;
-    this.subscriber.onIceConnectionStateChange = this.updateState;
     this.publisher.onSignalingStatechange = this.updateState;
-    this.subscriber.onSignalingStatechange = this.updateState;
     this.publisher.onIceCandidate = (candidate) => {
       this.onIceCandidate?.(candidate, SignalTarget.PUBLISHER);
     };
@@ -90,16 +102,6 @@ export class PCTransportManager {
       this.onTrack?.(ev);
     };
 
-    this.subscriber.onIceCandidate = (candidate) => {
-      this.onIceCandidate?.(candidate, SignalTarget.SUBSCRIBER);
-    };
-    // in subscriber primary mode, server side opens sub data channels.
-    this.subscriber.onDataChannel = (ev) => {
-      this.onDataChannel?.(ev);
-    };
-    this.subscriber.onTrack = (ev) => {
-      this.onTrack?.(ev);
-    };
     this.publisher.onOffer = (offer, offerId) => {
       this.onPublisherOffer?.(offer, offerId);
     };
@@ -152,12 +154,14 @@ export class PCTransportManager {
         }
       }
     }
-    await Promise.all([this.publisher.close(), this.subscriber.close()]);
+    await Promise.all([this.publisher.close(), this.subscriber?.close()]);
     this.updateState();
   }
 
   async triggerIceRestart() {
-    this.subscriber.restartingIce = true;
+    if (this.subscriber) {
+      this.subscriber.restartingIce = true;
+    }
     // only restart publisher if it's needed
     if (this.needsPublisher) {
       await this.createAndSendPublisherOffer({ iceRestart: true });
@@ -168,7 +172,7 @@ export class PCTransportManager {
     if (target === SignalTarget.PUBLISHER) {
       await this.publisher.addIceCandidate(candidate);
     } else {
-      await this.subscriber.addIceCandidate(candidate);
+      await this.subscriber?.addIceCandidate(candidate);
     }
   }
 
@@ -177,17 +181,17 @@ export class PCTransportManager {
       ...this.logContext,
       RTCSdpType: sd.type,
       sdp: sd.sdp,
-      signalingState: this.subscriber.getSignallingState().toString(),
+      signalingState: this.subscriber?.getSignallingState().toString(),
     });
     const unlock = await this.remoteOfferLock.lock();
     try {
-      const success = await this.subscriber.setRemoteDescription(sd, offerId);
+      const success = await this.subscriber?.setRemoteDescription(sd, offerId);
       if (!success) {
         return undefined;
       }
 
       // answer the offer
-      const answer = await this.subscriber.createAndSetAnswer();
+      const answer = await this.subscriber?.createAndSetAnswer();
       return answer;
     } finally {
       unlock();
@@ -196,7 +200,7 @@ export class PCTransportManager {
 
   updateConfiguration(config: RTCConfiguration, iceRestart?: boolean) {
     this.publisher.setConfiguration(config);
-    this.subscriber.setConfiguration(config);
+    this.subscriber?.setConfiguration(config);
     if (iceRestart) {
       this.triggerIceRestart();
     }
@@ -285,7 +289,7 @@ export class PCTransportManager {
     if (this.isPublisherConnectionRequired) {
       transports.push(this.publisher);
     }
-    if (this.isSubscriberConnectionRequired) {
+    if (this.isSubscriberConnectionRequired && this.subscriber) {
       transports.push(this.subscriber);
     }
     return transports;
@@ -319,7 +323,7 @@ export class PCTransportManager {
       this.onStateChange?.(
         this.state,
         this.publisher.getConnectionState(),
-        this.subscriber.getConnectionState(),
+        this.subscriber?.getConnectionState(),
       );
     }
   };

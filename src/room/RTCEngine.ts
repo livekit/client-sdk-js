@@ -427,7 +427,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager = new PCTransportManager(
       rtcConfig,
-      joinResponse.subscriberPrimary,
+      isClientV3
+        ? 'publisher-only'
+        : joinResponse.subscriberPrimary
+          ? 'subscriber-primary'
+          : 'publisher-primary',
       this.loggerOptions,
     );
 
@@ -1499,8 +1503,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
     const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
-    const previousSubscriberOffer = this.pcManager.subscriber.getRemoteDescription();
-    const previousSubscriberAnswer = this.pcManager.subscriber.getLocalDescription();
+    const previousSubscriberOffer = this.pcManager.subscriber?.getRemoteDescription();
+    const previousSubscriberAnswer = this.pcManager.subscriber?.getLocalDescription();
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1644,7 +1648,7 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (packet: DataPacket, encryptionType: Encryption_Type) => void;
   transcriptionReceived: (transcription: Transcription) => void;
-  transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  transportsCreated: (publisher: PCTransport, subscriber?: PCTransport) => void;
   /** @internal */
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
