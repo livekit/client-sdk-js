@@ -6,7 +6,7 @@ import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
-import { isClientV3, sleep } from './utils';
+import { sleep } from './utils';
 
 export enum PCTransportState {
   NEW,
@@ -18,7 +18,7 @@ export enum PCTransportState {
 }
 
 type PCMode = 'subscriber-primary' | 'publisher-primary' | 'publisher-only';
-export class PCTransportManager<Mode extends PCMode = 'publisher-primary'> {
+export class PCTransportManager {
   public publisher: PCTransport;
 
   public subscriber?: PCTransport;
@@ -30,9 +30,6 @@ export class PCTransportManager<Mode extends PCMode = 'publisher-primary'> {
   }
 
   public get needsSubscriber() {
-    if (isClientV3) {
-      return false;
-    }
     return this.isSubscriberConnectionRequired;
   }
 
@@ -68,7 +65,7 @@ export class PCTransportManager<Mode extends PCMode = 'publisher-primary'> {
 
   private loggerOptions: LoggerOptions;
 
-  constructor(rtcConfig: RTCConfiguration, mode: Mode, loggerOptions: LoggerOptions) {
+  constructor(rtcConfig: RTCConfiguration, mode: PCMode, loggerOptions: LoggerOptions) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
 
@@ -120,11 +117,6 @@ export class PCTransportManager<Mode extends PCMode = 'publisher-primary'> {
 
   requirePublisher(require = true) {
     this.isPublisherConnectionRequired = require;
-    this.updateState();
-  }
-
-  requireSubscriber(require = true) {
-    this.isSubscriberConnectionRequired = require;
     this.updateState();
   }
 

@@ -48,7 +48,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isClientV3, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import { createRtcUrl, createValidateUrl, parseSignalResponse } from './utils';
@@ -70,6 +70,7 @@ export interface SignalOptions {
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
+  singlePeerConnection: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -277,7 +278,7 @@ export class SignalClient {
 
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params = isClientV3
+    const params = opts.singlePeerConnection
       ? createJoinRequestConnectionParams(token, clientInfo, opts)
       : createConnectionParams(token, clientInfo, opts);
     const rtcUrl = createRtcUrl(url, params);

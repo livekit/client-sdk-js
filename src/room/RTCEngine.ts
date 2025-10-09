@@ -78,7 +78,6 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
-  isClientV3,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -427,7 +426,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager = new PCTransportManager(
       rtcConfig,
-      isClientV3
+      this.options.singlePeerConnection
         ? 'publisher-only'
         : joinResponse.subscriberPrimary
           ? 'subscriber-primary'
@@ -1526,7 +1525,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer: isClientV3
+        answer: this.options.singlePeerConnection
           ? previousPublisherAnswer
             ? toProtoSessionDescription({
                 sdp: previousPublisherAnswer.sdp,
@@ -1539,7 +1538,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
                 type: previousSubscriberAnswer.type,
               })
             : undefined,
-        offer: isClientV3
+        offer: this.options.singlePeerConnection
           ? previousPublisherOffer
             ? toProtoSessionDescription({
                 sdp: previousPublisherOffer.sdp,

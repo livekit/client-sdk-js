@@ -6,7 +6,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isClientV3, isSVCCodec, isSafari } from './utils';
+import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -297,7 +297,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          const stereoMids = isClientV3 ? ['all'] : [];
+          const stereoMids = ['all'];
           ensureAudioNackAndStereo(media, stereoMids, []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
