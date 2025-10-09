@@ -18,6 +18,7 @@ export class WebSocketCheck extends Checker {
       maxRetries: 0,
       e2eeEnabled: false,
       websocketTimeout: 15_000,
+      singlePeerConnection: false,
     });
     this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
     if (joinRes.serverInfo?.edition === ServerInfo_Edition.Cloud && joinRes.serverInfo?.region) {
