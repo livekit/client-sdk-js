@@ -297,8 +297,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          const stereoMids = ['all'];
-          ensureAudioNackAndStereo(media, stereoMids, []);
+          ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
