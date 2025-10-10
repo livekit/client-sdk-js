@@ -7,14 +7,20 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
 export function isResponseExpired(response: TokenSourceResponse) {
   const jwtPayload = decodeTokenPayload(response.participantToken);
-  if (!jwtPayload?.exp) {
+  if (!jwtPayload?.nbf || !jwtPayload?.exp) {
     return true;
   }
-  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
-  const expiresAt = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
 
   const now = new Date();
-  return expiresAt >= now;
+
+  const nbfInMilliseconds = jwtPayload.nbf * ONE_SECOND_IN_MILLISECONDS;
+  const nbfDate = new Date(nbfInMilliseconds);
+
+  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
+  const expDate = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
+
+  const isValid = nbfDate <= now && expDate > now;
+  return !isValid;
 }
 
 export function decodeTokenPayload(token: string) {
