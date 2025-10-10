@@ -5,7 +5,7 @@ import type { RoomConfigurationObject, TokenPayload } from './types';
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
-export function isResponseExpired(response: TokenSourceResponse) {
+export function isResponseTokenValid(response: TokenSourceResponse) {
   const jwtPayload = decodeTokenPayload(response.participantToken);
   if (!jwtPayload?.nbf || !jwtPayload?.exp) {
     return true;
@@ -19,8 +19,7 @@ export function isResponseExpired(response: TokenSourceResponse) {
   const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
   const expDate = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
 
-  const isValid = nbfDate <= now && expDate > now;
-  return !isValid;
+  return nbfDate <= now && expDate > now;
 }
 
 export function decodeTokenPayload(token: string) {

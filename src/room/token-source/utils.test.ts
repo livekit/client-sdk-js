@@ -1,6 +1,6 @@
 import { TokenSourceResponse } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { decodeTokenPayload, isResponseExpired } from './utils';
+import { decodeTokenPayload, isResponseTokenValid } from './utils';
 
 // Test JWTs created for test purposes only.
 // None of these actually auth against anything.
@@ -22,33 +22,33 @@ const TOKENS = {
     'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxMjM0NTY3ODkxLCJuYmYiOjEyMzQ1Njc4OTAsImlhdCI6MTIzNDU2Nzg5MH0.OYP1NITayotBYt0mioInLJmaIM0bHyyR-yG6iwKyQDzhoGha15qbsc7dOJlzz4za1iW5EzCgjc2_xGxqaSu5XA',
 };
 
-describe('isResponseExpired', () => {
+describe('isResponseTokenValid', () => {
   it('should find a valid jwt not expired', () => {
-    const isExpired = isResponseExpired(
+    const isValid = isResponseTokenValid(
       TokenSourceResponse.fromJson({
         serverUrl: 'ws://localhost:7800',
         participantToken: TOKENS.VALID,
       }),
     );
-    expect(isExpired).toBe(false);
+    expect(isValid).toBe(true);
   });
   it('should find a long ago expired jwt as expired', () => {
-    const isExpired = isResponseExpired(
+    const isValid = isResponseTokenValid(
       TokenSourceResponse.fromJson({
         serverUrl: 'ws://localhost:7800',
         participantToken: TOKENS.EXP_IN_PAST,
       }),
     );
-    expect(isExpired).toBe(true);
+    expect(isValid).toBe(false);
   });
   it('should find a jwt that has not become active yet as expired', () => {
-    const isExpired = isResponseExpired(
+    const isValid = isResponseTokenValid(
       TokenSourceResponse.fromJson({
         serverUrl: 'ws://localhost:7800',
         participantToken: TOKENS.NBF_IN_FUTURE,
       }),
     );
-    expect(isExpired).toBe(true);
+    expect(isValid).toBe(false);
   });
 });
 
