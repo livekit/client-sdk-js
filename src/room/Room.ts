@@ -370,6 +370,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (e2eeOptions) {
       if ('e2eeManager' in e2eeOptions) {
         this.e2eeManager = e2eeOptions.e2eeManager;
+        this.e2eeManager.isDataChannelEncryptionEnabled = dcEncryptionEnabled;
       } else {
         this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
       }
@@ -939,8 +940,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.isResuming
       ) {
         // try aborting pending connection attempt
-        this.log.warn('abort connection attempt', this.logContext);
-        this.abortController?.abort();
+        const msg = 'Abort connection attempt due to user initiated disconnect';
+        this.log.warn(msg, this.logContext);
+        this.abortController?.abort(msg);
         // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
         this.connectFuture?.reject?.(
           new ConnectionError('Client initiated disconnect', ConnectionErrorReason.Cancelled),

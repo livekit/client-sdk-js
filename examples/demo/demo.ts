@@ -643,6 +643,14 @@ const appActions = {
       currentRoom?.remoteParticipants.forEach((p) => {
         p.trackPublications.forEach((rp) => rp.setSubscribed(false));
       });
+    } else if (scenario === 'mute-all') {
+      currentRoom?.remoteParticipants.forEach((p) => {
+        p.trackPublications.forEach((rp) => rp.setEnabled(false));
+      });
+    } else if (scenario === 'unmute-all') {
+      currentRoom?.remoteParticipants.forEach((p) => {
+        p.trackPublications.forEach((rp) => rp.setEnabled(true));
+      });
     } else if (scenario !== '') {
       currentRoom?.simulateScenario(scenario as SimulationScenario);
       (<HTMLSelectElement>e.target).value = '';
