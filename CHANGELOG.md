@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.15.9
+
+### Patch Changes
+
+- Populate participant identity when receiving encrypted e2ee packets - [#1679](https://github.com/livekit/client-sdk-js/pull/1679) ([@lukasIO](https://github.com/lukasIO))
+
+- Export supportsAudioOutputSelection helper - [#1676](https://github.com/livekit/client-sdk-js/pull/1676) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix bug in isResponseExpired token expiry checking logic - [#1683](https://github.com/livekit/client-sdk-js/pull/1683) ([@1egoman](https://github.com/1egoman))
+
+- Use WebSocketStream for sequential signal processing - [#1638](https://github.com/livekit/client-sdk-js/pull/1638) ([@lukasIO](https://github.com/lukasIO))
+
+- Support for data channel encryption on React-Native - [#1678](https://github.com/livekit/client-sdk-js/pull/1678) ([@davidliu](https://github.com/davidliu))
+
+- Single peer connection support - [#1682](https://github.com/livekit/client-sdk-js/pull/1682) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.8
 
 ### Patch Changes
