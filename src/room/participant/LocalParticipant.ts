@@ -1771,9 +1771,9 @@ export default class LocalParticipant extends Participant {
     destinationIdentity,
     method,
     payload,
-    responseTimeout = 10000,
+    responseTimeout = 15000,
   }: PerformRpcParams): Promise<string> {
-    const maxRoundTripLatency = 2000;
+    const maxRoundTripLatency = 7000;
 
     return new Promise(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
