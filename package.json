@@ -7,14 +7,24 @@
   "module": "./dist/livekit-client.esm.mjs",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "import": "./dist/livekit-client.esm.mjs",
-      "require": "./dist/livekit-client.umd.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/livekit-client.esm.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/livekit-client.umd.js"
+      }
     },
     "./e2ee-worker": {
-      "types": "./dist/src/e2ee/worker/e2ee.worker.d.ts",
-      "import": "./dist/livekit-client.e2ee.worker.mjs",
-      "require": "./dist/livekit-client.e2ee.worker.js"
+      "import": {
+        "types": "./dist/e2ee.worker.d.mts",
+        "default": "./dist/livekit-client.e2ee.worker.esm.mjs"
+      },
+      "require": {
+        "types": "./dist/e2ee.worker.d.ts",
+        "default": "./dist/livekit-client.e2ee.worker.umd.js"
+      }
     }
   },
   "files": [
@@ -36,7 +46,7 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build": "node ./rolldown-build.mjs && pnpm downlevel-dts",
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
@@ -50,9 +60,10 @@
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
     "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
-    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
+    "downlevel-dts": "downlevel-dts ./dist ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
-    "size-limit": "size-limit"
+    "size-limit": "size-limit",
+    "publint": "publint ."
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
@@ -88,6 +99,7 @@
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
+    "@typescript/native-preview": "7.0.0-dev.20250922.1",
     "downlevel-dts": "^0.11.0",
     "eslint": "8.57.1",
     "eslint-config-airbnb-typescript": "18.0.0",
@@ -98,9 +110,10 @@
     "happy-dom": "^17.2.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
-    "rollup": "4.52.3",
-    "rollup-plugin-delete": "^2.1.0",
-    "rollup-plugin-typescript2": "0.36.0",
+    "rolldown": "1.0.0-beta.41",
+    "rolldown-plugin-dts": "^0.16.11",
+    "rollup-plugin-esbuild": "^6.2.1",
+    "publint": "^0.3.14",
     "size-limit": "^11.2.0",
     "typedoc": "0.28.13",
     "typedoc-plugin-no-inherit": "1.6.1",
