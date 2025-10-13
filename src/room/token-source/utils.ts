@@ -5,16 +5,21 @@ import type { RoomConfigurationObject, TokenPayload } from './types';
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
-export function isResponseExpired(response: TokenSourceResponse) {
+export function isResponseTokenValid(response: TokenSourceResponse) {
   const jwtPayload = decodeTokenPayload(response.participantToken);
-  if (!jwtPayload?.exp) {
+  if (!jwtPayload?.nbf || !jwtPayload?.exp) {
     return true;
   }
-  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
-  const expiresAt = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
 
   const now = new Date();
-  return expiresAt >= now;
+
+  const nbfInMilliseconds = jwtPayload.nbf * ONE_SECOND_IN_MILLISECONDS;
+  const nbfDate = new Date(nbfInMilliseconds);
+
+  const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
+  const expDate = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
+
+  return nbfDate <= now && expDate > now;
 }
 
 export function decodeTokenPayload(token: string) {

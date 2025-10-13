@@ -11,7 +11,7 @@ import {
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './types';
-import { decodeTokenPayload, isResponseExpired } from './utils';
+import { decodeTokenPayload, isResponseTokenValid } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
@@ -56,7 +56,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     if (!this.cachedResponse) {
       return false;
     }
-    if (isResponseExpired(this.cachedResponse)) {
+    if (!isResponseTokenValid(this.cachedResponse)) {
       return false;
     }
     if (this.isSameAsCachedFetchOptions(fetchOptions)) {
