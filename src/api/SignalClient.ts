@@ -297,7 +297,12 @@ export class SignalClient {
         const abortHandler = async (event: Event) => {
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter) {
-            await this.sendLeave().then(() => this.close());
+            await this.sendLeave()
+              .then(() => this.close())
+              .catch((e) => {
+                this.log.error(e);
+                this.close();
+              });
           } else {
             this.close();
           }
