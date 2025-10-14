@@ -503,7 +503,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      this.log.debug('received server answer', { ...this.logContext, RTCSdpType: sd.type });
+      this.log.debug('received server answer', {
+        ...this.logContext,
+        RTCSdpType: sd.type,
+        sdp: sd.sdp,
+      });
       await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
