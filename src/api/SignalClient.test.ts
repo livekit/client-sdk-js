@@ -272,9 +272,6 @@ describe('SignalClient.connect', () => {
       // Now abort the connection (after WS opens, before join response)
       abortController.abort(new Error('User aborted connection'));
 
-      // Wait for abort handler to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
       // joinPromise should reject
       await expect(joinPromise).rejects.toThrow('User aborted connection');
 
