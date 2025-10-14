@@ -192,6 +192,10 @@ export default class RemoteParticipant extends Participant {
     // when we couldn't locate the track, it's possible that the metadata hasn't
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
+      this.log.warn('could not find publication on first try', {
+        ...this.logContext,
+        trackSid: sid,
+      });
       if (triesLeft === 0) {
         this.log.error('could not find published track', {
           ...this.logContext,
