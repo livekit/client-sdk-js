@@ -111,7 +111,7 @@ export interface InternalRoomOptions {
 /**
  * Options for when creating a new room
  */
-export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
+export interface RoomOptions extends Partial<InternalRoomOptions> {}
 
 /**
  * @internal
