@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.15.10
+
+### Patch Changes
+
+- Ensure leave requests can be sent before join response is received - [#1687](https://github.com/livekit/client-sdk-js/pull/1687) ([@lukasIO](https://github.com/lukasIO))
+
+- Increase RPC total timeout to 15s and connection timeout to 7s for better reliability under network latency. - [#1692](https://github.com/livekit/client-sdk-js/pull/1692) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+- Add sdp to answer debug log - [#1689](https://github.com/livekit/client-sdk-js/pull/1689) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.9
 
 ### Patch Changes
