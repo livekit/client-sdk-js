@@ -295,7 +295,17 @@ export class SignalClient {
         const combinedAbort = AbortSignal.any(signals);
 
         const abortHandler = async (event: Event) => {
-          this.close();
+          // send leave if we have an active stream writer (connection is open)
+          if (this.streamWriter) {
+            this.sendLeave()
+              .then(() => this.close())
+              .catch((e) => {
+                this.log.error(e);
+                this.close();
+              });
+          } else {
+            this.close();
+          }
           clearTimeout(wsTimeout);
           const target = event.currentTarget;
           reject(target instanceof AbortSignal ? target.reason : target);
@@ -383,6 +393,7 @@ export class SignalClient {
             return;
           }
           const signalReader = connection.readable.getReader();
+          this.streamWriter = connection.writable.getWriter();
           const firstMessage = await signalReader.read();
           signalReader.releaseLock();
           if (!firstMessage.value) {
@@ -885,7 +896,6 @@ export class SignalClient {
     clearTimeout(timeoutHandle);
     this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
-    this.streamWriter = connection.writable.getWriter();
   }
 
   /**

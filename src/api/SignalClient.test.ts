@@ -1,4 +1,10 @@
-import { JoinResponse, LeaveRequest, ReconnectResponse, SignalResponse } from '@livekit/protocol';
+import {
+  JoinResponse,
+  LeaveRequest,
+  ReconnectResponse,
+  SignalRequest,
+  SignalResponse,
+} from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import { SignalClient, SignalConnectionState } from './SignalClient';
@@ -84,6 +90,7 @@ describe('SignalClient.connect', () => {
     maxRetries: 0,
     e2eeEnabled: false,
     websocketTimeout: 1000,
+    singlePeerConnection: false,
   };
 
   beforeEach(() => {
@@ -201,6 +208,89 @@ describe('SignalClient.connect', () => {
           abortController.signal,
         ),
       ).rejects.toThrow('User aborted connection');
+    });
+
+    it('should send leave request before closing when AbortSignal is triggered during connection', async () => {
+      const abortController = new AbortController();
+      const writtenMessages: Array<ArrayBuffer | string> = [];
+      let streamWriterReady: (() => void) | undefined;
+      const streamWriterReadyPromise = new Promise<void>((resolve) => {
+        streamWriterReady = resolve;
+      });
+
+      // Create a mock writable stream that captures writes
+      const mockWritable = new WritableStream({
+        write(chunk) {
+          writtenMessages.push(chunk);
+          return Promise.resolve();
+        },
+      });
+
+      // Override getWriter to signal when streamWriter is assigned
+      const originalGetWriter = mockWritable.getWriter.bind(mockWritable);
+      mockWritable.getWriter = () => {
+        const writer = originalGetWriter();
+        streamWriterReady?.();
+        return writer;
+      };
+
+      const mockReadable = new ReadableStream<ArrayBuffer>({
+        async start() {
+          // Keep connection open but don't send join response yet
+          // This simulates aborting during connection (after WS opens, before join response)
+        },
+      });
+
+      const mockConnection = {
+        readable: mockReadable,
+        writable: mockWritable,
+        protocol: '',
+        extensions: '',
+      };
+
+      vi.mocked(WebSocketStream).mockImplementation(() => {
+        return {
+          url: 'wss://test.livekit.io',
+          opened: Promise.resolve(mockConnection),
+          closed: new Promise(() => {}),
+          close: vi.fn(),
+          readyState: 1,
+        } as any;
+      });
+
+      // Start the connection
+      const joinPromise = signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        abortController.signal,
+      );
+
+      // Wait for streamWriter to be assigned
+      await streamWriterReadyPromise;
+
+      // Now abort the connection (after WS opens, before join response)
+      abortController.abort(new Error('User aborted connection'));
+
+      // joinPromise should reject
+      await expect(joinPromise).rejects.toThrow('User aborted connection');
+
+      // Verify that a leave request was sent before closing
+      const leaveRequestSent = writtenMessages.some((data) => {
+        if (typeof data === 'string') {
+          return false;
+        }
+        try {
+          const request = SignalRequest.fromBinary(
+            data instanceof ArrayBuffer ? new Uint8Array(data) : data,
+          );
+          return request.message?.case === 'leave';
+        } catch {
+          return false;
+        }
+      });
+
+      expect(leaveRequestSent).toBe(true);
     });
   });
 
@@ -429,6 +519,7 @@ describe('SignalClient.handleSignalConnected', () => {
     maxRetries: 0,
     e2eeEnabled: false,
     websocketTimeout: 1000,
+    singlePeerConnection: false,
   };
 
   beforeEach(() => {
@@ -445,17 +536,6 @@ describe('SignalClient.handleSignalConnected', () => {
     if (handleMethod) {
       handleMethod.call(signalClient, mockConnection);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
-    }
-  });
-
-  it('should set up stream writer from connection writable', () => {
-    const mockReadable = new ReadableStream<ArrayBuffer>();
-    const mockConnection = createMockConnection(mockReadable);
-
-    const handleMethod = (signalClient as any).handleSignalConnected;
-    if (handleMethod) {
-      handleMethod.call(signalClient, mockConnection);
-      expect((signalClient as any).streamWriter).toBeDefined();
     }
   });
 
@@ -495,6 +575,7 @@ describe('SignalClient.validateFirstMessage', () => {
     maxRetries: 0,
     e2eeEnabled: false,
     websocketTimeout: 1000,
+    singlePeerConnection: false,
   };
 
   beforeEach(() => {
