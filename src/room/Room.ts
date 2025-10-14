@@ -1370,6 +1370,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       const reconnectedHandler = () => {
+        this.log.debug('deferring on track for later', {
+          mediaTrackId: mediaTrack.id,
+          mediaStreamId: stream.id,
+          tracksInStream: stream.getTracks().map((track) => track.id),
+        });
         this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
       };
@@ -2541,6 +2546,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (event !== RoomEvent.ActiveSpeakersChanged && event !== RoomEvent.TranscriptionReceived) {
       // only extract logContext from arguments in order to avoid logging the whole object tree
       const minimizedArgs = mapArgs(args).filter((arg: unknown) => arg !== undefined);
+      if (event === 'trackSubscribed' || event === 'trackUnsubscribed') {
+        this.log.trace(`subscribe trace: ${event}`, {
+          ...this.logContext,
+          event,
+          args: minimizedArgs,
+        });
+      }
       this.log.debug(`room event ${event}`, { ...this.logContext, event, args: minimizedArgs });
     }
     return super.emit(event, ...args);
