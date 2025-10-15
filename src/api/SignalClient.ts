@@ -296,7 +296,7 @@ export class SignalClient {
 
         const abortHandler = async (event: Event) => {
           // send leave if we have an active stream writer (connection is open)
-          if (this.streamWriter) {
+          if (this.streamWriter && !this.isDisconnected) {
             this.sendLeave()
               .then(() => this.close())
               .catch((e) => {
@@ -341,7 +341,7 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl, { signal: combinedAbort });
+        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
           this.ws.closed
