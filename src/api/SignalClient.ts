@@ -119,9 +119,17 @@ export class SignalClient {
 
   onClose?: (reason: string) => void;
 
-  onAnswer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
+  onAnswer?: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
 
-  onOffer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
+  onOffer?: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
 
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
@@ -161,12 +169,6 @@ export class SignalClient {
   onRoomMoved?: (res: RoomMovedResponse) => void;
 
   onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
-
-  onMappedAnswer?: (
-    sd: RTCSessionDescriptionInit,
-    offerId: number,
-    midToTrackId: { [key: string]: string },
-  ) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -486,7 +488,6 @@ export class SignalClient {
     this.onTrickle = undefined;
     this.onClose = undefined;
     this.onMediaSectionsRequirement = undefined;
-    this.onMappedAnswer = undefined;
   };
 
   async close(updateState: boolean = true) {
@@ -716,12 +717,12 @@ export class SignalClient {
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
-        this.onAnswer(sd, msg.value.id);
+        this.onAnswer(sd, msg.value.id, msg.value.midToTrackId);
       }
     } else if (msg.case === 'offer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onOffer) {
-        this.onOffer(sd, msg.value.id);
+        this.onOffer(sd, msg.value.id, msg.value.midToTrackId);
       }
     } else if (msg.case === 'trickle') {
       const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
@@ -803,11 +804,6 @@ export class SignalClient {
     } else if (msg.case === 'mediaSectionsRequirement') {
       if (this.onMediaSectionsRequirement) {
         this.onMediaSectionsRequirement(msg.value);
-      }
-    } else if (msg.case === 'mappedAnswer') {
-      const sd = fromProtoSessionDescription(msg.value.sessionDescription!);
-      if (this.onMappedAnswer) {
-        this.onMappedAnswer(sd, msg.value.sessionDescription!.id, msg.value.midToTrackId);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

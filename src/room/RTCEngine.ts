@@ -501,7 +501,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private setupSignalClientCallbacks() {
     // configure signaling client
-    this.client.onAnswer = async (sd, offerId) => {
+    this.client.onAnswer = async (sd, offerId, midToTrackId) => {
       if (!this.pcManager) {
         return;
       }
@@ -509,7 +509,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         ...this.logContext,
         RTCSdpType: sd.type,
         sdp: sd.sdp,
+        midToTrackId: midToTrackId,
       });
+      this.midToTrackId = midToTrackId;
       await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
@@ -523,11 +525,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     // when server creates an offer for the client
-    this.client.onOffer = async (sd, offerId) => {
+    this.client.onOffer = async (sd, offerId, midToTrackId) => {
       this.latestRemoteOfferId = offerId;
       if (!this.pcManager) {
         return;
       }
+      this.midToTrackId = midToTrackId;
       const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd, offerId);
       if (answer) {
         this.client.sendAnswer(answer, offerId);
@@ -590,22 +593,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.negotiate();
-    };
-
-    this.client.onMappedAnswer = async (sd, offerId, midToTrackId) => {
-      if (!this.pcManager) {
-        return;
-      }
-
-      this.log.debug('received mapped server answer', {
-        ...this.logContext,
-        RTCSdpType: sd.type,
-        sdp: sd.sdp,
-        midToTrackId: midToTrackId,
-      });
-
-      this.midToTrackId = midToTrackId;
-      await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
     this.client.onClose = () => {
