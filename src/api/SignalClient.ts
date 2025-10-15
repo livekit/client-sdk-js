@@ -51,7 +51,12 @@ import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
-import { createRtcUrl, createValidateUrl, parseSignalResponse } from './utils';
+import {
+  createRtcUrl,
+  createValidateUrl,
+  getAbortReasonAsString,
+  parseSignalResponse,
+} from './utils';
 
 // internal options
 interface ConnectOpts extends SignalOptions {
@@ -295,10 +300,12 @@ export class SignalClient {
         const combinedAbort = AbortSignal.any(signals);
 
         const abortHandler = async (event: Event) => {
+          const target = event.currentTarget;
+          const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
-          if (this.streamWriter) {
+          if (this.streamWriter && !this.isDisconnected) {
             this.sendLeave()
-              .then(() => this.close())
+              .then(() => this.close(reason))
               .catch((e) => {
                 this.log.error(e);
                 this.close();
@@ -307,7 +314,6 @@ export class SignalClient {
             this.close();
           }
           clearTimeout(wsTimeout);
-          const target = event.currentTarget;
           reject(target instanceof AbortSignal ? target.reason : target);
         };
 
@@ -341,7 +347,7 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl, { signal: combinedAbort });
+        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
           this.ws.closed
@@ -482,7 +488,7 @@ export class SignalClient {
     this.onMediaSectionsRequirement = undefined;
   };
 
-  async close(updateState: boolean = true) {
+  async close(updateState: boolean = true, reason = 'Close method called on signal client') {
     const unlock = await this.closingLock.lock();
     try {
       this.clearPingInterval();
@@ -490,7 +496,7 @@ export class SignalClient {
         this.state = SignalConnectionState.DISCONNECTING;
       }
       if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason: 'Close method called on signal client' });
+        this.ws.close({ closeCode: 1000, reason });
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
         const closePromise = this.ws.closed;
@@ -818,7 +824,7 @@ export class SignalClient {
   private async handleOnClose(reason: string) {
     if (this.state === SignalConnectionState.DISCONNECTED) return;
     const onCloseCallback = this.onClose;
-    await this.close();
+    await this.close(undefined, reason);
     this.log.debug(`websocket connection closed: ${reason}`, { ...this.logContext, reason });
     if (onCloseCallback) {
       onCloseCallback(reason);

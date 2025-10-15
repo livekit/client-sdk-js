@@ -31,3 +31,21 @@ export function parseSignalResponse(value: ArrayBuffer | string) {
   }
   throw new Error(`could not decode websocket message: ${typeof value}`);
 }
+
+export function getAbortReasonAsString(
+  signal: AbortSignal | unknown,
+  defaultMessage = 'Unknown reason',
+) {
+  if (!(signal instanceof AbortSignal)) {
+    return defaultMessage;
+  }
+  const reason = signal.reason;
+  switch (typeof reason) {
+    case 'string':
+      return reason;
+    case 'object':
+      return reason instanceof Error ? reason.message : defaultMessage;
+    default:
+      return 'toString' in reason ? reason.toString() : defaultMessage;
+  }
+}
