@@ -11,7 +11,12 @@ export interface PerformRpcParams {
   method: string;
   /** The method payload */
   payload: string;
-  /** Timeout for receiving a response after initial connection (milliseconds). Default: 10000 */
+  /**
+   * Timeout for receiving a response after the initial connection (milliseconds).
+   * If a value less than 8000ms is provided, it will be automatically clamped to 8000ms
+   * to ensure sufficient time for round-trip latency buffering.
+   * Default: 15000ms.
+   */
   responseTimeout?: number;
 }
 

@@ -1774,6 +1774,7 @@ export default class LocalParticipant extends Participant {
     responseTimeout = 15000,
   }: PerformRpcParams): Promise<string> {
     const maxRoundTripLatency = 7000;
+    const minEffectiveTimeout = maxRoundTripLatency + 1000;
 
     return new Promise(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
@@ -1789,14 +1790,9 @@ export default class LocalParticipant extends Participant {
         return;
       }
 
+      const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
       const id = crypto.randomUUID();
-      await this.publishRpcRequest(
-        destinationIdentity,
-        id,
-        method,
-        payload,
-        responseTimeout - maxRoundTripLatency,
-      );
+      await this.publishRpcRequest(destinationIdentity, id, method, payload, effectiveTimeout);
 
       const ackTimeoutId = setTimeout(() => {
         this.pendingAcks.delete(id);
