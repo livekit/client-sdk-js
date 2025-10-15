@@ -1437,11 +1437,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       trackId = id;
     }
     if (!trackId.startsWith('TR')) {
-      this.log.error(
+      this.log.warn(
         `Tried to add a track whose 'sid' could not be determined for a participant, that's not present. Sid: ${participantSid}, streamId: ${streamId}, trackId: ${trackId}`,
-        this.logContext,
+        { ...this.logContext, rpID: participantSid, streamId, trackId },
       );
-      return;
     }
 
     let adaptiveStreamSettings: AdaptiveStreamSettings | undefined;

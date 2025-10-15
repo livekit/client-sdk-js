@@ -40,7 +40,7 @@ import {
 } from '../../src/index';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
-setLogLevel(LogLevel.trace);
+setLogLevel(LogLevel.debug);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
