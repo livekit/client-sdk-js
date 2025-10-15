@@ -1792,13 +1792,7 @@ export default class LocalParticipant extends Participant {
 
       const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
       const id = crypto.randomUUID();
-      await this.publishRpcRequest(
-        destinationIdentity,
-        id,
-        method,
-        payload,
-        effectiveTimeout,
-      );
+      await this.publishRpcRequest(destinationIdentity, id, method, payload, effectiveTimeout);
 
       const ackTimeoutId = setTimeout(() => {
         this.pendingAcks.delete(id);
