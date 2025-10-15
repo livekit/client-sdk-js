@@ -162,6 +162,12 @@ export class SignalClient {
 
   onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
 
+  onMappedAnswer?: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocketStream;
@@ -480,6 +486,7 @@ export class SignalClient {
     this.onTrickle = undefined;
     this.onClose = undefined;
     this.onMediaSectionsRequirement = undefined;
+    this.onMappedAnswer = undefined;
   };
 
   async close(updateState: boolean = true) {
@@ -796,6 +803,11 @@ export class SignalClient {
     } else if (msg.case === 'mediaSectionsRequirement') {
       if (this.onMediaSectionsRequirement) {
         this.onMediaSectionsRequirement(msg.value);
+      }
+    } else if (msg.case === 'mappedAnswer') {
+      const sd = fromProtoSessionDescription(msg.value.sessionDescription!);
+      if (this.onMappedAnswer) {
+        this.onMappedAnswer(sd, msg.value.sessionDescription!.id, msg.value.midToTrackId);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

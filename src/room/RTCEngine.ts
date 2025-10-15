@@ -202,6 +202,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
+  private midToTrackId: { [key: string]: string } = {};
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -590,6 +592,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.negotiate();
     };
 
+    this.client.onMappedAnswer = async (sd, offerId, midToTrackId) => {
+      if (!this.pcManager) {
+        return;
+      }
+
+      this.log.debug('received mapped server answer', {
+        ...this.logContext,
+        RTCSdpType: sd.type,
+        sdp: sd.sdp,
+        midToTrackId: midToTrackId,
+      });
+
+      this.midToTrackId = midToTrackId;
+      await this.pcManager.setPublisherAnswer(sd, offerId);
+    };
+
     this.client.onClose = () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
@@ -860,7 +878,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addPublisherTransceiver(
+    const transceiver = this.pcManager.addPublisherTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );
@@ -882,7 +900,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addPublisherTransceiver(
+    const transceiver = this.pcManager.addPublisherTransceiver(
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
@@ -1627,6 +1645,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private deregisterOnLineListener() {
     if (isWeb()) {
       window.removeEventListener('online', this.handleBrowserOnLine);
+    }
+  }
+
+  getTrackIdForPublisherReceiver(receiver: RTCRtpReceiver): string | undefined {
+    const mid = this.pcManager?.getPublisherMidForReceiver(receiver);
+    if (mid) {
+      const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
+      if (match) {
+        return match[1];
+      }
     }
   }
 }

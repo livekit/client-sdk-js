@@ -256,6 +256,14 @@ export class PCTransportManager {
     return this.publisher.addTransceiverOfKind(kind, transceiverInit);
   }
 
+  getPublisherMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
+    const transceivers = this.publisher?.getTransceivers();
+    const matchingTransceiver = transceivers.find(
+      (transceiver) => transceiver.receiver === receiver,
+    );
+    return matchingTransceiver?.mid;
+  }
+
   addPublisherTrack(track: MediaStreamTrack) {
     return this.publisher.addTrack(track);
   }
