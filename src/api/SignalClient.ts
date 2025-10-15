@@ -314,7 +314,7 @@ export class SignalClient {
             this.close();
           }
           clearTimeout(wsTimeout);
-          reject(target);
+          reject(target instanceof AbortSignal ? target.reason : target);
         };
 
         combinedAbort.addEventListener('abort', abortHandler);
