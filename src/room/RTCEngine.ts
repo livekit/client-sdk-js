@@ -878,7 +878,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = this.pcManager.addPublisherTransceiver(
+    const transceiver = await this.pcManager.addPublisherTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );
@@ -900,7 +900,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = this.pcManager.addPublisherTransceiver(
+    const transceiver = await this.pcManager.addPublisherTransceiver(
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
