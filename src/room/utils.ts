@@ -142,8 +142,8 @@ export function isSVCCodec(codec?: string): boolean {
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document || isSafariBased()) {
-    return false;
+  if (!document || (!isSafariSpeakerSelectionSupported() && isSafariBased())) {
+    return false
   }
   if (!elm) {
     elm = document.createElement('audio');
@@ -202,6 +202,19 @@ export function isSafariSvcApi(browser?: BrowserDetails): boolean {
     (browser?.os === 'iOS' &&
       !!browser?.osVersion &&
       compareVersions(browser.osVersion, '18.3') > 0)
+  );
+}
+
+export function isSafariSpeakerSelectionSupported(browser?: BrowserDetails): boolean {
+  if (!browser) {
+    browser = getBrowser();
+  }
+  // Safari (macOS or iOS) since version 26
+  // https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes#WebRTC
+  return (
+    (browser?.name === 'Safari' && compareVersions(browser.version, '26') >= 0) ||
+    (browser?.os === 'iOS' && !!browser?.osVersion && compareVersions(browser.osVersion, '26') >= 0) ||
+    (browser?.os === 'macOS' && !!browser?.osVersion && compareVersions(browser.osVersion, '26') >= 0)
   );
 }
 
