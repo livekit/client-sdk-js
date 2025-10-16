@@ -1635,8 +1635,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  getTrackIdForPublisherReceiver(receiver: RTCRtpReceiver): string | undefined {
-    const mid = this.pcManager?.getPublisherMidForReceiver(receiver);
+  getTrackIdForReceiver(receiver: RTCRtpReceiver): string | undefined {
+    const mid = this.pcManager?.getMidForReceiver(receiver);
     if (mid) {
       const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
       if (match) {

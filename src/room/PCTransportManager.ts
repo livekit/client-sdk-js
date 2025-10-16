@@ -256,8 +256,10 @@ export class PCTransportManager {
     return this.publisher.addTransceiverOfKind(kind, transceiverInit);
   }
 
-  getPublisherMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
-    const transceivers = this.publisher?.getTransceivers();
+  getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
+    const transceivers = this.subscriber
+      ? this.subscriber.getTransceivers()
+      : this.publisher?.getTransceivers();
     const matchingTransceiver = transceivers.find(
       (transceiver) => transceiver.receiver === receiver,
     );
