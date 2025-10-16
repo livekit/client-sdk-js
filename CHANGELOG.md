@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.15.11
+
+### Patch Changes
+
+- Fix abort race resulting in multiple code paths trying to close the ws connection - [#1695](https://github.com/livekit/client-sdk-js/pull/1695) ([@lukasIO](https://github.com/lukasIO))
+
+- fix the RPC comment and clam the timeout if the provided value is less than 8s - [#1694](https://github.com/livekit/client-sdk-js/pull/1694) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+- Fix track mapping when single peer connectionis used - [#1696](https://github.com/livekit/client-sdk-js/pull/1696) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.10
 
 ### Patch Changes
