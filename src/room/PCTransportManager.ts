@@ -259,7 +259,7 @@ export class PCTransportManager {
   getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
     const transceivers = this.subscriber
       ? this.subscriber.getTransceivers()
-      : this.publisher?.getTransceivers();
+      : this.publisher.getTransceivers();
     const matchingTransceiver = transceivers.find(
       (transceiver) => transceiver.receiver === receiver,
     );

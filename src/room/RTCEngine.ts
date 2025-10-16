@@ -509,7 +509,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         ...this.logContext,
         RTCSdpType: sd.type,
         sdp: sd.sdp,
-        midToTrackId: midToTrackId,
+        midToTrackId,
       });
       this.midToTrackId = midToTrackId;
       await this.pcManager.setPublisherAnswer(sd, offerId);
