@@ -124,9 +124,17 @@ export class SignalClient {
 
   onClose?: (reason: string) => void;
 
-  onAnswer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
+  onAnswer?: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
 
-  onOffer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
+  onOffer?: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
 
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
@@ -715,12 +723,12 @@ export class SignalClient {
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
-        this.onAnswer(sd, msg.value.id);
+        this.onAnswer(sd, msg.value.id, msg.value.midToTrackId);
       }
     } else if (msg.case === 'offer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onOffer) {
-        this.onOffer(sd, msg.value.id);
+        this.onOffer(sd, msg.value.id, msg.value.midToTrackId);
       }
     } else if (msg.case === 'trickle') {
       const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);

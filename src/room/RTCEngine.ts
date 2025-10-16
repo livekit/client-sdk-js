@@ -202,6 +202,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
+  private midToTrackId: { [key: string]: string } = {};
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -499,7 +501,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private setupSignalClientCallbacks() {
     // configure signaling client
-    this.client.onAnswer = async (sd, offerId) => {
+    this.client.onAnswer = async (sd, offerId, midToTrackId) => {
       if (!this.pcManager) {
         return;
       }
@@ -507,7 +509,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         ...this.logContext,
         RTCSdpType: sd.type,
         sdp: sd.sdp,
+        midToTrackId,
       });
+      this.midToTrackId = midToTrackId;
       await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
@@ -521,11 +525,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     // when server creates an offer for the client
-    this.client.onOffer = async (sd, offerId) => {
+    this.client.onOffer = async (sd, offerId, midToTrackId) => {
       this.latestRemoteOfferId = offerId;
       if (!this.pcManager) {
         return;
       }
+      this.midToTrackId = midToTrackId;
       const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd, offerId);
       if (answer) {
         this.client.sendAnswer(answer, offerId);
@@ -1627,6 +1632,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private deregisterOnLineListener() {
     if (isWeb()) {
       window.removeEventListener('online', this.handleBrowserOnLine);
+    }
+  }
+
+  getTrackIdForReceiver(receiver: RTCRtpReceiver): string | undefined {
+    const mid = this.pcManager?.getMidForReceiver(receiver);
+    if (mid) {
+      const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
+      if (match) {
+        return match[1];
+      }
     }
   }
 }
