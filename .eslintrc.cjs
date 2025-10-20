@@ -1,6 +1,12 @@
 module.exports = {
   root: true,
-  extends: ['plugin:import/recommended', 'airbnb-typescript/base', 'prettier'],
+  plugins: ['compat'],
+  extends: [
+    'plugin:import/recommended',
+    'airbnb-typescript/base',
+    'prettier',
+    'plugin:compat/recommended',
+  ],
   parserOptions: {
     project: './tsconfig.eslint.json',
   },
@@ -14,5 +20,8 @@ module.exports = {
     'class-methods-use-this': 'off',
     'no-underscore-dangle': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
+  },
+  env: {
+    browser: true,
   },
 };
