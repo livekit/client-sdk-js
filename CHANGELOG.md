@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.15.12
+
+### Patch Changes
+
+- Remove AbortSignal.any usage - [#1700](https://github.com/livekit/client-sdk-js/pull/1700) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.11
 
 ### Patch Changes
