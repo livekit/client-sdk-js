@@ -392,7 +392,8 @@ await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", 
 
 #### TokenSource.Custom
 A fully custom configurable token source that allows you to consume any end application-specific
-token generation mechanism.
+token generation mechanism. Tokens that are generated are cached and used until they expire or the
+options passed into `fetch` change.
 
 Note that it is expected that all options passed into `fetch` will always be encoded into the
 output token. If you'd rather implement a fixed version of this TokenSource, see
