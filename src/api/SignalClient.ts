@@ -301,13 +301,12 @@ export class SignalClient {
       try {
         const timeoutAbortController = new AbortController();
 
-        const signals = abortSignal
-          ? [timeoutAbortController.signal, abortSignal]
-          : [timeoutAbortController.signal];
-
-        const combinedAbort = AbortSignal.any(signals);
-
+        let alreadyAborted = false;
         const abortHandler = async (event: Event) => {
+          if (alreadyAborted) {
+            return;
+          }
+          alreadyAborted = true;
           const target = event.currentTarget;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
@@ -325,7 +324,8 @@ export class SignalClient {
           reject(target instanceof AbortSignal ? target.reason : target);
         };
 
-        combinedAbort.addEventListener('abort', abortHandler);
+        timeoutAbortController.signal.addEventListener('abort', abortHandler);
+        abortSignal?.addEventListener('abort', abortHandler);
 
         const wsTimeout = setTimeout(() => {
           timeoutAbortController.abort(
