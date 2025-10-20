@@ -33,7 +33,7 @@ export function parseSignalResponse(value: ArrayBuffer | string) {
 }
 
 export function getAbortReasonAsString(
-  signal: AbortSignal | unknown,
+  signal: AbortSignal | Error | unknown,
   defaultMessage = 'Unknown reason',
 ) {
   if (!(signal instanceof AbortSignal)) {
