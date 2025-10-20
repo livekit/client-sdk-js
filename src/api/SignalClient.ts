@@ -299,16 +299,13 @@ export class SignalClient {
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
-        const timeoutAbortController = new AbortController();
-
-        const signals = abortSignal
-          ? [timeoutAbortController.signal, abortSignal]
-          : [timeoutAbortController.signal];
-
-        const combinedAbort = AbortSignal.any(signals);
-
-        const abortHandler = async (event: Event) => {
-          const target = event.currentTarget;
+        let alreadyAborted = false;
+        const abortHandler = async (eventOrError: Event | Error) => {
+          if (alreadyAborted) {
+            return;
+          }
+          alreadyAborted = true;
+          const target = eventOrError instanceof Event ? eventOrError.currentTarget : eventOrError;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
@@ -321,14 +318,19 @@ export class SignalClient {
           } else {
             this.close();
           }
-          clearTimeout(wsTimeout);
+          cleanupAbortHandlers();
           reject(target instanceof AbortSignal ? target.reason : target);
         };
 
-        combinedAbort.addEventListener('abort', abortHandler);
+        abortSignal?.addEventListener('abort', abortHandler);
+
+        const cleanupAbortHandlers = () => {
+          clearTimeout(wsTimeout);
+          abortSignal?.removeEventListener('abort', abortHandler);
+        };
 
         const wsTimeout = setTimeout(() => {
-          timeoutAbortController.abort(
+          abortHandler(
             new ConnectionError(
               'room connection has timed out (signal)',
               ConnectionErrorReason.ServerUnreachable,
@@ -451,8 +453,9 @@ export class SignalClient {
           handleSignalConnected(connection, firstMessageToProcess);
           resolve(validation.response);
         } catch (e) {
-          clearTimeout(wsTimeout);
           reject(e);
+        } finally {
+          cleanupAbortHandlers();
         }
       } finally {
         unlock();
