@@ -11,7 +11,7 @@ import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { Future, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
+import { Future, isChromiumBased, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -455,7 +455,12 @@ export class E2EEManager
       return;
     }
 
-    if (isScriptTransformSupported()) {
+    if (
+      isScriptTransformSupported() &&
+      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+      // Disabling it for Chrome based browsers until the API has stabilized
+      !isChromiumBased()
+    ) {
       const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
@@ -526,7 +531,12 @@ export class E2EEManager
       throw TypeError('local identity needs to be known in order to set up encrypted sender');
     }
 
-    if (isScriptTransformSupported()) {
+    if (
+      isScriptTransformSupported() &&
+      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+      // Disabling it for Chrome based browsers until the API has stabilized
+      !isChromiumBased()
+    ) {
       log.info('initialize script transform');
       const options = {
         kind: 'encode',

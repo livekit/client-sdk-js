@@ -172,7 +172,8 @@ export function isFireFox(): boolean {
 }
 
 export function isChromiumBased(): boolean {
-  return getBrowser()?.name === 'Chrome';
+  const browser = getBrowser();
+  return !!browser && browser.name === 'Chrome' && browser.os !== 'iOS';
 }
 
 export function isSafari(): boolean {
