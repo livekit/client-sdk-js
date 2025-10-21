@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.15.13
+
+### Patch Changes
+
+- Disable ScriptTransform for Chromium based browsers - [#1703](https://github.com/livekit/client-sdk-js/pull/1703) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.12
 
 ### Patch Changes
