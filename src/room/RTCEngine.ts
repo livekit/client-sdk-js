@@ -603,7 +603,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
       if (leave.regions && this.regionUrlProvider) {
         this.log.debug('updating regions', this.logContext);
-        this.regionUrlProvider.setServerReportedRegions(leave.regions);
+        this.regionUrlProvider.setServerReportedRegions({
+          updatedAtInMs: Date.now(),
+          maxAgeInMs: 5_000,
+          regionSettings: leave.regions,
+        });
       }
       switch (leave.action) {
         case LeaveRequest_Action.DISCONNECT:
