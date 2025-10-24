@@ -249,6 +249,7 @@ export {
   type TokenSourceCustom,
   type TokenSourceEndpoint,
   type TokenSourceSandboxTokenServer,
+  decodeTokenPayload,
 };
 
 export const TokenSource = {

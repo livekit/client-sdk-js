@@ -22,6 +22,7 @@ export function isResponseTokenValid(response: TokenSourceResponse) {
   return nbfDate <= now && expDate > now;
 }
 
+/** Given a LiveKit generated participant token, decodes and returns the associated {@link TokenPayload} data. */
 export function decodeTokenPayload(token: string) {
   const payload = decodeJwt<Omit<TokenPayload, 'roomConfig'>>(token);
 
