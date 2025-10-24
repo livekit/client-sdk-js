@@ -3,16 +3,19 @@ import log from '../logger';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
+const DEFAULT_MAX_AGE_MS = 5_000;
+
+type CachedRegionSettings = {
+  regionSettings: RegionSettings;
+  updatedAtInMs: number;
+  maxAgeInMs: number;
+};
 export class RegionUrlProvider {
+  private static cache: Map<string, CachedRegionSettings>;
+
   private serverUrl: URL;
 
   private token: string;
-
-  private regionSettings: RegionSettings | undefined;
-
-  private lastUpdateAt: number = 0;
-
-  private settingsCacheTimeInMs = 3_000;
 
   private attemptedRegions: RegionInfo[] = [];
 
@@ -37,10 +40,15 @@ export class RegionUrlProvider {
     if (!this.isCloud()) {
       throw Error('region availability is only supported for LiveKit Cloud domains');
     }
-    if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTimeInMs) {
-      this.regionSettings = await this.fetchRegionSettings(abortSignal);
+
+    let cachedSettings = RegionUrlProvider.cache.get(this.serverUrl.host);
+
+    if (!cachedSettings || Date.now() - cachedSettings.updatedAtInMs > cachedSettings.maxAgeInMs) {
+      cachedSettings = await this.fetchRegionSettings(abortSignal);
+      RegionUrlProvider.cache.set(this.serverUrl.host, cachedSettings);
     }
-    const regionsLeft = this.regionSettings.regions.filter(
+
+    const regionsLeft = cachedSettings.regionSettings.regions.filter(
       (region) => !this.attemptedRegions.find((attempted) => attempted.url === region.url),
     );
     if (regionsLeft.length > 0) {
@@ -58,20 +66,17 @@ export class RegionUrlProvider {
   }
 
   /* @internal */
-  async fetchRegionSettings(signal?: AbortSignal) {
+  async fetchRegionSettings(signal?: AbortSignal): Promise<CachedRegionSettings> {
     const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
       headers: { authorization: `Bearer ${this.token}` },
       signal,
     });
     if (regionSettingsResponse.ok) {
       const maxAge = extractMaxAgeFromRequestHeaders(regionSettingsResponse.headers);
-      if (maxAge) {
-        log.debug(`setting local region settings cache time to ${maxAge} seconds`);
-        this.settingsCacheTimeInMs = maxAge * 1000;
-      }
+      const maxAgeInMs = maxAge ? maxAge * 1000 : DEFAULT_MAX_AGE_MS;
+
       const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
-      this.lastUpdateAt = Date.now();
-      return regionSettings;
+      return { regionSettings, updatedAtInMs: Date.now(), maxAgeInMs };
     } else {
       throw new ConnectionError(
         `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
@@ -83,9 +88,12 @@ export class RegionUrlProvider {
     }
   }
 
-  setServerReportedRegions(regions: RegionSettings) {
-    this.regionSettings = regions;
-    this.lastUpdateAt = Date.now();
+  setServerReportedRegions(regionSettings: RegionSettings) {
+    RegionUrlProvider.cache.set(this.serverUrl.host, {
+      regionSettings,
+      updatedAtInMs: Date.now(),
+      maxAgeInMs: DEFAULT_MAX_AGE_MS,
+    });
   }
 }
 
