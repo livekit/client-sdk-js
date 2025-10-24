@@ -14,20 +14,24 @@ type CachedRegionSettings = {
 export class RegionUrlProvider {
   private static readonly cache: Map<string, CachedRegionSettings> = new Map();
 
-  private static settingsTimeout: ReturnType<typeof setTimeout>;
+  private static settingsTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   private static scheduleRefetch(url: URL, token: string, maxAgeInMs: number) {
-    clearTimeout(RegionUrlProvider.settingsTimeout);
-    RegionUrlProvider.settingsTimeout = setTimeout(async () => {
-      try {
-        const newSettings = await fetchRegionSettings(url, token);
-        RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
-      } catch (error: unknown) {
-        log.debug('auto refetching of region settings failed', { error });
-        // continue retrying with the same max age
-        RegionUrlProvider.scheduleRefetch(url, token, maxAgeInMs);
-      }
-    }, maxAgeInMs);
+    const timeout = RegionUrlProvider.settingsTimeouts.get(url.host);
+    clearTimeout(timeout);
+    RegionUrlProvider.settingsTimeouts.set(
+      url.host,
+      setTimeout(async () => {
+        try {
+          const newSettings = await fetchRegionSettings(url, token);
+          RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
+        } catch (error: unknown) {
+          log.debug('auto refetching of region settings failed', { error });
+          // continue retrying with the same max age
+          RegionUrlProvider.scheduleRefetch(url, token, maxAgeInMs);
+        }
+      }, maxAgeInMs),
+    );
   }
 
   private static updateCachedRegionSettings(
