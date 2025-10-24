@@ -12,21 +12,22 @@ type CachedRegionSettings = {
 };
 
 export class RegionUrlProvider {
-  private static cache: Map<string, CachedRegionSettings>;
+  private static readonly cache: Map<string, CachedRegionSettings> = new Map();
 
   private static settingsTimeout: ReturnType<typeof setTimeout>;
 
-  private static setCachedRegionSettings(
-    hostname: string,
+  private static updateCachedRegionSettings(
+    url: URL,
     token: string,
     settings: CachedRegionSettings,
   ) {
-    RegionUrlProvider.cache.set(hostname, settings);
+    log.debug('updating region settings');
+    RegionUrlProvider.cache.set(url.hostname, settings);
     clearTimeout(this.settingsTimeout);
     RegionUrlProvider.settingsTimeout = setTimeout(async () => {
       try {
-        const newSettings = await fetchRegionSettings(new URL(hostname), token);
-        RegionUrlProvider.setCachedRegionSettings(hostname, token, newSettings);
+        const newSettings = await fetchRegionSettings(url, token);
+        RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
       } catch (error: unknown) {
         log.debug('auto refetching of region settings failed', { error });
       }
@@ -70,7 +71,7 @@ export class RegionUrlProvider {
 
     if (!cachedSettings || Date.now() - cachedSettings.updatedAtInMs > cachedSettings.maxAgeInMs) {
       cachedSettings = await this.fetchRegionSettings(abortSignal);
-      RegionUrlProvider.setCachedRegionSettings(this.serverUrl.host, this.token, cachedSettings);
+      RegionUrlProvider.updateCachedRegionSettings(this.serverUrl, this.token, cachedSettings);
     }
 
     const regionsLeft = cachedSettings.regionSettings.regions.filter(
@@ -90,12 +91,8 @@ export class RegionUrlProvider {
     this.attemptedRegions = [];
   }
 
-  setServerReportedRegions(regionSettings: RegionSettings) {
-    RegionUrlProvider.setCachedRegionSettings(this.serverUrl.host, this.token, {
-      regionSettings,
-      updatedAtInMs: Date.now(),
-      maxAgeInMs: DEFAULT_MAX_AGE_MS,
-    });
+  setServerReportedRegions(settings: CachedRegionSettings) {
+    RegionUrlProvider.updateCachedRegionSettings(this.serverUrl, this.token, settings);
   }
 }
 
