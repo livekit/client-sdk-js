@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
 import { ConnectionError, ConnectionErrorReason } from './errors';
@@ -16,14 +17,47 @@ export class RegionUrlProvider {
 
   private static settingsTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-  private static scheduleRefetch(url: URL, token: string, maxAgeInMs: number) {
-    const timeout = RegionUrlProvider.settingsTimeouts.get(url.host);
+  private static fetchLock = new Mutex();
+
+  private static async fetchRegionSettings(
+    serverUrl: URL,
+    token: string,
+    signal?: AbortSignal,
+  ): Promise<CachedRegionSettings> {
+    const unlock = await RegionUrlProvider.fetchLock.lock();
+    try {
+      const regionSettingsResponse = await fetch(`${getCloudConfigUrl(serverUrl)}/regions`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal,
+      });
+      if (regionSettingsResponse.ok) {
+        const maxAge = extractMaxAgeFromRequestHeaders(regionSettingsResponse.headers);
+        const maxAgeInMs = maxAge ? maxAge * 1000 : DEFAULT_MAX_AGE_MS;
+
+        const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
+        return { regionSettings, updatedAtInMs: Date.now(), maxAgeInMs };
+      } else {
+        throw new ConnectionError(
+          `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
+          regionSettingsResponse.status === 401
+            ? ConnectionErrorReason.NotAllowed
+            : ConnectionErrorReason.InternalError,
+          regionSettingsResponse.status,
+        );
+      }
+    } finally {
+      unlock();
+    }
+  }
+
+  private static async scheduleRefetch(url: URL, token: string, maxAgeInMs: number) {
+    const timeout = RegionUrlProvider.settingsTimeouts.get(url.hostname);
     clearTimeout(timeout);
     RegionUrlProvider.settingsTimeouts.set(
-      url.host,
+      url.hostname,
       setTimeout(async () => {
         try {
-          const newSettings = await fetchRegionSettings(url, token);
+          const newSettings = await RegionUrlProvider.fetchRegionSettings(url, token);
           RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
         } catch (error: unknown) {
           log.debug('auto refetching of region settings failed', { error });
@@ -68,7 +102,7 @@ export class RegionUrlProvider {
 
   /** @internal */
   async fetchRegionSettings(abortSignal?: AbortSignal): Promise<CachedRegionSettings> {
-    return fetchRegionSettings(this.serverUrl, this.token, abortSignal);
+    return RegionUrlProvider.fetchRegionSettings(this.serverUrl, this.token, abortSignal);
   }
 
   async getNextBestRegionUrl(abortSignal?: AbortSignal) {
@@ -107,30 +141,4 @@ export class RegionUrlProvider {
 
 function getCloudConfigUrl(serverUrl: URL) {
   return `${serverUrl.protocol.replace('ws', 'http')}//${serverUrl.host}/settings`;
-}
-
-async function fetchRegionSettings(
-  serverUrl: URL,
-  token: string,
-  signal?: AbortSignal,
-): Promise<CachedRegionSettings> {
-  const regionSettingsResponse = await fetch(`${getCloudConfigUrl(serverUrl)}/regions`, {
-    headers: { authorization: `Bearer ${token}` },
-    signal,
-  });
-  if (regionSettingsResponse.ok) {
-    const maxAge = extractMaxAgeFromRequestHeaders(regionSettingsResponse.headers);
-    const maxAgeInMs = maxAge ? maxAge * 1000 : DEFAULT_MAX_AGE_MS;
-
-    const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
-    return { regionSettings, updatedAtInMs: Date.now(), maxAgeInMs };
-  } else {
-    throw new ConnectionError(
-      `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
-      regionSettingsResponse.status === 401
-        ? ConnectionErrorReason.NotAllowed
-        : ConnectionErrorReason.InternalError,
-      regionSettingsResponse.status,
-    );
-  }
 }
