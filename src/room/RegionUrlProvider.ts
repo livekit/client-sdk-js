@@ -3,7 +3,7 @@ import log from '../logger';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
-const DEFAULT_MAX_AGE_MS = 5_000;
+export const DEFAULT_MAX_AGE_MS = 5_000;
 
 type CachedRegionSettings = {
   regionSettings: RegionSettings;
