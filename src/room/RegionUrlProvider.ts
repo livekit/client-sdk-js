@@ -17,7 +17,7 @@ export class RegionUrlProvider {
   private static settingsTimeout: ReturnType<typeof setTimeout>;
 
   private static scheduleRefetch(url: URL, token: string, maxAgeInMs: number) {
-    clearTimeout(this.settingsTimeout);
+    clearTimeout(RegionUrlProvider.settingsTimeout);
     RegionUrlProvider.settingsTimeout = setTimeout(async () => {
       try {
         const newSettings = await fetchRegionSettings(url, token);
