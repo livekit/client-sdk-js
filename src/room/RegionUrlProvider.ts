@@ -16,13 +16,7 @@ export class RegionUrlProvider {
 
   private static settingsTimeout: ReturnType<typeof setTimeout>;
 
-  private static updateCachedRegionSettings(
-    url: URL,
-    token: string,
-    settings: CachedRegionSettings,
-  ) {
-    log.debug('updating region settings');
-    RegionUrlProvider.cache.set(url.hostname, settings);
+  private static scheduleRefetch(url: URL, token: string, maxAgeInMs: number) {
     clearTimeout(this.settingsTimeout);
     RegionUrlProvider.settingsTimeout = setTimeout(async () => {
       try {
@@ -30,8 +24,19 @@ export class RegionUrlProvider {
         RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
       } catch (error: unknown) {
         log.debug('auto refetching of region settings failed', { error });
+        // continue retrying with the same max age
+        RegionUrlProvider.scheduleRefetch(url, token, maxAgeInMs);
       }
-    }, settings.maxAgeInMs);
+    }, maxAgeInMs);
+  }
+
+  private static updateCachedRegionSettings(
+    url: URL,
+    token: string,
+    settings: CachedRegionSettings,
+  ) {
+    RegionUrlProvider.cache.set(url.hostname, settings);
+    RegionUrlProvider.scheduleRefetch(url, token, settings.maxAgeInMs);
   }
 
   private serverUrl: URL;
@@ -67,7 +72,7 @@ export class RegionUrlProvider {
       throw Error('region availability is only supported for LiveKit Cloud domains');
     }
 
-    let cachedSettings = RegionUrlProvider.cache.get(this.serverUrl.host);
+    let cachedSettings = RegionUrlProvider.cache.get(this.serverUrl.hostname);
 
     if (!cachedSettings || Date.now() - cachedSettings.updatedAtInMs > cachedSettings.maxAgeInMs) {
       cachedSettings = await this.fetchRegionSettings(abortSignal);

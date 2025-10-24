@@ -514,20 +514,23 @@ describe('RegionUrlProvider', () => {
         .mockResolvedValueOnce(
           createMockResponse(200, initialSettings, { 'Cache-Control': 'max-age=100' }),
         )
-        .mockResolvedValueOnce(
+        .mockResolvedValue(
           createMockResponse(200, updatedSettings, { 'Cache-Control': 'max-age=100' }),
         );
 
       await provider.getNextBestRegionUrl();
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      // Advance time and run all pending timers/promises
-      vi.advanceTimersByTime(100);
-      await vi.runAllTimersAsync();
+      // Advance time to trigger auto-refetch
+      await vi.runOnlyPendingTimersAsync();
 
-      // The auto-refetch might fail due to URL construction issue in the implementation
-      // For now, verify timeout was scheduled (tested in previous test)
-      // Full integration would require fixing the implementation's URL construction
+      // Verify the refetch happened
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // Verify cache was updated
+      // @ts-ignore - accessing private cache for testing
+      const cached = RegionUrlProvider.cache.get('test.livekit.cloud');
+      expect(cached?.regionSettings).toEqual(updatedSettings);
     });
 
     it('auto-refetch handles errors gracefully', async () => {
@@ -536,19 +539,29 @@ describe('RegionUrlProvider', () => {
         { region: 'us-west', url: 'wss://us-west.livekit.cloud' },
       ]);
 
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=100' }),
-      );
+      fetchMock
+        .mockResolvedValueOnce(
+          createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=100' }),
+        )
+        .mockRejectedValueOnce(new Error('Fetch failed'))
+        .mockResolvedValue(
+          createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=100' }),
+        );
 
       await provider.getNextBestRegionUrl();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      // Advance time to trigger auto-refetch
-      vi.advanceTimersByTime(100);
-      await vi.runAllTimersAsync();
+      // Advance time to trigger auto-refetch (which will fail)
+      await vi.runOnlyPendingTimersAsync();
 
-      // Error handling is tested - timeout should not throw
-      // The actual refetch might fail due to implementation details,
-      // but the important thing is it doesn't crash the application
+      // Verify fetch was attempted and failed
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // Advance time again to trigger retry after error
+      await vi.runOnlyPendingTimersAsync();
+
+      // Verify it retried and succeeded
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it('clears previous timeout when updating cache', async () => {
