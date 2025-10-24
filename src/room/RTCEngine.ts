@@ -56,7 +56,7 @@ import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import type { RegionUrlProvider } from './RegionUrlProvider';
+import { DEFAULT_MAX_AGE_MS, type RegionUrlProvider } from './RegionUrlProvider';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -603,7 +603,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
       if (leave.regions && this.regionUrlProvider) {
         this.log.debug('updating regions', this.logContext);
-        this.regionUrlProvider.setServerReportedRegions(leave.regions);
+        this.regionUrlProvider.setServerReportedRegions({
+          updatedAtInMs: Date.now(),
+          maxAgeInMs: DEFAULT_MAX_AGE_MS,
+          regionSettings: leave.regions,
+        });
       }
       switch (leave.action) {
         case LeaveRequest_Action.DISCONNECT:
