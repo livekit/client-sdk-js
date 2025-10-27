@@ -41,7 +41,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   override setStreamState(value: Track.StreamState) {
     super.setStreamState(value);
     this.log.debug('setStreamState', value);
-    if (value === Track.StreamState.Active) {
+    if (this.isAdaptiveStream && value === Track.StreamState.Active) {
       // update visibility for adaptive stream tracks when stream state received from server is active
       // this is needed to ensure the track is stopped when there's no element attached to it at all
       this.updateVisibility();
