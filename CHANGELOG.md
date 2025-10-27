@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.15.14
+
+### Patch Changes
+
+- Apply server supplied cache control settings for region url provider - [#1669](https://github.com/livekit/client-sdk-js/pull/1669) ([@lukasIO](https://github.com/lukasIO))
+
+- Only export types for TokenSource variants to try to push users to use the TokenSource.foo static constructors instead - [#1707](https://github.com/livekit/client-sdk-js/pull/1707) ([@1egoman](https://github.com/1egoman))
+
+- Add check to ensure track visibility update only happens when `adaptiveStream` is enabled - [#1712](https://github.com/livekit/client-sdk-js/pull/1712) ([@1egoman](https://github.com/1egoman))
+
+- Cache region settings per project - [#1709](https://github.com/livekit/client-sdk-js/pull/1709) ([@lukasIO](https://github.com/lukasIO))
+
+- Export decodeTokenPayload from package - [#1710](https://github.com/livekit/client-sdk-js/pull/1710) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.13
 
 ### Patch Changes
