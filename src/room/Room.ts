@@ -576,6 +576,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
+    // eslint-disable-next-line compat/compat
     new FinalizationRegistry((cleanup: () => void) => {
       cleanup();
     });
