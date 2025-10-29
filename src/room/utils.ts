@@ -254,6 +254,13 @@ export function isCloud(serverUrl: URL) {
   );
 }
 
+export function extractProjectFromUrl(serverUrl: URL): string | null {
+  if (!isCloud(serverUrl)) {
+    return null;
+  }
+  return serverUrl.hostname.split('.')[0];
+}
+
 function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
   // global defined only for ReactNative.
   // @ts-ignore

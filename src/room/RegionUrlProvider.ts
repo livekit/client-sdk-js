@@ -45,6 +45,18 @@ export class RegionUrlProvider {
           regionSettingsResponse.status,
         );
       }
+    } catch (e: unknown) {
+      if (e instanceof ConnectionError) {
+        // rethrow connection errors
+        throw e;
+      } else {
+        // wrap other errors as connection errors (e.g. timeouts)
+        throw new ConnectionError(
+          `Could not fetch region settings, ${e instanceof Error ? `${e.name}: ${e.message}` : e}`,
+          ConnectionErrorReason.ServerUnreachable,
+          500, // using 500 as a catch-all manually set error code here
+        );
+      }
     } finally {
       unlock();
     }
