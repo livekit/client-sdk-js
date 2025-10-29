@@ -708,7 +708,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
-          BackOffStrategy.instance.addFailedConnectionAttempt(url);
+          if (error.reason !== ConnectionErrorReason.LeaveRequest) {
+            // we already ensured above that `NotAllowed` and `Cancelled` aren't registered as failed attempts
+            // so only additionally checking for an explicit `LeaveRequest` here
+            BackOffStrategy.instance.addFailedConnectionAttempt(url);
+          }
           if (nextUrl && !this.abortController?.signal.aborted) {
             this.log.info(
               `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
