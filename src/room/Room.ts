@@ -708,9 +708,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
-          if (error.reason !== ConnectionErrorReason.LeaveRequest) {
-            // we already ensured above that `NotAllowed` and `Cancelled` aren't registered as failed attempts
-            // so only additionally checking for an explicit `LeaveRequest` here
+          if (
+            // making sure we only register failed attempts on things we actually care about
+            [
+              ConnectionErrorReason.InternalError,
+              ConnectionErrorReason.ServerUnreachable,
+              ConnectionErrorReason.Timeout,
+            ].includes(error.reason)
+          ) {
             BackOffStrategy.instance.addFailedConnectionAttempt(url);
           }
           if (nextUrl && !this.abortController?.signal.aborted) {
