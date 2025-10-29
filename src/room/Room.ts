@@ -43,6 +43,7 @@ import type {
   RoomOptions,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
+import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
@@ -116,9 +117,6 @@ export enum ConnectionState {
 }
 
 const CONNECTION_RECONCILE_FREQUENCY = 4 * 1000;
-
-const CONNECTION_BACKOFF_MIN = 500;
-const CONNECTION_BACKOFF_MAX = 5_000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -201,8 +199,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private outgoingDataStreamManager: OutgoingDataStreamManager;
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
-
-  private failedConnectionAttempts: number = 0;
 
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
@@ -629,16 +625,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     }
 
-    // Prevent a tight retry loop in cases of previous failed connection attempts
-    if (this.failedConnectionAttempts > 0) {
-      await sleep(
-        Math.min(
-          CONNECTION_BACKOFF_MIN * Math.pow(2, this.failedConnectionAttempts - 1),
-          CONNECTION_BACKOFF_MAX,
-        ),
-      );
-    }
-
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
 
@@ -695,6 +681,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       unlockDisconnect?.();
 
       try {
+        await BackOffStrategy.instance.getBackOffPromise(url);
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
@@ -721,6 +708,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
+          BackOffStrategy.instance.addFailedConnectionAttempt(url);
           if (nextUrl && !this.abortController?.signal.aborted) {
             this.log.info(
               `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
@@ -729,9 +717,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
-            // regions have either been exhausted or region fetching itself failed, we increase the failed amount and back off for next connection attempts
-            this.failedConnectionAttempts += 1;
-
             this.handleDisconnect(
               this.options.stopLocalTrackOnUnpublish,
               getDisconnectReasonFromConnectionError(error),
@@ -938,7 +923,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
-    this.failedConnectionAttempts = 0;
+    BackOffStrategy.instance.resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
   };
 
