@@ -181,9 +181,7 @@ export class E2EEManager
     if (throttleData.count >= this.MAX_ERRORS_PER_WINDOW) {
       // Only log suppression warning once
       if (throttleData.count === this.MAX_ERRORS_PER_WINDOW) {
-        log.warn(
-          `Suppressing repeated E2EE errors. ${errorKey}`,
-        );
+        log.warn(`Suppressing repeated E2EE errors. ${errorKey}`);
         this.errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
       }
       return false;
@@ -203,9 +201,7 @@ export class E2EEManager
         if (this.shouldEmitError(errorKey)) {
           const throttleData = this.errorThrottleMap.get(errorKey);
           if (throttleData && throttleData.count > 1) {
-            log.debug(
-              `E2EE error (${throttleData.count} occurrences): ${data.error.message}`,
-            );
+            log.debug(`E2EE error (${throttleData.count} occurrences): ${data.error.message}`);
           } else {
             log.error(data.error.message);
           }

@@ -312,9 +312,7 @@ function shouldEmitError(errorKey: string): boolean {
   if (throttleData.count >= MAX_ERRORS_PER_WINDOW) {
     // Only log suppression warning once
     if (throttleData.count === MAX_ERRORS_PER_WINDOW) {
-      workerLogger.warn(
-        `Suppressing further errors for ${errorKey}`,
-      );
+      workerLogger.warn(`Suppressing further errors for ${errorKey}`);
       errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
     }
     return false;

@@ -249,13 +249,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (errorCount >= this.MAX_ERRORS_PER_MINUTE) {
       // Only log a warning once when hitting the limit
       if (errorCount === this.MAX_ERRORS_PER_MINUTE) {
-        workerLogger.warn(
-          `Suppressing further decryption errors for ${this.participantIdentity}`,
-          {
-            ...this.logContext,
-            errorKey,
-          },
-        );
+        workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
+          ...this.logContext,
+          errorKey,
+        });
         this.errorCounts.set(errorKey, errorCount + 1);
       }
       return false;
