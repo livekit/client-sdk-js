@@ -35,6 +35,12 @@ let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 let rtpMap: Map<number, VideoCodec> = new Map();
 
+// Error throttling to prevent memory leaks from repeated error messages
+const errorThrottleMap: Map<string, { lastEmit: number; count: number }> = new Map();
+const ERROR_THROTTLE_MS = 1000; // Emit at most once per second
+const ERROR_WINDOW_MS = 60000; // Reset count after 1 minute
+const MAX_ERRORS_PER_WINDOW = 5; // Maximum 5 errors per minute per type
+
 workerLogger.setDefaultLevel('info');
 
 onmessage = (ev) => {
@@ -275,13 +281,69 @@ async function setSharedKey(key: CryptoKey, index?: number) {
   await getSharedKeyHandler().setKey(key, index);
 }
 
+/**
+ * Checks if we should emit an error based on throttling rules
+ * @param errorKey - unique identifier for the error context
+ * @returns true if error should be emitted, false otherwise
+ */
+function shouldEmitError(errorKey: string): boolean {
+  const now = Date.now();
+  const throttleData = errorThrottleMap.get(errorKey);
+
+  if (!throttleData) {
+    errorThrottleMap.set(errorKey, { lastEmit: now, count: 1 });
+    return true;
+  }
+
+  const timeSinceLastEmit = now - throttleData.lastEmit;
+
+  // Reset counter if we're in a new time window
+  if (timeSinceLastEmit > ERROR_WINDOW_MS) {
+    errorThrottleMap.set(errorKey, { lastEmit: now, count: 1 });
+    return true;
+  }
+
+  // Don't emit if we're within throttle period
+  if (timeSinceLastEmit < ERROR_THROTTLE_MS) {
+    return false;
+  }
+
+  // Don't emit if we've exceeded max errors per window
+  if (throttleData.count >= MAX_ERRORS_PER_WINDOW) {
+    // Only log suppression warning once
+    if (throttleData.count === MAX_ERRORS_PER_WINDOW) {
+      workerLogger.warn(
+        `Suppressing further errors for ${errorKey}`,
+      );
+      errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
+    }
+    return false;
+  }
+
+  // Update throttle data and allow emission
+  errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
+  return true;
+}
+
 function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   cryptor.on(CryptorEvent.Error, (error) => {
-    const msg: ErrorMessage = {
-      kind: 'error',
-      data: { error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`) },
-    };
-    postMessage(msg);
+    const errorKey = `${error.participantIdentity}-${CryptorErrorReason[error.reason]}`;
+
+    if (shouldEmitError(errorKey)) {
+      const throttleData = errorThrottleMap.get(errorKey);
+      if (throttleData && throttleData.count > 1) {
+        workerLogger.debug(
+          `Emitting error (${throttleData.count} occurrences): ${CryptorErrorReason[error.reason]}`,
+          { participantIdentity: error.participantIdentity },
+        );
+      }
+
+      const msg: ErrorMessage = {
+        kind: 'error',
+        data: { error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`) },
+      };
+      postMessage(msg);
+    }
   });
 }
 
