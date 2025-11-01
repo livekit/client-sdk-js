@@ -74,6 +74,17 @@ export class E2EEManager
 
   private dataChannelEncryptionEnabled: boolean;
 
+  /**
+   * Error throttling to prevent memory leaks from repeated error logging
+   */
+  private errorThrottleMap: Map<string, { lastEmit: number; count: number }> = new Map();
+
+  private readonly ERROR_THROTTLE_MS = 1000; // Log at most once per second
+
+  private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
+
+  private readonly MAX_ERRORS_PER_WINDOW = 5; // Max 5 errors per minute per type
+
   constructor(options: E2EEManagerOptions, dcEncryptionEnabled: boolean) {
     super();
     this.keyProvider = options.keyProvider;
@@ -139,12 +150,63 @@ export class E2EEManager
     }
   }
 
+  /**
+   * Checks if we should emit/log an error based on throttling rules
+   * @param errorKey - unique identifier for the error context
+   * @returns true if error should be emitted, false otherwise
+   */
+  private shouldEmitError(errorKey: string): boolean {
+    const now = Date.now();
+    const throttleData = this.errorThrottleMap.get(errorKey);
+
+    if (!throttleData) {
+      this.errorThrottleMap.set(errorKey, { lastEmit: now, count: 1 });
+      return true;
+    }
+
+    const timeSinceLastEmit = now - throttleData.lastEmit;
+
+    // Reset counter if we're in a new time window
+    if (timeSinceLastEmit > this.ERROR_WINDOW_MS) {
+      this.errorThrottleMap.set(errorKey, { lastEmit: now, count: 1 });
+      return true;
+    }
+
+    // Don't emit if we're within throttle period
+    if (timeSinceLastEmit < this.ERROR_THROTTLE_MS) {
+      return false;
+    }
+
+    // Don't emit if we've exceeded max errors per window
+    if (throttleData.count >= this.MAX_ERRORS_PER_WINDOW) {
+      // Only log suppression warning once
+      if (throttleData.count === this.MAX_ERRORS_PER_WINDOW) {
+        log.warn(`Suppressing repeated E2EE errors. ${errorKey}`);
+        this.errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
+      }
+      return false;
+    }
+
+    // Update throttle data and allow emission
+    this.errorThrottleMap.set(errorKey, { lastEmit: now, count: throttleData.count + 1 });
+    return true;
+  }
+
   private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        log.error(data.error.message);
-        this.emit(EncryptionEvent.EncryptionError, data.error);
+        const errorKey = `worker-${data.error.message.split(':')[0]}`;
+
+        if (this.shouldEmitError(errorKey)) {
+          const throttleData = this.errorThrottleMap.get(errorKey);
+          if (throttleData && throttleData.count > 1) {
+            log.debug(`E2EE error (${throttleData.count} occurrences): ${data.error.message}`);
+          } else {
+            log.error(data.error.message);
+          }
+          this.emit(EncryptionEvent.EncryptionError, data.error);
+        }
         break;
       case 'initAck':
         if (data.enabled) {
