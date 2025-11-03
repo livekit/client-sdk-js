@@ -714,6 +714,21 @@ describe('RegionUrlProvider', () => {
       await expect(provider.fetchRegionSettings()).rejects.toThrow('Network timeout');
     });
 
+    it('wraps fetch throw as ConnectionError with ServerUnreachable reason', async () => {
+      const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
+
+      // Simulate fetch itself throwing an error (common in network failures)
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      // Should throw a ConnectionError that can be handled
+      const error = await provider.fetchRegionSettings().catch((e) => e);
+
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.reason).toBe(ConnectionErrorReason.ServerUnreachable);
+      expect(error.status).toBe(500);
+      expect(error.message).toContain('Failed to fetch');
+    });
+
     it('handles concurrent getNextBestRegionUrl calls', async () => {
       const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
       const mockSettings = createMockRegionSettings([

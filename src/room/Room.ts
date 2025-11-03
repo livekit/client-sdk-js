@@ -43,6 +43,7 @@ import type {
   RoomOptions,
 } from '../options';
 import { getBrowser } from '../utils/browserParser';
+import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
@@ -115,7 +116,7 @@ export enum ConnectionState {
   SignalReconnecting = 'signalReconnecting',
 }
 
-const connectionReconcileFrequency = 4 * 1000;
+const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -680,34 +681,46 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       unlockDisconnect?.();
 
       try {
+        await BackOffStrategy.getInstance().getBackOffPromise(url);
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
-      } catch (e) {
+      } catch (error) {
         if (
           this.regionUrlProvider &&
-          e instanceof ConnectionError &&
-          e.reason !== ConnectionErrorReason.Cancelled &&
-          e.reason !== ConnectionErrorReason.NotAllowed
+          error instanceof ConnectionError &&
+          error.reason !== ConnectionErrorReason.Cancelled &&
+          error.reason !== ConnectionErrorReason.NotAllowed
         ) {
           let nextUrl: string | null = null;
           try {
             nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
               this.abortController?.signal,
             );
-          } catch (error) {
+          } catch (regionFetchError) {
             if (
-              error instanceof ConnectionError &&
-              (error.status === 401 || error.reason === ConnectionErrorReason.Cancelled)
+              regionFetchError instanceof ConnectionError &&
+              (regionFetchError.status === 401 ||
+                regionFetchError.reason === ConnectionErrorReason.Cancelled)
             ) {
               this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
-              reject(error);
+              reject(regionFetchError);
               return;
             }
           }
+          if (
+            // making sure we only register failed attempts on things we actually care about
+            [
+              ConnectionErrorReason.InternalError,
+              ConnectionErrorReason.ServerUnreachable,
+              ConnectionErrorReason.Timeout,
+            ].includes(error.reason)
+          ) {
+            BackOffStrategy.getInstance().addFailedConnectionAttempt(url);
+          }
           if (nextUrl && !this.abortController?.signal.aborted) {
             this.log.info(
-              `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
+              `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
               this.logContext,
             );
             this.recreateEngine();
@@ -715,17 +728,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           } else {
             this.handleDisconnect(
               this.options.stopLocalTrackOnUnpublish,
-              getDisconnectReasonFromConnectionError(e),
+              getDisconnectReasonFromConnectionError(error),
             );
-            reject(e);
+            reject(error);
           }
         } else {
           let disconnectReason = DisconnectReason.UNKNOWN_REASON;
-          if (e instanceof ConnectionError) {
-            disconnectReason = getDisconnectReasonFromConnectionError(e);
+          if (error instanceof ConnectionError) {
+            disconnectReason = getDisconnectReasonFromConnectionError(error);
           }
           this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
-          reject(e);
+          reject(error);
         }
       }
     };
@@ -919,6 +932,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
+    BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
   };
 
@@ -2280,7 +2294,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         consecutiveFailures = 0;
       }
-    }, connectionReconcileFrequency);
+    }, CONNECTION_RECONCILE_FREQUENCY_MS);
   }
 
   private clearConnectionReconcile() {
