@@ -116,7 +116,7 @@ export enum ConnectionState {
   SignalReconnecting = 'signalReconnecting',
 }
 
-const CONNECTION_RECONCILE_FREQUENCY = 4 * 1000;
+const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -681,7 +681,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       unlockDisconnect?.();
 
       try {
-        await BackOffStrategy.instance.getBackOffPromise(url);
+        await BackOffStrategy.getInstance().getBackOffPromise(url);
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
@@ -716,7 +716,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               ConnectionErrorReason.Timeout,
             ].includes(error.reason)
           ) {
-            BackOffStrategy.instance.addFailedConnectionAttempt(url);
+            BackOffStrategy.getInstance().addFailedConnectionAttempt(url);
           }
           if (nextUrl && !this.abortController?.signal.aborted) {
             this.log.info(
@@ -932,7 +932,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
-    BackOffStrategy.instance.resetFailedConnectionAttempts(url);
+    BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
   };
 
@@ -2294,7 +2294,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         consecutiveFailures = 0;
       }
-    }, CONNECTION_RECONCILE_FREQUENCY);
+    }, CONNECTION_RECONCILE_FREQUENCY_MS);
   }
 
   private clearConnectionReconcile() {
