@@ -9,11 +9,8 @@ vi.mock('./utils', async () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sleep: vi.fn((ms: number) => Promise.resolve()),
     extractProjectFromUrl: vi.fn((url: URL) => {
-      // Mock to extract project name from cloud URLs
-      if (url.hostname.includes('livekit.cloud')) {
-        return url.hostname.split('.')[0];
-      }
-      return null;
+      // @ts-ignore
+      return actual.extractProjectFromUrl(url);
     }),
   };
 });
