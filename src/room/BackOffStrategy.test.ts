@@ -6,6 +6,7 @@ vi.mock('./utils', async () => {
   const actual = await vi.importActual('./utils');
   return {
     ...actual,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sleep: vi.fn((ms: number) => Promise.resolve()),
     extractProjectFromUrl: vi.fn((url: URL) => {
       // Mock to extract project name from cloud URLs
