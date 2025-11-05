@@ -886,6 +886,7 @@ export default class LocalParticipant extends Participant {
 
           const timeout = setTimeout(() => {
             publicationTimedOut = true;
+            track.stop();
             reject(
               new PublishTrackError(
                 'publishing rejected as engine not connected within timeout',
