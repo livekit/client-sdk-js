@@ -91,6 +91,7 @@ export interface ErrorMessage extends BaseMessage {
   kind: 'error';
   data: {
     error: Error;
+    participantIdentity?: string;
   };
 }
 
