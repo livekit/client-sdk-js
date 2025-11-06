@@ -144,7 +144,7 @@ export class E2EEManager
     switch (kind) {
       case 'error':
         log.error(data.error.message);
-        this.emit(EncryptionEvent.EncryptionError, data.error);
+        this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
         if (data.enabled) {
@@ -208,7 +208,7 @@ export class E2EEManager
 
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
-    this.emit(EncryptionEvent.EncryptionError, ev.error);
+    this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
   public setupEngine(engine: RTCEngine) {

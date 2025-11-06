@@ -401,14 +401,16 @@ const appActions = {
           if (shouldPublish) {
             await room.localParticipant.enableCameraAndMicrophone();
             appendLog(`tracks published in ${Date.now() - startTime}ms`);
-            updateButtonsForPublishState();
           }
           resolve();
         } catch (error) {
           reject(error);
         }
       });
-      await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
+      await Promise.all([
+        room.connect(url, token, connectOptions),
+        publishPromise.catch(appendLog),
+      ]);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,

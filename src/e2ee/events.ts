@@ -45,7 +45,7 @@ export type E2EEManagerCallbacks = {
     enabled: boolean,
     participant: Participant,
   ) => void;
-  [EncryptionEvent.EncryptionError]: (error: Error) => void;
+  [EncryptionEvent.EncryptionError]: (error: Error, participantIdentity?: string) => void;
 };
 
 export type CryptorCallbacks = {

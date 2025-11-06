@@ -279,7 +279,10 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   cryptor.on(CryptorEvent.Error, (error) => {
     const msg: ErrorMessage = {
       kind: 'error',
-      data: { error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`) },
+      data: {
+        error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`),
+        participantIdentity: error.participantIdentity,
+      },
     };
     postMessage(msg);
   });

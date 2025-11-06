@@ -882,7 +882,11 @@ export default class LocalParticipant extends Participant {
             track: getLogContextFromTrack(track),
           });
 
+          let publicationTimedOut = false;
+
           const timeout = setTimeout(() => {
+            publicationTimedOut = true;
+            track.stop();
             reject(
               new PublishTrackError(
                 'publishing rejected as engine not connected within timeout',
@@ -892,6 +896,9 @@ export default class LocalParticipant extends Participant {
           }, 15_000);
           await this.waitUntilEngineConnected();
           clearTimeout(timeout);
+          if (publicationTimedOut) {
+            return;
+          }
           const publication = await this.publish(track, opts, isStereo);
           resolve(publication);
         } else {
