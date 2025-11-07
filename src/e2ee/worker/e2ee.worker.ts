@@ -118,11 +118,6 @@ onmessage = (ev) => {
             getParticipantKeyHandler(data.participantIdentity),
             data.keyIndex,
           );
-          console.log('decrypted payload', {
-            original: data.payload,
-            decrypted: decryptedPayload,
-            iv: data.iv,
-          });
           postMessage({
             kind: 'decryptDataResponse',
             data: { payload: decryptedPayload, uuid: data.uuid },
