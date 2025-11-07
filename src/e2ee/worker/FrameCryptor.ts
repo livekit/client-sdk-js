@@ -133,6 +133,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     workerLogger.debug('unsetting participant', this.logContext);
     this.participantIdentity = undefined;
     this.lastErrorTimestamp = new Map();
+    this.errorCounts = new Map();
   }
 
   isEnabled() {
