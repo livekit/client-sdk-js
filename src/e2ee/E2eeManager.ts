@@ -162,7 +162,7 @@ export class E2EEManager
         }
 
         // Emit general error event for unhandled errors
-        this.emit(EncryptionEvent.EncryptionError, data.error);
+        this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
         if (data.enabled) {
