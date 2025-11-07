@@ -132,7 +132,7 @@ onmessage = (ev) => {
           workerLogger.error('DataCryptor decryption failed', {
             error,
             participantIdentity: data.participantIdentity,
-            uuid: data.uuid
+            uuid: data.uuid,
           });
           postMessage({
             kind: 'error',
