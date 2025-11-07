@@ -144,6 +144,24 @@ export class E2EEManager
     switch (kind) {
       case 'error':
         log.error(data.error.message);
+
+        // If error has uuid, it's from an async operation (encrypt/decrypt)
+        // Reject the corresponding future
+        if (data.uuid) {
+          const decryptFuture = this.decryptDataRequests.get(data.uuid);
+          if (decryptFuture?.reject) {
+            decryptFuture.reject(data.error);
+            break; // Don't emit general error if it's handled by future
+          }
+
+          const encryptFuture = this.encryptDataRequests.get(data.uuid);
+          if (encryptFuture?.reject) {
+            encryptFuture.reject(data.error);
+            break; // Don't emit general error if it's handled by future
+          }
+        }
+
+        // Emit general error event for unhandled errors
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':

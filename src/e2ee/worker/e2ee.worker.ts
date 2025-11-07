@@ -111,21 +111,32 @@ onmessage = (ev) => {
         break;
 
       case 'decryptDataRequest':
-        const { payload: decryptedPayload } = await DataCryptor.decrypt(
-          data.payload,
-          data.iv,
-          getParticipantKeyHandler(data.participantIdentity),
-          data.keyIndex,
-        );
-        console.log('decrypted payload', {
-          original: data.payload,
-          decrypted: decryptedPayload,
-          iv: data.iv,
-        });
-        postMessage({
-          kind: 'decryptDataResponse',
-          data: { payload: decryptedPayload, uuid: data.uuid },
-        } satisfies DecryptDataResponseMessage);
+        try {
+          const { payload: decryptedPayload } = await DataCryptor.decrypt(
+            data.payload,
+            data.iv,
+            getParticipantKeyHandler(data.participantIdentity),
+            data.keyIndex,
+          );
+          postMessage({
+            kind: 'decryptDataResponse',
+            data: { payload: decryptedPayload, uuid: data.uuid },
+          } satisfies DecryptDataResponseMessage);
+        } catch (error) {
+          // Send error back to main thread with uuid so it can reject the corresponding promise
+          workerLogger.error('DataCryptor decryption failed', {
+            error,
+            participantIdentity: data.participantIdentity,
+            uuid: data.uuid,
+          });
+          postMessage({
+            kind: 'error',
+            data: {
+              error: error instanceof Error ? error : new Error(String(error)),
+              uuid: data.uuid, // Include uuid to match with the pending request
+            },
+          } satisfies ErrorMessage);
+        }
         break;
 
       case 'setKey':
