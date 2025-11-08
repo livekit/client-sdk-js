@@ -8,6 +8,11 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: write # Required to create GH releases
+  pull-requests: write # Required to interact with PRs
+
 jobs:
   release:
     name: Release
@@ -16,10 +21,10 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-      - name: Use Node.js 20
+      - name: Use Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install
@@ -28,9 +33,6 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: pnpm ci:publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Build Docs
         if: steps.changesets.outputs.published == 'true'
         run: pnpm build-docs
