@@ -8,11 +8,6 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
-permissions:
-  id-token: write  # Required for OIDC
-  contents: write # Required to create GH releases
-  pull-requests: write # Required to interact with PRs
-
 jobs:
   release:
     name: Release
@@ -33,6 +28,8 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: pnpm ci:publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Docs
         if: steps.changesets.outputs.published == 'true'
         run: pnpm build-docs
