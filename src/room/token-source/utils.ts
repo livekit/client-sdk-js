@@ -1,6 +1,6 @@
 import { RoomConfiguration, type TokenSourceResponse } from '@livekit/protocol';
 import { decodeJwt } from 'jose';
-import type { RoomConfigurationObject, TokenPayload } from './types';
+import type { RoomConfigurationObject, TokenPayload, TokenSourceFetchOptions } from './types';
 
 const ONE_SECOND_IN_MILLISECONDS = 1000;
 const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
@@ -38,4 +38,36 @@ export function decodeTokenPayload(token: string) {
   };
 
   return mappedPayload;
+}
+
+/** Given two TokenSourceFetchOptions values, check to see if they are deep equal. */
+export function areTokenSourceFetchOptionsEqual(
+  a: TokenSourceFetchOptions,
+  b: TokenSourceFetchOptions,
+) {
+  const allKeysSet = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<
+    keyof TokenSourceFetchOptions
+  >;
+
+  for (const key of allKeysSet) {
+    switch (key) {
+      case 'roomName':
+      case 'participantName':
+      case 'participantIdentity':
+      case 'participantMetadata':
+      case 'participantAttributes':
+      case 'agentName':
+      case 'agentMetadata':
+        if (a[key] !== b[key]) {
+          return false;
+        }
+        break;
+      default:
+        // ref: https://stackoverflow.com/a/58009992
+        const exhaustiveCheckedKey: never = key;
+        throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
+    }
+  }
+
+  return true;
 }

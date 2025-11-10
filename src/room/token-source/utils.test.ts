@@ -1,6 +1,6 @@
 import { TokenSourceResponse } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { decodeTokenPayload, isResponseTokenValid } from './utils';
+import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenValid } from './utils';
 
 // Test JWTs created for test purposes only.
 // None of these actually auth against anything.
@@ -59,5 +59,39 @@ describe('decodeTokenPayload', () => {
     expect(payload.roomConfig?.agents).toHaveLength(1);
     expect(payload.roomConfig?.agents![0].agentName).toBe('test agent name');
     expect(payload.roomConfig?.agents![0].metadata).toBe('test agent metadata');
+  });
+});
+
+describe('areTokenSourceFetchOptionsEqual', () => {
+  it('should ensure two identical options objects of different references are equal', () => {
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { agentName: 'my agent name' },
+        { agentName: 'my agent name' },
+      ),
+    ).to.equal(true);
+  });
+  it('should ensure two empty options objects are equal', () => {
+    expect(areTokenSourceFetchOptionsEqual({}, {})).to.equal(true);
+  });
+  it('should ensure empty on the left and filled on the right are not equal', () => {
+    expect(areTokenSourceFetchOptionsEqual({}, { agentName: 'my agent name' })).to.equal(false);
+  });
+  it('should ensure filled on the left and empty on the right are not equal', () => {
+    expect(areTokenSourceFetchOptionsEqual({ agentName: 'my agent name' }, {})).to.equal(false);
+  });
+  it('should ensure objects with different keys/values are not equal', () => {
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { agentName: 'foo' },
+        { agentName: 'bar', agentMetadata: 'baz' },
+      ),
+    ).to.equal(false);
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { agentName: 'bar', agentMetadata: 'baz' },
+        { agentName: 'foo' },
+      ),
+    ).to.equal(false);
   });
 });
