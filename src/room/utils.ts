@@ -211,6 +211,7 @@ export function isMobile(): boolean {
 
   return (
     // @ts-expect-error `userAgentData` is not yet part of typescript
+    // eslint-disable-next-line compat/compat
     navigator.userAgentData?.mobile ??
     /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent)
   );
@@ -678,6 +679,7 @@ export function bigIntToNumber<T extends BigInt | undefined>(
 export function numberToBigInt<T extends number | undefined>(
   value: T,
 ): T extends number ? bigint : undefined {
+  // eslint-disable-next-line compat/compat
   return (value !== undefined ? BigInt(value) : undefined) as T extends number ? bigint : undefined;
 }
 

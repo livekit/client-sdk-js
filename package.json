@@ -92,6 +92,7 @@
     "eslint": "8.57.1",
     "eslint-config-airbnb-typescript": "18.0.0",
     "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-compat": "^6.0.2",
     "eslint-plugin-ecmascript-compat": "^3.2.1",
     "eslint-plugin-import": "2.32.0",
     "gh-pages": "6.3.0",
