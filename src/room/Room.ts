@@ -700,7 +700,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ) {
           let nextUrl: string | null = null;
           try {
-            this.log.warn('Fetching next region');
+            this.log.debug('Fetching next region');
             nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
               this.abortController?.signal,
             );
@@ -723,7 +723,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               ConnectionErrorReason.Timeout,
             ].includes(error.reason)
           ) {
-            this.log.warn('Adding failed connection attempt to back off');
+            this.log.debug('Adding failed connection attempt to back off');
             BackOffStrategy.getInstance().addFailedConnectionAttempt(url);
           }
           if (nextUrl && !this.abortController?.signal.aborted) {
