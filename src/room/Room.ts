@@ -967,12 +967,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         this.connectFuture = undefined;
       }
-      // send leave
-      if (!this.engine?.client.isDisconnected) {
-        await this.engine.client.sendLeave();
-      }
+
       // close engine (also closes client)
       if (this.engine) {
+        // send leave
+        if (!this.engine.client.isDisconnected) {
+          await this.engine.client.sendLeave();
+        }
         await this.engine.close();
       }
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
