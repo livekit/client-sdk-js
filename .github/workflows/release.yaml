@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
           cache: 'pnpm'
