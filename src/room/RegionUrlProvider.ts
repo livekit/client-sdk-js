@@ -49,6 +49,8 @@ export class RegionUrlProvider {
       if (e instanceof ConnectionError) {
         // rethrow connection errors
         throw e;
+      } else if (signal?.aborted) {
+        throw new ConnectionError(`Region fetching was aborted`, ConnectionErrorReason.Cancelled);
       } else {
         // wrap other errors as connection errors (e.g. timeouts)
         throw new ConnectionError(
