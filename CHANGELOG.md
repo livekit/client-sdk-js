@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.15.15
+
+### Patch Changes
+
+- Add exponential backoff strategy in case of connection failures - [#1715](https://github.com/livekit/client-sdk-js/pull/1715) ([@lukasIO](https://github.com/lukasIO))
+
+- Add participant as an optional parameter to EncryptionError events emitted on room level - [#1723](https://github.com/livekit/client-sdk-js/pull/1723) ([@CSantosM](https://github.com/CSantosM))
+
+- fix(e2ee): propagate worker data decryption errors and reject corresponding promises - [#1729](https://github.com/livekit/client-sdk-js/pull/1729) ([@CSantosM](https://github.com/CSantosM))
+
+- Fix potential undefined access while disconnecting - [#1734](https://github.com/livekit/client-sdk-js/pull/1734) ([@lukasIO](https://github.com/lukasIO))
+
+- Add new areTokenSourceFetchOptionsEqual function - [#1733](https://github.com/livekit/client-sdk-js/pull/1733) ([@1egoman](https://github.com/1egoman))
+
+- Ensure publication isn't attempted after timeout rejected the promise - [#1725](https://github.com/livekit/client-sdk-js/pull/1725) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.14
 
 ### Patch Changes
