@@ -1381,8 +1381,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (needNegotiation) {
       // start negotiation
-      this.negotiate().catch((err) => {
-        log.error(err, this.logContext);
+      this.negotiate().catch((error) => {
+        log.error(error, this.logContext);
       });
     }
 
