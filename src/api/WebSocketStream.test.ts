@@ -184,7 +184,7 @@ describe('WebSocketStream', () => {
         new WebSocketStream('wss://test.example.com', {
           signal: abortController.signal,
         });
-      }).toThrow('This operation was aborted');
+      }).toThrow('AbortError');
     });
 
     it('should close when abort signal is triggered', () => {

@@ -355,7 +355,11 @@ export class SignalClient {
         return withAbort(
           withTimeout(self.processInitialSignalMessage<T, U>(connection.value, isReconnect), 5_000),
           abortSignal,
-        );
+        ).orTee((error) => {
+          if (error instanceof AbortError) {
+            self.sendLeave();
+          }
+        });
       }),
       this.connectionLock,
     );

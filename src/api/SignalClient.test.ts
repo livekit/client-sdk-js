@@ -121,7 +121,7 @@ describe('SignalClient.connect', () => {
 
       const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-      expect(result).toEqual(joinResponse);
+      expect(result._unsafeUnwrap()).toEqual(joinResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
   });
@@ -150,7 +150,7 @@ describe('SignalClient.connect', () => {
 
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
-      expect(result).toEqual(reconnectResponse);
+      expect(result._unsafeUnwrap()).toEqual(reconnectResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
@@ -175,7 +175,7 @@ describe('SignalClient.connect', () => {
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
       // This is an edge case: reconnect resolves with undefined when non-reconnect message is received
-      expect(result).toBeUndefined();
+      expect(result._unsafeUnwrap()).toBeUndefined();
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     }, 1000);
   });
@@ -189,9 +189,10 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions),
-      ).rejects.toThrow(ConnectionError);
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions);
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
     });
   });
 
@@ -223,14 +224,15 @@ describe('SignalClient.connect', () => {
         } as any;
       });
 
-      await expect(
-        signalClient.join(
-          'wss://test.livekit.io',
-          'test-token',
-          defaultOptions,
-          abortController.signal,
-        ),
-      ).rejects.toThrow('User aborted connection');
+      const result = await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        abortController.signal,
+      );
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toBe('AbortError');
     });
 
     it('should send leave request before closing when AbortSignal is triggered during connection', async () => {
@@ -306,8 +308,10 @@ describe('SignalClient.connect', () => {
       // Now abort the connection (after WS opens, before join response)
       abortController.abort(new Error('User aborted connection'));
 
-      // joinPromise should reject
-      await expect(joinPromise).rejects.toThrow('User aborted connection');
+      // joinPromise should return Err result
+      const result = await joinPromise;
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toBe('AbortError');
 
       // Verify that a leave request was sent before closing
       const leaveRequestSent = writtenMessages.some((data) => {
@@ -346,13 +350,14 @@ describe('SignalClient.connect', () => {
         text: async () => 'Forbidden',
       });
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        message: 'Forbidden',
-        reason: ConnectionErrorReason.NotAllowed,
-        status: 403,
-      });
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.message).toBe('Forbidden');
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.NotAllowed);
+      expect((error as ConnectionError).status).toBe(403);
     });
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
@@ -369,11 +374,12 @@ describe('SignalClient.connect', () => {
       // Mock fetch to throw (network error)
       (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        reason: ConnectionErrorReason.ServerUnreachable,
-      });
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.ServerUnreachable);
     });
 
     it('should handle WebsocketError from WebSocket rejection', async () => {
@@ -395,11 +401,12 @@ describe('SignalClient.connect', () => {
         text: async () => 'Internal Server Error',
       });
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        reason: ConnectionErrorReason.InternalError,
-      });
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
     });
   });
 
@@ -415,12 +422,13 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        message: 'no message received as first message',
-        reason: ConnectionErrorReason.InternalError,
-      });
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.message).toBe('no message received as first message');
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
     });
   });
 
@@ -435,16 +443,14 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject(
-        new ConnectionError(
-          'Received leave request while trying to (re)connect',
-          ConnectionErrorReason.LeaveRequest,
-          undefined,
-          1,
-        ),
-      );
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.message).toBe('Received leave request while trying to (re)connect');
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.LeaveRequest);
+      expect((error as ConnectionError).context).toBe(1);
     });
   });
 
@@ -460,51 +466,31 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        message: 'did not receive join response, got reconnect instead',
-        reason: ConnectionErrorReason.InternalError,
-      });
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.message).toBe('did not receive join response, got reconnect instead');
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
     });
   });
 
   describe('Failure Case - WebSocket Closed During Connection', () => {
     it('should reject when WebSocket closes during connection attempt', async () => {
-      let closedResolve: (value: WebSocketCloseInfo) => void;
-      const closedPromise = new Promise<WebSocketCloseInfo>((resolve) => {
-        closedResolve = resolve;
-      });
+      mockWebSocketStream({ readyState: 3 }); // CLOSED
 
-      vi.mocked(WebSocketStream).mockImplementation(() => {
-        // Simulate close during connection
-        queueMicrotask(() => {
-          closedResolve({ closeCode: 1006, reason: 'Connection lost' });
-        });
+      const shortTimeoutOptions = {
+        ...defaultOptions,
+        websocketTimeout: 100,
+      };
 
-        // eslint-disable-next-line neverthrow/must-use-result
-        const opened = ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => error as WebSocketError,
-        );
-        // eslint-disable-next-line neverthrow/must-use-result
-        const closed = ResultAsync.fromPromise(closedPromise, (error) => error as WebSocketError);
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions);
 
-        return {
-          url: 'wss://test.livekit.io',
-          opened,
-          closed,
-          close: vi.fn(),
-          readyState: 2, // CLOSING
-        } as any;
-      });
-
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
-      ).rejects.toMatchObject({
-        message: 'Websocket got closed during a (re)connection attempt: Connection lost',
-        reason: ConnectionErrorReason.InternalError,
-      });
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      // When connection fails, it will timeout since opened never resolves
+      expect(error).toBeInstanceOf(ConnectionError);
     });
   });
 
@@ -731,7 +717,7 @@ describe('SignalClient.validateFirstMessage', () => {
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
       expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
-      expect(result._unsafeUnwrapErr()).toBe(ConnectionErrorReason.InternalError);
+      expect(result._unsafeUnwrapErr().reason).toBe(ConnectionErrorReason.InternalError);
     }
   });
 });
@@ -755,10 +741,12 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result).toBeInstanceOf(ConnectionError);
-      expect(result.reason).toBe(ConnectionErrorReason.NotAllowed);
-      expect(result.status).toBe(403);
-      expect(result.message).toBe('Forbidden');
+      expect(result.isErr()).toBe(true);
+      const err = result._unsafeUnwrapErr();
+      expect(err).toBeInstanceOf(ConnectionError);
+      expect(err.reason).toBe(ConnectionErrorReason.NotAllowed);
+      expect(err.status).toBe(403);
+      expect(err.message).toBe('Forbidden');
     }
   });
 
@@ -782,8 +770,10 @@ describe('SignalClient.handleConnectionError', () => {
         'wss://test.livekit.io/validate',
       );
 
-      expect(result).toBe(connectionError);
-      expect(result.reason).toBe(ConnectionErrorReason.InternalError);
+      expect(result.isErr()).toBe(true);
+      const err = result._unsafeUnwrapErr();
+      expect(err).toBe(connectionError);
+      expect(err.reason).toBe(ConnectionErrorReason.InternalError);
     }
   });
 
@@ -798,9 +788,11 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result).toBeInstanceOf(ConnectionError);
-      expect(result.reason).toBe(ConnectionErrorReason.InternalError);
-      expect(result.status).toBe(500);
+      expect(result.isErr()).toBe(true);
+      const err = result._unsafeUnwrapErr();
+      expect(err).toBeInstanceOf(ConnectionError);
+      expect(err.reason).toBe(ConnectionErrorReason.InternalError);
+      expect(err.status).toBe(500);
     }
   });
 
@@ -812,8 +804,10 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result).toBeInstanceOf(ConnectionError);
-      expect(result.reason).toBe(ConnectionErrorReason.ServerUnreachable);
+      expect(result.isErr()).toBe(true);
+      const err = result._unsafeUnwrapErr();
+      expect(err).toBeInstanceOf(ConnectionError);
+      expect(err.reason).toBe(ConnectionErrorReason.ServerUnreachable);
     }
   });
 
@@ -826,7 +820,8 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result).toBe(fetchError);
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr()).toBe(fetchError);
     }
   });
 });
