@@ -60,8 +60,6 @@ export function withTimeout<T, E extends Error>(
   const timeout = ResultAsync.fromPromise(
     new Promise<never>((_, reject) =>
       setTimeout(() => {
-        console.warn('timeout triggered');
-
         reject(new TimeoutError());
       }, ms),
     ),
