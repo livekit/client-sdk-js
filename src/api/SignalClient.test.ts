@@ -5,10 +5,16 @@ import {
   SignalRequest,
   SignalResponse,
 } from '@livekit/protocol';
+import { ResultAsync } from 'neverthrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import { SignalClient, SignalConnectionState } from './SignalClient';
-import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
+import type {
+  WebSocketCloseError,
+  WebSocketCloseInfo,
+  WebSocketConnection,
+  WebSocketOpenError,
+} from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
 
 // Mock the WebSocketStream
@@ -57,16 +63,30 @@ function createMockConnection(readable: ReadableStream<ArrayBuffer>): WebSocketC
 
 interface MockWebSocketStreamOptions {
   connection?: WebSocketConnection;
-  opened?: Promise<WebSocketConnection>;
-  closed?: Promise<WebSocketCloseInfo>;
+  opened?: ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketOpenError>;
+  closed?: ResultAsync<WebSocketCloseInfo, WebSocketCloseError>;
   readyState?: number;
 }
 
 function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
   const {
     connection,
-    opened = connection ? Promise.resolve(connection) : new Promise(() => {}),
-    closed = new Promise(() => {}),
+    // eslint-disable-next-line neverthrow/must-use-result
+    opened = connection
+      ? ResultAsync.fromPromise(
+          Promise.resolve(connection),
+          (error) => ({ type: 'connection' as const, error: error as Event }),
+        )
+      : // eslint-disable-next-line neverthrow/must-use-result
+        ResultAsync.fromPromise(
+          new Promise(() => {}),
+          (error) => ({ type: 'connection' as const, error: error as Event }),
+        ),
+    // eslint-disable-next-line neverthrow/must-use-result
+    closed = ResultAsync.fromPromise(
+      new Promise(() => {}),
+      (error) => error as WebSocketCloseError,
+    ),
     readyState = 1,
   } = options;
 
@@ -191,10 +211,21 @@ describe('SignalClient.connect', () => {
         // Simulate abort
         setTimeout(() => abortController.abort(new Error('User aborted connection')), 50);
 
+        // eslint-disable-next-line neverthrow/must-use-result
+        const opened = ResultAsync.fromPromise(
+          new Promise(() => {}),
+          (error) => ({ type: 'connection' as const, error: error as Event }),
+        );
+        // eslint-disable-next-line neverthrow/must-use-result
+        const closed = ResultAsync.fromPromise(
+          new Promise(() => {}),
+          (error) => error as WebSocketCloseError,
+        );
+
         return {
           url: 'wss://test.livekit.io',
-          opened: new Promise(() => {}), // Never resolves
-          closed: new Promise(() => {}),
+          opened,
+          closed,
           close: vi.fn(),
           readyState: 0,
         } as any;
@@ -249,10 +280,21 @@ describe('SignalClient.connect', () => {
       };
 
       vi.mocked(WebSocketStream).mockImplementation(() => {
+        // eslint-disable-next-line neverthrow/must-use-result
+        const opened = ResultAsync.fromPromise(
+          Promise.resolve(mockConnection),
+          (error) => ({ type: 'connection' as const, error: error as Event }),
+        );
+        // eslint-disable-next-line neverthrow/must-use-result
+        const closed = ResultAsync.fromPromise(
+          new Promise(() => {}),
+          (error) => error as WebSocketCloseError,
+        );
+
         return {
           url: 'wss://test.livekit.io',
-          opened: Promise.resolve(mockConnection),
-          closed: new Promise(() => {}),
+          opened,
+          closed,
           close: vi.fn(),
           readyState: 1,
         } as any;
@@ -296,8 +338,13 @@ describe('SignalClient.connect', () => {
 
   describe('Failure Case - WebSocket Connection Errors', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
+      // eslint-disable-next-line neverthrow/must-use-result
+      const opened = ResultAsync.fromPromise(
+        Promise.reject(new Error('Connection failed')),
+        (error) => ({ type: 'connection' as const, error: error as Event }),
+      );
       mockWebSocketStream({
-        opened: Promise.reject(new Error('Connection failed')),
+        opened,
         readyState: 3,
       });
 
@@ -317,8 +364,13 @@ describe('SignalClient.connect', () => {
     });
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
+      // eslint-disable-next-line neverthrow/must-use-result
+      const opened = ResultAsync.fromPromise(
+        Promise.reject(new Error('Connection failed')),
+        (error) => ({ type: 'connection' as const, error: error as Event }),
+      );
       mockWebSocketStream({
-        opened: Promise.reject(new Error('Connection failed')),
+        opened,
         readyState: 3,
       });
 
@@ -339,8 +391,13 @@ describe('SignalClient.connect', () => {
         500,
       );
 
+      // eslint-disable-next-line neverthrow/must-use-result
+      const opened = ResultAsync.fromPromise(
+        Promise.reject(customError),
+        (error) => ({ type: 'connection' as const, error: error as Event }),
+      );
       mockWebSocketStream({
-        opened: Promise.reject(customError),
+        opened,
         readyState: 3,
       });
 
@@ -437,10 +494,21 @@ describe('SignalClient.connect', () => {
           closedResolve({ closeCode: 1006, reason: 'Connection lost' });
         });
 
+        // eslint-disable-next-line neverthrow/must-use-result
+        const opened = ResultAsync.fromPromise(
+          new Promise(() => {}),
+          (error) => ({ type: 'connection' as const, error: error as Event }),
+        );
+        // eslint-disable-next-line neverthrow/must-use-result
+        const closed = ResultAsync.fromPromise(
+          closedPromise,
+          (error) => error as WebSocketCloseError,
+        );
+
         return {
           url: 'wss://test.livekit.io',
-          opened: new Promise(() => {}), // Never resolves
-          closed: closedPromise,
+          opened,
+          closed,
           close: vi.fn(),
           readyState: 2, // CLOSING
         } as any;

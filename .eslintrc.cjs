@@ -4,6 +4,7 @@ module.exports = {
   parserOptions: {
     project: './tsconfig.eslint.json',
   },
+  plugins: ['neverthrow'],
   rules: {
     'import/export': 'off',
     'max-classes-per-file': 'off',
@@ -14,5 +15,6 @@ module.exports = {
     'class-methods-use-this': 'off',
     'no-underscore-dangle': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
+    'neverthrow/must-use-result': 'error',
   },
 };

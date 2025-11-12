@@ -284,7 +284,7 @@ describe('WebSocketStream', () => {
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.type).toBe('unspecified');
-        expect(result.error.message).toBe(
+        expect(result.error.type === 'unspecified' && result.error.message).toBe(
           'Encountered unspecified websocket error without a timely close event',
         );
       }

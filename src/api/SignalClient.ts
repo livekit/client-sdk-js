@@ -359,25 +359,8 @@ export class SignalClient {
         }
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
-        try {
-          this.ws.closed.then((result) => {
-            if (result.isErr()) {
-              const errorMessage =
-                result.error.type === 'unspecified'
-                  ? result.error.message
-                  : 'websocket error event';
-              if (this.isEstablishingConnection) {
-                reject(
-                  new ConnectionError(
-                    `Websocket error during a (re)connection attempt: ${errorMessage}`,
-                    ConnectionErrorReason.InternalError,
-                  ),
-                );
-              }
-              return;
-            }
-
-            const closeInfo = result.value;
+        this.ws.closed.match(
+          (closeInfo) => {
             if (this.isEstablishingConnection) {
               reject(
                 new ConnectionError(
@@ -395,74 +378,93 @@ export class SignalClient {
                 state: this.state,
               });
             }
-          });
+          },
+          (error) => {
+            const errorMessage =
+              error.type === 'unspecified' ? error.message : 'websocket error event';
+            if (this.isEstablishingConnection) {
+              reject(
+                new ConnectionError(
+                  `Websocket error during a (re)connection attempt: ${errorMessage}`,
+                  ConnectionErrorReason.InternalError,
+                ),
+              );
+            }
+          },
+        );
+
+        try {
           const result = await this.ws.opened;
           clearTimeout(wsTimeout);
 
-          if (result.isErr()) {
-            if (this.state !== SignalConnectionState.CONNECTED) {
-              this.state = SignalConnectionState.DISCONNECTED;
-              const errorMessage =
-                result.error.type === 'abort'
-                  ? result.error.message
-                  : 'websocket connection error';
-              const error = await this.handleConnectionError(errorMessage, validateUrl);
+          await result.match(
+            async (connection) => {
+              try {
+                const signalReader = connection.readable.getReader();
+                this.streamWriter = connection.writable.getWriter();
+                const firstMessage = await signalReader.read();
+                signalReader.releaseLock();
+                if (!firstMessage.value) {
+                  reject(
+                    new ConnectionError(
+                      'no message received as first message',
+                      ConnectionErrorReason.InternalError,
+                    ),
+                  );
+                  return;
+                }
+
+                const firstSignalResponse = parseSignalResponse(firstMessage.value);
+
+                // Validate the first message
+                const validation = this.validateFirstMessage(
+                  firstSignalResponse,
+                  opts.reconnect ?? false,
+                );
+
+                if (!validation.isValid) {
+                  reject(validation.error);
+                  return;
+                }
+
+                // Handle join response - set up ping configuration
+                if (firstSignalResponse.message?.case === 'join') {
+                  this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
+                  this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
+
+                  if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+                    this.log.debug('ping config', {
+                      ...this.logContext,
+                      timeout: this.pingTimeoutDuration,
+                      interval: this.pingIntervalDuration,
+                    });
+                  }
+                }
+
+                // Handle successful connection
+                const firstMessageToProcess = validation.shouldProcessFirstMessage
+                  ? firstSignalResponse
+                  : undefined;
+                handleSignalConnected(connection, firstMessageToProcess);
+                resolve(validation.response);
+              } catch (e) {
+                reject(e);
+              }
+            },
+            async (error) => {
+              if (this.state !== SignalConnectionState.CONNECTED) {
+                this.state = SignalConnectionState.DISCONNECTED;
+                const errorMessage =
+                  error.type === 'abort' ? error.message : 'websocket connection error';
+                const connectionError = await this.handleConnectionError(errorMessage, validateUrl);
+                reject(connectionError);
+                return;
+              }
+              // other errors, handle
+              this.handleWSError(error);
               reject(error);
-              return;
-            }
-            // other errors, handle
-            this.handleWSError(result.error);
-            reject(result.error);
-            return;
-          }
-
-          const connection = result.value;
-          const signalReader = connection.readable.getReader();
-          this.streamWriter = connection.writable.getWriter();
-          const firstMessage = await signalReader.read();
-          signalReader.releaseLock();
-          if (!firstMessage.value) {
-            throw new ConnectionError(
-              'no message received as first message',
-              ConnectionErrorReason.InternalError,
-            );
-          }
-
-          const firstSignalResponse = parseSignalResponse(firstMessage.value);
-
-          // Validate the first message
-          const validation = this.validateFirstMessage(
-            firstSignalResponse,
-            opts.reconnect ?? false,
+            },
           );
-
-          if (!validation.isValid) {
-            reject(validation.error);
-            return;
-          }
-
-          // Handle join response - set up ping configuration
-          if (firstSignalResponse.message?.case === 'join') {
-            this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
-            this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-
-            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
-              this.log.debug('ping config', {
-                ...this.logContext,
-                timeout: this.pingTimeoutDuration,
-                interval: this.pingIntervalDuration,
-              });
-            }
-          }
-
-          // Handle successful connection
-          const firstMessageToProcess = validation.shouldProcessFirstMessage
-            ? firstSignalResponse
-            : undefined;
-          handleSignalConnected(connection, firstMessageToProcess);
-          resolve(validation.response);
-        } catch (e) {
-          reject(e);
         } finally {
           cleanupAbortHandlers();
         }
@@ -519,7 +521,10 @@ export class SignalClient {
         this.ws.close({ closeCode: 1000, reason });
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = this.ws.closed;
+        const closePromise = this.ws.closed.match(
+          (closeInfo) => closeInfo,
+          (error) => error,
+        );
         this.ws = undefined;
         this.streamWriter = undefined;
         await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
