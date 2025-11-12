@@ -44,18 +44,21 @@ import {
   WrappedJoinRequest,
   protoInt64,
 } from '@livekit/protocol';
+import { Result, ResultAsync, err, errAsync, ok, okAsync, safeTry } from 'neverthrow';
 import log, { LoggerNames, getLogger } from '../logger';
-import { ConnectionError, ConnectionErrorReason } from '../room/errors';
+import { AbortError, ConnectionError, ConnectionErrorReason, TimeoutError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
+import { type WebSocketConnection, WebSocketError, WebSocketStream } from './WebSocketStream';
 import {
   createRtcUrl,
   createValidateUrl,
-  getAbortReasonAsString,
   parseSignalResponse,
+  withAbort,
+  withMutex,
+  withTimeout,
 } from './utils';
 
 // internal options
@@ -252,117 +255,86 @@ export class SignalClient {
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
     const res = await this.connect(url, token, opts, abortSignal);
-    return res as JoinResponse;
+
+    console.warn('connection join vorbei');
+
+    if (res.isErr()) {
+      console.warn('connection error throw throw');
+
+      throw res.error;
+    }
+
+    return res.value as JoinResponse;
   }
 
-  async reconnect(
+  reconnect(
     url: string,
     token: string,
     sid?: string,
     reason?: ReconnectReason,
-  ): Promise<ReconnectResponse | undefined> {
+  ): ResultAsync<ReconnectResponse, ConnectionError> {
     if (!this.options) {
-      this.log.warn(
-        'attempted to reconnect without signal options being set, ignoring',
-        this.logContext,
+      return errAsync(
+        new ConnectionError(
+          'attempted to reconnect without signal options being set',
+          ConnectionErrorReason.InternalError,
+        ),
       );
-      return;
     }
     this.state = SignalConnectionState.RECONNECTING;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = (await this.connect(url, token, {
+    return this.connect(url, token, {
       ...this.options,
       reconnect: true,
       sid,
       reconnectReason: reason,
-    })) as ReconnectResponse | undefined;
-    return res;
+    }) as ResultAsync<ReconnectResponse, ConnectionError>;
   }
 
-  private async connect(
+  private connect(
     url: string,
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-  ): Promise<JoinResponse | ReconnectResponse | undefined> {
-    const unlock = await this.connectionLock.lock();
+  ): ResultAsync<
+    JoinResponse | ReconnectResponse | undefined,
+    WebSocketError | TimeoutError | AbortError | ConnectionError | TypeError
+  > {
+    const self = this;
 
-    this.connectOptions = opts;
-    const clientInfo = getClientInfo();
-    const params = opts.singlePeerConnection
-      ? createJoinRequestConnectionParams(token, clientInfo, opts)
-      : createConnectionParams(token, clientInfo, opts);
-    const rtcUrl = createRtcUrl(url, params);
-    const validateUrl = createValidateUrl(rtcUrl);
-
-    return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
-      try {
-        let alreadyAborted = false;
-        const abortHandler = async (eventOrError: Event | Error) => {
-          if (alreadyAborted) {
-            return;
-          }
-          alreadyAborted = true;
-          const target = eventOrError instanceof Event ? eventOrError.currentTarget : eventOrError;
-          const reason = getAbortReasonAsString(target, 'Abort handler called');
-          // send leave if we have an active stream writer (connection is open)
-          if (this.streamWriter && !this.isDisconnected) {
-            this.sendLeave()
-              .then(() => this.close(reason))
-              .catch((e) => {
-                this.log.error(e);
-                this.close();
-              });
-          } else {
-            this.close();
-          }
-          cleanupAbortHandlers();
-          reject(target instanceof AbortSignal ? target.reason : target);
-        };
-
-        abortSignal?.addEventListener('abort', abortHandler);
-
-        const cleanupAbortHandlers = () => {
-          clearTimeout(wsTimeout);
-          abortSignal?.removeEventListener('abort', abortHandler);
-        };
-
-        const wsTimeout = setTimeout(() => {
-          abortHandler(
-            new ConnectionError(
-              'room connection has timed out (signal)',
-              ConnectionErrorReason.ServerUnreachable,
-            ),
-          );
-        }, opts.websocketTimeout);
-
-        const handleSignalConnected = (
-          connection: WebSocketConnection,
-          firstMessage?: SignalResponse,
-        ) => {
-          this.handleSignalConnected(connection, wsTimeout, firstMessage);
-        };
+    return withMutex(
+      safeTry<
+        JoinResponse | ReconnectResponse | undefined,
+        WebSocketError | TimeoutError | AbortError | ConnectionError | TypeError
+      >(async function* () {
+        self.connectOptions = opts;
+        const clientInfo = getClientInfo();
+        const params = opts.singlePeerConnection
+          ? createJoinRequestConnectionParams(token, clientInfo, opts)
+          : createConnectionParams(token, clientInfo, opts);
+        const rtcUrl = createRtcUrl(url, params);
+        const validateUrl = createValidateUrl(rtcUrl);
 
         const redactedUrl = new URL(rtcUrl);
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
-        this.log.debug(`connecting to ${redactedUrl}`, {
+        self.log.debug(`connecting to ${redactedUrl}`, {
           reconnect: opts.reconnect,
           reconnectReason: opts.reconnectReason,
-          ...this.logContext,
+          ...self.logContext,
         });
-        if (this.ws) {
-          await this.close(false);
+        if (self.ws) {
+          await self.close(false);
         }
-        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+        self.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
-        this.ws.closed.match(
+        self.ws.closed.match(
           (closeInfo) => {
-            if (this.isEstablishingConnection) {
-              reject(
+            if (self.isEstablishingConnection) {
+              return err(
                 new ConnectionError(
                   `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
                   ConnectionErrorReason.InternalError,
@@ -370,22 +342,20 @@ export class SignalClient {
               );
             }
             if (closeInfo.closeCode !== 1000) {
-              this.log.warn(`websocket closed`, {
-                ...this.logContext,
+              self.log.warn(`websocket closed`, {
+                ...self.logContext,
                 reason: closeInfo.reason,
                 code: closeInfo.closeCode,
                 wasClean: closeInfo.closeCode === 1000,
-                state: this.state,
+                state: self.state,
               });
             }
           },
           (error) => {
-            const errorMessage =
-              error.type === 'unspecified' ? error.message : 'websocket error event';
-            if (this.isEstablishingConnection) {
-              reject(
+            if (self.isEstablishingConnection) {
+              return err(
                 new ConnectionError(
-                  `Websocket error during a (re)connection attempt: ${errorMessage}`,
+                  `Websocket error during a (re)connection attempt: ${error.message}`,
                   ConnectionErrorReason.InternalError,
                 ),
               );
@@ -393,85 +363,35 @@ export class SignalClient {
           },
         );
 
-        try {
-          const result = await this.ws.opened;
-          clearTimeout(wsTimeout);
+        const connection = await withAbort(
+          withTimeout(self.ws.opened, opts.websocketTimeout),
+          abortSignal,
+        );
 
-          await result.match(
-            async (connection) => {
-              try {
-                const signalReader = connection.readable.getReader();
-                this.streamWriter = connection.writable.getWriter();
-                const firstMessage = await signalReader.read();
-                signalReader.releaseLock();
-                if (!firstMessage.value) {
-                  reject(
-                    new ConnectionError(
-                      'no message received as first message',
-                      ConnectionErrorReason.InternalError,
-                    ),
-                  );
-                  return;
-                }
+        if (connection.isErr()) {
+          console.warn('connection error is abgefahren');
 
-                const firstSignalResponse = parseSignalResponse(firstMessage.value);
-
-                // Validate the first message
-                const validation = this.validateFirstMessage(
-                  firstSignalResponse,
-                  opts.reconnect ?? false,
-                );
-
-                if (!validation.isValid) {
-                  reject(validation.error);
-                  return;
-                }
-
-                // Handle join response - set up ping configuration
-                if (firstSignalResponse.message?.case === 'join') {
-                  this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
-                  this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-
-                  if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
-                    this.log.debug('ping config', {
-                      ...this.logContext,
-                      timeout: this.pingTimeoutDuration,
-                      interval: this.pingIntervalDuration,
-                    });
-                  }
-                }
-
-                // Handle successful connection
-                const firstMessageToProcess = validation.shouldProcessFirstMessage
-                  ? firstSignalResponse
-                  : undefined;
-                handleSignalConnected(connection, firstMessageToProcess);
-                resolve(validation.response);
-              } catch (e) {
-                reject(e);
-              }
-            },
-            async (error) => {
-              if (this.state !== SignalConnectionState.CONNECTED) {
-                this.state = SignalConnectionState.DISCONNECTED;
-                const errorMessage =
-                  error.type === 'abort' ? error.message : 'websocket connection error';
-                const connectionError = await this.handleConnectionError(errorMessage, validateUrl);
-                reject(connectionError);
-                return;
-              }
-              // other errors, handle
-              this.handleWSError(error);
-              reject(error);
-            },
-          );
-        } finally {
-          cleanupAbortHandlers();
+          const error = connection.error;
+          if (self.state !== SignalConnectionState.CONNECTED) {
+            self.state = SignalConnectionState.DISCONNECTED;
+            const connectionError = await withAbort(
+              withTimeout(self.handleConnectionError(error.message, validateUrl), 3_000),
+              abortSignal,
+            );
+            self.close(undefined, error.type);
+            console.warn('connection returning den error');
+            return err(connectionError);
+          }
+          // other errors, handle
+          self.handleWSError(error);
+          console.warn('connection returning den error');
+          return err(error);
         }
-      } finally {
-        unlock();
-      }
-    });
+
+        return self.processInitialSignalMessage(connection.value, opts.reconnect ?? false);
+      }),
+      this.connectionLock,
+    );
   }
 
   async startReadingLoop(
@@ -918,15 +838,63 @@ export class SignalClient {
    * @param firstMessage Optional first message to process
    * @internal
    */
-  private handleSignalConnected(
-    connection: WebSocketConnection,
-    timeoutHandle: ReturnType<typeof setTimeout>,
-    firstMessage?: SignalResponse,
-  ) {
+  private handleSignalConnected(connection: WebSocketConnection, firstMessage?: SignalResponse) {
     this.state = SignalConnectionState.CONNECTED;
-    clearTimeout(timeoutHandle);
     this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
+  }
+
+  private processInitialSignalMessage<Reconnect extends boolean>(
+    connection: WebSocketConnection,
+    isReconnect: Reconnect,
+  ) {
+    const self = this;
+    return safeTry<JoinResponse | ReconnectResponse | undefined, ConnectionError | TypeError>(
+      async function* () {
+        const signalReader = connection.readable.getReader();
+        self.streamWriter = connection.writable.getWriter();
+        console.log('type error start');
+
+        const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
+
+        console.log('type error end');
+
+        if (!firstMessage.value) {
+          return err(
+            new ConnectionError(
+              'no message received as first message',
+              ConnectionErrorReason.InternalError,
+            ),
+          );
+        }
+
+        const firstSignalResponse = parseSignalResponse(firstMessage.value);
+
+        // Validate the first message
+        const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
+
+        // Handle join response - set up ping configuration
+        if (firstSignalResponse.message?.case === 'join') {
+          self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
+          self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
+
+          if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
+            self.log.debug('ping config', {
+              ...self.logContext,
+              timeout: self.pingTimeoutDuration,
+              interval: self.pingIntervalDuration,
+            });
+          }
+        }
+
+        // Handle successful connection
+        const firstMessageToProcess = validation.shouldProcessFirstMessage
+          ? firstSignalResponse
+          : undefined;
+        self.handleSignalConnected(connection, firstMessageToProcess);
+        return okAsync(validation.response);
+      },
+    );
   }
 
   /**
@@ -939,63 +907,58 @@ export class SignalClient {
   private validateFirstMessage(
     firstSignalResponse: SignalResponse,
     isReconnect: boolean,
-  ): {
-    isValid: boolean;
-    response?: JoinResponse | ReconnectResponse;
-    error?: ConnectionError;
-    shouldProcessFirstMessage?: boolean;
-  } {
+  ): Result<
+    ValidationType,
+    // TODO, this should probably not be a ConnectionError?
+    ConnectionError
+  > {
     if (firstSignalResponse.message?.case === 'join') {
-      return {
-        isValid: true,
+      return ok({
         response: firstSignalResponse.message.value,
-      };
+        shouldProcessFirstMessage: false,
+      });
     } else if (
       this.state === SignalConnectionState.RECONNECTING &&
       firstSignalResponse.message?.case !== 'leave'
     ) {
       if (firstSignalResponse.message?.case === 'reconnect') {
-        return {
-          isValid: true,
+        return ok({
           response: firstSignalResponse.message.value,
-        };
+          shouldProcessFirstMessage: false,
+        });
       } else {
         // in reconnecting, any message received means signal reconnected and we still need to process it
         this.log.debug(
           'declaring signal reconnected without reconnect response received',
           this.logContext,
         );
-        return {
-          isValid: true,
+        return ok({
           response: undefined,
           shouldProcessFirstMessage: true,
-        };
+        });
       }
     } else if (this.isEstablishingConnection && firstSignalResponse.message?.case === 'leave') {
-      return {
-        isValid: false,
-        error: new ConnectionError(
+      return err(
+        new ConnectionError(
           'Received leave request while trying to (re)connect',
           ConnectionErrorReason.LeaveRequest,
           undefined,
           firstSignalResponse.message.value.reason,
         ),
-      };
+      );
     } else if (!isReconnect) {
       // non-reconnect case, should receive join response first
-      return {
-        isValid: false,
-        error: new ConnectionError(
+      return err(
+        new ConnectionError(
           `did not receive join response, got ${firstSignalResponse.message?.case} instead`,
           ConnectionErrorReason.InternalError,
         ),
-      };
+      );
     }
 
-    return {
-      isValid: false,
-      error: new ConnectionError('Unexpected first message', ConnectionErrorReason.InternalError),
-    };
+    return err(
+      new ConnectionError('Unexpected first message', ConnectionErrorReason.InternalError),
+    );
   }
 
   /**
@@ -1008,28 +971,32 @@ export class SignalClient {
   private async handleConnectionError(
     reason: unknown,
     validateUrl: string,
-  ): Promise<ConnectionError> {
+  ): Promise<Result<never, ConnectionError>> {
     try {
       const resp = await fetch(validateUrl);
       if (resp.status.toFixed(0).startsWith('4')) {
         const msg = await resp.text();
-        return new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status);
+        return err(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
       } else if (reason instanceof ConnectionError) {
-        return reason;
+        return err(reason);
       } else {
-        return new ConnectionError(
-          `Encountered unknown websocket error during connection: ${reason}`,
-          ConnectionErrorReason.InternalError,
-          resp.status,
+        return err(
+          new ConnectionError(
+            `Encountered unknown websocket error during connection: ${reason}`,
+            ConnectionErrorReason.InternalError,
+            resp.status,
+          ),
         );
       }
     } catch (e) {
-      return e instanceof ConnectionError
-        ? e
-        : new ConnectionError(
-            e instanceof Error ? e.message : 'server was not reachable',
-            ConnectionErrorReason.ServerUnreachable,
-          );
+      return err(
+        e instanceof ConnectionError
+          ? e
+          : new ConnectionError(
+              e instanceof Error ? e.message : 'server was not reachable',
+              ConnectionErrorReason.ServerUnreachable,
+            ),
+      );
     }
   }
 }
@@ -1146,3 +1113,13 @@ function createJoinRequestConnectionParams(
 
   return params;
 }
+
+export type ValidationType =
+  | {
+      response: JoinResponse | ReconnectResponse;
+      shouldProcessFirstMessage: false;
+    }
+  | {
+      response: undefined;
+      shouldProcessFirstMessage: true;
+    };

@@ -111,6 +111,24 @@ export class SignalRequestError extends LivekitError {
   }
 }
 
+export class TimeoutError extends LivekitError {
+  readonly type = 'timeout';
+
+  constructor(message: string = 'TimeoutError') {
+    super(17, message);
+    this.name = 'TimeoutError';
+  }
+}
+
+export class AbortError extends LivekitError {
+  readonly type = 'abort';
+
+  constructor(message: string = 'AbortError') {
+    super(18, message);
+    this.name = 'AbortError';
+  }
+}
+
 // NOTE: matches with https://github.com/livekit/client-sdk-swift/blob/f37bbd260d61e165084962db822c79f995f1a113/Sources/LiveKit/DataStream/StreamError.swift#L17
 export enum DataStreamErrorReason {
   // Unable to open a stream with the same ID more than once.

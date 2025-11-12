@@ -5,16 +5,11 @@ import {
   SignalRequest,
   SignalResponse,
 } from '@livekit/protocol';
-import { ResultAsync } from 'neverthrow';
+import { Result, ResultAsync } from 'neverthrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import { SignalClient, SignalConnectionState } from './SignalClient';
-import type {
-  WebSocketCloseError,
-  WebSocketCloseInfo,
-  WebSocketConnection,
-  WebSocketOpenError,
-} from './WebSocketStream';
+import { SignalClient, SignalConnectionState, ValidationType } from './SignalClient';
+import { WebSocketCloseInfo, WebSocketConnection, WebSocketError } from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
 
 // Mock the WebSocketStream
@@ -63,8 +58,8 @@ function createMockConnection(readable: ReadableStream<ArrayBuffer>): WebSocketC
 
 interface MockWebSocketStreamOptions {
   connection?: WebSocketConnection;
-  opened?: ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketOpenError>;
-  closed?: ResultAsync<WebSocketCloseInfo, WebSocketCloseError>;
+  opened?: ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketError>;
+  closed?: ResultAsync<WebSocketCloseInfo, WebSocketError>;
   readyState?: number;
 }
 
@@ -73,20 +68,17 @@ function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
     connection,
     // eslint-disable-next-line neverthrow/must-use-result
     opened = connection
-      ? ResultAsync.fromPromise(
-          Promise.resolve(connection),
-          (error) => ({ type: 'connection' as const, error: error as Event }),
-        )
+      ? ResultAsync.fromPromise(Promise.resolve(connection), (error) => ({
+          type: 'connection' as const,
+          error: error as Event,
+        }))
       : // eslint-disable-next-line neverthrow/must-use-result
-        ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => ({ type: 'connection' as const, error: error as Event }),
-        ),
+        ResultAsync.fromPromise(new Promise(() => {}), (error) => ({
+          type: 'connection' as const,
+          error: error as Event,
+        })),
     // eslint-disable-next-line neverthrow/must-use-result
-    closed = ResultAsync.fromPromise(
-      new Promise(() => {}),
-      (error) => error as WebSocketCloseError,
-    ),
+    closed = ResultAsync.fromPromise(new Promise(() => {}), (error) => error as WebSocketError),
     readyState = 1,
   } = options;
 
@@ -212,14 +204,14 @@ describe('SignalClient.connect', () => {
         setTimeout(() => abortController.abort(new Error('User aborted connection')), 50);
 
         // eslint-disable-next-line neverthrow/must-use-result
-        const opened = ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => ({ type: 'connection' as const, error: error as Event }),
-        );
+        const opened = ResultAsync.fromPromise(new Promise(() => {}), (error) => ({
+          type: 'connection' as const,
+          error: error as Event,
+        }));
         // eslint-disable-next-line neverthrow/must-use-result
         const closed = ResultAsync.fromPromise(
           new Promise(() => {}),
-          (error) => error as WebSocketCloseError,
+          (error) => error as WebSocketError,
         );
 
         return {
@@ -281,14 +273,14 @@ describe('SignalClient.connect', () => {
 
       vi.mocked(WebSocketStream).mockImplementation(() => {
         // eslint-disable-next-line neverthrow/must-use-result
-        const opened = ResultAsync.fromPromise(
-          Promise.resolve(mockConnection),
-          (error) => ({ type: 'connection' as const, error: error as Event }),
-        );
+        const opened = ResultAsync.fromPromise(Promise.resolve(mockConnection), (error) => ({
+          type: 'connection' as const,
+          error: error as Event,
+        }));
         // eslint-disable-next-line neverthrow/must-use-result
         const closed = ResultAsync.fromPromise(
           new Promise(() => {}),
-          (error) => error as WebSocketCloseError,
+          (error) => error as WebSocketError,
         );
 
         return {
@@ -340,8 +332,8 @@ describe('SignalClient.connect', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
-        Promise.reject(new Error('Connection failed')),
-        (error) => ({ type: 'connection' as const, error: error as Event }),
+        Promise.reject(new WebSocketError('Connection failed')),
+        (error) => error as WebSocketError,
       );
       mockWebSocketStream({
         opened,
@@ -366,8 +358,8 @@ describe('SignalClient.connect', () => {
     it('should reject with ServerUnreachable when fetch fails', async () => {
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
-        Promise.reject(new Error('Connection failed')),
-        (error) => ({ type: 'connection' as const, error: error as Event }),
+        Promise.reject(new WebSocketError('Connection failed')),
+        (error) => error as WebSocketError,
       );
       mockWebSocketStream({
         opened,
@@ -384,17 +376,13 @@ describe('SignalClient.connect', () => {
       });
     });
 
-    it('should handle ConnectionError from WebSocket rejection', async () => {
-      const customError = new ConnectionError(
-        'Custom error',
-        ConnectionErrorReason.InternalError,
-        500,
-      );
+    it('should handle WebsocketError from WebSocket rejection', async () => {
+      const customError = new WebSocketError('Custom error');
 
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
         Promise.reject(customError),
-        (error) => ({ type: 'connection' as const, error: error as Event }),
+        (error) => error as WebSocketError,
       );
       mockWebSocketStream({
         opened,
@@ -497,13 +485,10 @@ describe('SignalClient.connect', () => {
         // eslint-disable-next-line neverthrow/must-use-result
         const opened = ResultAsync.fromPromise(
           new Promise(() => {}),
-          (error) => ({ type: 'connection' as const, error: error as Event }),
+          (error) => error as WebSocketError,
         );
         // eslint-disable-next-line neverthrow/must-use-result
-        const closed = ResultAsync.fromPromise(
-          closedPromise,
-          (error) => error as WebSocketCloseError,
-        );
+        const closed = ResultAsync.fromPromise(closedPromise, (error) => error as WebSocketError);
 
         return {
           url: 'wss://test.livekit.io',
@@ -655,11 +640,13 @@ describe('SignalClient.validateFirstMessage', () => {
     const joinResponse = createJoinResponse();
     const signalResponse = createSignalResponse('join', joinResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage;
+    const validateMethod = (signalClient as any).validateFirstMessage as (
+      msg: any,
+      isReconnect: boolean,
+    ) => Result<ValidationType, ConnectionError>;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result.isValid).toBe(true);
-      expect(result.response).toEqual(joinResponse);
+      expect(result._unsafeUnwrap().response).toEqual(joinResponse);
     }
   });
 
@@ -679,11 +666,13 @@ describe('SignalClient.validateFirstMessage', () => {
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage;
+    const validateMethod = (signalClient as any).validateFirstMessage as (
+      msg: any,
+      isReconnect: boolean,
+    ) => Result<ValidationType, ConnectionError>;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, true);
-      expect(result.isValid).toBe(true);
-      expect(result.response).toEqual(reconnectResponse);
+      expect(result._unsafeUnwrap().response).toEqual(reconnectResponse);
     }
   });
 
@@ -702,12 +691,14 @@ describe('SignalClient.validateFirstMessage', () => {
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
-    const validateMethod = (signalClient as any).validateFirstMessage;
+    const validateMethod = (signalClient as any).validateFirstMessage as (
+      msg: any,
+      isReconnect: boolean,
+    ) => Result<ValidationType, ConnectionError>;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, updateSignalResponse, true);
-      expect(result.isValid).toBe(true);
-      expect(result.response).toBeUndefined();
-      expect(result.shouldProcessFirstMessage).toBe(true);
+      expect(result._unsafeUnwrap().response).toBeUndefined();
+      expect(result._unsafeUnwrap().shouldProcessFirstMessage).toBe(true);
     }
   });
 
@@ -718,12 +709,14 @@ describe('SignalClient.validateFirstMessage', () => {
     const leaveRequest = new LeaveRequest({ reason: 1 });
     const signalResponse = createSignalResponse('leave', leaveRequest);
 
-    const validateMethod = (signalClient as any).validateFirstMessage;
+    const validateMethod = (signalClient as any).validateFirstMessage as (
+      msg: any,
+      isReconnect: boolean,
+    ) => Result<ValidationType, ConnectionError>;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBeInstanceOf(ConnectionError);
-      expect(result.error?.reason).toBe(ConnectionErrorReason.LeaveRequest);
+      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
+      expect(result._unsafeUnwrapErr().reason).toBe(ConnectionErrorReason.LeaveRequest);
     }
   });
 
@@ -731,12 +724,14 @@ describe('SignalClient.validateFirstMessage', () => {
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage;
+    const validateMethod = (signalClient as any).validateFirstMessage as (
+      msg: any,
+      isReconnect: boolean,
+    ) => Result<ValidationType, ConnectionError>;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toBeInstanceOf(ConnectionError);
-      expect(result.error?.reason).toBe(ConnectionErrorReason.InternalError);
+      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
+      expect(result._unsafeUnwrapErr()).toBe(ConnectionErrorReason.InternalError);
     }
   });
 });

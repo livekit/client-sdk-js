@@ -1,4 +1,7 @@
+import type { Mutex } from '@livekit/mutex';
 import { SignalResponse } from '@livekit/protocol';
+import { Result, ResultAsync, errAsync } from 'neverthrow';
+import { AbortError, TimeoutError } from '../room/errors';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
 export function createRtcUrl(url: string, searchParams: URLSearchParams) {
@@ -48,4 +51,84 @@ export function getAbortReasonAsString(
     default:
       return 'toString' in reason ? reason.toString() : defaultMessage;
   }
+}
+
+export function withTimeout<T, E extends Error>(
+  ra: ResultAsync<T, E> | Promise<Result<T, E>>,
+  ms: number,
+): ResultAsync<T, E | TimeoutError> {
+  const toSettledPromise: PromiseLike<T> = ra.then((res) =>
+    // `res` is a Result<T,E>; resolve with T or reject with E
+    res.match(
+      (v) => Promise.resolve(v),
+      (err) => Promise.reject(err),
+    ),
+  );
+
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => {
+      console.warn('timeout triggered');
+
+      reject(new TimeoutError());
+    }, ms),
+  );
+
+  return ResultAsync.fromPromise(
+    // race returns a Promise<T> that resolves with T or rejects with E/onTimeout()
+    Promise.race([toSettledPromise, timeout]),
+    // map any thrown/rejected value into the error type E
+    (e) => e as E | TimeoutError,
+  );
+}
+
+export function withAbort<T, E extends Error>(
+  ra: ResultAsync<T, E>,
+  signal: AbortSignal | undefined,
+): ResultAsync<T, E | AbortError> {
+  if (signal?.aborted) {
+    return errAsync(new AbortError());
+  }
+
+  const abortPromise = new Promise<never>((_, reject) => {
+    const onAbortHandler = () => {
+      signal?.removeEventListener('abort', onAbortHandler);
+      reject(new AbortError());
+    };
+    signal?.addEventListener('abort', onAbortHandler);
+  });
+
+  const toSettledPromise: PromiseLike<T> = ra.then((res) =>
+    res.match(
+      (v) => Promise.resolve(v),
+      (err) => Promise.reject(err),
+    ),
+  );
+
+  return ResultAsync.fromPromise(
+    Promise.race([toSettledPromise, abortPromise]),
+    (e) => e as E | AbortError,
+  );
+}
+
+export function withMutex<T, E extends Error>(
+  fn: ResultAsync<T, E> | Result<T, E>,
+  mutex: Mutex,
+): ResultAsync<T, E> {
+  return ResultAsync.fromPromise(
+    (async () => {
+      const unlock = await mutex.lock();
+      try {
+        const res = await fn;
+        return res.match(
+          (v) => v,
+          (err) => {
+            throw err as Error;
+          },
+        );
+      } finally {
+        unlock();
+      }
+    })(),
+    (e) => e as E,
+  );
 }
