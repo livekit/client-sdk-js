@@ -366,7 +366,13 @@ export class SignalClient {
           abortSignal,
         ).orTee((error) => {
           if (error instanceof AbortError) {
-            self.sendLeave();
+            self
+              .sendLeave()
+              .then(() => self.close())
+              .catch((e) => {
+                self.log.error(e);
+                self.close();
+              });
           }
         });
       }),
