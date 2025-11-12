@@ -1,5 +1,7 @@
 import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 
+// TODO properly define necessary Errors (make them backwards compatible)
+
 export class LivekitError extends Error {
   code: number;
 
@@ -7,6 +9,14 @@ export class LivekitError extends Error {
     super(message || 'an error has occured');
     this.name = 'LiveKitError';
     this.code = code;
+  }
+}
+
+export class SimulatedError extends LivekitError {
+  readonly type = 'simulated';
+
+  constructor(message = 'Simulated failure') {
+    super(0, message);
   }
 }
 

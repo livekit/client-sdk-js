@@ -773,7 +773,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResponse = await engine.join(
+    const joinResult = await engine.join(
       url,
       token,
       {
@@ -787,6 +787,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
       abortController.signal,
     );
+
+    // TODO continue propagating Result, we don't need to throw here
+    if (joinResult.isErr()) {
+      throw joinResult.error;
+    }
+
+    const joinResponse = joinResult.value;
 
     let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
     if (!serverInfo) {
