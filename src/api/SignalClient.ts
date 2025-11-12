@@ -302,18 +302,30 @@ export class SignalClient {
 
         // Race the connection opening against the websocket closing
         const connection = await withAbort(
-          raceResults([
-            withTimeout(self.ws.opened, opts.websocketTimeout),
-            // Return the close promise as error if it resolves first
-            self.ws!.closed.andThen((info) =>
-              err(
-                new ConnectionError(
-                  info.reason ?? 'Websocket closed during (re)connection attempt',
-                  ConnectionErrorReason.InternalError,
-                ),
-              ),
-            ),
-          ]),
+          withTimeout(
+            raceResults([
+              self.ws.opened,
+              // Return the close promise as error if it resolves first
+              self.ws!.closed.andThen((closeInfo) => {
+                if (closeInfo.closeCode !== 1000) {
+                  self.log.warn(`websocket closed`, {
+                    ...self.logContext,
+                    reason: closeInfo.reason,
+                    code: closeInfo.closeCode,
+                    wasClean: closeInfo.closeCode === 1000,
+                    state: self.state,
+                  });
+                }
+                return err(
+                  new ConnectionError(
+                    closeInfo.reason ?? 'Websocket closed during (re)connection attempt',
+                    ConnectionErrorReason.InternalError,
+                  ),
+                );
+              }),
+            ]),
+            opts.websocketTimeout,
+          ),
 
           abortSignal,
         );
@@ -323,7 +335,7 @@ export class SignalClient {
           if (self.state !== SignalConnectionState.CONNECTED) {
             self.state = SignalConnectionState.DISCONNECTED;
             const connectionError = await withAbort(
-              withTimeout(self.handleConnectionError(error.message, validateUrl), 3_000),
+              withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
               abortSignal,
             );
             const closeReason = 'type' in error ? `${error.type}: ${error.message}` : error.message;
@@ -929,7 +941,7 @@ export class SignalClient {
    * @returns A ConnectionError with appropriate reason and status
    * @internal
    */
-  private async handleConnectionError(
+  private async fetchErrorInfo(
     reason: unknown,
     validateUrl: string,
   ): Promise<Result<never, ConnectionError>> {
