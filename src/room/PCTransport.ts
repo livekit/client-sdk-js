@@ -321,9 +321,8 @@ export default class PCTransport extends EventEmitter {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
-            // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
-            // mung sdp for av1 bitrate setting that can't apply by sendEncoding
-            if (trackbr.codec !== 'av1') {
+            // mung sdp for bitrate setting that can't apply by sendEncoding
+            if (!isSVCCodec(trackbr.codec)) {
               return true;
             }
 
