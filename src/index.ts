@@ -10,6 +10,7 @@ import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from '
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
+import type { RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
@@ -146,6 +147,7 @@ export type {
   VideoSenderStats,
   ReconnectContext,
   ReconnectPolicy,
+  RoomEventCallbacks,
 };
 
 export { LocalTrackRecorder } from './room/track/record';
