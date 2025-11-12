@@ -44,7 +44,7 @@ import {
   WrappedJoinRequest,
   protoInt64,
 } from '@livekit/protocol';
-import { Result, err, errAsync, ok, okAsync, safeTry } from 'neverthrow';
+import { Result, ResultAsync, err, errAsync, ok, okAsync, safeTry } from 'neverthrow';
 import log, { LoggerNames, getLogger } from '../logger';
 import { AbortError, ConnectionError, ConnectionErrorReason, TimeoutError } from '../room/errors';
 import CriticalTimers from '../room/timers';
@@ -63,8 +63,6 @@ import {
 
 // internal options
 interface ConnectOpts extends SignalOptions {
-  /** internal */
-  reconnect?: boolean;
   /** internal */
   reconnectReason?: number;
   /** internal */
@@ -249,7 +247,7 @@ export class SignalClient {
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    return this.connect(url, token, opts, abortSignal);
+    return this.connect(url, token, false, opts, abortSignal);
   }
 
   reconnect(url: string, token: string, sid?: string, reason?: ReconnectReason) {
@@ -265,26 +263,25 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    return this.connect(url, token, {
+    return this.connect(url, token, true, {
       ...this.options,
-      reconnect: true,
       sid,
       reconnectReason: reason,
     });
   }
 
-  private connect(url: string, token: string, opts: ConnectOpts, abortSignal?: AbortSignal) {
+  private connect<
+    T extends boolean,
+    U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
+  >(url: string, token: string, isReconnect: T, opts: ConnectOpts, abortSignal?: AbortSignal) {
     const self = this;
     return withMutex(
-      safeTry<
-        JoinResponse | ReconnectResponse | undefined,
-        WebSocketError | TimeoutError | AbortError | ConnectionError
-      >(async function* () {
+      safeTry<U, WebSocketError | TimeoutError | AbortError | ConnectionError>(async function* () {
         self.connectOptions = opts;
         const clientInfo = getClientInfo();
         const params = opts.singlePeerConnection
-          ? createJoinRequestConnectionParams(token, clientInfo, opts)
-          : createConnectionParams(token, clientInfo, opts);
+          ? createJoinRequestConnectionParams(token, clientInfo, opts, isReconnect)
+          : createConnectionParams(token, clientInfo, opts, isReconnect);
         const rtcUrl = createRtcUrl(url, params);
         const validateUrl = createValidateUrl(rtcUrl);
 
@@ -293,7 +290,7 @@ export class SignalClient {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
         self.log.debug(`connecting to ${redactedUrl}`, {
-          reconnect: opts.reconnect,
+          reconnect: isReconnect,
           reconnectReason: opts.reconnectReason,
           ...self.logContext,
         });
@@ -340,8 +337,6 @@ export class SignalClient {
         );
 
         if (connection.isErr()) {
-          console.warn('connection error is abgefahren');
-
           const error = connection.error;
           if (self.state !== SignalConnectionState.CONNECTED) {
             self.state = SignalConnectionState.DISCONNECTED;
@@ -350,20 +345,15 @@ export class SignalClient {
               abortSignal,
             );
             self.close(undefined, error.type);
-            console.warn('connection returning den error');
             return connectionError;
           }
           // other errors, handle
           self.handleWSError(error);
-          console.warn('connection returning den error');
           return errAsync(error);
         }
 
         return withAbort(
-          withTimeout(
-            self.processInitialSignalMessage(connection.value, opts.reconnect ?? false),
-            5_000,
-          ),
+          withTimeout(self.processInitialSignalMessage<T, U>(connection.value, isReconnect), 5_000),
           abortSignal,
         );
       }),
@@ -822,19 +812,15 @@ export class SignalClient {
   }
 
   private processInitialSignalMessage<
-    Reconnect extends boolean,
-    InitialReturn extends boolean extends false ? JoinResponse : ReconnectResponse | undefined,
-  >(connection: WebSocketConnection, isReconnect: Reconnect) {
+    T extends boolean,
+    U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
+  >(connection: WebSocketConnection, isReconnect: T): ResultAsync<U, ConnectionError> {
     const self = this;
     // TODO: This should be more granular here than ConnectionError
-    return safeTry<InitialReturn, ConnectionError>(async function* () {
+    return safeTry<U, ConnectionError>(async function* () {
       const signalReader = connection.readable.getReader();
       self.streamWriter = connection.writable.getWriter();
-      console.log('type error start');
-
       const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
-
-      console.log('type error end');
 
       if (!firstMessage.value) {
         return err(
@@ -846,15 +832,12 @@ export class SignalClient {
       }
 
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
-
       // Validate the first message
       const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
-
       // Handle join response - set up ping configuration
       if (firstSignalResponse.message?.case === 'join') {
         self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
         self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-
         if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
           self.log.debug('ping config', {
             ...self.logContext,
@@ -869,7 +852,7 @@ export class SignalClient {
         ? firstSignalResponse
         : undefined;
       self.handleSignalConnected(connection, firstMessageToProcess);
-      return okAsync(validation.response);
+      return okAsync(validation.response as U);
     });
   }
 
@@ -880,11 +863,13 @@ export class SignalClient {
    * @returns Validation result with response or error
    * @internal
    */
-  private validateFirstMessage<Reconnect extends boolean>(
+  private validateFirstMessage(
     firstSignalResponse: SignalResponse,
-    isReconnect: Reconnect,
+    isReconnect: boolean,
   ): Result<
-    ValidationType<Reconnect>,
+    | { response: JoinResponse; shouldProcessFirstMessage: false }
+    | { response: ReconnectResponse; shouldProcessFirstMessage: false }
+    | { response: undefined; shouldProcessFirstMessage: true },
     // TODO, this should probably not be a ConnectionError?
     ConnectionError
   > {
@@ -1012,12 +997,13 @@ function createConnectionParams(
   token: string,
   info: ClientInfo,
   opts: ConnectOpts,
+  isReconnect: boolean,
 ): URLSearchParams {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
   // opts
-  if (opts.reconnect) {
+  if (isReconnect) {
     params.set('reconnect', '1');
     if (opts.sid) {
       params.set('sid', opts.sid);
@@ -1067,6 +1053,7 @@ function createJoinRequestConnectionParams(
   token: string,
   info: ClientInfo,
   opts: ConnectOpts,
+  isReconnect: boolean,
 ): URLSearchParams {
   const params = new URLSearchParams();
   params.set('access_token', token);
@@ -1077,7 +1064,7 @@ function createJoinRequestConnectionParams(
       autoSubscribe: !!opts.autoSubscribe,
       adaptiveStream: !!opts.adaptiveStream,
     }),
-    reconnect: !!opts.reconnect,
+    reconnect: isReconnect,
     participantSid: opts.sid ? opts.sid : undefined,
   });
   if (opts.reconnectReason) {
