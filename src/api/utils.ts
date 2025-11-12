@@ -54,81 +54,130 @@ export function getAbortReasonAsString(
 }
 
 export function withTimeout<T, E extends Error>(
-  ra: ResultAsync<T, E> | Promise<Result<T, E>>,
+  ra: ResultAsyncLike<T, E>,
   ms: number,
 ): ResultAsync<T, E | TimeoutError> {
-  const toSettledPromise: PromiseLike<T> = ra.then((res) =>
-    // `res` is a Result<T,E>; resolve with T or reject with E
-    res.match(
-      (v) => Promise.resolve(v),
-      (err) => Promise.reject(err),
+  const timeout = ResultAsync.fromPromise(
+    new Promise<never>((_, reject) =>
+      setTimeout(() => {
+        console.warn('timeout triggered');
+
+        reject(new TimeoutError());
+      }, ms),
     ),
+    (e) => e as TimeoutError,
   );
 
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => {
-      console.warn('timeout triggered');
-
-      reject(new TimeoutError());
-    }, ms),
-  );
-
-  return ResultAsync.fromPromise(
-    // race returns a Promise<T> that resolves with T or rejects with E/onTimeout()
-    Promise.race([toSettledPromise, timeout]),
-    // map any thrown/rejected value into the error type E
-    (e) => e as E | TimeoutError,
-  );
+  return raceResults([ra, timeout]);
 }
 
 export function withAbort<T, E extends Error>(
-  ra: ResultAsync<T, E>,
+  ra: ResultAsyncLike<T, E>,
   signal: AbortSignal | undefined,
 ): ResultAsync<T, E | AbortError> {
   if (signal?.aborted) {
     return errAsync(new AbortError());
   }
 
-  const abortPromise = new Promise<never>((_, reject) => {
-    const onAbortHandler = () => {
-      signal?.removeEventListener('abort', onAbortHandler);
-      reject(new AbortError());
-    };
-    signal?.addEventListener('abort', onAbortHandler);
-  });
-
-  const toSettledPromise: PromiseLike<T> = ra.then((res) =>
-    res.match(
-      (v) => Promise.resolve(v),
-      (err) => Promise.reject(err),
-    ),
+  const abortResult = ResultAsync.fromPromise(
+    new Promise<never>((_, reject) => {
+      const onAbortHandler = () => {
+        signal?.removeEventListener('abort', onAbortHandler);
+        reject(new AbortError());
+      };
+      signal?.addEventListener('abort', onAbortHandler);
+    }),
+    (e) => e as AbortError,
   );
 
-  return ResultAsync.fromPromise(
-    Promise.race([toSettledPromise, abortPromise]),
-    (e) => e as E | AbortError,
-  );
+  return raceResults([ra, abortResult]);
 }
 
 export function withMutex<T, E extends Error>(
-  fn: ResultAsync<T, E> | Result<T, E>,
+  fn: ResultAsyncLike<T, E>,
   mutex: Mutex,
+): ResultAsync<T, E> {
+  return ResultAsync.fromSafePromise(mutex.lock()).andThen((unlock) => withFinally(fn, unlock));
+}
+
+/**
+ * Executes a callback after a ResultAsync completes, regardless of success or failure.
+ * Similar to Promise.finally() but for ResultAsync.
+ *
+ * @param ra - The ResultAsync to execute
+ * @param onFinally - Callback to run after completion (receives no arguments)
+ * @returns A new ResultAsync with the same result, but runs onFinally first
+ *
+ * @example
+ * ```ts
+ * withFinally(
+ *   someOperation(),
+ *   () => cleanup()
+ * )
+ * ```
+ */
+export function withFinally<T, E extends Error>(
+  ra: ResultAsyncLike<T, E>,
+  onFinally: () => void | Promise<void>,
 ): ResultAsync<T, E> {
   return ResultAsync.fromPromise(
     (async () => {
-      const unlock = await mutex.lock();
       try {
-        const res = await fn;
-        return res.match(
-          (v) => v,
-          (err) => {
-            throw err as Error;
+        const result = await ra;
+        return result.match(
+          (value) => value,
+          (error) => {
+            throw error as Error;
           },
         );
+      } catch (error) {
+        await onFinally();
+        throw error as Error;
       } finally {
-        unlock();
+        await onFinally();
       }
     })(),
     (e) => e as E,
   );
 }
+
+/**
+ * Races multiple ResultAsync operations and returns whichever completes first.
+ * If all fail, returns the error from the first one to reject.
+ * API-compatible with Promise.race, supporting heterogeneous types.
+ *
+ * @param values - Array of ResultAsync operations to race (can have different types)
+ * @returns A new ResultAsync with the result of whichever completes first
+ *
+ * @example
+ * ```ts
+ * // Race a connection attempt against a timeout
+ * raceResults([
+ *   connectToServer(), // ResultAsync<Connection, ConnectionError>
+ *   delay(5000).andThen(() => errAsync(new TimeoutError())) // ResultAsync<never, TimeoutError>
+ * ]) // ResultAsync<Connection, ConnectionError | TimeoutError>
+ * ```
+ */
+export function raceResults<T extends readonly ResultAsyncLike<any, any>[]>(
+  values: T,
+): ResultAsync<
+  T[number] extends ResultAsync<infer V, any> ? V : never,
+  T[number] extends ResultAsync<any, infer E> ? E : never
+> {
+  type V = T[number] extends ResultAsync<infer Value, any> ? Value : never;
+  type E = T[number] extends ResultAsync<any, infer Err> ? Err : never;
+
+  const settledPromises = values.map(
+    (ra): PromiseLike<V> =>
+      ra.then((res) =>
+        res.match(
+          (v) => Promise.resolve(v),
+          (err) => Promise.reject(err),
+        ),
+      ),
+  );
+
+  return ResultAsync.fromPromise(Promise.race(settledPromises), (e) => e as E);
+}
+
+export type ResultAsyncLike<T, E> = ResultAsync<T, E> | Promise<Result<T, E>>;
