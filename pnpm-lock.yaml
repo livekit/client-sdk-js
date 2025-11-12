@@ -26,6 +26,9 @@ importers:
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
@@ -2776,6 +2779,10 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
+  neverthrow@8.2.0:
+    resolution: {integrity: sha512-kOCT/1MCPAxY5iUV3wytNFUMUolzuwd/VF/1KCx7kf6CutrOsTie+84zTGTpgQycjvfLdBBdvBvFLqFD2c0wkQ==}
+    engines: {node: '>=18'}
+
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
     engines: {node: 4.x || >=6.0.0}
@@ -3440,8 +3447,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251110:
-    resolution: {integrity: sha512-tHG+EJXTSaUCMbTNApOuVE3WmgOmEqUwQiAXnmwsF/sVKhPFHQA0+S1hml0Ro8kpayvD0d9AX5iC2S2s+TIQxQ==}
+  typescript@6.0.0-dev.20251111:
+    resolution: {integrity: sha512-335S5mZVzEbVf9M3jhodtFDg/85L0LVZo5oNWLs6sUJ/JIpd0HASHJsD2brvWAWN0kFOhVT9LrJ5C9Jq8XsCaA==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5662,7 +5669,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20251110
+      typescript: 6.0.0-dev.20251111
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6757,6 +6764,10 @@ snapshots:
 
   neo-async@2.6.2: {}
 
+  neverthrow@8.2.0:
+    optionalDependencies:
+      '@rollup/rollup-linux-x64-gnu': 4.53.2
+
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
@@ -7486,7 +7497,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20251110: {}
+  typescript@6.0.0-dev.20251111: {}
 
   uc.micro@2.1.0: {}
 

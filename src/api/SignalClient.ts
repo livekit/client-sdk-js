@@ -360,54 +360,63 @@ export class SignalClient {
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
-          this.ws.closed
-            .then((closeInfo) => {
+          this.ws.closed.then((result) => {
+            if (result.isErr()) {
+              const errorMessage =
+                result.error.type === 'unspecified'
+                  ? result.error.message
+                  : 'websocket error event';
               if (this.isEstablishingConnection) {
                 reject(
                   new ConnectionError(
-                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+                    `Websocket error during a (re)connection attempt: ${errorMessage}`,
                     ConnectionErrorReason.InternalError,
                   ),
                 );
-              }
-              if (closeInfo.closeCode !== 1000) {
-                this.log.warn(`websocket closed`, {
-                  ...this.logContext,
-                  reason: closeInfo.reason,
-                  code: closeInfo.closeCode,
-                  wasClean: closeInfo.closeCode === 1000,
-                  state: this.state,
-                });
               }
               return;
-            })
-            .catch((reason) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  new ConnectionError(
-                    `Websocket error during a (re)connection attempt: ${reason}`,
-                    ConnectionErrorReason.InternalError,
-                  ),
-                );
-              }
-            });
-          const connection = await this.ws.opened.catch(async (reason: unknown) => {
+            }
+
+            const closeInfo = result.value;
+            if (this.isEstablishingConnection) {
+              reject(
+                new ConnectionError(
+                  `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+                  ConnectionErrorReason.InternalError,
+                ),
+              );
+            }
+            if (closeInfo.closeCode !== 1000) {
+              this.log.warn(`websocket closed`, {
+                ...this.logContext,
+                reason: closeInfo.reason,
+                code: closeInfo.closeCode,
+                wasClean: closeInfo.closeCode === 1000,
+                state: this.state,
+              });
+            }
+          });
+          const result = await this.ws.opened;
+          clearTimeout(wsTimeout);
+
+          if (result.isErr()) {
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
-              clearTimeout(wsTimeout);
-              const error = await this.handleConnectionError(reason, validateUrl);
+              const errorMessage =
+                result.error.type === 'abort'
+                  ? result.error.message
+                  : 'websocket connection error';
+              const error = await this.handleConnectionError(errorMessage, validateUrl);
               reject(error);
               return;
             }
             // other errors, handle
-            this.handleWSError(reason);
-            reject(reason);
-            return;
-          });
-          clearTimeout(wsTimeout);
-          if (!connection) {
+            this.handleWSError(result.error);
+            reject(result.error);
             return;
           }
+
+          const connection = result.value;
           const signalReader = connection.readable.getReader();
           this.streamWriter = connection.writable.getWriter();
           const firstMessage = await signalReader.read();

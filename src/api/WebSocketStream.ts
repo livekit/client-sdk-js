@@ -1,4 +1,5 @@
 // https://github.com/CarterLi/websocketstream-polyfill
+import { Result, err, ok } from 'neverthrow';
 import { sleep } from '../room/utils';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
@@ -13,6 +14,14 @@ export interface WebSocketCloseInfo {
   reason?: string;
 }
 
+export type WebSocketOpenError =
+  | { type: 'abort'; message: string }
+  | { type: 'connection'; error: Event };
+
+export type WebSocketCloseError =
+  | { type: 'unspecified'; message: string }
+  | { type: 'error'; error: Event };
+
 export interface WebSocketStreamOptions {
   protocols?: string[];
   signal?: AbortSignal;
@@ -26,9 +35,9 @@ export interface WebSocketStreamOptions {
 export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readonly url: string;
 
-  readonly opened: Promise<WebSocketConnection<T>>;
+  readonly opened: Promise<Result<WebSocketConnection<T>, WebSocketOpenError>>;
 
-  readonly closed: Promise<WebSocketCloseInfo>;
+  readonly closed: Promise<Result<WebSocketCloseInfo, WebSocketCloseError>>;
 
   readonly close: (closeInfo?: WebSocketCloseInfo) => void;
 
@@ -52,35 +61,44 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
       ws.close(code, reason);
 
-    this.opened = new Promise((resolve, reject) => {
-      ws.onopen = () => {
-        resolve({
-          readable: new ReadableStream<T>({
-            start(controller) {
-              ws.onmessage = ({ data }) => controller.enqueue(data);
-              ws.onerror = (e) => controller.error(e);
-            },
-            cancel: closeWithInfo,
-          }),
-          writable: new WritableStream<T>({
-            write(chunk) {
-              ws.send(chunk);
-            },
-            abort() {
-              ws.close();
-            },
-            close: closeWithInfo,
-          }),
-          protocol: ws.protocol,
-          extensions: ws.extensions,
-        });
-        ws.removeEventListener('error', reject);
+    this.opened = new Promise((resolve) => {
+      const errorHandler = (e: Event) => {
+        resolve(err({ type: 'connection', error: e }));
+        ws.removeEventListener('open', openHandler);
       };
-      ws.addEventListener('error', reject);
+
+      const openHandler = () => {
+        resolve(
+          ok({
+            readable: new ReadableStream<T>({
+              start(controller) {
+                ws.onmessage = ({ data }) => controller.enqueue(data);
+                ws.onerror = (e) => controller.error(e);
+              },
+              cancel: closeWithInfo,
+            }),
+            writable: new WritableStream<T>({
+              write(chunk) {
+                ws.send(chunk);
+              },
+              abort() {
+                ws.close();
+              },
+              close: closeWithInfo,
+            }),
+            protocol: ws.protocol,
+            extensions: ws.extensions,
+          }),
+        );
+        ws.removeEventListener('error', errorHandler);
+      };
+
+      ws.addEventListener('open', openHandler, { once: true });
+      ws.addEventListener('error', errorHandler, { once: true });
     });
 
-    this.closed = new Promise<WebSocketCloseInfo>((resolve, reject) => {
-      const rejectHandler = async () => {
+    this.closed = new Promise<Result<WebSocketCloseInfo, WebSocketCloseError>>((resolve) => {
+      const errorHandler = async () => {
         const closePromise = new Promise<CloseEvent>((res) => {
           if (ws.readyState === WebSocket.CLOSED) return;
           else {
@@ -95,18 +113,24 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
         });
         const reason = await Promise.race([sleep(250), closePromise]);
         if (!reason) {
-          reject(new Error('Encountered unspecified websocket error without a timely close event'));
+          resolve(
+            err({
+              type: 'unspecified',
+              message: 'Encountered unspecified websocket error without a timely close event',
+            }),
+          );
         } else {
-          // if we can infer the close reason from the close event then resolve the promise, we don't need to throw
-          resolve(reason);
+          // if we can infer the close reason from the close event then resolve with ok, we don't need to throw
+          resolve(ok({ closeCode: reason.code, reason: reason.reason }));
         }
       };
+
       ws.onclose = ({ code, reason }) => {
-        resolve({ closeCode: code, reason });
-        ws.removeEventListener('error', rejectHandler);
+        resolve(ok({ closeCode: code, reason }));
+        ws.removeEventListener('error', errorHandler);
       };
 
-      ws.addEventListener('error', rejectHandler);
+      ws.addEventListener('error', errorHandler);
     });
 
     if (options.signal) {
