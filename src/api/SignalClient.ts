@@ -871,9 +871,7 @@ export class SignalClient {
     firstSignalResponse: SignalResponse,
     isReconnect: boolean,
   ): Result<
-    | { response: JoinResponse; shouldProcessFirstMessage: false }
-    | { response: ReconnectResponse; shouldProcessFirstMessage: false }
-    | { response: undefined; shouldProcessFirstMessage: true },
+    ValidationType,
     // TODO, this should probably not be a ConnectionError?
     ConnectionError
   > {
@@ -1082,17 +1080,7 @@ function createJoinRequestConnectionParams(
   return params;
 }
 
-export type ValidationType<Reconnect extends boolean> = Reconnect extends false
-  ? {
-      response: JoinResponse;
-      shouldProcessFirstMessage: false;
-    }
-  :
-      | {
-          response: ReconnectResponse;
-          shouldProcessFirstMessage: false;
-        }
-      | {
-          response: undefined;
-          shouldProcessFirstMessage: true;
-        };
+export type ValidationType =
+  | { response: JoinResponse; shouldProcessFirstMessage: false }
+  | { response: ReconnectResponse; shouldProcessFirstMessage: false }
+  | { response: undefined; shouldProcessFirstMessage: true };

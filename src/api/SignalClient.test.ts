@@ -8,9 +8,9 @@ import {
 import { Result, ResultAsync } from 'neverthrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import { SignalClient, SignalConnectionState, ValidationType } from './SignalClient';
-import { WebSocketCloseInfo, WebSocketConnection, WebSocketError } from './WebSocketStream';
-import { WebSocketStream } from './WebSocketStream';
+import { SignalClient, SignalConnectionState, type ValidationType } from './SignalClient';
+import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
+import { WebSocketError, WebSocketStream } from './WebSocketStream';
 
 // Mock the WebSocketStream
 vi.mock('./WebSocketStream');
@@ -189,7 +189,11 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions);
+      const result = await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        shortTimeoutOptions,
+      );
 
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
@@ -485,7 +489,11 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions);
+      const result = await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        shortTimeoutOptions,
+      );
 
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
