@@ -72,6 +72,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           ws.removeEventListener('open', openHandler);
         };
 
+        const onCloseDuringOpen = (ev: CloseEvent) => {
+          reject(new WebSocketError(`WS closed during connection establishment: ${ev.reason}`));
+        };
+
         const openHandler = () => {
           resolve({
             readable: new ReadableStream<T>({
@@ -94,12 +98,14 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
             extensions: ws.extensions,
           });
           ws.removeEventListener('error', errorHandler);
+          ws.removeEventListener('close', onCloseDuringOpen);
         };
 
         console.log('websocket setup registering event listeners');
 
         ws.addEventListener('open', openHandler, { once: true });
         ws.addEventListener('error', errorHandler, { once: true });
+        ws.addEventListener('close', onCloseDuringOpen, { once: true });
       }),
       (error) => error as WebSocketError,
     );
