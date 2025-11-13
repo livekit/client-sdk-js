@@ -301,44 +301,19 @@ export class SignalClient {
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
 
-        // Race the connection opening against the websocket closing
-        const connectionOrClose = raceResults([
-          ws.opened,
-          // Return the close promise as error if it resolves first
-          ws.closed.andThen((closeInfo) => {
-            if (
-              closeInfo.closeCode !== 1000 &&
-              // we only log the waring here if the ws connection is still the same, we don't care about closing of older ws connections that have been replaced
-              ws === self.ws
-            ) {
-              self.log.warn(`websocket closed`, {
-                ...self.logContext,
-                reason: closeInfo.reason,
-                code: closeInfo.closeCode,
-                wasClean: closeInfo.closeCode === 1000,
-                state: self.state,
-              });
-            }
-            return err(
-              new ConnectionError(
-                closeInfo.reason ?? 'Websocket closed during (re)connection attempt',
-                ConnectionErrorReason.InternalError,
-              ),
-            );
-          }),
-        ]);
-
-        const connectionResult = withTimeout(connectionOrClose, opts.websocketTimeout).mapErr(
+        const wsConnectionResult = withTimeout(self.ws.opened, opts.websocketTimeout).mapErr(
           async (error) => {
-            // retrieve info about what error was causing this and enhance the returned error
+            // retrieve info about what error was causing the connection failure and enhance the returned error
             if (self.state !== SignalConnectionState.CONNECTED) {
               self.state = SignalConnectionState.DISCONNECTED;
               const connectionError = await withAbort(
                 withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
                 abortSignal,
               );
-              const closeReason =
-                'type' in error ? `${error.type}: ${error.message}` : error.message;
+              // const closeReason =
+              //   'type' in error ? `${error.type}: ${error.message}` : error.message;
+              const closeReason = `${error.type}: ${error.message}`;
+
               self.close(undefined, closeReason);
               if (connectionError.isErr()) {
                 return connectionError.error;
@@ -348,19 +323,37 @@ export class SignalClient {
           },
         );
 
-        const connection = yield* withAbort(connectionResult, abortSignal);
+        const wsConnection = yield* withAbort(wsConnectionResult, abortSignal);
 
         const firstMessageOrClose = raceResults([
-          self.processInitialSignalMessage<T, U>(connection, isReconnect),
+          self.processInitialSignalMessage<T, U>(wsConnection, isReconnect),
           // Return the close promise as error if it resolves first
-          ws!.closed.andThen((info) =>
-            err(
-              new ConnectionError(
-                info.reason ?? 'Websocket closed during (re)connection attempt',
-                ConnectionErrorReason.InternalError,
-              ),
-            ),
-          ),
+          ws!.closed
+            .andThen((closeInfo) => {
+              if (
+                closeInfo.closeCode !== 1000 &&
+                // we only log the warning here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
+                ws === self.ws
+              ) {
+                self.log.warn(`websocket closed`, {
+                  ...self.logContext,
+                  reason: closeInfo.reason,
+                  code: closeInfo.closeCode,
+                  wasClean: closeInfo.closeCode === 1000,
+                  state: self.state,
+                });
+              }
+
+              return err(
+                new ConnectionError(
+                  closeInfo.reason ?? 'Websocket closed during (re)connection attempt',
+                  ConnectionErrorReason.InternalError,
+                ),
+              );
+            })
+            .orTee((error) => {
+              self.handleWSError(error);
+            }),
         ]);
 
         return withAbort(withTimeout(firstMessageOrClose, 5_000), abortSignal).orTee((error) => {
