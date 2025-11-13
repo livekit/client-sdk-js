@@ -54,14 +54,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       throw new AbortError();
     }
 
-    this.url = url;
-
-    console.log('websocket setup start');
     const ws = new WebSocket(url, options.protocols ?? []);
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
-
-    console.log('websocket setup ok');
+    this.url = url;
 
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
       ws.close(code, reason);

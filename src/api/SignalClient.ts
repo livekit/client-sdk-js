@@ -298,16 +298,21 @@ export class SignalClient {
         if (self.ws) {
           await self.close(false);
         }
-        self.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+        const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+        self.ws = ws;
 
         // Race the connection opening against the websocket closing
         const connection = await withAbort(
           withTimeout(
             raceResults([
-              self.ws.opened,
+              ws.opened,
               // Return the close promise as error if it resolves first
-              self.ws!.closed.andThen((closeInfo) => {
-                if (closeInfo.closeCode !== 1000) {
+              ws.closed.andThen((closeInfo) => {
+                if (
+                  closeInfo.closeCode !== 1000 &&
+                  // we only log the waring here if the ws connection is still the same, we don't care about closing of older ws connections that have been replaced
+                  ws === self.ws
+                ) {
                   self.log.warn(`websocket closed`, {
                     ...self.logContext,
                     reason: closeInfo.reason,
@@ -352,7 +357,7 @@ export class SignalClient {
             raceResults([
               self.processInitialSignalMessage<T, U>(connection.value, isReconnect),
               // Return the close promise as error if it resolves first
-              self.ws!.closed.andThen((info) =>
+              ws!.closed.andThen((info) =>
                 err(
                   new ConnectionError(
                     info.reason ?? 'Websocket closed during (re)connection attempt',
@@ -434,6 +439,7 @@ export class SignalClient {
         this.ws = undefined;
         this.streamWriter = undefined;
         await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
+        this.log.info('closed websocket', { reason });
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { ...this.logContext, error: e });

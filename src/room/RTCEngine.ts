@@ -1115,7 +1115,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
     this.emit(EngineEvent.Resuming);
-    let res: ReconnectResponse | undefined;
     this.setupSignalClientCallbacks();
     const reconnectResult = await this.client.reconnect(
       this.url,
@@ -1129,11 +1128,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.emit(EngineEvent.SignalResumed);
 
-    if (res) {
-      const rtcConfig = this.makeRTCConfiguration(res);
+    const reconnectResponse = reconnectResult.value;
+    if (reconnectResponse) {
+      const rtcConfig = this.makeRTCConfiguration(reconnectResponse);
       this.pcManager.updateConfiguration(rtcConfig);
       if (this.latestJoinResponse) {
-        this.latestJoinResponse.serverInfo = res.serverInfo;
+        this.latestJoinResponse.serverInfo = reconnectResponse.serverInfo;
       }
     } else {
       this.log.warn('Did not receive reconnect response', this.logContext);
@@ -1161,8 +1161,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.createDataChannels();
     }
 
-    if (res?.lastMessageSeq) {
-      this.resendReliableMessagesForResume(res.lastMessageSeq);
+    if (reconnectResponse?.lastMessageSeq) {
+      this.resendReliableMessagesForResume(reconnectResponse.lastMessageSeq);
     }
 
     // resume success
