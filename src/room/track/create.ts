@@ -80,12 +80,19 @@ export async function createLocalTracks(
   }
   if (
     internalOptions.audio === true ||
-    (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
+    (typeof internalOptions.audio === "object" &&
+      !internalOptions.audio.deviceId)
   ) {
-      internalOptions.audio = {
-        ...(typeof internalOptions.audio === 'object' && internalOptions.audio !== null ? internalOptions.audio : {}),
-        deviceId: (typeof internalOptions.audio === 'object' && internalOptions.audio?.deviceId) || 'default',
-      };
+    internalOptions.audio = {
+      ...(typeof internalOptions.audio === "object" &&
+      internalOptions.audio !== null
+        ? internalOptions.audio
+        : {}),
+      deviceId:
+        (typeof internalOptions.audio === "object" &&
+          internalOptions.audio?.deviceId) ||
+        "default",
+    };
   }
   if (internalOptions.video === true) {
     internalOptions.video = { deviceId: 'default' };
