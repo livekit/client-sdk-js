@@ -55,11 +55,9 @@ export default class IncomingDataStreamManager {
     this.byteStreamHandlers.delete(topic);
   }
 
-  clearHandlersAndControllers() {
+  clearControllers() {
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
-    this.byteStreamHandlers.clear();
-    this.textStreamHandlers.clear();
   }
 
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {

@@ -11,7 +11,7 @@ import {
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './types';
-import { decodeTokenPayload, isResponseTokenValid } from './utils';
+import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenValid } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
@@ -250,6 +250,7 @@ export {
   type TokenSourceEndpoint,
   type TokenSourceSandboxTokenServer,
   decodeTokenPayload,
+  areTokenSourceFetchOptionsEqual,
 };
 
 export const TokenSource = {

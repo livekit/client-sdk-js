@@ -1550,7 +1550,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.isResuming = false;
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
-    this.incomingDataStreamManager.clearHandlersAndControllers();
+    this.incomingDataStreamManager.clearControllers();
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
