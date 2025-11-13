@@ -277,21 +277,17 @@ export class SignalClient {
   >(url: string, token: string, isReconnect: T, opts: ConnectOpts, abortSignal?: AbortSignal) {
     const self = this;
     const connectLabel = `SignalClient.connect [${isReconnect ? 'reconnect' : 'join'}]`;
-    console.profile(connectLabel);
-    console.time(connectLabel);
 
     return withMutex(
       safeTry<U, WebSocketError | TimeoutError | AbortError | ConnectionError>(async function* () {
         self.connectOptions = opts;
 
-        console.time(`${connectLabel} - URL setup`);
         const clientInfo = getClientInfo();
         const params = opts.singlePeerConnection
           ? createJoinRequestConnectionParams(token, clientInfo, opts, isReconnect)
           : createConnectionParams(token, clientInfo, opts, isReconnect);
         const rtcUrl = createRtcUrl(url, params);
         const validateUrl = createValidateUrl(rtcUrl);
-        console.timeEnd(`${connectLabel} - URL setup`);
 
         const redactedUrl = new URL(rtcUrl);
         if (redactedUrl.searchParams.has('access_token')) {
@@ -304,32 +300,24 @@ export class SignalClient {
         });
 
         if (self.ws) {
-          console.time(`${connectLabel} - Close existing WS`);
           await self.close(false);
-          console.timeEnd(`${connectLabel} - Close existing WS`);
         }
 
-        console.time(`${connectLabel} - Create WebSocket`);
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
-        console.timeEnd(`${connectLabel} - Create WebSocket`);
 
-        console.time(`${connectLabel} - WebSocket opened`);
         const wsConnectionResult = withTimeout(self.ws.opened, opts.websocketTimeout).mapErr(
           async (error) => {
-            console.timeEnd(`${connectLabel} - WebSocket opened`);
             console.error(`[${connectLabel}] WebSocket connection failed:`, error);
             console.trace(`[${connectLabel}] WebSocket error stack trace`);
 
             // retrieve info about what error was causing the connection failure and enhance the returned error
             if (self.state !== SignalConnectionState.CONNECTED) {
               self.state = SignalConnectionState.DISCONNECTED;
-              console.time(`${connectLabel} - Fetch error info`);
               const connectionError = await withAbort(
                 withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
                 abortSignal,
               );
-              console.timeEnd(`${connectLabel} - Fetch error info`);
               // const closeReason =
               //   'type' in error ? `${error.type}: ${error.message}` : error.message;
               const closeReason = `${error.type}: ${error.message}`;
@@ -350,9 +338,7 @@ export class SignalClient {
         const wsConnection = yield* withAbort(wsConnectionResult, abortSignal).orTee((error) => {
           self.close(undefined, error.message);
         });
-        console.timeEnd(`${connectLabel} - WebSocket opened`);
 
-        console.time(`${connectLabel} - First message or close`);
         const firstMessageOrClose = raceResults([
           self.processInitialSignalMessage<T, U>(wsConnection, isReconnect),
           // Return the close promise as error if it resolves first
@@ -394,12 +380,6 @@ export class SignalClient {
 
         const result = withAbort(withTimeout(firstMessageOrClose, 5_000), abortSignal).orTee(
           (error) => {
-            console.error(`[${connectLabel}] Error during first message or close:`, error);
-            console.trace(`[${connectLabel}] Error trace`);
-            console.timeEnd(`${connectLabel} - First message or close`);
-            console.timeEnd(connectLabel);
-            console.profileEnd(connectLabel);
-
             if (error instanceof AbortError) {
               self
                 .sendLeave()
@@ -411,10 +391,6 @@ export class SignalClient {
             }
           },
         );
-
-        console.timeEnd(`${connectLabel} - First message or close`);
-        console.timeEnd(connectLabel);
-        console.profileEnd(connectLabel);
 
         return result;
       }),
@@ -879,23 +855,14 @@ export class SignalClient {
   >(connection: WebSocketConnection, isReconnect: T): ResultAsync<U, ConnectionError> {
     const self = this;
     const processLabel = `SignalClient.processInitialSignalMessage [${isReconnect ? 'reconnect' : 'join'}]`;
-    console.time(processLabel);
 
     // TODO: This should be more granular here than ConnectionError
     return safeTry<U, ConnectionError>(async function* () {
-      console.time(`${processLabel} - Setup readers/writers`);
       const signalReader = connection.readable.getReader();
       self.streamWriter = connection.writable.getWriter();
-      console.timeEnd(`${processLabel} - Setup readers/writers`);
 
-      console.time(`${processLabel} - Read first message`);
       const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
-      console.timeEnd(`${processLabel} - Read first message`);
-
       if (!firstMessage.value) {
-        console.error(`[${processLabel}] No message received as first message`);
-        console.trace(`[${processLabel}] No first message trace`);
-        console.timeEnd(processLabel);
         return err(
           new ConnectionError(
             'no message received as first message',
@@ -904,15 +871,10 @@ export class SignalClient {
         );
       }
 
-      console.time(`${processLabel} - Parse first message`);
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
-      console.log(`[${processLabel}] First message type:`, firstSignalResponse.message?.case);
-      console.timeEnd(`${processLabel} - Parse first message`);
 
       // Validate the first message
-      console.time(`${processLabel} - Validate first message`);
       const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
-      console.timeEnd(`${processLabel} - Validate first message`);
 
       // Handle join response - set up ping configuration
       if (firstSignalResponse.message?.case === 'join') {
@@ -932,13 +894,10 @@ export class SignalClient {
       }
 
       // Handle successful connection
-      console.time(`${processLabel} - Handle signal connected`);
       const firstMessageToProcess = validation.shouldProcessFirstMessage
         ? firstSignalResponse
         : undefined;
       self.handleSignalConnected(connection, firstMessageToProcess);
-      console.timeEnd(`${processLabel} - Handle signal connected`);
-      console.timeEnd(processLabel);
 
       return okAsync(validation.response as U);
     });
