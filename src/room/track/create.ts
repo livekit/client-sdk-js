@@ -83,8 +83,8 @@ export async function createLocalTracks(
     (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
   ) {
       internalOptions.audio = {
-        ...internalOptions.audio,
-        deviceId: 'default'
+        ...(typeof internalOptions.audio === 'object' && internalOptions.audio !== null ? internalOptions.audio : {}),
+        deviceId: (typeof internalOptions.audio === 'object' && internalOptions.audio?.deviceId) || 'default',
       };
   }
   if (internalOptions.video === true) {
