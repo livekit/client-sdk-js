@@ -55,13 +55,6 @@ export default class IncomingDataStreamManager {
     this.byteStreamHandlers.delete(topic);
   }
 
-  clearHandlersAndControllers() {
-    this.byteStreamControllers.clear();
-    this.textStreamControllers.clear();
-    this.byteStreamHandlers.clear();
-    this.textStreamHandlers.clear();
-  }
-
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
     // Terminate any in flight data stream receives from the given participant
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
