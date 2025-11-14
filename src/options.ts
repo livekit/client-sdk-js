@@ -106,9 +106,6 @@ export interface InternalRoomOptions {
    * and LiveKit OSS >= 1.9.2
    */
   singlePeerConnection: boolean;
-
-  /** uses browser built in offline detection for faster network interruption recovery, defaults to true  */
-  browserOfflineDetection: boolean;
 }
 
 /**
@@ -133,6 +130,9 @@ export interface InternalRoomConnectOptions {
 
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
+
+  /** amount of time for Websocket connection to be established, defaults to 15s */
+  websocketTimeout: number;
 }
 
 /**

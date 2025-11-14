@@ -43,11 +43,11 @@ export const roomOptionDefaults: InternalRoomOptions = {
   disconnectOnPageLeave: true,
   webAudioMix: false,
   singlePeerConnection: false,
-  browserOfflineDetection: true,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
   autoSubscribe: true,
   maxRetries: 1,
   peerConnectionTimeout: 15_000,
+  websocketTimeout: 15_000,
 } as const;
