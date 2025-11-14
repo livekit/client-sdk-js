@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.15.16
+
+### Patch Changes
+
+- Fix slow start on vp9 - [#1740](https://github.com/livekit/client-sdk-js/pull/1740) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep text / byte stream handlers between room disconnects - [#1741](https://github.com/livekit/client-sdk-js/pull/1741) ([@1egoman](https://github.com/1egoman))
+
+- Export RoomEventCallbacks - [#1738](https://github.com/livekit/client-sdk-js/pull/1738) ([@haydenbr](https://github.com/haydenbr))
+
+- Speed up network switch recovery - [#1745](https://github.com/livekit/client-sdk-js/pull/1745) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure unexpected websocket disconnects trigger reconnect flow - [#1748](https://github.com/livekit/client-sdk-js/pull/1748) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.15
 
 ### Patch Changes
