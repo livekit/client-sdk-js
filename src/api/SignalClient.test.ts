@@ -340,7 +340,7 @@ describe('SignalClient.connect', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
-        Promise.reject(new WebSocketError('Connection failed')),
+        Promise.reject(ConnectionError.websocket('Connection failed')),
         (error) => error as WebSocketError,
       );
       mockWebSocketStream({
@@ -367,7 +367,7 @@ describe('SignalClient.connect', () => {
     it('should reject with ServerUnreachable when fetch fails', async () => {
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
-        Promise.reject(new WebSocketError('Connection failed')),
+        Promise.reject(ConnectionError.websocket('Connection failed')),
         (error) => error as WebSocketError,
       );
       mockWebSocketStream({
@@ -387,7 +387,7 @@ describe('SignalClient.connect', () => {
     });
 
     it('should handle WebsocketError from WebSocket rejection', async () => {
-      const customError = new WebSocketError('Custom error');
+      const customError = ConnectionError.websocket('Custom error');
 
       // eslint-disable-next-line neverthrow/must-use-result
       const opened = ResultAsync.fromPromise(
@@ -759,11 +759,7 @@ describe('SignalClient.handleConnectionError', () => {
   });
 
   it('should return ConnectionError as-is if it is already a ConnectionError', async () => {
-    const connectionError = new ConnectionError(
-      'Custom error',
-      ConnectionErrorReason.InternalError,
-      500,
-    );
+    const connectionError = ConnectionError.internal('Custom error');
 
     (global.fetch as any).mockResolvedValueOnce({
       status: 500,
@@ -820,7 +816,7 @@ describe('SignalClient.handleConnectionError', () => {
   });
 
   it('should handle fetch throwing ConnectionError', async () => {
-    const fetchError = new ConnectionError('Fetch failed', ConnectionErrorReason.ServerUnreachable);
+    const fetchError = ConnectionError.serverUnreachable('Fetch failed');
     (global.fetch as any).mockRejectedValueOnce(fetchError);
 
     const handleMethod = (signalClient as any).handleConnectionError;

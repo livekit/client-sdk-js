@@ -1,7 +1,7 @@
 import type { Mutex } from '@livekit/mutex';
 import { SignalResponse } from '@livekit/protocol';
 import { Result, ResultAsync, errAsync } from 'neverthrow';
-import { AbortError, TimeoutError } from '../room/errors';
+import { ConnectionError } from '../room/errors';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
 export function createRtcUrl(url: string, searchParams: URLSearchParams) {
@@ -56,14 +56,14 @@ export function getAbortReasonAsString(
 export function withTimeout<T, E extends Error>(
   ra: ResultAsyncLike<T, E>,
   ms: number,
-): ResultAsync<T, E | TimeoutError> {
+): ResultAsync<T, E | ReturnType<typeof ConnectionError.timeout>> {
   const timeout = ResultAsync.fromPromise(
     new Promise<never>((_, reject) =>
       setTimeout(() => {
-        reject(new TimeoutError());
+        reject(ConnectionError.timeout('Timeout'));
       }, ms),
     ),
-    (e) => e as TimeoutError,
+    (e) => e as ReturnType<typeof ConnectionError.timeout>,
   );
 
   return raceResults([ra, timeout]);
@@ -72,20 +72,20 @@ export function withTimeout<T, E extends Error>(
 export function withAbort<T, E extends Error>(
   ra: ResultAsyncLike<T, E>,
   signal: AbortSignal | undefined,
-): ResultAsync<T, E | AbortError> {
+): ResultAsync<T, E | ReturnType<typeof ConnectionError.cancelled>> {
   if (signal?.aborted) {
-    return errAsync(new AbortError());
+    return errAsync(ConnectionError.cancelled('AbortSignal invoked'));
   }
 
   const abortResult = ResultAsync.fromPromise(
     new Promise<never>((_, reject) => {
       const onAbortHandler = () => {
         signal?.removeEventListener('abort', onAbortHandler);
-        reject(new AbortError());
+        reject(ConnectionError.cancelled('AbortSignal invoked'));
       };
       signal?.addEventListener('abort', onAbortHandler);
     }),
-    (e) => e as AbortError,
+    (e) => e as ReturnType<typeof ConnectionError.cancelled>,
   );
 
   return raceResults([ra, abortResult]);

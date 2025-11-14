@@ -686,7 +686,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       try {
         await BackOffStrategy.getInstance().getBackOffPromise(url);
         if (abortController.signal.aborted) {
-          throw new ConnectionError('Connection attempt aborted', ConnectionErrorReason.Cancelled);
+          ConnectionError.cancelled('Connection attempt aborted');
         }
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
@@ -901,12 +901,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (err) {
       await this.engine.close();
       this.recreateEngine();
-      const resultingError = new ConnectionError(
-        `could not establish signal connection`,
-        abortController.signal.aborted
-          ? ConnectionErrorReason.Cancelled
-          : ConnectionErrorReason.ServerUnreachable,
-      );
+      const resultingError = abortController.signal.aborted
+        ? ConnectionError.cancelled(`could not establish signal connection`)
+        : ConnectionError.serverUnreachable(`could not establish signal connection`);
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
       }
@@ -924,7 +921,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (abortController.signal.aborted) {
       await this.engine.close();
       this.recreateEngine();
-      throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
+      throw ConnectionError.cancelled(`Connection attempt aborted`);
     }
 
     try {
@@ -976,9 +973,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn(msg, this.logContext);
         this.abortController?.abort(msg);
         // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-        this.connectFuture?.reject?.(
-          new ConnectionError('Client initiated disconnect', ConnectionErrorReason.Cancelled),
-        );
+        this.connectFuture?.reject?.(ConnectionError.cancelled('Client initiated disconnect'));
         this.connectFuture = undefined;
       }
 

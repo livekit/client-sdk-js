@@ -1,7 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
-import { ConnectionError, ConnectionErrorReason } from './errors';
+import { ConnectionError } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
 export const DEFAULT_MAX_AGE_MS = 5_000;
@@ -37,25 +37,26 @@ export class RegionUrlProvider {
         const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
         return { regionSettings, updatedAtInMs: Date.now(), maxAgeInMs };
       } else {
-        throw new ConnectionError(
-          `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
-          regionSettingsResponse.status === 401
-            ? ConnectionErrorReason.NotAllowed
-            : ConnectionErrorReason.InternalError,
-          regionSettingsResponse.status,
-        );
+        throw regionSettingsResponse.status === 401
+          ? ConnectionError.notAllowed(
+              `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
+              regionSettingsResponse.status,
+            )
+          : ConnectionError.internal(
+              `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
+              { status: regionSettingsResponse.status },
+            );
       }
     } catch (e: unknown) {
       if (e instanceof ConnectionError) {
         // rethrow connection errors
         throw e;
       } else if (signal?.aborted) {
-        throw new ConnectionError(`Region fetching was aborted`, ConnectionErrorReason.Cancelled);
+        throw ConnectionError.cancelled(`Region fetching was aborted`);
       } else {
         // wrap other errors as connection errors (e.g. timeouts)
-        throw new ConnectionError(
+        throw ConnectionError.serverUnreachable(
           `Could not fetch region settings, ${e instanceof Error ? `${e.name}: ${e.message}` : e}`,
-          ConnectionErrorReason.ServerUnreachable,
           500, // using 500 as a catch-all manually set error code here
         );
       }

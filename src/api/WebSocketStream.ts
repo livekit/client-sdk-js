@@ -1,6 +1,6 @@
 // https://github.com/CarterLi/websocketstream-polyfill
 import { ResultAsync } from 'neverthrow';
-import { AbortError, LivekitError } from '../room/errors';
+import { ConnectionError } from '../room/errors';
 import { sleep } from '../room/utils';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
@@ -15,19 +15,12 @@ export interface WebSocketCloseInfo {
   reason?: string;
 }
 
-// TODO: have more specific websocket errors and make this error type more useful in general
-export class WebSocketError extends LivekitError {
-  readonly type = 'websocket';
-
-  constructor(message: string) {
-    super(19, message);
-  }
-}
-
 export interface WebSocketStreamOptions {
   protocols?: string[];
   signal?: AbortSignal;
 }
+
+export type WebSocketError = ReturnType<typeof ConnectionError.websocket>;
 
 /**
  * [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) with [Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API)
@@ -51,7 +44,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
   constructor(url: string, options: WebSocketStreamOptions = {}) {
     if (options.signal?.aborted) {
-      throw new AbortError();
+      throw ConnectionError.cancelled('Aborted before WS was initialized');
     }
 
     const ws = new WebSocket(url, options.protocols ?? []);
@@ -68,12 +61,20 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
         const reject = (err: WebSocketError) => r(err);
         const errorHandler = (e: Event) => {
           console.error(e);
-          reject(new WebSocketError('Encountered websocket error while establishing connection'));
+          reject(
+            ConnectionError.websocket('Encountered websocket error while establishing connection'),
+          );
           ws.removeEventListener('open', openHandler);
         };
 
         const onCloseDuringOpen = (ev: CloseEvent) => {
-          reject(new WebSocketError(`WS closed during connection establishment: ${ev.reason}`));
+          reject(
+            ConnectionError.websocket(
+              `WS closed during connection establishment: ${ev.reason}`,
+              ev.code,
+              ev.reason,
+            ),
+          );
         };
 
         const openHandler = () => {
@@ -130,7 +131,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           const reason = await Promise.race([sleep(250), closePromise]);
           if (!reason) {
             reject(
-              new WebSocketError(
+              ConnectionError.websocket(
                 'Encountered unspecified websocket error without a timely close event',
               ),
             );

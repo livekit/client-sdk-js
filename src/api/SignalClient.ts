@@ -46,12 +46,12 @@ import {
 } from '@livekit/protocol';
 import { Result, ResultAsync, err, errAsync, ok, okAsync, safeTry } from 'neverthrow';
 import log, { LoggerNames, getLogger } from '../logger';
-import { AbortError, ConnectionError, ConnectionErrorReason, TimeoutError } from '../room/errors';
+import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import { type WebSocketConnection, WebSocketError, WebSocketStream } from './WebSocketStream';
+import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
   createRtcUrl,
   createValidateUrl,
@@ -254,10 +254,7 @@ export class SignalClient {
   reconnect(url: string, token: string, sid?: string, reason?: ReconnectReason) {
     if (!this.options) {
       return errAsync(
-        new ConnectionError(
-          'attempted to reconnect without signal options being set',
-          ConnectionErrorReason.InternalError,
-        ),
+        ConnectionError.internal('attempted to reconnect without signal options being set'),
       );
     }
     this.state = SignalConnectionState.RECONNECTING;
@@ -279,7 +276,7 @@ export class SignalClient {
     const connectLabel = `SignalClient.connect [${isReconnect ? 'reconnect' : 'join'}]`;
 
     return withMutex(
-      safeTry<U, WebSocketError | TimeoutError | AbortError | ConnectionError>(async function* () {
+      safeTry<U, ConnectionError>(async function* () {
         self.connectOptions = opts;
 
         const clientInfo = getClientInfo();
@@ -318,9 +315,8 @@ export class SignalClient {
                 withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
                 abortSignal,
               );
-              // const closeReason =
-              //   'type' in error ? `${error.type}: ${error.message}` : error.message;
-              const closeReason = `${error.type}: ${error.message}`;
+
+              const closeReason = `${error.reason}: ${error.message}`;
 
               self.close(undefined, closeReason);
               if (connectionError.isErr()) {
@@ -365,9 +361,8 @@ export class SignalClient {
               }
 
               return err(
-                new ConnectionError(
+                ConnectionError.internal(
                   closeInfo.reason ?? 'Websocket closed during (re)connection attempt',
-                  ConnectionErrorReason.InternalError,
                 ),
               );
             })
@@ -380,7 +375,7 @@ export class SignalClient {
 
         const result = withAbort(withTimeout(firstMessageOrClose, 5_000), abortSignal).orTee(
           (error) => {
-            if (error instanceof AbortError) {
+            if (error.reason === ConnectionErrorReason.Cancelled) {
               self
                 .sendLeave()
                 .then(() => self.close())
@@ -863,12 +858,7 @@ export class SignalClient {
 
       const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
       if (!firstMessage.value) {
-        return err(
-          new ConnectionError(
-            'no message received as first message',
-            ConnectionErrorReason.InternalError,
-          ),
-        );
+        return err(ConnectionError.internal('no message received as first message'));
       }
 
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
@@ -962,10 +952,8 @@ export class SignalClient {
       );
       console.trace('[SignalClient.validateFirstMessage] Leave request stack trace');
       return err(
-        new ConnectionError(
+        ConnectionError.leaveRequest(
           'Received leave request while trying to (re)connect',
-          ConnectionErrorReason.LeaveRequest,
-          undefined,
           firstSignalResponse.message.value.reason,
         ),
       );
@@ -977,18 +965,15 @@ export class SignalClient {
       );
       console.trace('[SignalClient.validateFirstMessage] Unexpected message trace');
       return err(
-        new ConnectionError(
+        ConnectionError.internal(
           `did not receive join response, got ${firstSignalResponse.message?.case} instead`,
-          ConnectionErrorReason.InternalError,
         ),
       );
     }
 
     console.error('[SignalClient.validateFirstMessage] Unexpected first message');
     console.trace('[SignalClient.validateFirstMessage] Unexpected message trace');
-    return err(
-      new ConnectionError('Unexpected first message', ConnectionErrorReason.InternalError),
-    );
+    return err(ConnectionError.internal('Unexpected first message'));
   }
 
   /**
@@ -1013,17 +998,16 @@ export class SignalClient {
       if (resp.status.toFixed(0).startsWith('4')) {
         const msg = await resp.text();
         console.error('[SignalClient.fetchErrorInfo] 4xx error:', msg);
-        return err(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
+        return err(ConnectionError.notAllowed(msg, resp.status));
       } else if (reason instanceof ConnectionError) {
         console.error('[SignalClient.fetchErrorInfo] ConnectionError:', reason);
         return err(reason);
       } else {
         console.error('[SignalClient.fetchErrorInfo] Unknown WebSocket error:', reason);
         return err(
-          new ConnectionError(
+          ConnectionError.internal(
             `Encountered unknown websocket error during connection: ${reason}`,
-            ConnectionErrorReason.InternalError,
-            resp.status,
+            `ResponseStatus: ${resp.status}`,
           ),
         );
       }
@@ -1033,9 +1017,8 @@ export class SignalClient {
       return err(
         e instanceof ConnectionError
           ? e
-          : new ConnectionError(
+          : ConnectionError.serverUnreachable(
               e instanceof Error ? e.message : 'server was not reachable',
-              ConnectionErrorReason.ServerUnreachable,
             ),
       );
     }
