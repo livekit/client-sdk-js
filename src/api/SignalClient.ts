@@ -347,6 +347,9 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: self.state,
                 });
+                if (self.state == SignalConnectionState.CONNECTED) {
+                  self.handleOnClose(closeInfo.reason ?? 'Websocket closed unexpectedly');
+                }
               }
 
               return err(
@@ -750,11 +753,11 @@ export class SignalClient {
     }
   }
 
-  private async handleOnClose(reason: string) {
+  private handleOnClose(reason: string) {
     if (this.state === SignalConnectionState.DISCONNECTED) return;
     const onCloseCallback = this.onClose;
-    await this.close(undefined, reason);
-    this.log.debug(`websocket connection closed: ${reason}`, { ...this.logContext, reason });
+    this.close(undefined, reason);
+    this.log.debug(`websocket connection closing: ${reason}`, { ...this.logContext, reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
     }
