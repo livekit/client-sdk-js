@@ -1635,6 +1635,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!hasNetworkConnection) {
       return;
     }
+    this.log.info('detected network reconnected');
 
     if (
       // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
@@ -1656,7 +1657,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       await Promise.race([
         fetch(toHttpUrl(this.url), { method: 'HEAD' }),
-        // if there's no internet connection the fail rejects immediately, so we only use a short timeout here
+        // if there's no internet connection the fetch rejects immediately, so we only use a short timeout here
         sleep(4_000).then(() => Promise.reject()),
       ]);
     } catch (e) {
