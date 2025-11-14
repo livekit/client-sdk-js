@@ -204,6 +204,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private midToTrackId: { [key: string]: string } = {};
 
+  /** used to indicate whether the browser is currently waiting to reconnect */
+  private isWaitingForNetworkReconnect: boolean = false;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -1620,22 +1623,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private handleBrowserOnLine = () => {
-    // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
-    if (this.client.currentState === SignalConnectionState.RECONNECTING) {
+    if (
+      // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
+      this.client.currentState === SignalConnectionState.RECONNECTING ||
+      // also if the browser went offline before and the engine still thinks it's in a connected state, treat it as a network interruption that we haven't noticed yet
+      (this.isWaitingForNetworkReconnect &&
+        this.client.currentState === SignalConnectionState.CONNECTED)
+    ) {
       this.clearReconnectTimeout();
       this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
+      this.isWaitingForNetworkReconnect = false;
     }
+  };
+
+  private handleBrowserOffline = () => {
+    this.isWaitingForNetworkReconnect = true;
   };
 
   private registerOnLineListener() {
     if (isWeb()) {
       window.addEventListener('online', this.handleBrowserOnLine);
+      window.addEventListener('offline', this.handleBrowserOffline);
     }
   }
 
   private deregisterOnLineListener() {
     if (isWeb()) {
       window.removeEventListener('online', this.handleBrowserOnLine);
+      window.removeEventListener('offline', this.handleBrowserOffline);
     }
   }
 
