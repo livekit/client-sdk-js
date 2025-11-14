@@ -417,6 +417,13 @@ export class SignalClient {
   };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
+    if (
+      this.state === SignalConnectionState.DISCONNECTING ||
+      this.state === SignalConnectionState.DISCONNECTED
+    ) {
+      this.log.info(`Skipping signal client close, already disconnecting`);
+      return;
+    }
     const unlock = await this.closingLock.lock();
     try {
       this.clearPingInterval();
