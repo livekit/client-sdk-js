@@ -331,6 +331,9 @@ export class SignalClient {
           self.processInitialSignalMessage<T, U>(wsConnection, isReconnect),
           // Return the close promise as error if it resolves first
           ws!.closed
+            .orTee((error) => {
+              self.handleWSError(error);
+            })
             .andThen((closeInfo) => {
               if (
                 closeInfo.closeCode !== 1000 &&
@@ -351,9 +354,6 @@ export class SignalClient {
                   closeInfo.reason ?? 'Websocket closed during (re)connection attempt',
                 ),
               );
-            })
-            .orTee((error) => {
-              self.handleWSError(error);
             }),
         ]);
 
@@ -760,7 +760,7 @@ export class SignalClient {
     }
   }
 
-  private handleWSError(error: unknown) {
+  private handleWSError(error: ReturnType<typeof ConnectionError.websocket>) {
     this.log.error('websocket error', { ...this.logContext, error });
   }
 
