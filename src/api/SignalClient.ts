@@ -378,6 +378,9 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: this.state,
                 });
+                if (this.state === SignalConnectionState.CONNECTED) {
+                  this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
+                }
               }
               return;
             })
@@ -500,6 +503,14 @@ export class SignalClient {
   };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
+    if (
+      [SignalConnectionState.DISCONNECTING || SignalConnectionState.DISCONNECTED].includes(
+        this.state,
+      )
+    ) {
+      this.log.debug(`ignoring signal close as it's already in disconnecting state`);
+      return;
+    }
     const unlock = await this.closingLock.lock();
     try {
       this.clearPingInterval();
