@@ -1627,7 +1627,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
       this.client.currentState === SignalConnectionState.RECONNECTING ||
       // also if the browser went offline before and the engine still thinks it's in a connected state, treat it as a network interruption that we haven't noticed yet
-      (this.isWaitingForNetworkReconnect &&
+      (this.options.browserOfflineDetection &&
+        this.isWaitingForNetworkReconnect &&
         this.client.currentState === SignalConnectionState.CONNECTED)
     ) {
       this.clearReconnectTimeout();

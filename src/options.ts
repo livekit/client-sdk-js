@@ -106,6 +106,9 @@ export interface InternalRoomOptions {
    * and LiveKit OSS >= 1.9.2
    */
   singlePeerConnection: boolean;
+
+  /** uses browser built in offline detection for faster network interruption recovery, defaults to true  */
+  browserOfflineDetection: boolean;
 }
 
 /**
