@@ -166,7 +166,7 @@ const appActions = {
     const room = new Room(roomOptions);
 
     startTime = Date.now();
-    await room.prepareConnection(url, token);
+    // await room.prepareConnection(url, token);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
     room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {

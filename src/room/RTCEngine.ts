@@ -39,6 +39,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import { type Result, err, ok } from 'neverthrow';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -62,6 +63,7 @@ import {
   ConnectionError,
   ConnectionErrorReason,
   NegotiationError,
+  SimulatedError,
   TrackInvalidError,
   UnexpectedConnectionState,
 } from './errors';
@@ -250,38 +252,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-  ): Promise<JoinResponse> {
+    // TODO: be more explicit about error types
+  ): Promise<Result<JoinResponse, Error>> {
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
     this.maxJoinAttempts = opts.maxRetries;
-    try {
-      this.joinAttempts += 1;
+    this.joinAttempts += 1;
 
-      this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal);
-      this._isClosed = false;
-      this.latestJoinResponse = joinResponse;
+    this.setupSignalClientCallbacks();
+    const joinResult = await this.client.join(url, token, opts, abortSignal);
 
-      this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!this.pcManager) {
-        await this.configure(joinResponse);
-      }
-
-      // create offer
-      if (!this.subscriberPrimary || joinResponse.fastPublish) {
-        this.negotiate().catch((err) => {
-          log.error(err, this.logContext);
-        });
-      }
-
-      this.registerOnLineListener();
-      this.clientConfiguration = joinResponse.clientConfiguration;
-      this.emit(EngineEvent.SignalConnected, joinResponse);
-      return joinResponse;
-    } catch (e) {
-      if (e instanceof ConnectionError) {
-        if (e.reason === ConnectionErrorReason.ServerUnreachable) {
+    if (joinResult.isErr()) {
+      const error = joinResult.error;
+      if (error instanceof ConnectionError) {
+        if (error.reason === ConnectionErrorReason.ServerUnreachable) {
           this.log.warn(
             `Couldn't connect to server, attempt ${this.joinAttempts} of ${this.maxJoinAttempts}`,
             this.logContext,
@@ -291,8 +276,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }
         }
       }
-      throw e;
+      return err(error);
     }
+
+    const joinResponse = joinResult.value;
+
+    this._isClosed = false;
+    this.latestJoinResponse = joinResponse;
+
+    this.subscriberPrimary = joinResponse.subscriberPrimary;
+    if (!this.pcManager) {
+      await this.configure(joinResponse);
+    }
+
+    // create offer
+    if (!this.subscriberPrimary || joinResponse.fastPublish) {
+      this.negotiate().catch((error) => {
+        log.error(error, this.logContext);
+      });
+    }
+
+    this.registerOnLineListener();
+    this.clientConfiguration = joinResponse.clientConfiguration;
+    this.emit(EngineEvent.SignalConnected, joinResponse);
+    return ok(joinResponse);
   }
 
   async close() {
@@ -356,10 +363,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const publicationTimeout = setTimeout(() => {
         delete this.pendingTrackResolvers[req.cid];
         reject(
-          new ConnectionError(
-            'publication of local track timed out, no response from server',
-            ConnectionErrorReason.Timeout,
-          ),
+          ConnectionError.timeout('publication of local track timed out, no response from server'),
         );
       }, 10_000);
       this.pendingTrackResolvers[req.cid] = {
@@ -979,23 +983,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.fullReconnectOnNext = true;
     }
 
-    try {
-      this.attemptingReconnect = true;
-      if (this.fullReconnectOnNext) {
-        await this.restartConnection();
-      } else {
-        await this.resumeConnection(reason);
-      }
-      this.clearPendingReconnect();
-      this.fullReconnectOnNext = false;
-    } catch (e) {
+    let result: Result<void, Error>;
+    this.attemptingReconnect = true;
+    if (this.fullReconnectOnNext) {
+      result = await this.restartConnection();
+    } else {
+      result = await this.resumeConnection(reason);
+    }
+    this.clearPendingReconnect();
+    this.fullReconnectOnNext = false;
+    if (result.isErr()) {
+      const error = result.error;
       this.reconnectAttempts += 1;
       let recoverable = true;
-      if (e instanceof UnexpectedConnectionState) {
-        this.log.debug('received unrecoverable error', { ...this.logContext, error: e });
+      // TODO this needs proper handling to define which errors are actually unexpected and non recoverable
+      // Currently all connection related errors are ConnectionErrors
+      if (error instanceof UnexpectedConnectionState) {
+        this.log.debug('received unrecoverable error', { ...this.logContext, error });
         // unrecoverable
         recoverable = false;
-      } else if (!(e instanceof SignalReconnectError)) {
+      } else if (!(error instanceof SignalReconnectError)) {
         // cannot resume
         this.fullReconnectOnNext = true;
       }
@@ -1012,9 +1019,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.Disconnected);
         await this.close();
       }
-    } finally {
-      this.attemptingReconnect = false;
     }
+    this.attemptingReconnect = false;
   }
 
   private getNextRetryDelay(context: ReconnectContext) {
@@ -1028,11 +1034,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return null;
   }
 
-  private async restartConnection(regionUrl?: string) {
+  private async restartConnection(
+    regionUrl?: string,
+  ): Promise<Result<void, UnexpectedConnectionState | SignalReconnectError>> {
     try {
       if (!this.url || !this.token) {
         // permanent failure, don't attempt reconnection
-        throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
+        return err(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`, this.logContext);
@@ -1044,47 +1052,46 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await this.cleanupPeerConnections();
       await this.cleanupClient();
 
-      let joinResponse: JoinResponse;
-      try {
-        if (!this.signalOpts) {
-          this.log.warn(
-            'attempted connection restart, without signal options present',
-            this.logContext,
-          );
-          throw new SignalReconnectError();
-        }
-        // in case a regionUrl is passed, the region URL takes precedence
-        joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
-      } catch (e) {
-        if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
-          throw new UnexpectedConnectionState('could not reconnect, token might be expired');
-        }
+      if (!this.signalOpts) {
+        this.log.warn(
+          'attempted connection restart, without signal options present',
+          this.logContext,
+        );
         throw new SignalReconnectError();
+      }
+      // in case a regionUrl is passed, the region URL takes precedence
+      const joinResult = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+      if (joinResult.isErr()) {
+        const error = joinResult.error;
+        if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
+          return err(new UnexpectedConnectionState('could not reconnect, token might be expired'));
+        }
+        return err(new SignalReconnectError());
       }
 
       if (this.shouldFailNext) {
         this.shouldFailNext = false;
-        throw new Error('simulated failure');
+        return err(new SimulatedError());
       }
 
       this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse);
+      this.emit(EngineEvent.SignalRestarted, joinResult.value);
 
       await this.waitForPCReconnected();
 
       // re-check signal connection state before setting engine as resumed
       if (this.client.currentState !== SignalConnectionState.CONNECTED) {
-        throw new SignalReconnectError('Signal connection got severed during reconnect');
+        return err(new SignalReconnectError('Signal connection got severed during reconnect'));
       }
 
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
+      return ok();
     } catch (error) {
       const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
       if (nextRegionUrl) {
-        await this.restartConnection(nextRegionUrl);
-        return;
+        return this.restartConnection(nextRegionUrl);
       } else {
         // no more regions to try (or we're not on cloud)
         this.regionUrlProvider?.resetAttempts();
@@ -1093,7 +1100,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private async resumeConnection(reason?: ReconnectReason): Promise<void> {
+  private async resumeConnection(reason?: ReconnectReason) {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -1105,31 +1112,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
     this.emit(EngineEvent.Resuming);
-    let res: ReconnectResponse | undefined;
-    try {
-      this.setupSignalClientCallbacks();
-      res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
-    } catch (error) {
-      let message = '';
-      if (error instanceof Error) {
-        message = error.message;
-        this.log.error(error.message, { ...this.logContext, error });
-      }
-      if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
-        throw new UnexpectedConnectionState('could not reconnect, token might be expired');
-      }
-      if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.LeaveRequest) {
-        throw error;
-      }
-      throw new SignalReconnectError(message);
+    this.setupSignalClientCallbacks();
+    const reconnectResult = await this.client.reconnect(
+      this.url,
+      this.token,
+      this.participantSid,
+      reason,
+    );
+    if (reconnectResult.isErr()) {
+      return err(reconnectResult.error);
     }
+
     this.emit(EngineEvent.SignalResumed);
 
-    if (res) {
-      const rtcConfig = this.makeRTCConfiguration(res);
+    const reconnectResponse = reconnectResult.value;
+    if (reconnectResponse) {
+      const rtcConfig = this.makeRTCConfiguration(reconnectResponse);
       this.pcManager.updateConfiguration(rtcConfig);
       if (this.latestJoinResponse) {
-        this.latestJoinResponse.serverInfo = res.serverInfo;
+        this.latestJoinResponse.serverInfo = reconnectResponse.serverInfo;
       }
     } else {
       this.log.warn('Did not receive reconnect response', this.logContext);
@@ -1137,7 +1138,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;
-      throw new Error('simulated failure');
+      return err(new SimulatedError());
     }
 
     await this.pcManager.triggerIceRestart();
@@ -1157,12 +1158,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.createDataChannels();
     }
 
-    if (res?.lastMessageSeq) {
-      this.resendReliableMessagesForResume(res.lastMessageSeq);
+    if (reconnectResponse?.lastMessageSeq) {
+      this.resendReliableMessagesForResume(reconnectResponse.lastMessageSeq);
     }
 
     // resume success
     this.emit(EngineEvent.Resumed);
+
+    return ok();
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
@@ -1186,10 +1189,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
       this.pcState = PCState.Disconnected;
-      throw new ConnectionError(
-        `could not establish PC connection, ${e.message}`,
-        ConnectionErrorReason.InternalError,
-      );
+      throw ConnectionError.internal(`could not establish PC connection, ${e.message}`);
     }
   }
 
@@ -1353,10 +1353,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const transport = subscriber ? this.pcManager.subscriber : this.pcManager.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!transport) {
-      throw new ConnectionError(
-        `${transportName} connection not set`,
-        ConnectionErrorReason.InternalError,
-      );
+      throw ConnectionError.internal(`${transportName} connection not set`);
     }
 
     let needNegotiation = false;
@@ -1375,8 +1372,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (needNegotiation) {
       // start negotiation
-      this.negotiate().catch((err) => {
-        log.error(err, this.logContext);
+      this.negotiate().catch((error) => {
+        log.error(error, this.logContext);
       });
     }
 
@@ -1397,9 +1394,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await sleep(50);
     }
 
-    throw new ConnectionError(
+    throw ConnectionError.internal(
       `could not establish ${transportName} connection, state: ${transport.getICEConnectionState()}`,
-      ConnectionErrorReason.InternalError,
     );
   }
 

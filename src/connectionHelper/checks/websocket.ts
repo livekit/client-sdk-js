@@ -13,13 +13,15 @@ export class WebSocketCheck extends Checker {
     }
 
     let signalClient = new SignalClient();
-    const joinRes = await signalClient.join(this.url, this.token, {
-      autoSubscribe: true,
-      maxRetries: 0,
-      e2eeEnabled: false,
-      websocketTimeout: 15_000,
-      singlePeerConnection: false,
-    });
+    const joinRes = (
+      await signalClient.join(this.url, this.token, {
+        autoSubscribe: true,
+        maxRetries: 0,
+        e2eeEnabled: false,
+        websocketTimeout: 15_000,
+        singlePeerConnection: false,
+      })
+    )._unsafeUnwrap();
     this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
     if (joinRes.serverInfo?.edition === ServerInfo_Edition.Cloud && joinRes.serverInfo?.region) {
       this.appendMessage(`LiveKit Cloud: ${joinRes.serverInfo?.region}`);
