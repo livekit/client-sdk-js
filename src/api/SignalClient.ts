@@ -273,7 +273,6 @@ export class SignalClient {
     U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
   >(url: string, token: string, isReconnect: T, opts: ConnectOpts, abortSignal?: AbortSignal) {
     const self = this;
-    const connectLabel = `SignalClient.connect [${isReconnect ? 'reconnect' : 'join'}]`;
 
     return withMutex(
       safeTry<U, ConnectionError>(async function* () {
@@ -305,9 +304,6 @@ export class SignalClient {
 
         const wsConnectionResult = withTimeout(self.ws.opened, opts.websocketTimeout).mapErr(
           async (error) => {
-            console.error(`[${connectLabel}] WebSocket connection failed:`, error);
-            console.trace(`[${connectLabel}] WebSocket error stack trace`);
-
             // retrieve info about what error was causing the connection failure and enhance the returned error
             if (self.state !== SignalConnectionState.CONNECTED) {
               self.state = SignalConnectionState.DISCONNECTED;
@@ -320,10 +316,6 @@ export class SignalClient {
 
               self.close(undefined, closeReason);
               if (connectionError.isErr()) {
-                console.error(
-                  `[${connectLabel}] Connection error after fetch:`,
-                  connectionError.error,
-                );
                 return connectionError.error;
               }
             }
@@ -340,12 +332,6 @@ export class SignalClient {
           // Return the close promise as error if it resolves first
           ws!.closed
             .andThen((closeInfo) => {
-              console.warn(`[${connectLabel}] WebSocket closed during connection:`, {
-                reason: closeInfo.reason,
-                code: closeInfo.closeCode,
-                wasClean: closeInfo.closeCode === 1000,
-              });
-
               if (
                 closeInfo.closeCode !== 1000 &&
                 // we only log the warning here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
@@ -367,8 +353,6 @@ export class SignalClient {
               );
             })
             .orTee((error) => {
-              console.error(`[${connectLabel}] WebSocket error during connection:`, error);
-              console.trace(`[${connectLabel}] WebSocket error trace`);
               self.handleWSError(error);
             }),
         ]);
@@ -849,9 +833,8 @@ export class SignalClient {
     U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
   >(connection: WebSocketConnection, isReconnect: T): ResultAsync<U, ConnectionError> {
     const self = this;
-    const processLabel = `SignalClient.processInitialSignalMessage [${isReconnect ? 'reconnect' : 'join'}]`;
 
-    // TODO: This should be more granular here than ConnectionError
+    // TODO: If inferring from the return type this could be more granular here than ConnectionError
     return safeTry<U, ConnectionError>(async function* () {
       const signalReader = connection.readable.getReader();
       self.streamWriter = connection.writable.getWriter();
@@ -871,10 +854,6 @@ export class SignalClient {
         self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
         self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
         if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
-          console.log(`[${processLabel}] Ping config:`, {
-            timeout: self.pingTimeoutDuration,
-            interval: self.pingIntervalDuration,
-          });
           self.log.debug('ping config', {
             ...self.logContext,
             timeout: self.pingTimeoutDuration,
@@ -908,14 +887,7 @@ export class SignalClient {
     // TODO, this should probably not be a ConnectionError?
     ConnectionError
   > {
-    console.log('[SignalClient.validateFirstMessage]', {
-      messageCase: firstSignalResponse.message?.case,
-      isReconnect,
-      state: this.state,
-    });
-
     if (isReconnect === false && firstSignalResponse.message?.case === 'join') {
-      console.log('[SignalClient.validateFirstMessage] Valid join response');
       return ok({
         response: firstSignalResponse.message.value,
         shouldProcessFirstMessage: false,
@@ -926,14 +898,12 @@ export class SignalClient {
       firstSignalResponse.message?.case !== 'leave'
     ) {
       if (firstSignalResponse.message?.case === 'reconnect') {
-        console.log('[SignalClient.validateFirstMessage] Valid reconnect response');
         return ok({
           response: firstSignalResponse.message.value,
           shouldProcessFirstMessage: false,
         });
       } else {
         // in reconnecting, any message received means signal reconnected and we still need to process it
-        console.log('[SignalClient.validateFirstMessage] Reconnected without reconnect response');
         this.log.debug(
           'declaring signal reconnected without reconnect response received',
           this.logContext,
@@ -944,13 +914,6 @@ export class SignalClient {
         });
       }
     } else if (this.isEstablishingConnection && firstSignalResponse.message?.case === 'leave') {
-      console.error(
-        '[SignalClient.validateFirstMessage] Received leave request during connection',
-        {
-          leaveReason: firstSignalResponse.message.value.reason,
-        },
-      );
-      console.trace('[SignalClient.validateFirstMessage] Leave request stack trace');
       return err(
         ConnectionError.leaveRequest(
           'Received leave request while trying to (re)connect',
@@ -959,20 +922,13 @@ export class SignalClient {
       );
     } else if (!isReconnect) {
       // non-reconnect case, should receive join response first
-      console.error(
-        '[SignalClient.validateFirstMessage] Expected join, got:',
-        firstSignalResponse.message?.case,
-      );
-      console.trace('[SignalClient.validateFirstMessage] Unexpected message trace');
+
       return err(
         ConnectionError.internal(
           `did not receive join response, got ${firstSignalResponse.message?.case} instead`,
         ),
       );
     }
-
-    console.error('[SignalClient.validateFirstMessage] Unexpected first message');
-    console.trace('[SignalClient.validateFirstMessage] Unexpected message trace');
     return err(ConnectionError.internal('Unexpected first message'));
   }
 
@@ -987,23 +943,15 @@ export class SignalClient {
     reason: unknown,
     validateUrl: string,
   ): Promise<Result<never, ConnectionError>> {
-    console.log('[SignalClient.fetchErrorInfo] Fetching error info:', { reason, validateUrl });
     try {
       const resp = await fetch(validateUrl);
-      console.log('[SignalClient.fetchErrorInfo] Validation response:', {
-        status: resp.status,
-        statusText: resp.statusText,
-      });
 
       if (resp.status.toFixed(0).startsWith('4')) {
         const msg = await resp.text();
-        console.error('[SignalClient.fetchErrorInfo] 4xx error:', msg);
         return err(ConnectionError.notAllowed(msg, resp.status));
       } else if (reason instanceof ConnectionError) {
-        console.error('[SignalClient.fetchErrorInfo] ConnectionError:', reason);
         return err(reason);
       } else {
-        console.error('[SignalClient.fetchErrorInfo] Unknown WebSocket error:', reason);
         return err(
           ConnectionError.internal(
             `Encountered unknown websocket error during connection: ${reason}`,
@@ -1012,8 +960,6 @@ export class SignalClient {
         );
       }
     } catch (e) {
-      console.error('[SignalClient.fetchErrorInfo] Fetch failed:', e);
-      console.trace('[SignalClient.fetchErrorInfo] Fetch error trace');
       return err(
         e instanceof ConnectionError
           ? e
