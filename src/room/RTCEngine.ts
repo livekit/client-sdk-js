@@ -1628,9 +1628,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.url) {
       return;
     }
-    const hasNetworkConnection = await BackOffStrategy.getInstance()
-      .getBackOffPromise(this.url)
-      .then(() => fetch(toHttpUrl(this.url!), { method: 'HEAD' }).then((resp) => resp.ok))
+    const hasNetworkConnection = await fetch(toHttpUrl(this.url!), { method: 'HEAD' })
+      .then((resp) => resp.ok)
       .catch(() => false);
 
     if (
