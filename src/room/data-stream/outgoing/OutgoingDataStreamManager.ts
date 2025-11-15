@@ -146,7 +146,6 @@ export default class OutgoingDataStreamManager {
       // Implement the sink
       async write(text) {
         for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE)) {
-          await engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
           const chunk = new DataStream_Chunk({
             content: textByteChunk,
             streamId,
@@ -278,7 +277,6 @@ export default class OutgoingDataStreamManager {
         try {
           while (byteOffset < chunk.byteLength) {
             const subChunk = chunk.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE);
-            await engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
             const chunkPacket = new DataPacket({
               destinationIdentities,
               value: {
