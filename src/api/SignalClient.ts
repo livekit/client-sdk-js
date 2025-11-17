@@ -418,10 +418,11 @@ export class SignalClient {
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
     if (
-      this.state === SignalConnectionState.DISCONNECTING ||
-      this.state === SignalConnectionState.DISCONNECTED
+      [SignalConnectionState.DISCONNECTING || SignalConnectionState.DISCONNECTED].includes(
+        this.state,
+      )
     ) {
-      this.log.info(`Skipping signal client close, already disconnecting`);
+      this.log.debug(`ignoring signal close as it's already in disconnecting state`);
       return;
     }
     const unlock = await this.closingLock.lock();

@@ -86,6 +86,7 @@ import {
   sleep,
   supportsAddTrack,
   supportsTransceiver,
+  toHttpUrl,
 } from './utils';
 
 const lossyDataChannel = '_lossy';
@@ -205,6 +206,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
   private midToTrackId: { [key: string]: string } = {};
+
+  /** used to indicate whether the browser is currently waiting to reconnect */
+  private isWaitingForNetworkReconnect: boolean = false;
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -1615,23 +1619,62 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reconnectAttempts = 0;
   }
 
-  private handleBrowserOnLine = () => {
-    // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
-    if (this.client.currentState === SignalConnectionState.RECONNECTING) {
+  private handleBrowserOnLine = async () => {
+    if (!this.url) {
+      return;
+    }
+    const hasNetworkConnection = await fetch(toHttpUrl(this.url!), { method: 'HEAD' })
+      .then((resp) => resp.ok)
+      .catch(() => false);
+
+    if (!hasNetworkConnection) {
+      return;
+    }
+    this.log.info('detected network reconnected');
+
+    if (
+      // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
+      this.client.currentState === SignalConnectionState.RECONNECTING ||
+      // also if the browser went offline before and the engine still thinks it's in a connected state, treat it as a network interruption that we haven't noticed yet
+      (this.isWaitingForNetworkReconnect &&
+        this.client.currentState === SignalConnectionState.CONNECTED)
+    ) {
       this.clearReconnectTimeout();
       this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
+      this.isWaitingForNetworkReconnect = false;
+    }
+  };
+
+  private handleBrowserOffline = async () => {
+    if (!this.url) {
+      return;
+    }
+    try {
+      await Promise.race([
+        fetch(toHttpUrl(this.url), { method: 'HEAD' }),
+        // if there's no internet connection the fetch rejects immediately, so we only use a short timeout here
+        sleep(4_000).then(() => Promise.reject()),
+      ]);
+    } catch (e) {
+      // only set if the browser still thinks it's offline after the request failed
+      if (window.navigator.onLine === false) {
+        this.log.info('detected network interruption');
+        this.isWaitingForNetworkReconnect = true;
+      }
     }
   };
 
   private registerOnLineListener() {
     if (isWeb()) {
       window.addEventListener('online', this.handleBrowserOnLine);
+      window.addEventListener('offline', this.handleBrowserOffline);
     }
   }
 
   private deregisterOnLineListener() {
     if (isWeb()) {
       window.removeEventListener('online', this.handleBrowserOnLine);
+      window.removeEventListener('offline', this.handleBrowserOffline);
     }
   }
 
