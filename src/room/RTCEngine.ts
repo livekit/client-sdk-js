@@ -451,7 +451,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.pcManager.onPublisherOffer = (offer, offerId) => {
-      this.client.sendOffer(offer, offerId);
+      return this.client.sendOffer(offer, offerId);
     };
 
     this.pcManager.onDataChannel = this.handleDataChannel;

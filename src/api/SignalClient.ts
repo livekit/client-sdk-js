@@ -87,7 +87,6 @@ type SignalKind = NonNullable<SignalMessage>['case'];
 const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
   'trickle',
-  'offer',
   'answer',
   'simulate',
   'leave',
@@ -328,7 +327,7 @@ export class SignalClient {
         });
 
         const firstMessageOrClose = raceResults([
-          self.processInitialSignalMessage<T, U>(wsConnection, isReconnect),
+          self.processInitialSignalMessage(wsConnection),
           // Return the close promise as error if it resolves first
           ws!.closed
             .orTee((error) => {
@@ -360,21 +359,42 @@ export class SignalClient {
             }),
         ]);
 
-        const result = withAbort(withTimeout(firstMessageOrClose, 5_000), abortSignal).orTee(
-          (error) => {
-            if (error.reason === ConnectionErrorReason.Cancelled) {
-              self
-                .sendLeave()
-                .then(() => self.close())
-                .catch((e) => {
-                  self.log.error(e);
-                  self.close();
-                });
-            }
-          },
+        const firstSignalResponse = yield* await withAbort(
+          withTimeout(firstMessageOrClose, 5_000),
+          abortSignal,
+        ).orTee((error) => {
+          if (error.reason === ConnectionErrorReason.Cancelled) {
+            self
+              .sendLeave()
+              .then(() => self.close())
+              .catch((e) => {
+                self.log.error(e);
+                self.close();
+              });
+          }
+        });
+
+        const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
+
+        // Handle join response - set up ping configuration
+        if (firstSignalResponse.message?.case === 'join') {
+          self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
+          self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
+          if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
+            self.log.debug('ping config', {
+              ...self.logContext,
+              timeout: self.pingTimeoutDuration,
+              interval: self.pingIntervalDuration,
+            });
+          }
+        }
+
+        self.handleSignalConnected(
+          wsConnection,
+          validation.shouldProcessFirstMessage ? firstSignalResponse : undefined,
         );
 
-        return result;
+        return ok(validation.response as U);
       }),
       this.connectionLock,
     );
@@ -432,22 +452,24 @@ export class SignalClient {
         this.state = SignalConnectionState.DISCONNECTING;
       }
       if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason });
+        const ws = this.ws;
+        this.ws = undefined;
+        this.streamWriter = undefined;
+        ws.close({ closeCode: 1000, reason });
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = this.ws.closed.match(
+        const closePromise = ws.closed.match(
           (closeInfo) => closeInfo,
           (error) => error,
         );
-        this.ws = undefined;
-        this.streamWriter = undefined;
+
         await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
         this.log.info('closed websocket', { reason });
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { ...this.logContext, error: e });
     } finally {
-      if (updateState) {
+      if (updateState && this.state === SignalConnectionState.DISCONNECTING) {
         this.state = SignalConnectionState.DISCONNECTED;
       }
       unlock();
@@ -456,8 +478,13 @@ export class SignalClient {
 
   // initial offer after joining
   sendOffer(offer: RTCSessionDescriptionInit, offerId: number) {
-    this.log.debug('sending offer', { ...this.logContext, offerSdp: offer.sdp });
-    this.sendRequest({
+    this.log.debug('sending offer', {
+      ...this.logContext,
+      offerSdp: offer.sdp,
+      state: SignalConnectionState[this.state],
+      wsState: this.ws?.readyState,
+    });
+    return this.sendRequest({
       case: 'offer',
       value: toProtoSessionDescription(offer, offerId),
     });
@@ -834,19 +861,19 @@ export class SignalClient {
    * @internal
    */
   private handleSignalConnected(connection: WebSocketConnection, firstMessage?: SignalResponse) {
+    console.warn('signal back connected');
     this.state = SignalConnectionState.CONNECTED;
     this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
   }
 
-  private processInitialSignalMessage<
-    T extends boolean,
-    U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
-  >(connection: WebSocketConnection, isReconnect: T): ResultAsync<U, ConnectionError> {
+  private processInitialSignalMessage(
+    connection: WebSocketConnection,
+  ): ResultAsync<SignalResponse, ConnectionError> {
     const self = this;
 
     // TODO: If inferring from the return type this could be more granular here than ConnectionError
-    return safeTry<U, ConnectionError>(async function* () {
+    return safeTry<SignalResponse, ConnectionError>(async function* () {
       const signalReader = connection.readable.getReader();
       self.streamWriter = connection.writable.getWriter();
 
@@ -857,29 +884,7 @@ export class SignalClient {
 
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
 
-      // Validate the first message
-      const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
-
-      // Handle join response - set up ping configuration
-      if (firstSignalResponse.message?.case === 'join') {
-        self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
-        self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-        if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
-          self.log.debug('ping config', {
-            ...self.logContext,
-            timeout: self.pingTimeoutDuration,
-            interval: self.pingIntervalDuration,
-          });
-        }
-      }
-
-      // Handle successful connection
-      const firstMessageToProcess = validation.shouldProcessFirstMessage
-        ? firstSignalResponse
-        : undefined;
-      self.handleSignalConnected(connection, firstMessageToProcess);
-
-      return okAsync(validation.response as U);
+      return okAsync(firstSignalResponse);
     });
   }
 
