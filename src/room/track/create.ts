@@ -78,11 +78,13 @@ export async function createLocalTracks(
       deviceId: { ideal: deviceId },
     };
   }
-  if (
-    internalOptions.audio === true ||
-    (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
-  ) {
+  if (internalOptions.audio === true) {
     internalOptions.audio = { deviceId: 'default' };
+  } else if (typeof internalOptions.audio === 'object' && internalOptions.audio !== null) {
+    internalOptions.audio = {
+      ...internalOptions.audio,
+      deviceId: internalOptions.audio.deviceId || 'default',
+    };
   }
   if (internalOptions.video === true) {
     internalOptions.video = { deviceId: 'default' };
