@@ -169,7 +169,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private abortController?: AbortController;
 
   /** future holding client initiated connection attempt */
-  private connectFuture?: Future<void>;
+  private connectFuture?: Future<void, Error>;
 
   private disconnectLock: Mutex;
 
