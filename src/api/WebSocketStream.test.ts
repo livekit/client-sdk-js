@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConnectionErrorReason } from '../room/errors';
 import { WebSocketStream } from './WebSocketStream';
 
 // Mock WebSocket
@@ -184,7 +185,7 @@ describe('WebSocketStream', () => {
         new WebSocketStream('wss://test.example.com', {
           signal: abortController.signal,
         });
-      }).toThrow('AbortError');
+      }).toThrow('Aborted before WS was initialized');
     });
 
     it('should close when abort signal is triggered', () => {
@@ -232,7 +233,7 @@ describe('WebSocketStream', () => {
       const result = await wsStream.opened;
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.type).toBe('websocket');
+        expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
       }
     });
   });
@@ -283,7 +284,7 @@ describe('WebSocketStream', () => {
       const result = await wsStream.closed;
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.type).toBe('websocket');
+        expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
         expect(result.error.message).toBe(
           'Encountered unspecified websocket error without a timely close event',
         );

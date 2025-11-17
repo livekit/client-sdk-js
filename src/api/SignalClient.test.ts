@@ -236,7 +236,7 @@ describe('SignalClient.connect', () => {
       );
 
       expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toBe('AbortError');
+      expect(result._unsafeUnwrapErr().message).toBe('AbortSignal invoked');
     });
 
     it('should send leave request before closing when AbortSignal is triggered during connection', async () => {
@@ -315,7 +315,7 @@ describe('SignalClient.connect', () => {
       // joinPromise should return Err result
       const result = await joinPromise;
       expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toBe('AbortError');
+      expect(result._unsafeUnwrapErr().message).toBe('AbortSignal invoked');
 
       // Verify that a leave request was sent before closing
       const leaveRequestSent = writtenMessages.some((data) => {
