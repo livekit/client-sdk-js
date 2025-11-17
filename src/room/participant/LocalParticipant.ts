@@ -30,8 +30,10 @@ import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingData
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import { defaultVideoCodec } from '../defaults';
 import {
+  ConnectionError,
   DeviceUnsupportedError,
   LivekitError,
+  NegotiationError,
   PublishTrackError,
   SignalRequestError,
   TrackInvalidError,
@@ -103,6 +105,7 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
+import { errAsync, ok, ResultAsync, safeTry } from 'neverthrow';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -954,9 +957,10 @@ export default class LocalParticipant extends Participant {
     return false;
   }
 
-  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+  private publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean): ResultAsync<LocalTrackPublication, PublishTrackError | TrackInvalidError> {
+    
     if (!this.hasPermissionsToPublish(track)) {
-      throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
+      return errAsync(new PublishTrackError('failed to publish track, insufficient permissions', 403));
     }
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
       (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
@@ -1049,31 +1053,33 @@ export default class LocalParticipant extends Participant {
       audioFeatures,
     });
 
+    const self = this;
+
+    return safeTry<LocalTrackPublication, PublishTrackError | TrackInvalidError>(async function*() {
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
-      let dims: Track.Dimensions = {
-        width: 0,
-        height: 0,
-      };
-      try {
-        dims = await track.waitForDimensions();
-      } catch (e) {
-        // use defaults, it's quite painful for congestion control without simulcast
-        // so using default dims according to publish settings
+      
+       const dims = yield* (await track.waitForDimensions()).orElse(() => {
         const defaultRes =
-          this.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
-        dims = {
+          self.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
+
+           // use defaults, it's quite painful for congestion control without simulcast
+        // so using default dims according to publish settings
+        const defaultDims = {
           width: defaultRes.width,
           height: defaultRes.height,
-        };
+        } satisfies Track.Dimensions;
+
         // log failure
-        this.log.error('could not determine track dimensions, using defaults', {
-          ...this.logContext,
+        self.log.error('could not determine track dimensions, using defaults', {
+          ...self.logContext,
           ...getLogContextFromTrack(track),
           dims,
         });
-      }
+        return ok(defaultDims as Track.Dimensions);
+        })
+      
       // width and height should be defined for video
       req.width = dims.width;
       req.height = dims.height;
@@ -1091,8 +1097,8 @@ export default class LocalParticipant extends Participant {
             // that we need
             if ('contentHint' in track.mediaStreamTrack) {
               track.mediaStreamTrack.contentHint = 'motion';
-              this.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
-                ...this.logContext,
+              self.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
+                ...self.logContext,
                 ...getLogContextFromTrack(track),
               });
             }
@@ -1119,8 +1125,8 @@ export default class LocalParticipant extends Participant {
           req.encryption === Encryption_Type.NONE
         ) {
           // multi-codec simulcast requires dynacast
-          if (!this.roomOptions.dynacast) {
-            this.roomOptions.dynacast = true;
+          if (!self.roomOptions.dynacast) {
+            self.roomOptions.dynacast = true;
           }
           req.simulcastCodecs.push(
             new SimulcastCodec({
@@ -1153,17 +1159,17 @@ export default class LocalParticipant extends Participant {
       ];
     }
 
-    if (!this.engine || this.engine.isClosed) {
+    if (!self.engine || self.engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const negotiate = async () => {
-      if (!this.engine.pcManager) {
-        throw new UnexpectedConnectionState('pcManager is not ready');
+    const negotiate = (): ResultAsync<void, NegotiationError | UnexpectedConnectionState> => {
+      if (!self.engine.pcManager) {
+        return errAsync(new UnexpectedConnectionState('pcManager is not ready'));
       }
 
-      track.sender = await this.engine.createSender(track, opts, encodings);
-      this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
+      track.sender = await self.engine.createSender(track, opts, encodings);
+      self.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
         opts.degradationPreference ??= getDefaultDegradationPreference(track);
@@ -1202,92 +1208,95 @@ export default class LocalParticipant extends Participant {
         }
       }
 
-      await this.engine.negotiate();
+      return this.engine.negotiate();
     };
 
-    let ti: TrackInfo;
-    const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
-      try {
-        ti = await this.engine.addTrack(req);
-        resolve(ti);
-      } catch (err) {
-        if (track.sender && this.engine.pcManager?.publisher) {
-          this.engine.pcManager.publisher.removeTrack(track.sender);
-          await this.engine.negotiate().catch((negotiateErr) => {
-            this.log.error(
+    const addTrackResult = self.engine.addTrack(req);
+
+    const addTrackWithFallback = addTrackResult.mapErr((e) => {
+      if (track.sender && self.engine.pcManager?.publisher) {
+          self.engine.pcManager.publisher.removeTrack(track.sender);
+          self.engine.negotiate().orTee((negotiateErr) => {
+            self.log.error(
               'failed to negotiate after removing track due to failed add track request',
               {
-                ...this.logContext,
+                ...self.logContext,
                 ...getLogContextFromTrack(track),
                 error: negotiateErr,
               },
             );
           });
         }
-        reject(err);
-      }
+        return e;
     });
-    if (this.enabledPublishVideoCodecs.length > 0) {
-      const rets = await Promise.all([addTrackPromise, negotiate()]);
-      ti = rets[0];
-    } else {
-      ti = await addTrackPromise;
-      // server might not support the codec the client has requested, in that case, fallback
-      // to a supported codec
-      let primaryCodecMime: string | undefined;
-      ti.codecs.forEach((codec) => {
-        if (primaryCodecMime === undefined) {
-          primaryCodecMime = codec.mimeType;
-        }
-      });
-      if (primaryCodecMime && track.kind === Track.Kind.Video) {
-        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-        if (updatedCodec !== videoCodec) {
-          this.log.debug('falling back to server selected codec', {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-            codec: updatedCodec,
-          });
-          opts.videoCodec = updatedCodec;
 
-          // recompute encodings since bitrates/etc could have changed
-          encodings = computeVideoEncodings(
-            track.source === Track.Source.ScreenShare,
-            req.width,
-            req.height,
-            opts,
-          );
+    let trackInfoResult: ResultAsync<TrackInfo, NegotiationError | TrackInvalidError | ConnectionError>
+
+    if (self.enabledPublishVideoCodecs.length > 0) {
+      trackInfoResult = ResultAsync.combine([addTrackWithFallback, negotiate()]).map(t => t[0]);
+    } else {
+      trackInfoResult = addTrackWithFallback.andThen((ti) => {
+        // server might not support the codec the client has requested, in that case, fallback
+        // to a supported codec
+        let primaryCodecMime: string | undefined;
+        ti.codecs.forEach((codec) => {
+          if (primaryCodecMime === undefined) {
+            primaryCodecMime = codec.mimeType;
+          }
+        });
+        if (primaryCodecMime && track.kind === Track.Kind.Video) {
+          const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+          if (updatedCodec !== videoCodec) {
+            self.log.debug('falling back to server selected codec', {
+              ...self.logContext,
+              ...getLogContextFromTrack(track),
+              codec: updatedCodec,
+            });
+            opts.videoCodec = updatedCodec;
+
+            // recompute encodings since bitrates/etc could have changed
+            encodings = computeVideoEncodings(
+              track.source === Track.Source.ScreenShare,
+              req.width,
+              req.height,
+              opts,
+            );
+          }
         }
-      }
-      await negotiate();
-    }
+        return negotiate().map(() => ti);
+    });
+  }
+
+    const ti = yield* await trackInfoResult;
+
+ 
 
     const publication = new LocalTrackPublication(track.kind, ti, track, {
-      loggerName: this.roomOptions.loggerName,
-      loggerContextCb: () => this.logContext,
+      loggerName: self.roomOptions.loggerName,
+      loggerContextCb: () => self.logContext,
     });
     publication.on(TrackEvent.CpuConstrained, (constrainedTrack) =>
-      this.onTrackCpuConstrained(constrainedTrack, publication),
+      self.onTrackCpuConstrained(constrainedTrack, publication),
     );
     // save options for when it needs to be republished again
     publication.options = opts;
     track.sid = ti.sid;
 
-    this.log.debug(`publishing ${track.kind} with encodings`, {
-      ...this.logContext,
+    self.log.debug(`publishing ${track.kind} with encodings`, {
+      ...self.logContext,
       encodings,
       trackInfo: ti,
     });
 
     if (isLocalVideoTrack(track)) {
-      track.startMonitor(this.engine.client);
+      track.startMonitor(self.engine.client);
     } else if (isLocalAudioTrack(track)) {
       track.startMonitor();
     }
 
-    this.addTrackPublication(publication);
+    self.addTrackPublication(publication);
     // send event for publication
-    this.emit(ParticipantEvent.LocalTrackPublished, publication);
+    self.emit(ParticipantEvent.LocalTrackPublished, publication);
 
     if (
       isLocalAudioTrack(track) &&
@@ -1296,14 +1305,14 @@ export default class LocalParticipant extends Participant {
       const stream = track.getPreConnectBuffer();
       const mimeType = track.getPreConnectBufferMimeType();
       // TODO: we're registering the listener after negotiation, so there might be a race
-      this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
+      self.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
         if (pub.trackSid === ti.sid) {
           if (!track.hasPreConnectBuffer) {
-            this.log.warn('subscribe event came to late, buffer already closed', this.logContext);
+            self.log.warn('subscribe event came to late, buffer already closed', self.logContext);
             return;
           }
-          this.log.debug('finished recording preconnect buffer', {
-            ...this.logContext,
+          self.log.debug('finished recording preconnect buffer', {
+            ...self.logContext,
             ...getLogContextFromTrack(track),
           });
           track.stopPreConnectBuffer();
@@ -1313,20 +1322,20 @@ export default class LocalParticipant extends Participant {
       if (stream) {
         const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
           try {
-            this.log.debug('waiting for agent', {
-              ...this.logContext,
+            self.log.debug('waiting for agent', {
+              ...self.logContext,
               ...getLogContextFromTrack(track),
             });
             const agentActiveTimeout = setTimeout(() => {
               reject(new Error('agent not active within 10 seconds'));
             }, 10_000);
-            const agent = await this.waitUntilActiveAgentPresent();
+            const agent = await self.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
-            this.log.debug('sending preconnect buffer', {
-              ...this.logContext,
+            self.log.debug('sending preconnect buffer', {
+              ...self.logContext,
               ...getLogContextFromTrack(track),
             });
-            const writer = await this.streamBytes({
+            const writer = await self.streamBytes({
               name: 'preconnect-buffer',
               mimeType,
               topic: 'lk.agent.pre-connect-audio-buffer',
@@ -1348,22 +1357,25 @@ export default class LocalParticipant extends Participant {
         });
         bufferStreamPromise
           .then(() => {
-            this.log.debug('preconnect buffer sent successfully', {
-              ...this.logContext,
+            self.log.debug('preconnect buffer sent successfully', {
+              ...self.logContext,
               ...getLogContextFromTrack(track),
             });
           })
           .catch((e) => {
-            this.log.error('error sending preconnect buffer', {
-              ...this.logContext,
+            self.log.error('error sending preconnect buffer', {
+              ...self.logContext,
               ...getLogContextFromTrack(track),
               error: e,
             });
           });
       }
     }
-    return publication;
+    return ok(publication);
+
+  });
   }
+
 
   override get isLocal(): boolean {
     return true;

@@ -1,4 +1,5 @@
 import { Mutex } from '@livekit/mutex';
+import { Result, err, ok } from 'neverthrow';
 import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
@@ -211,7 +212,9 @@ export default abstract class LocalTrack<
     }
   }
 
-  async waitForDimensions(timeout = DEFAULT_DIMENSIONS_TIMEOUT): Promise<Track.Dimensions> {
+  async waitForDimensions(
+    timeout = DEFAULT_DIMENSIONS_TIMEOUT,
+  ): Promise<Result<Track.Dimensions, TrackInvalidError>> {
     if (this.kind === Track.Kind.Audio) {
       throw new Error('cannot get dimensions for audio tracks');
     }
@@ -226,11 +229,11 @@ export default abstract class LocalTrack<
     while (Date.now() - started < timeout) {
       const dims = this.dimensions;
       if (dims) {
-        return dims;
+        return ok(dims);
       }
       await sleep(50);
     }
-    throw new TrackInvalidError('unable to get track dimensions after timeout');
+    return err(new TrackInvalidError('unable to get track dimensions after timeout'));
   }
 
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {

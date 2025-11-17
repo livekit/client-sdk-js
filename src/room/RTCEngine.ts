@@ -39,7 +39,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { type Result, err, ok } from 'neverthrow';
+import { type Result, ResultAsync, err, errAsync, ok, okAsync } from 'neverthrow';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -48,6 +48,7 @@ import {
   SignalConnectionState,
   toProtoSessionDescription,
 } from '../api/SignalClient';
+import { raceResults, resultFromEvent, withFinally, withTimeout } from '../api/utils';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -295,7 +296,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // create offer
     if (!this.subscriberPrimary || joinResponse.fastPublish) {
-      this.negotiate().catch((error) => {
+      this.negotiate().orTee((error) => {
         log.error(error, this.logContext);
       });
     }
@@ -359,29 +360,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.resetCallbacks();
   }
 
-  addTrack(req: AddTrackRequest): Promise<TrackInfo> {
+  addTrack(req: AddTrackRequest): ResultAsync<TrackInfo, ConnectionError | TrackInvalidError> {
     if (this.pendingTrackResolvers[req.cid]) {
-      throw new TrackInvalidError('a track with the same ID has already been published');
+      return errAsync(new TrackInvalidError('a track with the same ID has already been published'));
     }
-    return new Promise<TrackInfo>((resolve, reject) => {
-      const publicationTimeout = setTimeout(() => {
-        delete this.pendingTrackResolvers[req.cid];
-        reject(
-          ConnectionError.timeout('publication of local track timed out, no response from server'),
-        );
-      }, 10_000);
-      this.pendingTrackResolvers[req.cid] = {
-        resolve: (info: TrackInfo) => {
-          clearTimeout(publicationTimeout);
-          resolve(info);
-        },
-        reject: () => {
-          clearTimeout(publicationTimeout);
-          reject(new Error('Cancelled publication by calling unpublish'));
-        },
-      };
-      this.client.sendAddTrack(req);
+
+    const pendingPromiseResult = ResultAsync.fromPromise(
+      new Promise<TrackInfo>((resolve, rej) => {
+        const reject = (error: ReturnType<typeof ConnectionError.cancelled>) => rej(error);
+        this.pendingTrackResolvers[req.cid] = {
+          resolve: (info: TrackInfo) => {
+            resolve(info);
+          },
+          // TODO ensure no other parts of the SDK reject this promise with a different error
+          reject: () => {
+            reject(ConnectionError.cancelled('Cancelled publication by calling unpublish'));
+          },
+        };
+      }),
+      (e) => e as ReturnType<typeof ConnectionError.cancelled>,
+    );
+
+    const addTrackResult = withFinally(withTimeout(pendingPromiseResult, 10_000), () => {
+      delete this.pendingTrackResolvers[req.cid];
     });
+
+    return addTrackResult;
   }
 
   /**
@@ -396,7 +400,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (reject) {
         reject();
       }
-      delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
       this.pcManager!.removeTrack(sender);
@@ -559,7 +562,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       const { resolve } = this.pendingTrackResolvers[res.cid];
-      delete this.pendingTrackResolvers[res.cid];
       resolve(res.track!);
     };
 
@@ -1376,7 +1378,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (needNegotiation) {
       // start negotiation
-      this.negotiate().catch((error) => {
+      this.negotiate().orTee((error) => {
         log.error(error, this.logContext);
       });
     }
@@ -1428,64 +1430,72 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
-  async negotiate(): Promise<void> {
+  negotiate(): ResultAsync<void, NegotiationError> {
+    if (!this.pcManager) {
+      return errAsync(new NegotiationError('PC manager is closed'));
+    }
     // observe signal state
-    return new Promise<void>(async (resolve, reject) => {
-      if (!this.pcManager) {
-        reject(new NegotiationError('PC manager is closed'));
-        return;
+
+    this.pcManager.requirePublisher();
+    // don't negotiate without any transceivers or data channel, it will generate sdp without ice frag then negotiate failed
+    if (
+      this.pcManager.publisher.getTransceivers().length == 0 &&
+      !this.lossyDC &&
+      !this.reliableDC
+    ) {
+      this.createDataChannels();
+    }
+
+    const abortController = new AbortController();
+
+    const handleClosed = () => {
+      abortController.abort();
+      this.log.debug('engine disconnected while negotiation was ongoing', this.logContext);
+      okAsync();
+      return;
+    };
+
+    if (this.isClosed) {
+      return errAsync(new NegotiationError('cannot negotiate on closed engine'));
+    }
+
+    this.pcManager.publisher.once(
+      PCEvents.RTPVideoPayloadTypes,
+      (rtpTypes: MediaAttributes['rtp']) => {
+        const rtpMap = new Map<number, VideoCodec>();
+        rtpTypes.forEach((rtp) => {
+          const codec = rtp.codec.toLowerCase();
+          if (isVideoCodec(codec)) {
+            rtpMap.set(rtp.payload, codec);
+          }
+        });
+        this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+      },
+    );
+
+    const closingResult = resultFromEvent<EngineEventCallbacks, EngineEvent.Closing>(
+      this,
+      EngineEvent.Closing,
+    ).andThen(() => err(new NegotiationError('engine disconnected while negotiation was ongoing')));
+
+    const closedOrNegotiate = raceResults([
+      closingResult,
+      // TODO ensure pcManager.negotiate can only throw/return Negotiation errors
+      ResultAsync.fromPromise(
+        this.pcManager.negotiate(abortController),
+        (e) => e as NegotiationError,
+      ),
+    ]);
+
+    const negotiationWithErrorHandler = closedOrNegotiate.orTee((e) => {
+      if (e instanceof NegotiationError) {
+        this.fullReconnectOnNext = true;
       }
+      this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
+    });
 
-      this.pcManager.requirePublisher();
-      // don't negotiate without any transceivers or data channel, it will generate sdp without ice frag then negotiate failed
-      if (
-        this.pcManager.publisher.getTransceivers().length == 0 &&
-        !this.lossyDC &&
-        !this.reliableDC
-      ) {
-        this.createDataChannels();
-      }
-
-      const abortController = new AbortController();
-
-      const handleClosed = () => {
-        abortController.abort();
-        this.log.debug('engine disconnected while negotiation was ongoing', this.logContext);
-        resolve();
-        return;
-      };
-
-      if (this.isClosed) {
-        reject('cannot negotiate on closed engine');
-      }
-      this.on(EngineEvent.Closing, handleClosed);
-
-      this.pcManager.publisher.once(
-        PCEvents.RTPVideoPayloadTypes,
-        (rtpTypes: MediaAttributes['rtp']) => {
-          const rtpMap = new Map<number, VideoCodec>();
-          rtpTypes.forEach((rtp) => {
-            const codec = rtp.codec.toLowerCase();
-            if (isVideoCodec(codec)) {
-              rtpMap.set(rtp.payload, codec);
-            }
-          });
-          this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
-        },
-      );
-
-      try {
-        await this.pcManager.negotiate(abortController);
-        resolve();
-      } catch (e: any) {
-        if (e instanceof NegotiationError) {
-          this.fullReconnectOnNext = true;
-        }
-        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
-        reject(e);
-      } finally {
-        this.off(EngineEvent.Closing, handleClosed);
-      }
+    return withFinally(negotiationWithErrorHandler, () => {
+      this.off(EngineEvent.Closing, handleClosed);
     });
   }
 
