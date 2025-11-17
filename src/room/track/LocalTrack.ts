@@ -561,8 +561,8 @@ export default abstract class LocalTrack<
             error,
           });
           setTimeout(() => {
-            processorElement.play().catch((err) => {
-              this.log.error('failed to play processor element', { ...this.logContext, err });
+            processorElement.play().catch((e) => {
+              this.log.error('failed to play processor element', { ...this.logContext, error: e });
             });
           }, 100);
         } else {

@@ -820,21 +820,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.updateAndEmitDCBufferStatus(channelKind);
   };
 
-  async createSender(
+  createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
-  ) {
+  ): ResultAsync<RTCRtpSender, UnexpectedConnectionState | TypeError | RangeError | DOMException> {
     if (supportsTransceiver()) {
-      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      return sender;
+      return this.createTransceiverRTCRtpSender(track, opts, encodings);
     }
     if (supportsAddTrack()) {
       this.log.warn('using add-track fallback', this.logContext);
-      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
-      return sender;
+      return this.createRTCRtpSender(track.mediaStreamTrack);
     }
-    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+    return errAsync(
+      new UnexpectedConnectionState('Required webRTC APIs not supported on this device'),
+    );
   }
 
   async createSimulcastSender(
@@ -855,13 +855,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
-  private async createTransceiverRTCRtpSender(
+  private createTransceiverRTCRtpSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
-  ) {
+  ): ResultAsync<RTCRtpSender, UnexpectedConnectionState | TypeError | RangeError | DOMException> {
     if (!this.pcManager) {
-      throw new UnexpectedConnectionState('publisher is closed');
+      return errAsync(new UnexpectedConnectionState('publisher is closed'));
     }
 
     const streams: MediaStream[] = [];
@@ -879,15 +879,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addPublisherTransceiver(
-      track.mediaStreamTrack,
-      transceiverInit,
-    );
+    const senderResult = this.pcManager
+      .addPublisherTransceiver(track.mediaStreamTrack, transceiverInit)
+      .map((transceiver) => transceiver.sender);
 
-    return transceiver.sender;
+    return senderResult;
   }
 
-  private async createSimulcastTransceiverSender(
+  private createSimulcastTransceiverSender(
     track: LocalVideoTrack,
     simulcastTrack: SimulcastTrackInfo,
     opts: TrackPublishOptions,
@@ -901,20 +900,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addPublisherTransceiver(
-      simulcastTrack.mediaStreamTrack,
-      transceiverInit,
-    );
-    if (!opts.videoCodec) {
-      return;
-    }
-    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
-    return transceiver.sender;
+    const senderResult = this.pcManager
+      .addPublisherTransceiver(simulcastTrack.mediaStreamTrack, transceiverInit)
+      .map((transceiver) => {
+        if (opts.videoCodec) {
+          track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+        }
+        return transceiver.sender;
+      });
+
+    return senderResult;
   }
 
-  private async createRTCRtpSender(track: MediaStreamTrack) {
+  private createRTCRtpSender(
+    track: MediaStreamTrack,
+  ): ResultAsync<RTCRtpSender, UnexpectedConnectionState | DOMException> {
     if (!this.pcManager) {
-      throw new UnexpectedConnectionState('publisher is closed');
+      return errAsync(new UnexpectedConnectionState('publisher is closed'));
     }
     return this.pcManager.addPublisherTrack(track);
   }
