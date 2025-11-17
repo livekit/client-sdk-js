@@ -761,10 +761,10 @@ export class SignalClient {
     }
   }
 
-  private handleOnClose(reason: string) {
+  private async handleOnClose(reason: string) {
     if (this.state === SignalConnectionState.DISCONNECTED) return;
     const onCloseCallback = this.onClose;
-    this.close(undefined, reason);
+    await this.close(undefined, reason);
     this.log.debug(`websocket connection closing: ${reason}`, { ...this.logContext, reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
