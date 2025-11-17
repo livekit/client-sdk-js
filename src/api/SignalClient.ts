@@ -257,6 +257,7 @@ export class SignalClient {
         ConnectionError.internal('attempted to reconnect without signal options being set'),
       );
     }
+    console.warn('reconnecting signal');
     this.state = SignalConnectionState.RECONNECTING;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
@@ -933,13 +934,18 @@ export class SignalClient {
       );
     } else if (!isReconnect) {
       // non-reconnect case, should receive join response first
-
       return err(
         ConnectionError.internal(
           `did not receive join response, got ${firstSignalResponse.message?.case} instead`,
         ),
       );
     }
+    console.warn('first message', {
+      msg: firstSignalResponse,
+      isReconnect,
+      state: this.state,
+      stateName: SignalConnectionState[this.state],
+    });
     return err(ConnectionError.internal('Unexpected first message'));
   }
 

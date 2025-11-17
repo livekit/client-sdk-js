@@ -381,6 +381,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       (e) => e as ReturnType<typeof ConnectionError.cancelled>,
     );
 
+    // TODO: this should probably be a result and happen before addTrackResult is returned
+    this.client.sendAddTrack(req);
+
     const addTrackResult = withFinally(withTimeout(pendingPromiseResult, 10_000), () => {
       delete this.pendingTrackResolvers[req.cid];
     });
@@ -1012,6 +1015,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         recoverable = false;
       } else if (!(error instanceof SignalReconnectError)) {
         // cannot resume
+        console.warn('cannot resume, error is', error);
         this.fullReconnectOnNext = true;
       }
 
@@ -1491,6 +1495,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const negotiationWithErrorHandler = closedOrNegotiate.orTee((e) => {
       if (e instanceof NegotiationError) {
+        console.warn('cannot resume after negotiation error, error is', e);
         this.fullReconnectOnNext = true;
       }
       this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
