@@ -256,8 +256,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    // TODO: be more explicit about error types
-  ): Promise<Result<JoinResponse, Error>> {
+  ): Promise<Result<JoinResponse, ConnectionError>> {
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
