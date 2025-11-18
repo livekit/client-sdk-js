@@ -96,7 +96,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected loggerOptions?: LoggerOptions;
 
-  protected activeFuture?: Future<void>;
+  protected activeFuture?: Future<void, Error>;
 
   protected get logContext() {
     return {
@@ -195,7 +195,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       return this.activeFuture.promise;
     }
 
-    this.activeFuture = new Future<void>();
+    this.activeFuture = new Future<void, Error>();
 
     this.once(ParticipantEvent.Active, () => {
       this.activeFuture?.resolve?.();
