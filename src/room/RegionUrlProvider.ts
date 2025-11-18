@@ -1,7 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
-import { ConnectionError } from './errors';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
 export const DEFAULT_MAX_AGE_MS = 5_000;
