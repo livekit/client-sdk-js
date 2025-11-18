@@ -360,7 +360,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDataStatByterate = 0;
     this.lossyDataStatCurrentBytes = 0;
     if (this.lossyDataStatTimer) {
-      clearTimeout(this.lossyDataStatTimer);
+      clearInterval(this.lossyDataStatTimer);
       this.lossyDataStatTimer = undefined;
     }
   }
