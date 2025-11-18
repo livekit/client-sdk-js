@@ -572,6 +572,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
+      this.regionUrlProvider?.updateToken(token);
     };
 
     this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
@@ -1261,7 +1262,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }),
       },
     });
-
     await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
@@ -1291,6 +1291,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const msg = packet.toBinary();
+
+    await this.waitForBufferStatusLow(kind);
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {

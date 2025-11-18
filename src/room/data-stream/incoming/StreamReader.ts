@@ -17,7 +17,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 
   protected bytesReceived: number;
 
-  protected outOfBandFailureRejectingFuture?: Future<never>;
+  protected outOfBandFailureRejectingFuture?: Future<never, Error>;
 
   get info() {
     return this._info;
@@ -46,7 +46,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
     info: T,
     stream: ReadableStream<DataStream_Chunk>,
     totalByteSize?: number,
-    outOfBandFailureRejectingFuture?: Future<never>,
+    outOfBandFailureRejectingFuture?: Future<never, Error>,
   ) {
     this.reader = stream;
     this.totalByteSize = totalByteSize;
@@ -80,7 +80,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
 
-    let rejectingSignalFuture = new Future<never>();
+    let rejectingSignalFuture = new Future<never, Error>();
     let activeSignal: AbortSignal | null = null;
     let onAbort: (() => void) | null = null;
     if (this.signal) {
@@ -175,7 +175,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     info: TextStreamInfo,
     stream: ReadableStream<DataStream_Chunk>,
     totalChunkCount?: number,
-    outOfBandFailureRejectingFuture?: Future<never>,
+    outOfBandFailureRejectingFuture?: Future<never, Error>,
   ) {
     super(info, stream, totalChunkCount, outOfBandFailureRejectingFuture);
     this.receivedChunks = new Map();
@@ -213,7 +213,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     const reader = this.reader.getReader();
     const decoder = new TextDecoder('utf-8', { fatal: true });
 
-    let rejectingSignalFuture = new Future<never>();
+    let rejectingSignalFuture = new Future<never, Error>();
     let activeSignal: AbortSignal | null = null;
     let onAbort: (() => void) | null = null;
     if (this.signal) {
