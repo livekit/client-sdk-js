@@ -169,7 +169,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private abortController?: AbortController;
 
   /** future holding client initiated connection attempt */
-  private connectFuture?: Future<void>;
+  private connectFuture?: Future<void, Error>;
 
   private disconnectLock: Mutex;
 
@@ -948,6 +948,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
+
+    // Notify region provider about successful connection
+    if (this.regionUrlProvider) {
+      this.regionUrlProvider.notifyConnected();
+    }
   };
 
   /**
@@ -1559,6 +1564,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.regionUrl = undefined;
 
+    // Notify region provider about disconnect to potentially stop auto-refetch
+    if (this.regionUrlProvider) {
+      this.regionUrlProvider.notifyDisconnected();
+    }
+
     try {
       this.remoteParticipants.forEach((p) => {
         p.trackPublications.forEach((pub) => {
@@ -1917,6 +1927,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
+        this.log.warn(`RPC Response payload too large for ${method}`, this.logContext);
       } else {
         responsePayload = response;
       }
@@ -1924,6 +1935,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (error instanceof RpcError) {
         responseError = error;
       } else {
+        this.log.warn(
+          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
+          { ...this.logContext, error },
+        );
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
     }

@@ -68,9 +68,11 @@ export class E2EEManager
 
   private keyProvider: BaseKeyProvider;
 
-  private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data']>> = new Map();
+  private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data'], Error>> =
+    new Map();
 
-  private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data']>> = new Map();
+  private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data'], Error>> =
+    new Map();
 
   private dataChannelEncryptionEnabled: boolean;
 
@@ -322,7 +324,7 @@ export class E2EEManager
         participantIdentity: this.room!.localParticipant.identity,
       },
     };
-    const future = new Future<EncryptDataResponseMessage['data']>();
+    const future = new Future<EncryptDataResponseMessage['data'], Error>();
     future.onFinally = () => {
       this.encryptDataRequests.delete(uuid);
     };
@@ -351,7 +353,7 @@ export class E2EEManager
         keyIndex,
       },
     };
-    const future = new Future<DecryptDataResponseMessage['data']>();
+    const future = new Future<DecryptDataResponseMessage['data'], Error>();
     future.onFinally = () => {
       this.decryptDataRequests.delete(uuid);
     };

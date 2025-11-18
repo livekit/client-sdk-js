@@ -121,7 +121,7 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never>();
+      const outOfBandFailureRejectingFuture = new Future<never, Error>();
       outOfBandFailureRejectingFuture.promise.catch((err) => {
         this.log.error(err);
       });
@@ -178,7 +178,7 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never>();
+      const outOfBandFailureRejectingFuture = new Future<never, Error>();
       outOfBandFailureRejectingFuture.promise.catch((err) => {
         this.log.error(err);
       });

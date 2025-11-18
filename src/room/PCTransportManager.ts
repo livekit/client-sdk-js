@@ -49,7 +49,7 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
-  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
+  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => Promise<void>;
 
   private isPublisherConnectionRequired: boolean;
 
@@ -99,8 +99,8 @@ export class PCTransportManager {
       this.onTrack?.(ev);
     };
 
-    this.publisher.onOffer = (offer, offerId) => {
-      this.onPublisherOffer?.(offer, offerId);
+    this.publisher.onOffer = async (offer, offerId) => {
+      return this.onPublisherOffer?.(offer, offerId);
     };
 
     this.state = PCTransportState.NEW;

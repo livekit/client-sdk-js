@@ -37,7 +37,7 @@ type NotAllowed = {
 type InternalError = {
   reason: ConnectionErrorReason.InternalError;
   status: never;
-  context?: unknown;
+  context?: { status?: number; statusText?: string };
 };
 
 type ConnectionTimeout = {
@@ -61,7 +61,7 @@ type Cancelled = {
 type ServerUnreachable = {
   reason: ConnectionErrorReason.ServerUnreachable;
   status?: number;
-  context?: unknown;
+  context?: never;
 };
 
 type WebSocket = {
@@ -127,7 +127,7 @@ export class ConnectionError<
     );
   }
 
-  static internal(message: string, context?: unknown) {
+  static internal(message: string, context?: { status?: number; statusText?: string }) {
     return new ConnectionError<InternalError>(
       message,
       ConnectionErrorReason.InternalError,
@@ -140,12 +140,11 @@ export class ConnectionError<
     return new ConnectionError<Cancelled>(message, ConnectionErrorReason.Cancelled);
   }
 
-  static serverUnreachable(message: string, status?: number, context?: unknown) {
+  static serverUnreachable(message: string, status?: number) {
     return new ConnectionError<ServerUnreachable>(
       message,
       ConnectionErrorReason.ServerUnreachable,
       status,
-      context,
     );
   }
 
@@ -221,24 +220,6 @@ export class SignalRequestError extends LivekitError {
     this.reasonName = typeof reason === 'string' ? reason : RequestResponse_Reason[reason];
   }
 }
-
-// export class TimeoutError extends LivekitError {
-//   readonly type = 'timeout';
-
-//   constructor(message: string = 'TimeoutError') {
-//     super(17, message);
-//     this.name = 'TimeoutError';
-//   }
-// }
-
-// export class AbortError extends LivekitError {
-//   readonly type = 'abort';
-
-//   constructor(message: string = 'AbortError') {
-//     super(18, message);
-//     this.name = 'AbortError';
-//   }
-// }
 
 // NOTE: matches with https://github.com/livekit/client-sdk-swift/blob/f37bbd260d61e165084962db822c79f995f1a113/Sources/LiveKit/DataStream/StreamError.swift#L17
 export enum DataStreamErrorReason {

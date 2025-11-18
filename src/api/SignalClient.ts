@@ -87,7 +87,6 @@ type SignalKind = NonNullable<SignalMessage>['case'];
 const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
   'trickle',
-  'offer',
   'answer',
   'simulate',
   'leave',
@@ -297,13 +296,16 @@ export class SignalClient {
         });
 
         if (self.ws) {
-          await self.close(false);
+          await self.close(
+            false,
+            opts?.reconnectReason ? ReconnectReason[opts.reconnectReason] : undefined,
+          );
         }
 
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
 
-        const wsConnectionResult = withTimeout(self.ws.opened, opts.websocketTimeout).mapErr(
+        const wsConnectionResult = withTimeout(ws.opened, opts.websocketTimeout).mapErr(
           async (error) => {
             // retrieve info about what error was causing the connection failure and enhance the returned error
             if (self.state !== SignalConnectionState.CONNECTED) {
@@ -324,12 +326,17 @@ export class SignalClient {
           },
         );
 
-        const wsConnection = yield* withAbort(wsConnectionResult, abortSignal).orTee((error) => {
+        const wsConnection = yield* withAbort(
+          wsConnectionResult.andTee((connection) => {
+            self.streamWriter = connection.writable.getWriter();
+          }),
+          abortSignal,
+        ).orTee((error) => {
           self.close(undefined, error.message);
         });
 
         const firstMessageOrClose = raceResults([
-          self.processInitialSignalMessage<T, U>(wsConnection, isReconnect),
+          self.processInitialSignalMessage(wsConnection),
           // Return the close promise as error if it resolves first
           ws!.closed
             .orTee((error) => {
@@ -337,7 +344,6 @@ export class SignalClient {
             })
             .andThen((closeInfo) => {
               if (
-                closeInfo.closeCode !== 1000 &&
                 // we only log the warning here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
                 ws === self.ws
               ) {
@@ -350,6 +356,10 @@ export class SignalClient {
                 });
                 if (self.state == SignalConnectionState.CONNECTED) {
                   self.handleOnClose(closeInfo.reason ?? 'Websocket closed unexpectedly');
+                } else {
+                  self.log.warn(
+                    `ws closed unexpectedly in state ${SignalConnectionState[self.state]}`,
+                  );
                 }
               }
 
@@ -361,21 +371,43 @@ export class SignalClient {
             }),
         ]);
 
-        const result = withAbort(withTimeout(firstMessageOrClose, 5_000), abortSignal).orTee(
-          (error) => {
-            if (error.reason === ConnectionErrorReason.Cancelled) {
-              self
-                .sendLeave()
-                .then(() => self.close())
-                .catch((e) => {
-                  self.log.error(e);
-                  self.close();
-                });
-            }
-          },
+        const firstSignalResponse = yield* await withAbort(
+          withTimeout(firstMessageOrClose, 5_000),
+          abortSignal,
+        ).orTee((error) => {
+          console.warn('signal connection aborted');
+          if (error.reason === ConnectionErrorReason.Cancelled) {
+            self
+              .sendLeave()
+              .then(() => self.close())
+              .catch((e) => {
+                self.log.error(e);
+                self.close();
+              });
+          }
+        });
+
+        const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
+
+        // Handle join response - set up ping configuration
+        if (firstSignalResponse.message?.case === 'join') {
+          self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
+          self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
+          if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
+            self.log.debug('ping config', {
+              ...self.logContext,
+              timeout: self.pingTimeoutDuration,
+              interval: self.pingIntervalDuration,
+            });
+          }
+        }
+
+        self.handleSignalConnected(
+          wsConnection,
+          validation.shouldProcessFirstMessage ? firstSignalResponse : undefined,
         );
 
-        return result;
+        return ok(validation.response as U);
       }),
       this.connectionLock,
     );
@@ -427,28 +459,31 @@ export class SignalClient {
       return;
     }
     const unlock = await this.closingLock.lock();
+
     try {
       this.clearPingInterval();
       if (updateState) {
         this.state = SignalConnectionState.DISCONNECTING;
       }
       if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason });
+        const ws = this.ws;
+        this.ws = undefined;
+        this.streamWriter = undefined;
+        ws.close({ closeCode: 1000, reason });
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = this.ws.closed.match(
+        const closePromise = ws.closed.match(
           (closeInfo) => closeInfo,
           (error) => error,
         );
-        this.ws = undefined;
-        this.streamWriter = undefined;
+
         await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
         this.log.info('closed websocket', { reason });
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { ...this.logContext, error: e });
     } finally {
-      if (updateState) {
+      if (updateState && this.state === SignalConnectionState.DISCONNECTING) {
         this.state = SignalConnectionState.DISCONNECTED;
       }
       unlock();
@@ -457,8 +492,13 @@ export class SignalClient {
 
   // initial offer after joining
   sendOffer(offer: RTCSessionDescriptionInit, offerId: number) {
-    this.log.debug('sending offer', { ...this.logContext, offerSdp: offer.sdp });
-    this.sendRequest({
+    this.log.debug('sending offer', {
+      ...this.logContext,
+      offerSdp: offer.sdp,
+      state: SignalConnectionState[this.state],
+      wsState: this.ws?.readyState,
+    });
+    return this.sendRequest({
       case: 'offer',
       value: toProtoSessionDescription(offer, offerId),
     });
@@ -762,10 +802,10 @@ export class SignalClient {
     }
   }
 
-  private handleOnClose(reason: string) {
+  private async handleOnClose(reason: string) {
     if (this.state === SignalConnectionState.DISCONNECTED) return;
     const onCloseCallback = this.onClose;
-    this.close(undefined, reason);
+    await this.close(undefined, reason);
     this.log.debug(`websocket connection closing: ${reason}`, { ...this.logContext, reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
@@ -840,16 +880,12 @@ export class SignalClient {
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
   }
 
-  private processInitialSignalMessage<
-    T extends boolean,
-    U extends T extends false ? JoinResponse : ReconnectResponse | undefined,
-  >(connection: WebSocketConnection, isReconnect: T): ResultAsync<U, ConnectionError> {
-    const self = this;
-
+  private processInitialSignalMessage(
+    connection: WebSocketConnection,
+  ): ResultAsync<SignalResponse, ConnectionError> {
     // TODO: If inferring from the return type this could be more granular here than ConnectionError
-    return safeTry<U, ConnectionError>(async function* () {
+    return safeTry<SignalResponse, ConnectionError>(async function* () {
       const signalReader = connection.readable.getReader();
-      self.streamWriter = connection.writable.getWriter();
 
       const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
       if (!firstMessage.value) {
@@ -858,29 +894,7 @@ export class SignalClient {
 
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
 
-      // Validate the first message
-      const validation = yield* self.validateFirstMessage(firstSignalResponse, isReconnect);
-
-      // Handle join response - set up ping configuration
-      if (firstSignalResponse.message?.case === 'join') {
-        self.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
-        self.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-        if (self.pingTimeoutDuration && self.pingTimeoutDuration > 0) {
-          self.log.debug('ping config', {
-            ...self.logContext,
-            timeout: self.pingTimeoutDuration,
-            interval: self.pingIntervalDuration,
-          });
-        }
-      }
-
-      // Handle successful connection
-      const firstMessageToProcess = validation.shouldProcessFirstMessage
-        ? firstSignalResponse
-        : undefined;
-      self.handleSignalConnected(connection, firstMessageToProcess);
-
-      return okAsync(validation.response as U);
+      return okAsync(firstSignalResponse);
     });
   }
 
@@ -972,7 +986,7 @@ export class SignalClient {
         return err(
           ConnectionError.internal(
             `Encountered unknown websocket error during connection: ${reason}`,
-            `ResponseStatus: ${resp.status}`,
+            { status: resp.status, statusText: resp.statusText },
           ),
         );
       }

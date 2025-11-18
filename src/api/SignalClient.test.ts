@@ -310,7 +310,7 @@ describe('SignalClient.connect', () => {
       await streamWriterReadyPromise;
 
       // Now abort the connection (after WS opens, before join response)
-      abortController.abort(new Error('User aborted connection'));
+      abortController.abort();
 
       // joinPromise should return Err result
       const result = await joinPromise;

@@ -39,7 +39,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { type Result, ResultAsync, err, errAsync, ok, okAsync } from 'neverthrow';
+import { type Result, ResultAsync, err, errAsync, ok, okAsync, safeTry } from 'neverthrow';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -257,8 +257,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    // TODO: be more explicit about error types
-  ): Promise<Result<JoinResponse, Error>> {
+  ): Promise<Result<JoinResponse, ConnectionError>> {
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
@@ -457,7 +456,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.pcManager.onPublisherOffer = (offer, offerId) => {
-      this.client.sendOffer(offer, offerId);
+      return this.client.sendOffer(offer, offerId);
     };
 
     this.pcManager.onDataChannel = this.handleDataChannel;
@@ -578,6 +577,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
+      this.regionUrlProvider?.updateToken(token);
     };
 
     this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
@@ -1049,30 +1049,31 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async restartConnection(
     regionUrl?: string,
   ): Promise<Result<void, UnexpectedConnectionState | SignalReconnectError>> {
-    try {
-      if (!this.url || !this.token) {
+    const self = this;
+    const restartResultAsync = safeTry(async function* () {
+      if (!self.url || !self.token) {
         // permanent failure, don't attempt reconnection
         return err(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
       }
 
-      this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`, this.logContext);
-      this.emit(EngineEvent.Restarting);
+      self.log.info(`reconnecting, attempt: ${self.reconnectAttempts}`, self.logContext);
+      self.emit(EngineEvent.Restarting);
 
-      if (!this.client.isDisconnected) {
-        await this.client.sendLeave();
+      if (!self.client.isDisconnected) {
+        await self.client.sendLeave();
       }
-      await this.cleanupPeerConnections();
-      await this.cleanupClient();
+      await self.cleanupPeerConnections();
+      await self.cleanupClient();
 
-      if (!this.signalOpts) {
-        this.log.warn(
+      if (!self.signalOpts) {
+        self.log.warn(
           'attempted connection restart, without signal options present',
-          this.logContext,
+          self.logContext,
         );
-        throw new SignalReconnectError();
+        return err(new SignalReconnectError());
       }
       // in case a regionUrl is passed, the region URL takes precedence
-      const joinResult = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+      const joinResult = await self.join(regionUrl ?? self.url, self.token, self.signalOpts);
       if (joinResult.isErr()) {
         const error = joinResult.error;
         if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
@@ -1081,56 +1082,66 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return err(new SignalReconnectError());
       }
 
-      if (this.shouldFailNext) {
-        this.shouldFailNext = false;
+      if (self.shouldFailNext) {
+        self.shouldFailNext = false;
         return err(new SimulatedError());
       }
 
-      this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResult.value);
+      self.client.setReconnected();
+      self.emit(EngineEvent.SignalRestarted, joinResult.value);
 
-      await this.waitForPCReconnected();
+      await self.waitForPCReconnected();
 
       // re-check signal connection state before setting engine as resumed
-      if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+      if (self.client.currentState !== SignalConnectionState.CONNECTED) {
         return err(new SignalReconnectError('Signal connection got severed during reconnect'));
       }
 
-      this.regionUrlProvider?.resetAttempts();
+      self.regionUrlProvider?.resetAttempts();
       // reconnect success
-      this.emit(EngineEvent.Restarted);
+      self.emit(EngineEvent.Restarted);
       return ok();
-    } catch (error) {
+    });
+
+    const restartResult = await restartResultAsync;
+
+    if (restartResult.isErr()) {
       const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
       if (nextRegionUrl) {
+        this.log.info('retrying signal connection');
         return this.restartConnection(nextRegionUrl);
       } else {
         // no more regions to try (or we're not on cloud)
         this.regionUrlProvider?.resetAttempts();
-        throw error;
+        return err(restartResult.error);
       }
     }
+    return ok(restartResult.value);
   }
 
-  private async resumeConnection(reason?: ReconnectReason) {
+  private async resumeConnection(
+    reason?: ReconnectReason,
+  ): Promise<Result<void, SignalReconnectError>> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
-      throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
+      return errAsync(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
     }
     // trigger publisher reconnect
     if (!this.pcManager) {
-      throw new UnexpectedConnectionState('publisher and subscriber connections unset');
+      return errAsync(new UnexpectedConnectionState('publisher and subscriber connections unset'));
     }
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
     this.emit(EngineEvent.Resuming);
     this.setupSignalClientCallbacks();
+
     const reconnectResult = await this.client.reconnect(
       this.url,
       this.token,
       this.participantSid,
       reason,
     );
+
     if (reconnectResult.isErr()) {
       return err(reconnectResult.error);
     }
@@ -1159,7 +1170,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // re-check signal connection state before setting engine as resumed
     if (this.client.currentState !== SignalConnectionState.CONNECTED) {
-      throw new SignalReconnectError('Signal connection got severed during reconnect');
+      return err(new SignalReconnectError('Signal connection got severed during reconnect'));
     }
 
     this.client.setReconnected();
@@ -1201,7 +1212,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
       this.pcState = PCState.Disconnected;
-      throw ConnectionError.internal(`could not establish PC connection, ${e.message}`);
+      throw ConnectionError.internal(`could not establish PC connection: ${e.message}`);
     }
   }
 
@@ -1259,7 +1270,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }),
       },
     });
-
     await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
@@ -1289,6 +1299,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const msg = packet.toBinary();
+
+    await this.waitForBufferStatusLow(kind);
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
