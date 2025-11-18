@@ -92,8 +92,8 @@ const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
-const lossyDataChannelBufferThresholdMin = 8 * 1024; 
-const lossyDataChannelBufferThresholdMax = 256 * 1024; 
+const lossyDataChannelBufferThresholdMin = 8 * 1024;
+const lossyDataChannelBufferThresholdMax = 256 * 1024;
 
 enum PCState {
   New,
@@ -207,7 +207,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private lossyDataStatCurrentBytes: number = 0;
 
-  private lossyDataStatByterate : number = 0;
+  private lossyDataStatByterate: number = 0;
 
   private lossyDataStatTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -320,7 +320,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
-      this.cleanupLossyDataStats()
+      this.cleanupLossyDataStats();
       await this.cleanupPeerConnections();
       await this.cleanupClient();
     } finally {
@@ -731,7 +731,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
 
-    this.cleanupLossyDataStats(); 
+    this.cleanupLossyDataStats();
     this.lossyDataStatTimer = setInterval(() => {
       this.lossyDataStatByterate = this.lossyDataStatCurrentBytes;
       this.lossyDataStatCurrentBytes = 0;
@@ -1314,7 +1314,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const msg = packet.toBinary();
-
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
