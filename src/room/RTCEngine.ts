@@ -303,6 +303,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.registerOnLineListener();
     this.clientConfiguration = joinResponse.clientConfiguration;
     this.emit(EngineEvent.SignalConnected, joinResponse);
+    this.joinAttempts = 0;
     return ok(joinResponse);
   }
 
@@ -1015,7 +1016,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         recoverable = false;
       } else if (!(error instanceof SignalReconnectError)) {
         // cannot resume
-        console.warn('cannot resume, error is', error);
         this.fullReconnectOnNext = true;
       }
 
@@ -1050,7 +1050,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     regionUrl?: string,
   ): Promise<Result<void, UnexpectedConnectionState | SignalReconnectError>> {
     const self = this;
-    const restartResultAsync = safeTry(async function* () {
+    const restartResultAsync = safeTry<
+      void,
+      SimulatedError | SignalReconnectError | UnexpectedConnectionState
+    >(async function* () {
       if (!self.url || !self.token) {
         // permanent failure, don't attempt reconnection
         return err(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
@@ -1072,14 +1075,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         );
         return err(new SignalReconnectError());
       }
+
       // in case a regionUrl is passed, the region URL takes precedence
       const joinResult = await self.join(regionUrl ?? self.url, self.token, self.signalOpts);
+
       if (joinResult.isErr()) {
         const error = joinResult.error;
         if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
           return err(new UnexpectedConnectionState('could not reconnect, token might be expired'));
         }
-        return err(new SignalReconnectError());
+        return err(new SignalReconnectError(error.message));
       }
 
       if (self.shouldFailNext) {
@@ -1106,14 +1111,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const restartResult = await restartResultAsync;
 
     if (restartResult.isErr()) {
-      const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
+      this.log.info('trying to get the next region');
+      if (!this.regionUrlProvider) {
+        return restartResult;
+      }
+      const nextRegionUrlResult = await this.regionUrlProvider.getNextBestRegionUrl();
+      if (nextRegionUrlResult.isErr()) {
+        return err(nextRegionUrlResult.error);
+      }
+      const nextRegionUrl = nextRegionUrlResult.value;
       if (nextRegionUrl) {
-        this.log.info('retrying signal connection');
+        this.log.info('retrying signal connection with region');
+        this.joinAttempts = 0;
         return this.restartConnection(nextRegionUrl);
       } else {
         // no more regions to try (or we're not on cloud)
         this.regionUrlProvider?.resetAttempts();
-        return err(restartResult.error);
+        return restartResult;
       }
     }
     return ok(restartResult.value);
@@ -1507,7 +1521,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const negotiationWithErrorHandler = closedOrNegotiate.orTee((e) => {
       if (e instanceof NegotiationError) {
-        console.warn('cannot resume after negotiation error, error is', e);
         this.fullReconnectOnNext = true;
       }
       this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);

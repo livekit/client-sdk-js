@@ -256,7 +256,6 @@ export class SignalClient {
         ConnectionError.internal('attempted to reconnect without signal options being set'),
       );
     }
-    console.warn('reconnecting signal');
     this.state = SignalConnectionState.RECONNECTING;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
@@ -375,7 +374,7 @@ export class SignalClient {
           withTimeout(firstMessageOrClose, 5_000),
           abortSignal,
         ).orTee((error) => {
-          console.warn('signal connection aborted');
+          ('signal connection aborted');
           if (error.reason === ConnectionErrorReason.Cancelled) {
             self
               .sendLeave()
@@ -954,12 +953,7 @@ export class SignalClient {
         ),
       );
     }
-    console.warn('first message', {
-      msg: firstSignalResponse,
-      isReconnect,
-      state: this.state,
-      stateName: SignalConnectionState[this.state],
-    });
+
     return err(ConnectionError.internal('Unexpected first message'));
   }
 

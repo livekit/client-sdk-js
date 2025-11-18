@@ -146,7 +146,6 @@ export function getNewAudioContext(): AudioContext | void {
             await audioContext.resume();
           }
         } catch (e) {
-          console.warn('Error trying to auto-resume audio context', e);
         } finally {
           window.document.body?.removeEventListener('click', handleResume);
         }

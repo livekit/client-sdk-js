@@ -1854,7 +1854,7 @@ export default class LocalParticipant extends Participant {
         resolve: (responsePayload: string | null, responseError: RpcError | null) => {
           clearTimeout(responseTimeoutId);
           if (this.pendingAcks.has(id)) {
-            console.warn('RPC response received before ack', id);
+            this.log.warn('RPC response received before ack', id);
             this.pendingAcks.delete(id);
             clearTimeout(ackTimeoutId);
           }
