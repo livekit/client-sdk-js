@@ -359,9 +359,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   cleanupLossyDataStats() {
     this.lossyDataStatByterate = 0;
     this.lossyDataStatCurrentBytes = 0;
-    if (this.lossyDataStatTimer) {
-      clearInterval(this.lossyDataStatTimer);
-      this.lossyDataStatTimer = undefined;
+    if (this.lossyDataStatInterval) {
+      clearInterval(this.lossyDataStatInterval);
+      this.lossyDataStatInterval = undefined;
     }
   }
 
@@ -732,7 +732,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
 
     this.cleanupLossyDataStats();
-    this.lossyDataStatTimer = setInterval(() => {
+    this.lossyDataStatInterval = setInterval(() => {
       this.lossyDataStatByterate = this.lossyDataStatCurrentBytes;
       this.lossyDataStatCurrentBytes = 0;
 
