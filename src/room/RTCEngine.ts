@@ -39,7 +39,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { type Result, ResultAsync, err, errAsync, ok, safeTry } from 'neverthrow';
+import { type Result, err, errAsync, ok, safeTry } from 'neverthrow';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';

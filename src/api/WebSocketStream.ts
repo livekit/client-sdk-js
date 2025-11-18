@@ -147,7 +147,6 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
         }
 
         ws.onclose = ({ code, reason }) => {
-          console.warn('ws closed');
           resolve({ closeCode: code, reason });
           ws.removeEventListener('error', errorHandler);
         };

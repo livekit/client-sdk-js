@@ -295,22 +295,17 @@ export class SignalClient {
         });
 
         if (self.ws) {
-          await self.close(false);
+          await self.close(
+            false,
+            opts?.reconnectReason ? ReconnectReason[opts.reconnectReason] : undefined,
+          );
         }
 
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
 
-        console.warn('set new ws on self with state', ws.readyState);
-        setInterval(() => {
-          if (ws === self.ws) {
-            console.warn('ws with connection state', ws.readyState, ws === self.ws);
-          }
-        }, 100);
-
         const wsConnectionResult = withTimeout(
           ws.opened.andTee((connection) => {
-            console.warn('setting stream writer');
             self.streamWriter = connection.writable.getWriter();
           }),
           opts.websocketTimeout,
@@ -345,11 +340,6 @@ export class SignalClient {
               self.handleWSError(error);
             })
             .andThen((closeInfo) => {
-              if (ws === self.ws) {
-                console.warn('result websocket closed, should do a reconnect now', {
-                  closeInfo,
-                });
-              }
               if (
                 // we only log the warning here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
                 ws === self.ws
@@ -364,9 +354,8 @@ export class SignalClient {
                 if (self.state == SignalConnectionState.CONNECTED) {
                   self.handleOnClose(closeInfo.reason ?? 'Websocket closed unexpectedly');
                 } else {
-                  console.warn(
-                    'ws closed unexpectedly in state',
-                    SignalConnectionState[self.state],
+                  self.log.warn(
+                    `ws closed unexpectedly in state ${SignalConnectionState[self.state]}`,
                   );
                 }
               }
@@ -465,9 +454,7 @@ export class SignalClient {
       this.log.debug(`ignoring signal close as it's already in disconnecting state`);
       return;
     }
-    console.warn('queuing ws close');
     const unlock = await this.closingLock.lock();
-    console.warn('performing ws close');
 
     try {
       this.clearPingInterval();
@@ -884,7 +871,6 @@ export class SignalClient {
    * @internal
    */
   private handleSignalConnected(connection: WebSocketConnection, firstMessage?: SignalResponse) {
-    console.warn('signal back connected');
     this.state = SignalConnectionState.CONNECTED;
     this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
