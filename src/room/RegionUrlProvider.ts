@@ -74,6 +74,13 @@ export class RegionUrlProvider {
           const newSettings = await RegionUrlProvider.fetchRegionSettings(url, token);
           RegionUrlProvider.updateCachedRegionSettings(url, token, newSettings);
         } catch (error: unknown) {
+          if (
+            error instanceof ConnectionError &&
+            error.reason === ConnectionErrorReason.NotAllowed
+          ) {
+            log.debug('token is not valid, cancelling auto region refresh');
+            return;
+          }
           log.debug('auto refetching of region settings failed', { error });
           // continue retrying with the same max age
           RegionUrlProvider.scheduleRefetch(url, token, maxAgeInMs);

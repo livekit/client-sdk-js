@@ -569,6 +569,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
+      this.regionUrlProvider?.updateToken(token);
     };
 
     this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
