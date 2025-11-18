@@ -304,31 +304,33 @@ export class SignalClient {
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
 
-        const wsConnectionResult = withTimeout(
-          ws.opened.andTee((connection) => {
+        const wsConnectionResult = withTimeout(ws.opened, opts.websocketTimeout).mapErr(
+          async (error) => {
+            // retrieve info about what error was causing the connection failure and enhance the returned error
+            if (self.state !== SignalConnectionState.CONNECTED) {
+              self.state = SignalConnectionState.DISCONNECTED;
+              const connectionError = await withAbort(
+                withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
+                abortSignal,
+              );
+
+              const closeReason = `${error.reason}: ${error.message}`;
+
+              self.close(undefined, closeReason);
+              if (connectionError.isErr()) {
+                return connectionError.error;
+              }
+            }
+            return error;
+          },
+        );
+
+        const wsConnection = yield* withAbort(
+          wsConnectionResult.andTee((connection) => {
             self.streamWriter = connection.writable.getWriter();
           }),
-          opts.websocketTimeout,
-        ).mapErr(async (error) => {
-          // retrieve info about what error was causing the connection failure and enhance the returned error
-          if (self.state !== SignalConnectionState.CONNECTED) {
-            self.state = SignalConnectionState.DISCONNECTED;
-            const connectionError = await withAbort(
-              withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
-              abortSignal,
-            );
-
-            const closeReason = `${error.reason}: ${error.message}`;
-
-            self.close(undefined, closeReason);
-            if (connectionError.isErr()) {
-              return connectionError.error;
-            }
-          }
-          return error;
-        });
-
-        const wsConnection = yield* withAbort(wsConnectionResult, abortSignal).orTee((error) => {
+          abortSignal,
+        ).orTee((error) => {
           self.close(undefined, error.message);
         });
 
@@ -372,6 +374,7 @@ export class SignalClient {
           withTimeout(firstMessageOrClose, 5_000),
           abortSignal,
         ).orTee((error) => {
+          console.warn('signal connection aborted');
           if (error.reason === ConnectionErrorReason.Cancelled) {
             self
               .sendLeave()
