@@ -209,7 +209,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private lossyDataStatByterate: number = 0;
 
-  private lossyDataStatTimer: ReturnType<typeof setTimeout> | undefined;
+  private lossyDataStatInterval: ReturnType<typeof setInterval> | undefined;
 
   private midToTrackId: { [key: string]: string } = {};
 
