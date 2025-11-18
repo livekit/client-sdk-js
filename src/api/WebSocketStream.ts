@@ -141,7 +141,13 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           }
         };
 
+        if (ws.readyState === WebSocket.CLOSED) {
+          reject(ConnectionError.websocket('Websocket already closed at initialization time'));
+          return;
+        }
+
         ws.onclose = ({ code, reason }) => {
+          console.warn('ws closed');
           resolve({ closeCode: code, reason });
           ws.removeEventListener('error', errorHandler);
         };

@@ -301,26 +301,37 @@ export class SignalClient {
         const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
         self.ws = ws;
 
-        const wsConnectionResult = withTimeout(self.ws.opened, opts.websocketTimeout).mapErr(
-          async (error) => {
-            // retrieve info about what error was causing the connection failure and enhance the returned error
-            if (self.state !== SignalConnectionState.CONNECTED) {
-              self.state = SignalConnectionState.DISCONNECTED;
-              const connectionError = await withAbort(
-                withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
-                abortSignal,
-              );
+        console.warn('set new ws on self with state', ws.readyState);
+        setInterval(() => {
+          if (ws === self.ws) {
+            console.warn('ws with connection state', ws.readyState, ws === self.ws);
+          }
+        }, 100);
 
-              const closeReason = `${error.reason}: ${error.message}`;
+        const wsConnectionResult = withTimeout(
+          ws.opened.andTee((connection) => {
+            console.warn('setting stream writer');
+            self.streamWriter = connection.writable.getWriter();
+          }),
+          opts.websocketTimeout,
+        ).mapErr(async (error) => {
+          // retrieve info about what error was causing the connection failure and enhance the returned error
+          if (self.state !== SignalConnectionState.CONNECTED) {
+            self.state = SignalConnectionState.DISCONNECTED;
+            const connectionError = await withAbort(
+              withTimeout(self.fetchErrorInfo(error.message, validateUrl), 3_000),
+              abortSignal,
+            );
 
-              self.close(undefined, closeReason);
-              if (connectionError.isErr()) {
-                return connectionError.error;
-              }
+            const closeReason = `${error.reason}: ${error.message}`;
+
+            self.close(undefined, closeReason);
+            if (connectionError.isErr()) {
+              return connectionError.error;
             }
-            return error;
-          },
-        );
+          }
+          return error;
+        });
 
         const wsConnection = yield* withAbort(wsConnectionResult, abortSignal).orTee((error) => {
           self.close(undefined, error.message);
@@ -334,8 +345,12 @@ export class SignalClient {
               self.handleWSError(error);
             })
             .andThen((closeInfo) => {
+              if (ws === self.ws) {
+                console.warn('result websocket closed, should do a reconnect now', {
+                  closeInfo,
+                });
+              }
               if (
-                closeInfo.closeCode !== 1000 &&
                 // we only log the warning here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
                 ws === self.ws
               ) {
@@ -348,6 +363,11 @@ export class SignalClient {
                 });
                 if (self.state == SignalConnectionState.CONNECTED) {
                   self.handleOnClose(closeInfo.reason ?? 'Websocket closed unexpectedly');
+                } else {
+                  console.warn(
+                    'ws closed unexpectedly in state',
+                    SignalConnectionState[self.state],
+                  );
                 }
               }
 
@@ -445,7 +465,10 @@ export class SignalClient {
       this.log.debug(`ignoring signal close as it's already in disconnecting state`);
       return;
     }
+    console.warn('queuing ws close');
     const unlock = await this.closingLock.lock();
+    console.warn('performing ws close');
+
     try {
       this.clearPingInterval();
       if (updateState) {
@@ -870,12 +893,9 @@ export class SignalClient {
   private processInitialSignalMessage(
     connection: WebSocketConnection,
   ): ResultAsync<SignalResponse, ConnectionError> {
-    const self = this;
-
     // TODO: If inferring from the return type this could be more granular here than ConnectionError
     return safeTry<SignalResponse, ConnectionError>(async function* () {
       const signalReader = connection.readable.getReader();
-      self.streamWriter = connection.writable.getWriter();
 
       const firstMessage = await signalReader.read().finally(() => signalReader.releaseLock());
       if (!firstMessage.value) {
