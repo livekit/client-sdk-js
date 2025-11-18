@@ -980,7 +980,7 @@ export class SignalClient {
         return err(
           ConnectionError.internal(
             `Encountered unknown websocket error during connection: ${reason}`,
-            `ResponseStatus: ${resp.status}`,
+            { status: resp.status, statusTest: resp.statusText },
           ),
         );
       }

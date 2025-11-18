@@ -1204,7 +1204,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
       this.pcState = PCState.Disconnected;
-      throw ConnectionError.internal(`could not establish PC connection, ${e.message}`);
+      throw ConnectionError.internal(`could not establish PC connection: ${e.message}`);
     }
   }
 
