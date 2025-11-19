@@ -31,6 +31,7 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import { ok } from 'neverthrow';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { EncryptionEvent } from '../e2ee';
@@ -601,7 +602,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       if (isCloud(new URL(url)) && token) {
         this.regionUrlProvider = new RegionUrlProvider(url, token);
-        const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
+        const regionUrlResult = await this.regionUrlProvider.getNextBestRegionUrl();
+        if (regionUrlResult.isErr()) {
+          // TODO continue propagation here once we have a `safeFetch` that returns a ResultAsync
+          throw regionUrlResult.error;
+        }
+        const regionUrl = regionUrlResult.value;
         // we will not replace the regionUrl if an attempt had already started
         // to avoid overriding regionUrl after a new connection attempt had started
         if (regionUrl && this.state === ConnectionState.Disconnected) {
@@ -698,13 +704,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           error.reason !== ConnectionErrorReason.Cancelled &&
           error.reason !== ConnectionErrorReason.NotAllowed
         ) {
-          let nextUrl: string | null = null;
-          try {
-            this.log.debug('Fetching next region');
-            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
-              this.abortController?.signal,
-            );
-          } catch (regionFetchError) {
+          this.log.debug('Fetching next region');
+          const nextUrlResult = await this.regionUrlProvider.getNextBestRegionUrl(
+            this.abortController?.signal,
+          );
+          if (nextUrlResult.isErr()) {
+            const regionFetchError = nextUrlResult.error;
             if (
               regionFetchError instanceof ConnectionError &&
               (regionFetchError.status === 401 ||
@@ -715,6 +720,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
+          const nextUrl = nextUrlResult.orElse(() => ok(null))._unsafeUnwrap();
           if (
             // making sure we only register failed attempts on things we actually care about
             [
