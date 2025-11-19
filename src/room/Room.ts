@@ -31,7 +31,6 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { ok } from 'neverthrow';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { EncryptionEvent } from '../e2ee';
