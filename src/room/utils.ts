@@ -5,13 +5,20 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
-import { type BrowserDetails, getBrowser } from '../utils/browserParser';
+
+import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
-import { type ConnectionError, ConnectionErrorReason } from './errors';
+import { ConnectionErrorReason } from './errors';
+import CriticalTimers from './timers';
+import { Track } from './track/Track';
+import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
+import { getNewAudioContext } from './track/utils';
+
+import type { BrowserDetails } from '../utils/browserParser';
+import type { ConnectionError } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type RemoteParticipant from './participant/RemoteParticipant';
-import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
@@ -20,10 +27,7 @@ import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type RemoteVideoTrack from './track/RemoteVideoTrack';
-import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
-import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
 const separator = '|';
