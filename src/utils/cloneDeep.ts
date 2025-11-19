@@ -9,6 +9,7 @@ export function cloneDeep<T>(value: T): T {
       return structuredClone({ ...value });
     }
     return structuredClone(value);
+  } else {
+    return JSON.parse(JSON.stringify(value)) as T;
   }
-  return JSON.parse(JSON.stringify(value)) as T;
 }

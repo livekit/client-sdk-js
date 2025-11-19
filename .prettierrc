@@ -4,8 +4,8 @@
   "semi": true,
   "tabWidth": 2,
   "printWidth": 100,
-  "importOrder": ["<THIRD_PARTY_TS_TYPES>", "^[./]", "<TS_TYPES>^[./]"],
-  "importOrderSeparation": true,
+  "importOrder": ["<THIRD_PARTY_TS_TYPES>", "^[./]"],
+  "importOrderSeparation": false,
   "importOrderSortSpecifiers": true,
   "importOrderParserPlugins": ["typescript"],
   "plugins": ["@trivago/prettier-plugin-sort-imports"]
