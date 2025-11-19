@@ -455,12 +455,12 @@ export function getStereoAudioStreamTrack() {
   return stereoTrack;
 }
 
-export class Future<T> {
+export class Future<T, E extends Error> {
   promise: Promise<T>;
 
   resolve?: (arg: T) => void;
 
-  reject?: (e: any) => void;
+  reject?: (e: E) => void;
 
   onFinally?: () => void;
 
@@ -471,7 +471,7 @@ export class Future<T> {
   private _isResolved: boolean = false;
 
   constructor(
-    futureBase?: (resolve: (arg: T) => void, reject: (e: any) => void) => void,
+    futureBase?: (resolve: (arg: T) => void, reject: (e: E) => void) => void,
     onFinally?: () => void,
   ) {
     this.onFinally = onFinally;

@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.16.0
+
+### Minor Changes
+
+- Expose new encryption option field - [#1750](https://github.com/livekit/client-sdk-js/pull/1750) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Wait for dc buffer status low for all published packets - [#1691](https://github.com/livekit/client-sdk-js/pull/1691) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix message loss during resuming/migration - [#1757](https://github.com/livekit/client-sdk-js/pull/1757) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Cancel region refresh on invalid tokens - [#1755](https://github.com/livekit/client-sdk-js/pull/1755) ([@lukasIO](https://github.com/lukasIO))
+
+- Add connectionCount tracking and stop auto refetching after timeout - [#1756](https://github.com/livekit/client-sdk-js/pull/1756) ([@lukasIO](https://github.com/lukasIO))
+
+- Add explicit error types for future helper - [#1753](https://github.com/livekit/client-sdk-js/pull/1753) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(LocalTrackAudio): prevent overwriting constraint flags - [#1744](https://github.com/livekit/client-sdk-js/pull/1744) ([@itamayo](https://github.com/itamayo))
+
 ## 2.15.16
 
 ### Patch Changes

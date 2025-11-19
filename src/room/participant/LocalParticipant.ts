@@ -137,11 +137,11 @@ export default class LocalParticipant extends Participant {
 
   private encryptionType: Encryption_Type = Encryption_Type.NONE;
 
-  private reconnectFuture?: Future<void>;
+  private reconnectFuture?: Future<void, Error>;
 
-  private signalConnectedFuture?: Future<void>;
+  private signalConnectedFuture?: Future<void, Error>;
 
-  private activeAgentFuture?: Future<RemoteParticipant>;
+  private activeAgentFuture?: Future<RemoteParticipant, Error>;
 
   private firstActiveAgent?: RemoteParticipant;
 
@@ -262,7 +262,7 @@ export default class LocalParticipant extends Participant {
 
   private handleReconnecting = () => {
     if (!this.reconnectFuture) {
-      this.reconnectFuture = new Future<void>();
+      this.reconnectFuture = new Future<void, Error>();
     }
   };
 
@@ -275,15 +275,15 @@ export default class LocalParticipant extends Participant {
   private handleClosing = () => {
     if (this.reconnectFuture) {
       this.reconnectFuture.promise.catch((e) => this.log.warn(e.message, this.logContext));
-      this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
+      this.reconnectFuture?.reject?.(new Error('Got disconnected during reconnection attempt'));
       this.reconnectFuture = undefined;
     }
     if (this.signalConnectedFuture) {
-      this.signalConnectedFuture.reject?.('Got disconnected without signal connected');
+      this.signalConnectedFuture.reject?.(new Error('Got disconnected without signal connected'));
       this.signalConnectedFuture = undefined;
     }
 
-    this.activeAgentFuture?.reject?.('Got disconnected without active agent present');
+    this.activeAgentFuture?.reject?.(new Error('Got disconnected without active agent present'));
     this.activeAgentFuture = undefined;
     this.firstActiveAgent = undefined;
   };
@@ -293,7 +293,7 @@ export default class LocalParticipant extends Participant {
       this.updateInfo(joinResponse.participant);
     }
     if (!this.signalConnectedFuture) {
-      this.signalConnectedFuture = new Future<void>();
+      this.signalConnectedFuture = new Future<void, Error>();
     }
 
     this.signalConnectedFuture.resolve?.();
@@ -926,7 +926,7 @@ export default class LocalParticipant extends Participant {
 
   private waitUntilEngineConnected() {
     if (!this.signalConnectedFuture) {
-      this.signalConnectedFuture = new Future<void>();
+      this.signalConnectedFuture = new Future<void, Error>();
     }
     return this.signalConnectedFuture.promise;
   }
@@ -2009,7 +2009,7 @@ export default class LocalParticipant extends Participant {
     if (agent) {
       this.activeAgentFuture?.resolve?.(agent);
     } else {
-      this.activeAgentFuture?.reject?.('Agent disconnected');
+      this.activeAgentFuture?.reject?.(new Error('Agent disconnected'));
     }
     this.activeAgentFuture = undefined;
   }
@@ -2019,7 +2019,7 @@ export default class LocalParticipant extends Participant {
       return Promise.resolve(this.firstActiveAgent);
     }
     if (!this.activeAgentFuture) {
-      this.activeAgentFuture = new Future<RemoteParticipant>();
+      this.activeAgentFuture = new Future<RemoteParticipant, Error>();
     }
     return this.activeAgentFuture.promise;
   }

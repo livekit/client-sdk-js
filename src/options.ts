@@ -87,9 +87,9 @@ export interface InternalRoomOptions {
 
   webAudioMix: boolean | WebAudioSettings;
 
-  // /**
-  //  * @deprecated Use `encryption` field instead.
-  //  */
+  /**
+   * @deprecated Use `encryption` field instead.
+   */
   e2ee?: E2EEOptions;
 
   /**
@@ -111,7 +111,7 @@ export interface InternalRoomOptions {
 /**
  * Options for when creating a new room
  */
-export interface RoomOptions extends Partial<Omit<InternalRoomOptions, 'encryption'>> {}
+export interface RoomOptions extends Partial<InternalRoomOptions> {}
 
 /**
  * @internal
