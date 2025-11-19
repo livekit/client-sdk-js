@@ -80,10 +80,9 @@ export function withAbort<T, E extends Error>(
   const abortResult = ResultAsync.fromPromise(
     new Promise<never>((_, reject) => {
       const onAbortHandler = () => {
-        signal?.removeEventListener('abort', onAbortHandler);
         reject(ConnectionError.cancelled('AbortSignal invoked'));
       };
-      signal?.addEventListener('abort', onAbortHandler);
+      signal?.addEventListener('abort', onAbortHandler, { once: true });
     }),
     (e) => e as ReturnType<typeof ConnectionError.cancelled>,
   );
@@ -129,7 +128,6 @@ export function withFinally<T, E extends Error>(
           },
         );
       } catch (error) {
-        await onFinally();
         throw error as Error;
       } finally {
         await onFinally();
