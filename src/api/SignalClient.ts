@@ -374,7 +374,6 @@ export class SignalClient {
           withTimeout(firstMessageOrClose, 5_000),
           abortSignal,
         ).orTee((error) => {
-          ('signal connection aborted');
           if (error.reason === ConnectionErrorReason.Cancelled) {
             self
               .sendLeave()
