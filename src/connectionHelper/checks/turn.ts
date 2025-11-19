@@ -16,8 +16,11 @@ export class TURNCheck extends Checker {
       singlePeerConnection: false,
     });
 
-    // TODO fix unsafe usage
-    const joinRes = joinResult._unsafeUnwrap();
+    if (joinResult.isErr()) {
+      throw joinResult.error;
+    }
+
+    const joinRes = joinResult.value;
 
     let hasTLS = false;
     let hasTURN = false;

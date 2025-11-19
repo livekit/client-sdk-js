@@ -720,7 +720,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
-          const nextUrl = nextUrlResult.orElse(() => ok(null))._unsafeUnwrap();
+          const nextUrl = nextUrlResult.match(
+            (res) => res,
+            () => null,
+          );
+
           if (
             // making sure we only register failed attempts on things we actually care about
             [
