@@ -211,6 +211,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private lossyDataStatInterval: ReturnType<typeof setInterval> | undefined;
 
+  private lossyDataDropCount: number = 0;
+
   private midToTrackId: { [key: string]: string } = {};
 
   /** used to indicate whether the browser is currently waiting to reconnect */
@@ -363,6 +365,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       clearInterval(this.lossyDataStatInterval);
       this.lossyDataStatInterval = undefined;
     }
+    this.lossyDataDropCount = 0;
   }
 
   async cleanupClient() {
@@ -1324,6 +1327,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         // lossy channel, drop messages to reduce latency
         if (!this.isBufferStatusLow(kind)) {
+          this.lossyDataDropCount += 1;
+          if (this.lossyDataDropCount % 100 === 0) {
+            this.log.warn(
+              `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+              this.logContext,
+            );
+          }
           return;
         }
         this.lossyDataStatCurrentBytes += msg.byteLength;
