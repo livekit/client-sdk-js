@@ -1313,6 +1313,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
+    if (kind === DataPacket_Kind.RELIABLE) {
+      const dc = this.dataChannelForKind(kind);
+      if (dc) {
+        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
+      }
+    }
+
     const status = this.isBufferStatusLow(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
@@ -1323,9 +1330,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (kind === DataPacket_Kind.RELIABLE) {
-        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
-      }
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
   };
