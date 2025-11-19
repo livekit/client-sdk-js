@@ -1111,7 +1111,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const restartResult = await restartResultAsync;
 
     if (restartResult.isErr()) {
-      this.log.info('trying to get the next region');
       if (!this.regionUrlProvider) {
         return restartResult;
       }
@@ -1121,7 +1120,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       const nextRegionUrl = nextRegionUrlResult.value;
       if (nextRegionUrl) {
-        this.log.info('retrying signal connection with region');
+        this.log.info('retrying signal connection with a different region');
         this.joinAttempts = 0;
         return this.restartConnection(nextRegionUrl);
       } else {
