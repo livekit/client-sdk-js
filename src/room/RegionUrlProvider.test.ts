@@ -86,13 +86,15 @@ describe('RegionUrlProvider', () => {
       );
 
       // Get first region
-      const region1 = await provider.getNextBestRegionUrl();
-      expect(region1).toBe('wss://us-west.livekit.cloud');
+      const result1 = await provider.getNextBestRegionUrl();
+      expect(result1.isOk()).toBe(true);
+      expect(result1._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
 
       // Reset and verify we can get the first region again
       provider.resetAttempts();
-      const region2 = await provider.getNextBestRegionUrl();
-      expect(region2).toBe('wss://us-west.livekit.cloud');
+      const result2 = await provider.getNextBestRegionUrl();
+      expect(result2.isOk()).toBe(true);
+      expect(result2._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
     });
   });
 
@@ -249,10 +251,12 @@ describe('RegionUrlProvider', () => {
   });
 
   describe('getNextBestRegionUrl', () => {
-    it('throws error for non-cloud domains', async () => {
+    it('returns error for non-cloud domains', async () => {
       const provider = new RegionUrlProvider('wss://self-hosted.example.com', 'token');
 
-      await expect(provider.getNextBestRegionUrl()).rejects.toThrow(
+      const result = await provider.getNextBestRegionUrl();
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().message).toContain(
         'region availability is only supported for LiveKit Cloud domains',
       );
     });
@@ -268,8 +272,9 @@ describe('RegionUrlProvider', () => {
         createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
       );
 
-      const region = await provider.getNextBestRegionUrl();
-      expect(region).toBe('wss://us-west.livekit.cloud');
+      const result = await provider.getNextBestRegionUrl();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
     });
 
     it('returns subsequent regions on repeated calls', async () => {
@@ -284,13 +289,16 @@ describe('RegionUrlProvider', () => {
         createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
       );
 
-      const region1 = await provider.getNextBestRegionUrl();
-      const region2 = await provider.getNextBestRegionUrl();
-      const region3 = await provider.getNextBestRegionUrl();
+      const result1 = await provider.getNextBestRegionUrl();
+      const result2 = await provider.getNextBestRegionUrl();
+      const result3 = await provider.getNextBestRegionUrl();
 
-      expect(region1).toBe('wss://us-west.livekit.cloud');
-      expect(region2).toBe('wss://us-east.livekit.cloud');
-      expect(region3).toBe('wss://eu-central.livekit.cloud');
+      expect(result1.isOk()).toBe(true);
+      expect(result1._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
+      expect(result2.isOk()).toBe(true);
+      expect(result2._unsafeUnwrap()).toBe('wss://us-east.livekit.cloud');
+      expect(result3.isOk()).toBe(true);
+      expect(result3._unsafeUnwrap()).toBe('wss://eu-central.livekit.cloud');
     });
 
     it('returns null when all regions exhausted', async () => {
@@ -304,9 +312,10 @@ describe('RegionUrlProvider', () => {
       );
 
       await provider.getNextBestRegionUrl();
-      const region = await provider.getNextBestRegionUrl();
+      const result = await provider.getNextBestRegionUrl();
 
-      expect(region).toBeNull();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBeNull();
     });
 
     it('uses cached settings when available and fresh', async () => {
@@ -383,9 +392,13 @@ describe('RegionUrlProvider', () => {
         createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
       );
 
-      const region1 = await provider.getNextBestRegionUrl();
-      const region2 = await provider.getNextBestRegionUrl();
+      const result1 = await provider.getNextBestRegionUrl();
+      const result2 = await provider.getNextBestRegionUrl();
 
+      expect(result1.isOk()).toBe(true);
+      expect(result2.isOk()).toBe(true);
+      const region1 = result1._unsafeUnwrap();
+      const region2 = result2._unsafeUnwrap();
       expect(region1).toBe('wss://us-west.livekit.cloud');
       expect(region2).toBe('wss://us-east.livekit.cloud');
       expect(region1).not.toBe(region2);
@@ -403,13 +416,15 @@ describe('RegionUrlProvider', () => {
 
       // Exhaust regions
       await provider.getNextBestRegionUrl();
-      let region = await provider.getNextBestRegionUrl();
-      expect(region).toBeNull();
+      let result = await provider.getNextBestRegionUrl();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBeNull();
 
       // Reset and try again
       provider.resetAttempts();
-      region = await provider.getNextBestRegionUrl();
-      expect(region).toBe('wss://us-west.livekit.cloud');
+      result = await provider.getNextBestRegionUrl();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
     });
 
     it('respects abort signal', async () => {
@@ -611,8 +626,9 @@ describe('RegionUrlProvider', () => {
       });
 
       // Should use cached settings without fetching
-      const region = await provider.getNextBestRegionUrl();
-      expect(region).toBe('wss://us-west.livekit.cloud');
+      const result = await provider.getNextBestRegionUrl();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
@@ -696,8 +712,9 @@ describe('RegionUrlProvider', () => {
         createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
       );
 
-      const region = await provider.getNextBestRegionUrl();
-      expect(region).toBeNull();
+      const result = await provider.getNextBestRegionUrl();
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toBeNull();
     });
 
     it('handles malformed region settings response', async () => {
@@ -747,14 +764,16 @@ describe('RegionUrlProvider', () => {
       );
 
       // Make concurrent calls
-      const [region1, region2] = await Promise.all([
+      const [result1, result2] = await Promise.all([
         provider.getNextBestRegionUrl(),
         provider.getNextBestRegionUrl(),
       ]);
 
       // Both should return regions (may be same or different depending on timing)
-      expect(region1).toBeTruthy();
-      expect(region2).toBeTruthy();
+      expect(result1.isOk()).toBe(true);
+      expect(result2.isOk()).toBe(true);
+      expect(result1._unsafeUnwrap()).toBeTruthy();
+      expect(result2._unsafeUnwrap()).toBeTruthy();
     });
 
     it('preserves cache when one instance fails to fetch', async () => {
@@ -777,7 +796,8 @@ describe('RegionUrlProvider', () => {
 
       // Second provider tries to fetch but fails
       const provider2 = new RegionUrlProvider('wss://test.livekit.cloud', 'token2');
-      await expect(provider2.getNextBestRegionUrl()).rejects.toThrow();
+      const result = await provider2.getNextBestRegionUrl();
+      expect(result.isErr()).toBe(true);
 
       // Cache should still be accessible by a third instance if still valid
       expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -826,12 +846,14 @@ describe('RegionUrlProvider', () => {
         createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
       );
 
-      const region1 = await provider.getNextBestRegionUrl();
-      const region2 = await provider.getNextBestRegionUrl();
+      const result1 = await provider.getNextBestRegionUrl();
+      const result2 = await provider.getNextBestRegionUrl();
 
       // First region should be returned, second should be null since it has the same URL
-      expect(region1).toBe('wss://us-west.livekit.cloud');
-      expect(region2).toBeNull(); // Filtered out because same URL was already attempted
+      expect(result1.isOk()).toBe(true);
+      expect(result1._unsafeUnwrap()).toBe('wss://us-west.livekit.cloud');
+      expect(result2.isOk()).toBe(true);
+      expect(result2._unsafeUnwrap()).toBeNull(); // Filtered out because same URL was already attempted
     });
   });
 
