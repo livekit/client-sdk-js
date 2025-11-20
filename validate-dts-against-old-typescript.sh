@@ -1,4 +1,11 @@
 #!/bin/bash
+# Runs a check to make sure that a given version of livekit-client can be used in a downstream project
+# which is configured with an older version typescript.
+#
+# In theory, downlevel-dts should handle this, but there has been at least one breaking typing
+# change in the past which downlevel-dts has been unable to patch over
+# (more info: https://github.com/livekit/client-sdk-js/pull/1668) so this serves as a mechanism to
+# catch cases like this in the future before they are reported by users.
 
 TYPESCRIPT_VERSION=${1:-"4.8"}
 
