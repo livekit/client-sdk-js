@@ -31,8 +31,8 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
+import type TypedEmitter from 'typed-emitter';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
