@@ -51,7 +51,7 @@
     "format:check": "prettier --check src examples/**/*.ts",
     "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
-    "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
+    "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit"
   },
   "dependencies": {
@@ -74,8 +74,7 @@
     "@babel/preset-env": "7.28.5",
     "@bufbuild/protoc-gen-es": "^1.10.0",
     "@changesets/cli": "2.29.7",
-    "@eslint/compat": "^2.0.0",
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "9.39.1",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@rollup/plugin-babel": "6.1.0",
     "@rollup/plugin-commonjs": "28.0.9",
@@ -95,7 +94,7 @@
     "eslint": "9.39.1",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "10.1.8",
-    "eslint-plugin-ecmascript-compat": "^3.2.1",
+    "eslint-plugin-compat": "^6.0.2",
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-prettier": "^5.5.4",
     "gh-pages": "6.3.0",
