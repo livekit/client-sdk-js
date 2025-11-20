@@ -1,4 +1,6 @@
 name: 'validate-dts-against-old-typescript'
+permissions:
+  contents: read
 on:
   pull_request:
     branches:
