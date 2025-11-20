@@ -4,7 +4,7 @@
   "semi": true,
   "tabWidth": 2,
   "printWidth": 100,
-  "importOrder": ["<THIRD_PARTY_MODULES>", "^[./]"],
+  "importOrder": ["<THIRD_PARTY_TS_TYPES>", "^[./]"],
   "importOrderSeparation": false,
   "importOrderSortSpecifiers": true,
   "importOrderParserPlugins": ["typescript"],

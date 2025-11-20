@@ -1,6 +1,6 @@
-import type { Mutex } from '@livekit/mutex';
 import { SignalResponse } from '@livekit/protocol';
 import { Result, ResultAsync, errAsync } from 'neverthrow';
+import type { Mutex } from '@livekit/mutex';
 import { ConnectionError } from '../room/errors';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 

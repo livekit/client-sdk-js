@@ -1,8 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
-import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
+import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
