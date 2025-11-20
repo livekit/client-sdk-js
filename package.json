@@ -51,6 +51,7 @@
     "format:check": "prettier --check src examples/**/*.ts",
     "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
+    "validate-dts-against-old-typescript": "./validate-dts-against-old-typescript.sh",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit"
   },
