@@ -1,6 +1,6 @@
 import { Mutex } from '@livekit/mutex';
-import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import { ResultAsync, errAsync, okAsync, safeTry } from 'neverthrow';
+import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
