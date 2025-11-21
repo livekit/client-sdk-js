@@ -33,7 +33,10 @@ cat <<EOF > tsconfig.json
       "DOM.Iterable",
       "ES2017",
       "ES2018.Promise",
-      "ES2021.WeakRef"
+      "ES2018.AsyncGenerator",
+      "ES2020.BigInt",
+      "ES2021.WeakRef",
+      "ESNext.AsyncIterable"
     ],
     "rootDir": "./",
     "outDir": "dist",
@@ -42,7 +45,7 @@ cat <<EOF > tsconfig.json
     "sourceMap": true,
     "strict": true /* Enable all strict type-checking options. */,
     "esModuleInterop": true /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */,
-    "skipLibCheck": true /* Skip type checking of declaration files. */,
+    "skipLibCheck": false /* Skip type checking of declaration files. */,
     "noUnusedLocals": true,
     "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
     "moduleResolution": "node",
