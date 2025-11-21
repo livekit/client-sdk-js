@@ -5,12 +5,11 @@ import {
   SignalRequest,
   SignalResponse,
 } from '@livekit/protocol';
-import { Result, ResultAsync } from 'neverthrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import { SignalClient, SignalConnectionState, type ValidationType } from './SignalClient';
+import { SignalClient, SignalConnectionState } from './SignalClient';
 import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
-import { WebSocketError, WebSocketStream } from './WebSocketStream';
+import { WebSocketStream } from './WebSocketStream';
 
 // Mock the WebSocketStream
 vi.mock('./WebSocketStream');
@@ -58,27 +57,16 @@ function createMockConnection(readable: ReadableStream<ArrayBuffer>): WebSocketC
 
 interface MockWebSocketStreamOptions {
   connection?: WebSocketConnection;
-  opened?: ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketError>;
-  closed?: ResultAsync<WebSocketCloseInfo, WebSocketError>;
+  opened?: Promise<WebSocketConnection>;
+  closed?: Promise<WebSocketCloseInfo>;
   readyState?: number;
 }
 
 function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
   const {
     connection,
-    // eslint-disable-next-line neverthrow-must-use/must-use-result
-    opened = connection
-      ? ResultAsync.fromPromise(Promise.resolve(connection), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        }))
-      : // eslint-disable-next-line neverthrow-must-use/must-use-result
-        ResultAsync.fromPromise(new Promise(() => {}), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        })),
-    // eslint-disable-next-line neverthrow-must-use/must-use-result
-    closed = ResultAsync.fromPromise(new Promise(() => {}), (error) => error as WebSocketError),
+    opened = connection ? Promise.resolve(connection) : new Promise(() => {}),
+    closed = new Promise(() => {}),
     readyState = 1,
   } = options;
 
@@ -121,7 +109,7 @@ describe('SignalClient.connect', () => {
 
       const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-      expect(result._unsafeUnwrap()).toEqual(joinResponse);
+      expect(result).toEqual(joinResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
   });
@@ -150,7 +138,7 @@ describe('SignalClient.connect', () => {
 
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
-      expect(result._unsafeUnwrap()).toEqual(reconnectResponse);
+      expect(result).toEqual(reconnectResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
@@ -175,7 +163,7 @@ describe('SignalClient.connect', () => {
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
       // This is an edge case: reconnect resolves with undefined when non-reconnect message is received
-      expect(result._unsafeUnwrap()).toBeUndefined();
+      expect(result).toBeUndefined();
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     }, 1000);
   });
@@ -189,14 +177,9 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
-      const result = await signalClient.join(
-        'wss://test.livekit.io',
-        'test-token',
-        shortTimeoutOptions,
-      );
-
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions),
+      ).rejects.toThrow(ConnectionError);
     });
   });
 
@@ -208,35 +191,23 @@ describe('SignalClient.connect', () => {
         // Simulate abort
         setTimeout(() => abortController.abort(new Error('User aborted connection')), 50);
 
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const opened = ResultAsync.fromPromise(new Promise(() => {}), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        }));
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const closed = ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => error as WebSocketError,
-        );
-
         return {
           url: 'wss://test.livekit.io',
-          opened,
-          closed,
+          opened: new Promise(() => {}), // Never resolves
+          closed: new Promise(() => {}),
           close: vi.fn(),
           readyState: 0,
         } as any;
       });
 
-      const result = await signalClient.join(
-        'wss://test.livekit.io',
-        'test-token',
-        defaultOptions,
-        abortController.signal,
-      );
-
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toBe('AbortSignal invoked');
+      await expect(
+        signalClient.join(
+          'wss://test.livekit.io',
+          'test-token',
+          defaultOptions,
+          abortController.signal,
+        ),
+      ).rejects.toThrow('User aborted connection');
     });
 
     it('should send leave request before closing when AbortSignal is triggered during connection', async () => {
@@ -278,21 +249,10 @@ describe('SignalClient.connect', () => {
       };
 
       vi.mocked(WebSocketStream).mockImplementation(() => {
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const opened = ResultAsync.fromPromise(Promise.resolve(mockConnection), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        }));
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const closed = ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => error as WebSocketError,
-        );
-
         return {
           url: 'wss://test.livekit.io',
-          opened,
-          closed,
+          opened: Promise.resolve(mockConnection),
+          closed: new Promise(() => {}),
           close: vi.fn(),
           readyState: 1,
         } as any;
@@ -310,12 +270,10 @@ describe('SignalClient.connect', () => {
       await streamWriterReadyPromise;
 
       // Now abort the connection (after WS opens, before join response)
-      abortController.abort();
+      abortController.abort(new Error('User aborted connection'));
 
-      // joinPromise should return Err result
-      const result = await joinPromise;
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr().message).toBe('AbortSignal invoked');
+      // joinPromise should reject
+      await expect(joinPromise).rejects.toThrow('User aborted connection');
 
       // Verify that a leave request was sent before closing
       const leaveRequestSent = writtenMessages.some((data) => {
@@ -338,13 +296,8 @@ describe('SignalClient.connect', () => {
 
   describe('Failure Case - WebSocket Connection Errors', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
-      // eslint-disable-next-line neverthrow-must-use/must-use-result
-      const opened = ResultAsync.fromPromise(
-        Promise.reject(ConnectionError.websocket('Connection failed')),
-        (error) => error as WebSocketError,
-      );
       mockWebSocketStream({
-        opened,
+        opened: Promise.reject(new Error('Connection failed')),
         readyState: 3,
       });
 
@@ -354,85 +307,54 @@ describe('SignalClient.connect', () => {
         text: async () => 'Forbidden',
       });
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.message).toBe('Forbidden');
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.NotAllowed);
-      expect((error as ConnectionError).status).toBe(403);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        message: 'Forbidden',
+        reason: ConnectionErrorReason.NotAllowed,
+        status: 403,
+      });
     });
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
-      // eslint-disable-next-line neverthrow-must-use/must-use-result
-      const opened = ResultAsync.fromPromise(
-        Promise.reject(ConnectionError.websocket('Connection failed')),
-        (error) => error as WebSocketError,
-      );
       mockWebSocketStream({
-        opened,
+        opened: Promise.reject(new Error('Connection failed')),
         readyState: 3,
       });
 
       // Mock fetch to throw (network error)
       (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.ServerUnreachable);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        reason: ConnectionErrorReason.ServerUnreachable,
+      });
     });
 
-    it('should handle WebsocketError from WebSocket rejection as unreachable if server is not reachable', async () => {
-      const customError = ConnectionError.websocket('Custom error');
-
-      // eslint-disable-next-line neverthrow-must-use/must-use-result
-      const opened = ResultAsync.fromPromise(
-        Promise.reject(customError),
-        (error) => error as WebSocketError,
+    it('should handle ConnectionError from WebSocket rejection', async () => {
+      const customError = new ConnectionError(
+        'Custom error',
+        ConnectionErrorReason.InternalError,
+        500,
       );
+
       mockWebSocketStream({
-        opened,
+        opened: Promise.reject(customError),
         readyState: 3,
       });
 
-      (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
-
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.ServerUnreachable);
-    });
-    it('should handle WebsocketError from WebSocket rejection as websocket error if server is reachable', async () => {
-      const customError = ConnectionError.websocket('Custom error');
-
-      // eslint-disable-next-line neverthrow-must-use/must-use-result
-      const opened = ResultAsync.fromPromise(
-        Promise.reject(customError),
-        (error) => error as WebSocketError,
-      );
-      mockWebSocketStream({
-        opened,
-        readyState: 3,
-      });
-
-      // Mock fetch to return 200
+      // Mock fetch to return 500
       (global.fetch as any).mockResolvedValueOnce({
-        status: 200,
-        text: async () => 'testplaceholder',
+        status: 500,
+        text: async () => 'Internal Server Error',
       });
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.WebSocket);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
     });
   });
 
@@ -448,13 +370,12 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.message).toBe('no message received as first message');
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        message: 'no message received as first message',
+        reason: ConnectionErrorReason.InternalError,
+      });
     });
   });
 
@@ -469,14 +390,16 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.message).toBe('Received leave request while trying to (re)connect');
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.LeaveRequest);
-      expect((error as ConnectionError).context).toBe(1);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject(
+        new ConnectionError(
+          'Received leave request while trying to (re)connect',
+          ConnectionErrorReason.LeaveRequest,
+          undefined,
+          1,
+        ),
+      );
     });
   });
 
@@ -492,41 +415,43 @@ describe('SignalClient.connect', () => {
 
       mockWebSocketStream({ connection: mockConnection });
 
-      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
-
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.message).toBe('did not receive join response, got reconnect instead');
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        message: 'did not receive join response, got reconnect instead',
+        reason: ConnectionErrorReason.InternalError,
+      });
     });
   });
 
   describe('Failure Case - WebSocket Closed During Connection', () => {
     it('should reject when WebSocket closes during connection attempt', async () => {
-      mockWebSocketStream({ readyState: 3 }); // CLOSED
-
-      const shortTimeoutOptions = {
-        ...defaultOptions,
-        websocketTimeout: 100,
-      };
-
-      // Mock fetch to return 200
-      (global.fetch as any).mockResolvedValueOnce({
-        status: 200,
-        text: async () => 'testplaceholder',
+      let closedResolve: (value: WebSocketCloseInfo) => void;
+      const closedPromise = new Promise<WebSocketCloseInfo>((resolve) => {
+        closedResolve = resolve;
       });
 
-      const result = await signalClient.join(
-        'wss://test.livekit.io',
-        'test-token',
-        shortTimeoutOptions,
-      );
+      vi.mocked(WebSocketStream).mockImplementation(() => {
+        // Simulate close during connection
+        queueMicrotask(() => {
+          closedResolve({ closeCode: 1006, reason: 'Connection lost' });
+        });
 
-      expect(result.isErr()).toBe(true);
-      const error = result._unsafeUnwrapErr();
-      expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.reason).toBe(ConnectionErrorReason.WebSocket);
+        return {
+          url: 'wss://test.livekit.io',
+          opened: new Promise(() => {}), // Never resolves
+          closed: closedPromise,
+          close: vi.fn(),
+          readyState: 2, // CLOSING
+        } as any;
+      });
+
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        message: 'Websocket got closed during a (re)connection attempt: Connection lost',
+        reason: ConnectionErrorReason.InternalError,
+      });
     });
   });
 
@@ -662,13 +587,11 @@ describe('SignalClient.validateFirstMessage', () => {
     const joinResponse = createJoinResponse();
     const signalResponse = createSignalResponse('join', joinResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage as (
-      msg: any,
-      isReconnect: boolean,
-    ) => Result<ValidationType, ConnectionError>;
+    const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result._unsafeUnwrap().response).toEqual(joinResponse);
+      expect(result.isValid).toBe(true);
+      expect(result.response).toEqual(joinResponse);
     }
   });
 
@@ -688,13 +611,11 @@ describe('SignalClient.validateFirstMessage', () => {
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage as (
-      msg: any,
-      isReconnect: boolean,
-    ) => Result<ValidationType, ConnectionError>;
+    const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, true);
-      expect(result._unsafeUnwrap().response).toEqual(reconnectResponse);
+      expect(result.isValid).toBe(true);
+      expect(result.response).toEqual(reconnectResponse);
     }
   });
 
@@ -713,14 +634,12 @@ describe('SignalClient.validateFirstMessage', () => {
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
-    const validateMethod = (signalClient as any).validateFirstMessage as (
-      msg: any,
-      isReconnect: boolean,
-    ) => Result<ValidationType, ConnectionError>;
+    const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, updateSignalResponse, true);
-      expect(result._unsafeUnwrap().response).toBeUndefined();
-      expect(result._unsafeUnwrap().shouldProcessFirstMessage).toBe(true);
+      expect(result.isValid).toBe(true);
+      expect(result.response).toBeUndefined();
+      expect(result.shouldProcessFirstMessage).toBe(true);
     }
   });
 
@@ -731,14 +650,12 @@ describe('SignalClient.validateFirstMessage', () => {
     const leaveRequest = new LeaveRequest({ reason: 1 });
     const signalResponse = createSignalResponse('leave', leaveRequest);
 
-    const validateMethod = (signalClient as any).validateFirstMessage as (
-      msg: any,
-      isReconnect: boolean,
-    ) => Result<ValidationType, ConnectionError>;
+    const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
-      expect(result._unsafeUnwrapErr().reason).toBe(ConnectionErrorReason.LeaveRequest);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBeInstanceOf(ConnectionError);
+      expect(result.error?.reason).toBe(ConnectionErrorReason.LeaveRequest);
     }
   });
 
@@ -746,14 +663,12 @@ describe('SignalClient.validateFirstMessage', () => {
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
 
-    const validateMethod = (signalClient as any).validateFirstMessage as (
-      msg: any,
-      isReconnect: boolean,
-    ) => Result<ValidationType, ConnectionError>;
+    const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, signalResponse, false);
-      expect(result._unsafeUnwrapErr()).toBeInstanceOf(ConnectionError);
-      expect(result._unsafeUnwrapErr().reason).toBe(ConnectionErrorReason.InternalError);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBeInstanceOf(ConnectionError);
+      expect(result.error?.reason).toBe(ConnectionErrorReason.InternalError);
     }
   });
 });
@@ -777,17 +692,19 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result.isErr()).toBe(true);
-      const err = result._unsafeUnwrapErr();
-      expect(err).toBeInstanceOf(ConnectionError);
-      expect(err.reason).toBe(ConnectionErrorReason.NotAllowed);
-      expect(err.status).toBe(403);
-      expect(err.message).toBe('Forbidden');
+      expect(result).toBeInstanceOf(ConnectionError);
+      expect(result.reason).toBe(ConnectionErrorReason.NotAllowed);
+      expect(result.status).toBe(403);
+      expect(result.message).toBe('Forbidden');
     }
   });
 
   it('should return ConnectionError as-is if it is already a ConnectionError', async () => {
-    const connectionError = ConnectionError.internal('Custom error');
+    const connectionError = new ConnectionError(
+      'Custom error',
+      ConnectionErrorReason.InternalError,
+      500,
+    );
 
     (global.fetch as any).mockResolvedValueOnce({
       status: 500,
@@ -802,10 +719,8 @@ describe('SignalClient.handleConnectionError', () => {
         'wss://test.livekit.io/validate',
       );
 
-      expect(result.isErr()).toBe(true);
-      const err = result._unsafeUnwrapErr();
-      expect(err).toBe(connectionError);
-      expect(err.reason).toBe(ConnectionErrorReason.InternalError);
+      expect(result).toBe(connectionError);
+      expect(result.reason).toBe(ConnectionErrorReason.InternalError);
     }
   });
 
@@ -820,11 +735,9 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result.isErr()).toBe(true);
-      const err = result._unsafeUnwrapErr();
-      expect(err).toBeInstanceOf(ConnectionError);
-      expect(err.reason).toBe(ConnectionErrorReason.InternalError);
-      expect(err.status).toBe(500);
+      expect(result).toBeInstanceOf(ConnectionError);
+      expect(result.reason).toBe(ConnectionErrorReason.InternalError);
+      expect(result.status).toBe(500);
     }
   });
 
@@ -836,15 +749,13 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result.isErr()).toBe(true);
-      const err = result._unsafeUnwrapErr();
-      expect(err).toBeInstanceOf(ConnectionError);
-      expect(err.reason).toBe(ConnectionErrorReason.ServerUnreachable);
+      expect(result).toBeInstanceOf(ConnectionError);
+      expect(result.reason).toBe(ConnectionErrorReason.ServerUnreachable);
     }
   });
 
   it('should handle fetch throwing ConnectionError', async () => {
-    const fetchError = ConnectionError.serverUnreachable('Fetch failed');
+    const fetchError = new ConnectionError('Fetch failed', ConnectionErrorReason.ServerUnreachable);
     (global.fetch as any).mockRejectedValueOnce(fetchError);
 
     const handleMethod = (signalClient as any).handleConnectionError;
@@ -852,8 +763,7 @@ describe('SignalClient.handleConnectionError', () => {
       const error = new Error('Connection failed');
       const result = await handleMethod.call(signalClient, error, 'wss://test.livekit.io/validate');
 
-      expect(result.isErr()).toBe(true);
-      expect(result._unsafeUnwrapErr()).toBe(fetchError);
+      expect(result).toBe(fetchError);
     }
   });
 });

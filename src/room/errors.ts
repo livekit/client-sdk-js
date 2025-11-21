@@ -10,14 +10,6 @@ export class LivekitError extends Error {
   }
 }
 
-export class SimulatedError extends LivekitError {
-  readonly type = 'simulated';
-
-  constructor(message = 'Simulated failure') {
-    super(-1, message);
-  }
-}
-
 export enum ConnectionErrorReason {
   NotAllowed,
   ServerUnreachable,
@@ -25,131 +17,29 @@ export enum ConnectionErrorReason {
   Cancelled,
   LeaveRequest,
   Timeout,
-  WebSocket,
 }
 
-type NotAllowed = {
-  reason: ConnectionErrorReason.NotAllowed;
-  status: number;
-  context?: unknown;
-};
-
-type InternalError = {
-  reason: ConnectionErrorReason.InternalError;
-  status: never;
-  context?: { status?: number; statusText?: string };
-};
-
-type ConnectionTimeout = {
-  reason: ConnectionErrorReason.Timeout;
-  status: never;
-  context: never;
-};
-
-type LeaveRequest = {
-  reason: ConnectionErrorReason.LeaveRequest;
-  status: never;
-  context: DisconnectReason;
-};
-
-type Cancelled = {
-  reason: ConnectionErrorReason.Cancelled;
-  status: never;
-  context: never;
-};
-
-type ServerUnreachable = {
-  reason: ConnectionErrorReason.ServerUnreachable;
+export class ConnectionError extends LivekitError {
   status?: number;
-  context?: never;
-};
 
-type WebSocket = {
-  reason: ConnectionErrorReason.WebSocket;
-  status?: number;
-  context?: string;
-};
+  context?: unknown | DisconnectReason;
 
-type ConnectionErrorVariants =
-  | NotAllowed
-  | ConnectionTimeout
-  | LeaveRequest
-  | InternalError
-  | Cancelled
-  | ServerUnreachable
-  | WebSocket;
-
-export class ConnectionError<
-  Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
-> extends LivekitError {
-  status?: Variant['status'];
-
-  context: Variant['context'];
-
-  reason: Variant['reason'];
+  reason: ConnectionErrorReason;
 
   reasonName: string;
 
-  readonly name = 'ConnectionError';
-
-  protected constructor(
+  constructor(
     message: string,
-    reason: Variant['reason'],
-    status?: Variant['status'],
-    context?: Variant['context'],
+    reason: ConnectionErrorReason,
+    status?: number,
+    context?: unknown | DisconnectReason,
   ) {
     super(1, message);
+    this.name = 'ConnectionError';
     this.status = status;
     this.reason = reason;
     this.context = context;
     this.reasonName = ConnectionErrorReason[reason];
-  }
-
-  static notAllowed(message: string, status: number, context?: unknown) {
-    return new ConnectionError<NotAllowed>(
-      message,
-      ConnectionErrorReason.NotAllowed,
-      status,
-      context,
-    );
-  }
-
-  static timeout(message: string) {
-    return new ConnectionError<ConnectionTimeout>(message, ConnectionErrorReason.Timeout);
-  }
-
-  static leaveRequest(message: string, context: DisconnectReason) {
-    return new ConnectionError<LeaveRequest>(
-      message,
-      ConnectionErrorReason.LeaveRequest,
-      undefined,
-      context,
-    );
-  }
-
-  static internal(message: string, context?: { status?: number; statusText?: string }) {
-    return new ConnectionError<InternalError>(
-      message,
-      ConnectionErrorReason.InternalError,
-      undefined,
-      context,
-    );
-  }
-
-  static cancelled(message: string) {
-    return new ConnectionError<Cancelled>(message, ConnectionErrorReason.Cancelled);
-  }
-
-  static serverUnreachable(message: string, status?: number) {
-    return new ConnectionError<ServerUnreachable>(
-      message,
-      ConnectionErrorReason.ServerUnreachable,
-      status,
-    );
-  }
-
-  static websocket(message: string, status?: number, reason?: string) {
-    return new ConnectionError<WebSocket>(message, ConnectionErrorReason.WebSocket, status, reason);
   }
 }
 
