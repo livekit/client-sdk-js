@@ -64,6 +64,7 @@ import {
   ConnectionError,
   ConnectionErrorReason,
   NegotiationError,
+  SignalReconnectError,
   SimulatedError,
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -1085,12 +1086,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private async restartConnection(
     regionUrl?: string,
-  ): Promise<Result<void, UnexpectedConnectionState | SignalReconnectError>> {
-    const self = this;
-    const restartResultAsync = safeTry<
+  ): Promise<
+    Result<
       void,
-      SimulatedError | SignalReconnectError | UnexpectedConnectionState
-    >(async function* () {
+      UnexpectedConnectionState | SignalReconnectError | ConnectionError | SimulatedError
+    >
+  > {
+    const self = this;
+    const restartResultAsync = safeTry(async function* () {
       if (!self.url || !self.token) {
         // permanent failure, don't attempt reconnection
         return err(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
@@ -1167,9 +1170,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return ok(restartResult.value);
   }
 
-  private async resumeConnection(
+  async resumeConnection(
     reason?: ReconnectReason,
-  ): Promise<Result<void, SignalReconnectError | UnexpectedConnectionState>> {
+  ): Promise<Result<void, SignalReconnectError | UnexpectedConnectionState | SimulatedError>> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       return errAsync(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
@@ -1191,7 +1194,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     );
 
     if (reconnectResult.isErr()) {
-      return err(
+      return errAsync(
         new SignalReconnectError(
           `${reconnectResult.error.reasonName}: ${reconnectResult.error.message}`,
         ),
@@ -1240,7 +1243,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // resume success
     this.emit(EngineEvent.Resumed);
 
-    return ok();
+    return okAsync();
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
@@ -1790,8 +1793,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 }
-
-class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
   connected: (joinResp: JoinResponse) => void;
