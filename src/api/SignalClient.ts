@@ -986,9 +986,6 @@ export class SignalClient {
         );
       }
     } catch (e) {
-      if (!(e instanceof ConnectionError)) {
-        console.warn('received unexpected error', e);
-      }
       return err(
         e instanceof ConnectionError
           ? e

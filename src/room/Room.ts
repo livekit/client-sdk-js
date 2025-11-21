@@ -934,10 +934,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(
+      const result = await this.engine.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
+      if (result.isErr()) {
+        await this.engine.close();
+        this.recreateEngine();
+        throw result.error;
+      }
     } catch (e) {
       await this.engine.close();
       this.recreateEngine();
