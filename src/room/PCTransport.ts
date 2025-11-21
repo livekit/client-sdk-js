@@ -67,7 +67,7 @@ export default class PCTransport extends EventEmitter {
 
   remoteNackMids: string[] = [];
 
-  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
+  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => Promise<void>;
 
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
 
@@ -352,7 +352,7 @@ export default class PCTransport extends EventEmitter {
         return;
       }
       await this.setMungedSDP(offer, write(sdpParsed));
-      this.onOffer(offer, this.latestOfferId);
+      await this.onOffer(offer, this.latestOfferId);
     } finally {
       unlock();
     }
