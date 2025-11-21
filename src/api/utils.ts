@@ -1,11 +1,8 @@
 import { SignalResponse } from '@livekit/protocol';
 import { Result, ResultAsync, errAsync } from 'neverthrow';
 import type { Mutex } from '@livekit/mutex';
-<<<<<<< HEAD
 import type TypedEventEmitter from 'typed-emitter';
 import type { EventMap } from 'typed-emitter';
-=======
->>>>>>> main
 import { ConnectionError } from '../room/errors';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
@@ -182,7 +179,6 @@ export function raceResults<T extends readonly ResultAsyncLike<any, any>[]>(
 }
 
 export type ResultAsyncLike<T, E> = ResultAsync<T, E> | Promise<Result<T, E>>;
-<<<<<<< HEAD
 
 export function resultFromEvent<C extends EventMap, K extends keyof C>(
   emitter: TypedEventEmitter<C>,
@@ -195,5 +191,3 @@ export function resultFromEvent<C extends EventMap, K extends keyof C>(
   });
   return ResultAsync.fromSafePromise(resultPromise);
 }
-=======
->>>>>>> main
