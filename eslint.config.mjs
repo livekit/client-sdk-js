@@ -2,6 +2,7 @@
 import js from '@eslint/js';
 import { configs, plugins, rules } from 'eslint-config-airbnb-extended';
 import { rules as prettierConfigRules } from 'eslint-config-prettier';
+import neverthrowMustUse from 'eslint-plugin-neverthrow-must-use';
 import prettierPlugin from 'eslint-plugin-prettier';
 
 const strictness = 'off';
@@ -31,6 +32,15 @@ const typescriptConfig = [
   rules.typescript.typescriptEslintStrict,
 ];
 
+const neverthrowConfig = [
+  {
+    name: 'neverthrow-must-use',
+    plugins: {
+      'neverthrow-must-use': neverthrowMustUse,
+    },
+  },
+];
+
 const prettierConfig = [
   // Prettier Plugin
   {
@@ -56,6 +66,7 @@ export default [
   ...typescriptConfig,
   // Prettier Config
   ...prettierConfig,
+  ...neverthrowConfig,
   {
     languageOptions: {
       parserOptions: {
@@ -158,6 +169,7 @@ export default [
       'one-var': strictness,
       'no-multi-assign': strictness,
       'new-cap': strictness,
+      'require-yield': strictness,
 
       radix: strictness,
       eqeqeq: strictness,
