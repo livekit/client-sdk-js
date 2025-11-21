@@ -686,7 +686,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       try {
         await BackOffStrategy.getInstance().getBackOffPromise(url);
         if (abortController.signal.aborted) {
-          ConnectionError.cancelled('Connection attempt aborted');
+          throw new ConnectionError('Connection attempt aborted', ConnectionErrorReason.Cancelled);
         }
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
@@ -773,7 +773,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResult = await engine.join(
+    const joinResponse = await engine.join(
       url,
       token,
       {
@@ -787,13 +787,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
       abortController.signal,
     );
-
-    // TODO continue propagating Result, we don't need to throw here
-    if (joinResult.isErr()) {
-      throw joinResult.error;
-    }
-
-    const joinResponse = joinResult.value;
 
     let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
     if (!serverInfo) {
@@ -901,9 +894,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (err) {
       await this.engine.close();
       this.recreateEngine();
-      const resultingError = abortController.signal.aborted
-        ? ConnectionError.cancelled(`could not establish signal connection`)
-        : ConnectionError.serverUnreachable(`could not establish signal connection`);
+      const resultingError = new ConnectionError(
+        `could not establish signal connection`,
+        abortController.signal.aborted
+          ? ConnectionErrorReason.Cancelled
+          : ConnectionErrorReason.ServerUnreachable,
+      );
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
       }
@@ -921,7 +917,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (abortController.signal.aborted) {
       await this.engine.close();
       this.recreateEngine();
-      throw ConnectionError.cancelled(`Connection attempt aborted`);
+      throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
     }
 
     try {
@@ -978,7 +974,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn(msg, this.logContext);
         this.abortController?.abort(msg);
         // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-        this.connectFuture?.reject?.(ConnectionError.cancelled('Client initiated disconnect'));
+        this.connectFuture?.reject?.(
+          new ConnectionError('Client initiated disconnect', ConnectionErrorReason.Cancelled),
+        );
         this.connectFuture = undefined;
       }
 
@@ -1927,7 +1925,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        this.log.warn(`RPC Response payload too large for ${method}`, this.logContext);
+        console.warn(`RPC Response payload too large for ${method}`);
       } else {
         responsePayload = response;
       }
@@ -1935,9 +1933,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (error instanceof RpcError) {
         responseError = error;
       } else {
-        this.log.warn(
+        console.warn(
           `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          { ...this.logContext, error },
+          error,
         );
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }

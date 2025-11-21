@@ -3,7 +3,7 @@ import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
-import { ConnectionError } from './errors';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
 import { sleep } from './utils';
@@ -49,7 +49,7 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
-  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => Promise<void>;
+  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
 
   private isPublisherConnectionRequired: boolean;
 
@@ -99,8 +99,8 @@ export class PCTransportManager {
       this.onTrack?.(ev);
     };
 
-    this.publisher.onOffer = async (offer, offerId) => {
-      return this.onPublisherOffer?.(offer, offerId);
+    this.publisher.onOffer = (offer, offerId) => {
+      this.onPublisherOffer?.(offer, offerId);
     };
 
     this.state = PCTransportState.NEW;
@@ -345,7 +345,12 @@ export class PCTransportManager {
         this.log.warn('abort transport connection', this.logContext);
         CriticalTimers.clearTimeout(connectTimeout);
 
-        reject(ConnectionError.cancelled('room connection has been cancelled'));
+        reject(
+          new ConnectionError(
+            'room connection has been cancelled',
+            ConnectionErrorReason.Cancelled,
+          ),
+        );
       };
       if (abortController?.signal.aborted) {
         abortHandler();
@@ -354,13 +359,23 @@ export class PCTransportManager {
 
       const connectTimeout = CriticalTimers.setTimeout(() => {
         abortController?.signal.removeEventListener('abort', abortHandler);
-        reject(ConnectionError.internal('could not establish pc connection'));
+        reject(
+          new ConnectionError(
+            'could not establish pc connection',
+            ConnectionErrorReason.InternalError,
+          ),
+        );
       }, timeout);
 
       while (this.state !== PCTransportState.CONNECTED) {
         await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
         if (abortController?.signal.aborted) {
-          reject(ConnectionError.cancelled('room connection has been cancelled'));
+          reject(
+            new ConnectionError(
+              'room connection has been cancelled',
+              ConnectionErrorReason.Cancelled,
+            ),
+          );
           return;
         }
       }

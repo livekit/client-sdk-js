@@ -227,7 +227,7 @@ export class E2EEManager
   };
 
   private onWorkerError = (ev: ErrorEvent) => {
-    log.error('e2ee worker encountered an error:', { error: ev });
+    log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 

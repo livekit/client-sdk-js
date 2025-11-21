@@ -180,9 +180,7 @@ describe('RegionUrlProvider', () => {
       const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
       fetchMock.mockResolvedValue(createMockResponse(401));
 
-      await expect(provider.fetchRegionSettings()).rejects.toThrow(
-        ConnectionError.notAllowed('Could not fetch region settings: Unauthorized', 401),
-      );
+      await expect(provider.fetchRegionSettings()).rejects.toThrow(ConnectionError);
       await expect(provider.fetchRegionSettings()).rejects.toMatchObject({
         reason: ConnectionErrorReason.NotAllowed,
         status: 401,
@@ -193,14 +191,10 @@ describe('RegionUrlProvider', () => {
       const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
       fetchMock.mockResolvedValue(createMockResponse(500));
 
-      await expect(provider.fetchRegionSettings()).rejects.toThrow(
-        ConnectionError.internal('Could not fetch region settings: Internal Server Error', {
-          status: 500,
-        }),
-      );
+      await expect(provider.fetchRegionSettings()).rejects.toThrow(ConnectionError);
       await expect(provider.fetchRegionSettings()).rejects.toMatchObject({
         reason: ConnectionErrorReason.InternalError,
-        context: { status: 500 },
+        status: 500,
       });
     });
 
