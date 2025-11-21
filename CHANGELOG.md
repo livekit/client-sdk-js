@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.16.1
+
+### Patch Changes
+
+- Control latency of lossy data channel - [#1754](https://github.com/livekit/client-sdk-js/pull/1754) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.16.0
 
 ### Minor Changes
