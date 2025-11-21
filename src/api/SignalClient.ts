@@ -374,7 +374,7 @@ export class SignalClient {
           withTimeout(firstMessageOrClose, 5_000),
           abortSignal,
         ).orTee((error) => {
-          console.warn('signal connection aborted');
+          self.log.warn('signal connection failed', error);
           if (error.reason === ConnectionErrorReason.Cancelled) {
             self
               .sendLeave()
@@ -978,18 +978,22 @@ export class SignalClient {
         return err(reason);
       } else {
         return err(
-          ConnectionError.internal(
+          ConnectionError.websocket(
             `Encountered unknown websocket error during connection: ${reason}`,
-            { status: resp.status, statusText: resp.statusText },
+            resp?.status,
+            resp?.statusText,
           ),
         );
       }
     } catch (e) {
+      if (!(e instanceof ConnectionError)) {
+        console.warn('received unexpected error', e);
+      }
       return err(
         e instanceof ConnectionError
           ? e
           : ConnectionError.serverUnreachable(
-              e instanceof Error ? e.message : 'server was not reachable',
+              e instanceof Error ? `${e.name}: ${e.message}` : 'server was not reachable',
             ),
       );
     }

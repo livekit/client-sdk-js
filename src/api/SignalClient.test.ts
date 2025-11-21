@@ -386,7 +386,7 @@ describe('SignalClient.connect', () => {
       expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.ServerUnreachable);
     });
 
-    it('should handle WebsocketError from WebSocket rejection', async () => {
+    it('should handle WebsocketError from WebSocket rejection as unreachable if server is not reachable', async () => {
       const customError = ConnectionError.websocket('Custom error');
 
       // eslint-disable-next-line neverthrow-must-use/must-use-result
@@ -399,10 +399,32 @@ describe('SignalClient.connect', () => {
         readyState: 3,
       });
 
-      // Mock fetch to return 500
+      (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.ServerUnreachable);
+    });
+    it('should handle WebsocketError from WebSocket rejection as websocket error if server is reachable', async () => {
+      const customError = ConnectionError.websocket('Custom error');
+
+      // eslint-disable-next-line neverthrow-must-use/must-use-result
+      const opened = ResultAsync.fromPromise(
+        Promise.reject(customError),
+        (error) => error as WebSocketError,
+      );
+      mockWebSocketStream({
+        opened,
+        readyState: 3,
+      });
+
+      // Mock fetch to return 200
       (global.fetch as any).mockResolvedValueOnce({
-        status: 500,
-        text: async () => 'Internal Server Error',
+        status: 200,
+        text: async () => 'testplaceholder',
       });
 
       const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
@@ -410,7 +432,7 @@ describe('SignalClient.connect', () => {
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
       expect(error).toBeInstanceOf(ConnectionError);
-      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.InternalError);
+      expect((error as ConnectionError).reason).toBe(ConnectionErrorReason.WebSocket);
     });
   });
 
@@ -489,6 +511,12 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
+      // Mock fetch to return 200
+      (global.fetch as any).mockResolvedValueOnce({
+        status: 200,
+        text: async () => 'testplaceholder',
+      });
+
       const result = await signalClient.join(
         'wss://test.livekit.io',
         'test-token',
@@ -497,8 +525,8 @@ describe('SignalClient.connect', () => {
 
       expect(result.isErr()).toBe(true);
       const error = result._unsafeUnwrapErr();
-      // When connection fails, it will timeout since opened never resolves
       expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.reason).toBe(ConnectionErrorReason.WebSocket);
     });
   });
 
