@@ -11,7 +11,7 @@ export class LivekitError extends Error {
 }
 
 export class SimulatedError extends LivekitError {
-  readonly type = 'simulated';
+  readonly name = 'simulated';
 
   constructor(message = 'Simulated failure') {
     super(-1, message);
@@ -153,54 +153,69 @@ export class ConnectionError<
   }
 }
 
+export class SignalReconnectError extends LivekitError {
+  readonly name = 'SignalReconnectError';
+
+  constructor(message?: string) {
+    super(12, message);
+  }
+}
+
 export class DeviceUnsupportedError extends LivekitError {
+  readonly name = 'DeviceUnsupportedError';
+
   constructor(message?: string) {
     super(21, message ?? 'device is unsupported');
-    this.name = 'DeviceUnsupportedError';
   }
 }
 
 export class TrackInvalidError extends LivekitError {
+  readonly name = 'TrackInvalidError';
+
   constructor(message?: string) {
     super(20, message ?? 'track is invalid');
-    this.name = 'TrackInvalidError';
   }
 }
 
 export class UnsupportedServer extends LivekitError {
+  readonly name = 'UnsupportedServer';
+
   constructor(message?: string) {
     super(10, message ?? 'unsupported server');
-    this.name = 'UnsupportedServer';
   }
 }
 
 export class UnexpectedConnectionState extends LivekitError {
+  readonly name = 'UnexpectedConnectionState';
+
   constructor(message?: string) {
     super(12, message ?? 'unexpected connection state');
-    this.name = 'UnexpectedConnectionState';
   }
 }
 
 export class NegotiationError extends LivekitError {
+  readonly name = 'NegotiationError';
+
   constructor(message?: string) {
     super(13, message ?? 'unable to negotiate');
-    this.name = 'NegotiationError';
   }
 }
 
 export class PublishDataError extends LivekitError {
+  readonly name = 'PublishDataError';
+
   constructor(message?: string) {
     super(14, message ?? 'unable to publish data');
-    this.name = 'PublishDataError';
   }
 }
 
 export class PublishTrackError extends LivekitError {
+  readonly name = 'PublishTrackError';
+
   status: number;
 
   constructor(message: string, status: number) {
     super(15, message);
-    this.name = 'PublishTrackError';
     this.status = status;
   }
 }
@@ -210,6 +225,8 @@ export type RequestErrorReason =
   | 'TimeoutError';
 
 export class SignalRequestError extends LivekitError {
+  readonly name = 'SignalRequestError';
+
   reason: RequestErrorReason;
 
   reasonName: string;
@@ -246,13 +263,14 @@ export enum DataStreamErrorReason {
 }
 
 export class DataStreamError extends LivekitError {
+  readonly name = 'DataStreamError';
+
   reason: DataStreamErrorReason;
 
   reasonName: string;
 
   constructor(message: string, reason: DataStreamErrorReason) {
     super(16, message);
-    this.name = 'DataStreamError';
     this.reason = reason;
     this.reasonName = DataStreamErrorReason[reason];
   }
