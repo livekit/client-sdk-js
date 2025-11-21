@@ -1112,10 +1112,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         );
         return err(new SignalReconnectError());
       }
-
       // in case a regionUrl is passed, the region URL takes precedence
       const joinResult = await self.join(regionUrl ?? self.url, self.token, self.signalOpts);
-
       if (joinResult.isErr()) {
         const error = joinResult.error;
         if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
