@@ -337,7 +337,7 @@ export class SignalClient {
         const firstMessageOrClose = raceResults([
           self.processInitialSignalMessage(wsConnection),
           // Return the close promise as error if it resolves first
-          ws!.closed
+          ws.closed
             .orTee((error) => {
               self.handleWSError(error);
             })
