@@ -601,7 +601,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       if (isCloud(new URL(url)) && token) {
         this.regionUrlProvider = new RegionUrlProvider(url, token);
-        const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
+        const regionUrlResult = await this.regionUrlProvider.getNextBestRegionUrl();
+        if (regionUrlResult.isErr()) {
+          // TODO continue propagation here once we have a `safeFetch` that returns a ResultAsync
+          throw regionUrlResult.error;
+        }
+        const regionUrl = regionUrlResult.value;
         // we will not replace the regionUrl if an attempt had already started
         // to avoid overriding regionUrl after a new connection attempt had started
         if (regionUrl && this.state === ConnectionState.Disconnected) {
@@ -686,7 +691,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       try {
         await BackOffStrategy.getInstance().getBackOffPromise(url);
         if (abortController.signal.aborted) {
-          throw new ConnectionError('Connection attempt aborted', ConnectionErrorReason.Cancelled);
+          ConnectionError.cancelled('Connection attempt aborted');
         }
         await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
@@ -698,13 +703,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           error.reason !== ConnectionErrorReason.Cancelled &&
           error.reason !== ConnectionErrorReason.NotAllowed
         ) {
-          let nextUrl: string | null = null;
-          try {
-            this.log.debug('Fetching next region');
-            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
-              this.abortController?.signal,
-            );
-          } catch (regionFetchError) {
+          this.log.debug('Fetching next region');
+          const nextUrlResult = await this.regionUrlProvider.getNextBestRegionUrl(
+            this.abortController?.signal,
+          );
+          if (nextUrlResult.isErr()) {
+            const regionFetchError = nextUrlResult.error;
             if (
               regionFetchError instanceof ConnectionError &&
               (regionFetchError.status === 401 ||
@@ -715,6 +719,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
+          const nextUrl = nextUrlResult.match(
+            (res) => res,
+            () => null,
+          );
+
           if (
             // making sure we only register failed attempts on things we actually care about
             [
@@ -773,7 +782,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResponse = await engine.join(
+    const joinResult = await engine.join(
       url,
       token,
       {
@@ -787,6 +796,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
       abortController.signal,
     );
+
+    // TODO continue propagating Result, we don't need to throw here
+    if (joinResult.isErr()) {
+      throw joinResult.error;
+    }
+
+    const joinResponse = joinResult.value;
 
     let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
     if (!serverInfo) {
@@ -894,12 +910,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (err) {
       await this.engine.close();
       this.recreateEngine();
-      const resultingError = new ConnectionError(
-        `could not establish signal connection`,
-        abortController.signal.aborted
-          ? ConnectionErrorReason.Cancelled
-          : ConnectionErrorReason.ServerUnreachable,
-      );
+      const resultingError = abortController.signal.aborted
+        ? ConnectionError.cancelled(`could not establish signal connection`)
+        : ConnectionError.serverUnreachable(`could not establish signal connection`);
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
       }
@@ -917,14 +930,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (abortController.signal.aborted) {
       await this.engine.close();
       this.recreateEngine();
-      throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
+      throw ConnectionError.cancelled(`Connection attempt aborted`);
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(
+      const result = await this.engine.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
+      if (result.isErr()) {
+        await this.engine.close();
+        this.recreateEngine();
+        throw result.error;
+      }
     } catch (e) {
       await this.engine.close();
       this.recreateEngine();
@@ -974,9 +992,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn(msg, this.logContext);
         this.abortController?.abort(msg);
         // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-        this.connectFuture?.reject?.(
-          new ConnectionError('Client initiated disconnect', ConnectionErrorReason.Cancelled),
-        );
+        this.connectFuture?.reject?.(ConnectionError.cancelled('Client initiated disconnect'));
         this.connectFuture = undefined;
       }
 
@@ -1925,7 +1941,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        console.warn(`RPC Response payload too large for ${method}`);
+        this.log.warn(`RPC Response payload too large for ${method}`, this.logContext);
       } else {
         responsePayload = response;
       }
@@ -1933,9 +1949,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (error instanceof RpcError) {
         responseError = error;
       } else {
-        console.warn(
+        this.log.warn(
           `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
+          { ...this.logContext, error },
         );
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }

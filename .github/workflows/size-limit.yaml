@@ -1,9 +1,6 @@
 name: 'size'
 on:
   pull_request:
-    branches:
-      - main
-  workflow_dispatch:
 jobs:
   package-size:
     runs-on: ubuntu-latest

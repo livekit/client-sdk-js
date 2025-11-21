@@ -27,7 +27,12 @@ export class CloudRegionCheck extends Checker {
     const regionStats: RegionStats[] = [];
     const seenUrls: Set<string> = new Set();
     for (let i = 0; i < 3; i++) {
-      const regionUrl = await regionProvider.getNextBestRegionUrl();
+      const regionUrlResult = await regionProvider.getNextBestRegionUrl();
+      if (regionUrlResult.isErr()) {
+        console.error(regionUrlResult.error);
+        return;
+      }
+      const regionUrl = regionUrlResult.value;
       if (!regionUrl) {
         break;
       }

@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
+import { ResultAsync, errAsync, okAsync } from 'neverthrow';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import type { MediaDescription, SessionDescription } from 'sdp-transform';
@@ -67,7 +68,7 @@ export default class PCTransport extends EventEmitter {
 
   remoteNackMids: string[] = [];
 
-  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
+  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => Promise<void>;
 
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
 
@@ -352,7 +353,7 @@ export default class PCTransport extends EventEmitter {
         return;
       }
       await this.setMungedSDP(offer, write(sdpParsed));
-      this.onOffer(offer, this.latestOfferId);
+      await this.onOffer(offer, this.latestOfferId);
     } finally {
       unlock();
     }
@@ -375,19 +376,35 @@ export default class PCTransport extends EventEmitter {
     return this.pc.createDataChannel(label, dataChannelDict);
   }
 
-  addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
-    return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  addTransceiver(
+    mediaStreamTrack: MediaStreamTrack,
+    transceiverInit: RTCRtpTransceiverInit,
+  ): ResultAsync<RTCRtpTransceiver, TypeError | RangeError | DOMException> {
+    return ResultAsync.fromPromise(
+      // wrapping this awkwardly as an async IIFE is required as `addTransceiver` is async in react native
+      (async () => {
+        const res = await this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+        return res;
+      })(),
+      (e) => e as TypeError | RangeError | DOMException,
+    );
   }
 
   addTransceiverOfKind(kind: 'audio' | 'video', transceiverInit: RTCRtpTransceiverInit) {
     return this.pc.addTransceiver(kind, transceiverInit);
   }
 
-  addTrack(track: MediaStreamTrack) {
+  addTrack(
+    track: MediaStreamTrack,
+  ): ResultAsync<RTCRtpSender, UnexpectedConnectionState | DOMException> {
     if (!this._pc) {
-      throw new UnexpectedConnectionState('PC closed, cannot add track');
+      return errAsync(new UnexpectedConnectionState('PC closed, cannot add track'));
     }
-    return this._pc.addTrack(track);
+    try {
+      return okAsync(this._pc.addTrack(track));
+    } catch (e: unknown) {
+      return errAsync(e as DOMException);
+    }
   }
 
   setTrackCodecBitrate(info: TrackBitrateInfo) {

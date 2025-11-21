@@ -22,6 +22,7 @@ import {
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
+import { ResultAsync, errAsync, ok, safeTry } from 'neverthrow';
 import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
@@ -32,6 +33,7 @@ import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
   LivekitError,
+  NegotiationError,
   PublishTrackError,
   SignalRequestError,
   TrackInvalidError,
@@ -742,7 +744,10 @@ export default class LocalParticipant extends Participant {
    * @param track
    * @param options
    */
-  async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
+  async publishTrack(
+    track: LocalTrack | MediaStreamTrack,
+    options?: TrackPublishOptions,
+  ): Promise<LocalTrackPublication> {
     return this.publishOrRepublishTrack(track, options);
   }
 
@@ -899,12 +904,20 @@ export default class LocalParticipant extends Participant {
           if (publicationTimedOut) {
             return;
           }
-          const publication = await this.publish(track, opts, isStereo);
-          resolve(publication);
+          const publicationResult = await this.publish(track, opts, isStereo);
+          if (publicationResult.isErr()) {
+            reject(publicationResult.error);
+          } else {
+            resolve(publicationResult.value);
+          }
         } else {
           try {
-            const publication = await this.publish(track, opts, isStereo);
-            resolve(publication);
+            const publicationResult = await this.publish(track, opts, isStereo);
+            if (publicationResult.isErr()) {
+              reject(publicationResult.error);
+            } else {
+              resolve(publicationResult.value);
+            }
           } catch (e) {
             reject(e);
           }
@@ -954,9 +967,18 @@ export default class LocalParticipant extends Participant {
     return false;
   }
 
-  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+  private publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+  ): ResultAsync<
+    LocalTrackPublication,
+    PublishTrackError | TrackInvalidError | TypeError | RangeError | DOMException
+  > {
     if (!this.hasPermissionsToPublish(track)) {
-      throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
+      return errAsync(
+        new PublishTrackError('failed to publish track, insufficient permissions', 403),
+      );
     }
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
       (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
@@ -1049,320 +1071,328 @@ export default class LocalParticipant extends Participant {
       audioFeatures,
     });
 
-    // compute encodings and layers for video
-    let encodings: RTCRtpEncodingParameters[] | undefined;
-    if (track.kind === Track.Kind.Video) {
-      let dims: Track.Dimensions = {
-        width: 0,
-        height: 0,
-      };
-      try {
-        dims = await track.waitForDimensions();
-      } catch (e) {
-        // use defaults, it's quite painful for congestion control without simulcast
-        // so using default dims according to publish settings
-        const defaultRes =
-          this.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
-        dims = {
-          width: defaultRes.width,
-          height: defaultRes.height,
-        };
-        // log failure
-        this.log.error('could not determine track dimensions, using defaults', {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-          dims,
+    const self = this;
+
+    return safeTry<
+      LocalTrackPublication,
+      PublishTrackError | TrackInvalidError | TypeError | RangeError | DOMException
+    >(async function* () {
+      // compute encodings and layers for video
+      let encodings: RTCRtpEncodingParameters[] | undefined;
+      if (track.kind === Track.Kind.Video) {
+        const dims = yield* (await track.waitForDimensions()).orElse(() => {
+          const defaultRes =
+            self.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
+
+          // use defaults, it's quite painful for congestion control without simulcast
+          // so using default dims according to publish settings
+          const defaultDims = {
+            width: defaultRes.width,
+            height: defaultRes.height,
+          } satisfies Track.Dimensions;
+
+          // log failure
+          self.log.error('could not determine track dimensions, using defaults', {
+            ...self.logContext,
+            ...getLogContextFromTrack(track),
+            dims,
+          });
+          return ok(defaultDims as Track.Dimensions);
         });
-      }
-      // width and height should be defined for video
-      req.width = dims.width;
-      req.height = dims.height;
-      // for svc codecs, disable simulcast and use vp8 for backup codec
-      if (isLocalVideoTrack(track)) {
-        if (isSVCCodec(videoCodec)) {
-          if (track.source === Track.Source.ScreenShare) {
-            // vp9 svc with screenshare cannot encode multiple spatial layers
-            // doing so reduces publish resolution to minimal resolution
-            opts.scalabilityMode = 'L1T3';
-            // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
-            // It has a different path for screenshare handling and it seems to be untested/buggy
-            // As a workaround, we are setting contentHint to force it to go through the same
-            // path as regular camera video. While this is not optimal, it delivers the performance
-            // that we need
-            if ('contentHint' in track.mediaStreamTrack) {
-              track.mediaStreamTrack.contentHint = 'motion';
-              this.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
-                ...this.logContext,
-                ...getLogContextFromTrack(track),
-              });
+
+        // width and height should be defined for video
+        req.width = dims.width;
+        req.height = dims.height;
+        // for svc codecs, disable simulcast and use vp8 for backup codec
+        if (isLocalVideoTrack(track)) {
+          if (isSVCCodec(videoCodec)) {
+            if (track.source === Track.Source.ScreenShare) {
+              // vp9 svc with screenshare cannot encode multiple spatial layers
+              // doing so reduces publish resolution to minimal resolution
+              opts.scalabilityMode = 'L1T3';
+              // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
+              // It has a different path for screenshare handling and it seems to be untested/buggy
+              // As a workaround, we are setting contentHint to force it to go through the same
+              // path as regular camera video. While this is not optimal, it delivers the performance
+              // that we need
+              if ('contentHint' in track.mediaStreamTrack) {
+                track.mediaStreamTrack.contentHint = 'motion';
+                self.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
+                  ...self.logContext,
+                  ...getLogContextFromTrack(track),
+                });
+              }
             }
+            // set scalabilityMode to 'L3T3_KEY' by default
+            opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
           }
-          // set scalabilityMode to 'L3T3_KEY' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
-        }
 
-        req.simulcastCodecs = [
-          new SimulcastCodec({
-            codec: videoCodec,
-            cid: track.mediaStreamTrack.id,
-          }),
-        ];
-
-        // set up backup
-        if (opts.backupCodec === true) {
-          opts.backupCodec = { codec: defaultVideoCodec };
-        }
-        if (
-          opts.backupCodec &&
-          videoCodec !== opts.backupCodec.codec &&
-          // TODO remove this once e2ee is supported for backup codecs
-          req.encryption === Encryption_Type.NONE
-        ) {
-          // multi-codec simulcast requires dynacast
-          if (!this.roomOptions.dynacast) {
-            this.roomOptions.dynacast = true;
-          }
-          req.simulcastCodecs.push(
+          req.simulcastCodecs = [
             new SimulcastCodec({
-              codec: opts.backupCodec.codec,
-              cid: '',
+              codec: videoCodec,
+              cid: track.mediaStreamTrack.id,
             }),
-          );
+          ];
+
+          // set up backup
+          if (opts.backupCodec === true) {
+            opts.backupCodec = { codec: defaultVideoCodec };
+          }
+          if (
+            opts.backupCodec &&
+            videoCodec !== opts.backupCodec.codec &&
+            // TODO remove this once e2ee is supported for backup codecs
+            req.encryption === Encryption_Type.NONE
+          ) {
+            // multi-codec simulcast requires dynacast
+            if (!self.roomOptions.dynacast) {
+              self.roomOptions.dynacast = true;
+            }
+            req.simulcastCodecs.push(
+              new SimulcastCodec({
+                codec: opts.backupCodec.codec,
+                cid: '',
+              }),
+            );
+          }
         }
+
+        encodings = computeVideoEncodings(
+          track.source === Track.Source.ScreenShare,
+          req.width,
+          req.height,
+          opts,
+        );
+        req.layers = videoLayersFromEncodings(
+          req.width,
+          req.height,
+          encodings,
+          isSVCCodec(opts.videoCodec),
+        );
+      } else if (track.kind === Track.Kind.Audio) {
+        encodings = [
+          {
+            maxBitrate: opts.audioPreset?.maxBitrate,
+            priority: opts.audioPreset?.priority ?? 'high',
+            networkPriority: opts.audioPreset?.priority ?? 'high',
+          },
+        ];
       }
 
-      encodings = computeVideoEncodings(
-        track.source === Track.Source.ScreenShare,
-        req.width,
-        req.height,
-        opts,
-      );
-      req.layers = videoLayersFromEncodings(
-        req.width,
-        req.height,
-        encodings,
-        isSVCCodec(opts.videoCodec),
-      );
-    } else if (track.kind === Track.Kind.Audio) {
-      encodings = [
-        {
-          maxBitrate: opts.audioPreset?.maxBitrate,
-          priority: opts.audioPreset?.priority ?? 'high',
-          networkPriority: opts.audioPreset?.priority ?? 'high',
-        },
-      ];
-    }
-
-    if (!this.engine || this.engine.isClosed) {
-      throw new UnexpectedConnectionState('cannot publish track when not connected');
-    }
-
-    const negotiate = async () => {
-      if (!this.engine.pcManager) {
-        throw new UnexpectedConnectionState('pcManager is not ready');
+      if (!self.engine || self.engine.isClosed) {
+        throw new UnexpectedConnectionState('cannot publish track when not connected');
       }
 
-      track.sender = await this.engine.createSender(track, opts, encodings);
-      this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
+      const negotiate = () =>
+        safeTry<
+          void,
+          NegotiationError | UnexpectedConnectionState | TypeError | RangeError | DOMException
+        >(async function* () {
+          if (!self.engine.pcManager) {
+            return errAsync(new UnexpectedConnectionState('pcManager is not ready'));
+          }
 
-      if (isLocalVideoTrack(track)) {
-        opts.degradationPreference ??= getDefaultDegradationPreference(track);
-        track.setDegradationPreference(opts.degradationPreference);
-      }
+          track.sender = yield* await self.engine.createSender(track, opts, encodings);
+          self.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
-      if (encodings) {
-        if (isFireFox() && track.kind === Track.Kind.Audio) {
-          /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+          if (isLocalVideoTrack(track)) {
+            opts.degradationPreference ??= getDefaultDegradationPreference(track);
+            track.setDegradationPreference(opts.degradationPreference);
+          }
+
+          if (encodings) {
+            if (isFireFox() && track.kind === Track.Kind.Audio) {
+              /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
              livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
              publish high quality audio track. But firefox always uses this value as the actual
              bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
              So the client need to modify maxaverragebitrates in answer sdp to user provided value to
              fix the issue.
            */
-          let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
-            if (transceiver.sender === track.sender) {
-              trackTransceiver = transceiver;
-              break;
+              let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+              for (const transceiver of self.engine.pcManager.publisher.getTransceivers()) {
+                if (transceiver.sender === track.sender) {
+                  trackTransceiver = transceiver;
+                  break;
+                }
+              }
+              if (trackTransceiver) {
+                self.engine.pcManager.publisher.setTrackCodecBitrate({
+                  transceiver: trackTransceiver,
+                  codec: 'opus',
+                  maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+                });
+              }
+            } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+              self.engine.pcManager.publisher.setTrackCodecBitrate({
+                cid: req.cid,
+                codec: track.codec,
+                maxbr: encodings[0].maxBitrate / 1000,
+              });
             }
           }
-          if (trackTransceiver) {
-            this.engine.pcManager.publisher.setTrackCodecBitrate({
-              transceiver: trackTransceiver,
-              codec: 'opus',
-              maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-            });
-          }
-        } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
-          this.engine.pcManager.publisher.setTrackCodecBitrate({
-            cid: req.cid,
-            codec: track.codec,
-            maxbr: encodings[0].maxBitrate / 1000,
-          });
-        }
-      }
 
-      await this.engine.negotiate();
-    };
+          return self.engine.negotiate();
+        });
 
-    let ti: TrackInfo;
-    const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
-      try {
-        ti = await this.engine.addTrack(req);
-        resolve(ti);
-      } catch (err) {
-        if (track.sender && this.engine.pcManager?.publisher) {
-          this.engine.pcManager.publisher.removeTrack(track.sender);
-          await this.engine.negotiate().catch((negotiateErr) => {
-            this.log.error(
+      const addTrackResult = self.engine.addTrack(req);
+
+      const addTrackWithFallback = addTrackResult.mapErr((e) => {
+        if (track.sender && self.engine.pcManager?.publisher) {
+          self.engine.pcManager.publisher.removeTrack(track.sender);
+          self.engine.negotiate().orTee((negotiateErr) => {
+            self.log.error(
               'failed to negotiate after removing track due to failed add track request',
               {
-                ...this.logContext,
+                ...self.logContext,
                 ...getLogContextFromTrack(track),
                 error: negotiateErr,
               },
             );
           });
         }
-        reject(err);
-      }
-    });
-    if (this.enabledPublishVideoCodecs.length > 0) {
-      const rets = await Promise.all([addTrackPromise, negotiate()]);
-      ti = rets[0];
-    } else {
-      ti = await addTrackPromise;
-      // server might not support the codec the client has requested, in that case, fallback
-      // to a supported codec
-      let primaryCodecMime: string | undefined;
-      ti.codecs.forEach((codec) => {
-        if (primaryCodecMime === undefined) {
-          primaryCodecMime = codec.mimeType;
-        }
-      });
-      if (primaryCodecMime && track.kind === Track.Kind.Video) {
-        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-        if (updatedCodec !== videoCodec) {
-          this.log.debug('falling back to server selected codec', {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-            codec: updatedCodec,
-          });
-          opts.videoCodec = updatedCodec;
-
-          // recompute encodings since bitrates/etc could have changed
-          encodings = computeVideoEncodings(
-            track.source === Track.Source.ScreenShare,
-            req.width,
-            req.height,
-            opts,
-          );
-        }
-      }
-      await negotiate();
-    }
-
-    const publication = new LocalTrackPublication(track.kind, ti, track, {
-      loggerName: this.roomOptions.loggerName,
-      loggerContextCb: () => this.logContext,
-    });
-    publication.on(TrackEvent.CpuConstrained, (constrainedTrack) =>
-      this.onTrackCpuConstrained(constrainedTrack, publication),
-    );
-    // save options for when it needs to be republished again
-    publication.options = opts;
-    track.sid = ti.sid;
-
-    this.log.debug(`publishing ${track.kind} with encodings`, {
-      ...this.logContext,
-      encodings,
-      trackInfo: ti,
-    });
-
-    if (isLocalVideoTrack(track)) {
-      track.startMonitor(this.engine.client);
-    } else if (isLocalAudioTrack(track)) {
-      track.startMonitor();
-    }
-
-    this.addTrackPublication(publication);
-    // send event for publication
-    this.emit(ParticipantEvent.LocalTrackPublished, publication);
-
-    if (
-      isLocalAudioTrack(track) &&
-      ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
-    ) {
-      const stream = track.getPreConnectBuffer();
-      const mimeType = track.getPreConnectBufferMimeType();
-      // TODO: we're registering the listener after negotiation, so there might be a race
-      this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
-        if (pub.trackSid === ti.sid) {
-          if (!track.hasPreConnectBuffer) {
-            this.log.warn('subscribe event came to late, buffer already closed', this.logContext);
-            return;
-          }
-          this.log.debug('finished recording preconnect buffer', {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-          });
-          track.stopPreConnectBuffer();
-        }
+        return e;
       });
 
-      if (stream) {
-        const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
-          try {
-            this.log.debug('waiting for agent', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-            });
-            const agentActiveTimeout = setTimeout(() => {
-              reject(new Error('agent not active within 10 seconds'));
-            }, 10_000);
-            const agent = await this.waitUntilActiveAgentPresent();
-            clearTimeout(agentActiveTimeout);
-            this.log.debug('sending preconnect buffer', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-            });
-            const writer = await this.streamBytes({
-              name: 'preconnect-buffer',
-              mimeType,
-              topic: 'lk.agent.pre-connect-audio-buffer',
-              destinationIdentities: [agent.identity],
-              attributes: {
-                trackId: publication.trackSid,
-                sampleRate: String(settings.sampleRate ?? '48000'),
-                channels: String(settings.channelCount ?? '1'),
-              },
-            });
-            for await (const chunk of stream) {
-              await writer.write(chunk);
-            }
-            await writer.close();
-            resolve();
-          } catch (e) {
-            reject(e);
+      let ti: TrackInfo;
+
+      if (self.enabledPublishVideoCodecs.length > 0) {
+        ti = yield* await ResultAsync.combine([addTrackWithFallback, negotiate()]).map((t) => t[0]);
+      } else {
+        ti = yield* await addTrackWithFallback;
+
+        // server might not support the codec the client has requested, in that case, fallback
+        // to a supported codec
+        let primaryCodecMime: string | undefined;
+        ti.codecs.forEach((codec) => {
+          if (primaryCodecMime === undefined) {
+            primaryCodecMime = codec.mimeType;
           }
         });
-        bufferStreamPromise
-          .then(() => {
-            this.log.debug('preconnect buffer sent successfully', {
-              ...this.logContext,
+        if (primaryCodecMime && track.kind === Track.Kind.Video) {
+          const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+          if (updatedCodec !== videoCodec) {
+            self.log.debug('falling back to server selected codec', {
+              ...self.logContext,
               ...getLogContextFromTrack(track),
+              codec: updatedCodec,
             });
-          })
-          .catch((e) => {
-            this.log.error('error sending preconnect buffer', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-              error: e,
-            });
-          });
+            opts.videoCodec = updatedCodec;
+
+            // recompute encodings since bitrates/etc could have changed
+            encodings = computeVideoEncodings(
+              track.source === Track.Source.ScreenShare,
+              req.width,
+              req.height,
+              opts,
+            );
+          }
+        }
+        yield* await negotiate();
       }
-    }
-    return publication;
+
+      const publication = new LocalTrackPublication(track.kind, ti, track, {
+        loggerName: self.roomOptions.loggerName,
+        loggerContextCb: () => self.logContext,
+      });
+      publication.on(TrackEvent.CpuConstrained, (constrainedTrack) =>
+        self.onTrackCpuConstrained(constrainedTrack, publication),
+      );
+      // save options for when it needs to be republished again
+      publication.options = opts;
+      track.sid = ti.sid;
+
+      self.log.debug(`publishing ${track.kind} with encodings`, {
+        ...self.logContext,
+        encodings,
+        trackInfo: ti,
+      });
+
+      if (isLocalVideoTrack(track)) {
+        track.startMonitor(self.engine.client);
+      } else if (isLocalAudioTrack(track)) {
+        track.startMonitor();
+      }
+
+      self.addTrackPublication(publication);
+      // send event for publication
+      self.emit(ParticipantEvent.LocalTrackPublished, publication);
+
+      if (
+        isLocalAudioTrack(track) &&
+        ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
+      ) {
+        const stream = track.getPreConnectBuffer();
+        const mimeType = track.getPreConnectBufferMimeType();
+        // TODO: we're registering the listener after negotiation, so there might be a race
+        self.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
+          if (pub.trackSid === ti.sid) {
+            if (!track.hasPreConnectBuffer) {
+              self.log.warn('subscribe event came to late, buffer already closed', self.logContext);
+              return;
+            }
+            self.log.debug('finished recording preconnect buffer', {
+              ...self.logContext,
+              ...getLogContextFromTrack(track),
+            });
+            track.stopPreConnectBuffer();
+          }
+        });
+
+        if (stream) {
+          const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
+            try {
+              self.log.debug('waiting for agent', {
+                ...self.logContext,
+                ...getLogContextFromTrack(track),
+              });
+              const agentActiveTimeout = setTimeout(() => {
+                reject(new Error('agent not active within 10 seconds'));
+              }, 10_000);
+              const agent = await self.waitUntilActiveAgentPresent();
+              clearTimeout(agentActiveTimeout);
+              self.log.debug('sending preconnect buffer', {
+                ...self.logContext,
+                ...getLogContextFromTrack(track),
+              });
+              const writer = await self.streamBytes({
+                name: 'preconnect-buffer',
+                mimeType,
+                topic: 'lk.agent.pre-connect-audio-buffer',
+                destinationIdentities: [agent.identity],
+                attributes: {
+                  trackId: publication.trackSid,
+                  sampleRate: String(settings.sampleRate ?? '48000'),
+                  channels: String(settings.channelCount ?? '1'),
+                },
+              });
+              for await (const chunk of stream) {
+                await writer.write(chunk);
+              }
+              await writer.close();
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          });
+          bufferStreamPromise
+            .then(() => {
+              self.log.debug('preconnect buffer sent successfully', {
+                ...self.logContext,
+                ...getLogContextFromTrack(track),
+              });
+            })
+            .catch((e) => {
+              self.log.error('error sending preconnect buffer', {
+                ...self.logContext,
+                ...getLogContextFromTrack(track),
+                error: e,
+              });
+            });
+        }
+      }
+      return ok(publication);
+    });
   }
 
   override get isLocal(): boolean {
@@ -1824,7 +1854,7 @@ export default class LocalParticipant extends Participant {
         resolve: (responsePayload: string | null, responseError: RpcError | null) => {
           clearTimeout(responseTimeoutId);
           if (this.pendingAcks.has(id)) {
-            console.warn('RPC response received before ack', id);
+            this.log.warn('RPC response received before ack', id);
             this.pendingAcks.delete(id);
             clearTimeout(ackTimeoutId);
           }
