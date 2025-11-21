@@ -26,6 +26,9 @@ importers:
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
@@ -120,6 +123,9 @@ importers:
       eslint-plugin-import-x:
         specifier: ^4.16.1
         version: 4.16.1(@typescript-eslint/utils@8.47.0(eslint@9.39.1(jiti@2.4.2))(typescript@5.8.3))(eslint-import-resolver-node@0.3.9)(eslint@9.39.1(jiti@2.4.2))
+      eslint-plugin-neverthrow-must-use:
+        specifier: ^0.1.2
+        version: 0.1.2(@typescript-eslint/parser@7.18.0(eslint@9.39.1(jiti@2.4.2))(typescript@5.8.3))(eslint@9.39.1(jiti@2.4.2))
       eslint-plugin-prettier:
         specifier: ^5.5.4
         version: 5.5.4(@types/eslint@8.44.7)(eslint-config-prettier@10.1.8(eslint@9.39.1(jiti@2.4.2)))(eslint@9.39.1(jiti@2.4.2))(prettier@3.6.2)
@@ -2270,6 +2276,13 @@ packages:
     peerDependencies:
       eslint: '>=8.23.0'
 
+  eslint-plugin-neverthrow-must-use@0.1.2:
+    resolution: {integrity: sha512-Wt/u1wjnH8rWtbc8zqTK5yOcB79zVlCCWXi6ChJNer5ACkqldNQ6/+RKVUErACbv0Oex9aqaKYoTd0OqLe4o3Q==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@typescript-eslint/parser': ^8.0.0
+      eslint: ^9.0.0
+
   eslint-plugin-prettier@5.5.4:
     resolution: {integrity: sha512-swNtI95SToIz05YINMA6Ox5R057IMAmWZ26GqPxusAp1TZzj+IdY9tXNWWD3vkF/wEqydCONcwjTFpxybBqZsg==}
     engines: {node: ^14.18.0 || >=16.0.0}
@@ -2982,6 +2995,10 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
+  neverthrow@8.2.0:
+    resolution: {integrity: sha512-kOCT/1MCPAxY5iUV3wytNFUMUolzuwd/VF/1KCx7kf6CutrOsTie+84zTGTpgQycjvfLdBBdvBvFLqFD2c0wkQ==}
+    engines: {node: '>=18'}
+
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
     engines: {node: 4.x || >=6.0.0}
@@ -3624,8 +3641,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251120:
-    resolution: {integrity: sha512-dkvZw2/09r7JIltGCeubJXLYE7+NapbKj68BtGtm47TiwjyKxTDTG2nWZu8Gpopzi0ub9bNVn0rEgh5CgOlE4w==}
+  typescript@6.0.0-dev.20251121:
+    resolution: {integrity: sha512-TrGhGS4hOAKgwizhMuH/3pbTNNBMCpxRA7ia8Lrv4HRMOAOzI5lWhP5uoKRDmmaF3pUVe90MBYjSieM498zUqQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -6023,7 +6040,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20251120
+      typescript: 6.0.0-dev.20251121
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6330,6 +6347,11 @@ snapshots:
     transitivePeerDependencies:
       - typescript
     optional: true
+
+  eslint-plugin-neverthrow-must-use@0.1.2(@typescript-eslint/parser@7.18.0(eslint@9.39.1(jiti@2.4.2))(typescript@5.8.3))(eslint@9.39.1(jiti@2.4.2)):
+    dependencies:
+      '@typescript-eslint/parser': 7.18.0(eslint@9.39.1(jiti@2.4.2))(typescript@5.8.3)
+      eslint: 9.39.1(jiti@2.4.2)
 
   eslint-plugin-prettier@5.5.4(@types/eslint@8.44.7)(eslint-config-prettier@10.1.8(eslint@9.39.1(jiti@2.4.2)))(eslint@9.39.1(jiti@2.4.2))(prettier@3.6.2):
     dependencies:
@@ -7088,6 +7110,10 @@ snapshots:
 
   neo-async@2.6.2: {}
 
+  neverthrow@8.2.0:
+    optionalDependencies:
+      '@rollup/rollup-linux-x64-gnu': 4.53.2
+
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
@@ -7789,7 +7815,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20251120: {}
+  typescript@6.0.0-dev.20251121: {}
 
   uc.micro@2.1.0: {}
 

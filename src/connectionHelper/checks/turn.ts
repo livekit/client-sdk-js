@@ -8,13 +8,16 @@ export class TURNCheck extends Checker {
 
   async perform(): Promise<void> {
     const signalClient = new SignalClient();
-    const joinRes = await signalClient.join(this.url, this.token, {
+    const joinResult = await signalClient.join(this.url, this.token, {
       autoSubscribe: true,
       maxRetries: 0,
       e2eeEnabled: false,
       websocketTimeout: 15_000,
       singlePeerConnection: false,
     });
+
+    // TODO fix unsafe usage
+    const joinRes = joinResult._unsafeUnwrap();
 
     let hasTLS = false;
     let hasTURN = false;
