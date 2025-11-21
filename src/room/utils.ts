@@ -5,7 +5,8 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
-import { type BrowserDetails, getBrowser } from '../utils/browserParser';
+import { getBrowser } from '../utils/browserParser';
+import type { BrowserDetails } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';

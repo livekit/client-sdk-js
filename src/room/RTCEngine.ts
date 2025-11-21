@@ -95,6 +95,8 @@ const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
+const lossyDataChannelBufferThresholdMin = 8 * 1024;
+const lossyDataChannelBufferThresholdMax = 256 * 1024;
 
 enum PCState {
   New,
@@ -205,6 +207,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private reliableMessageBuffer = new DataPacketBuffer();
 
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
+
+  private lossyDataStatCurrentBytes: number = 0;
+
+  private lossyDataStatByterate: number = 0;
+
+  private lossyDataStatInterval: ReturnType<typeof setInterval> | undefined;
+
+  private lossyDataDropCount: number = 0;
 
   private midToTrackId: { [key: string]: string } = {};
 
@@ -320,6 +330,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
+      this.cleanupLossyDataStats();
       await this.cleanupPeerConnections();
       await this.cleanupClient();
     } finally {
@@ -353,6 +364,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableMessageBuffer = new DataPacketBuffer();
     this.reliableDataSequence = 1;
     this.reliableReceivedState.clear();
+  }
+
+  cleanupLossyDataStats() {
+    this.lossyDataStatByterate = 0;
+    this.lossyDataStatCurrentBytes = 0;
+    if (this.lossyDataStatInterval) {
+      clearInterval(this.lossyDataStatInterval);
+      this.lossyDataStatInterval = undefined;
+    }
+    this.lossyDataDropCount = 0;
   }
 
   async cleanupClient() {
@@ -722,6 +743,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
+
+    this.cleanupLossyDataStats();
+    this.lossyDataStatInterval = setInterval(() => {
+      this.lossyDataStatByterate = this.lossyDataStatCurrentBytes;
+      this.lossyDataStatCurrentBytes = 0;
+
+      const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
+      if (dc) {
+        // control buffered latency to ~100ms
+        const threshold = this.lossyDataStatByterate / 10;
+        dc.bufferedAmountLowThreshold = Math.min(
+          Math.max(threshold, lossyDataChannelBufferThresholdMin),
+          lossyDataChannelBufferThresholdMax,
+        );
+      }
+    }, 1000);
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -1313,12 +1350,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const msg = packet.toBinary();
 
-    await this.waitForBufferStatusLow(kind);
-
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       if (kind === DataPacket_Kind.RELIABLE) {
+        await this.waitForBufferStatusLow(kind);
         this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
+      } else {
+        // lossy channel, drop messages to reduce latency
+        if (!this.isBufferStatusLow(kind)) {
+          this.lossyDataDropCount += 1;
+          if (this.lossyDataDropCount % 100 === 0) {
+            this.log.warn(
+              `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+              this.logContext,
+            );
+          }
+          return;
+        }
+        this.lossyDataStatCurrentBytes += msg.byteLength;
       }
 
       if (this.attemptingReconnect) {
@@ -1344,6 +1393,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
+    if (kind === DataPacket_Kind.RELIABLE) {
+      const dc = this.dataChannelForKind(kind);
+      if (dc) {
+        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
+      }
+    }
+
     const status = this.isBufferStatusLow(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
@@ -1354,9 +1410,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (kind === DataPacket_Kind.RELIABLE) {
-        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
-      }
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
   };

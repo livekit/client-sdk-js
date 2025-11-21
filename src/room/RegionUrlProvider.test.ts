@@ -1,5 +1,5 @@
-import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 

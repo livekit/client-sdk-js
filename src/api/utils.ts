@@ -1,6 +1,6 @@
-import type { Mutex } from '@livekit/mutex';
 import { SignalResponse } from '@livekit/protocol';
 import { Result, ResultAsync, errAsync } from 'neverthrow';
+import type { Mutex } from '@livekit/mutex';
 import type TypedEventEmitter from 'typed-emitter';
 import type { EventMap } from 'typed-emitter';
 import { ConnectionError } from '../room/errors';
@@ -162,11 +162,11 @@ export function raceResults<T extends readonly ResultAsyncLike<any, any>[]>(
   T[number] extends ResultAsync<infer V, any> ? V : never,
   T[number] extends ResultAsync<any, infer E> ? E : never
 > {
-  type V = T[number] extends ResultAsync<infer Value, any> ? Value : never;
-  type E = T[number] extends ResultAsync<any, infer Err> ? Err : never;
+  type Value = T[number] extends ResultAsync<infer V, any> ? V : never;
+  type Err = T[number] extends ResultAsync<any, infer E> ? E : never;
 
   const settledPromises = values.map(
-    (ra): PromiseLike<V> =>
+    (ra): PromiseLike<Value> =>
       ra.then((res) =>
         res.match(
           (v) => Promise.resolve(v),
@@ -175,7 +175,7 @@ export function raceResults<T extends readonly ResultAsyncLike<any, any>[]>(
       ),
   );
 
-  return ResultAsync.fromPromise(Promise.race(settledPromises), (e) => e as E);
+  return ResultAsync.fromPromise(Promise.race(settledPromises), (e) => e as Err);
 }
 
 export type ResultAsyncLike<T, E> = ResultAsync<T, E> | Promise<Result<T, E>>;

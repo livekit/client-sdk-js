@@ -55,7 +55,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
       ws.close(code, reason);
 
-    // eslint-disable-next-line neverthrow/must-use-result
+    // eslint-disable-next-line neverthrow-must-use/must-use-result
     this.opened = ResultAsync.fromPromise<WebSocketConnection<T>, WebSocketError>(
       new Promise((resolve, r) => {
         const reject = (err: WebSocketError) => r(err);
@@ -111,7 +111,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       (error) => error as WebSocketError,
     );
 
-    // eslint-disable-next-line neverthrow/must-use-result
+    // eslint-disable-next-line neverthrow-must-use/must-use-result
     this.closed = ResultAsync.fromPromise<WebSocketCloseInfo, WebSocketError>(
       new Promise<WebSocketCloseInfo>((resolve, r) => {
         const reject = (err: WebSocketError) => r(err);
