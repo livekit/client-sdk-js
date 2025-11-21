@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
+import { ResultAsync, ok, okAsync } from 'neverthrow';
 import log, { LoggerNames, getLogger } from '../logger';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
@@ -198,7 +199,10 @@ export class PCTransportManager {
     }
   }
 
-  async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
+  async ensurePCTransportConnection(
+    abortController?: AbortController,
+    timeout?: number,
+  ): Promise<ResultAsync<void, ConnectionError>> {
     const unlock = await this.connectionLock.lock();
     try {
       if (
@@ -209,11 +213,11 @@ export class PCTransportManager {
         this.log.debug('negotiation required, start negotiating', this.logContext);
         this.publisher.negotiate();
       }
-      await Promise.all(
+      return await ResultAsync.combine(
         this.requiredTransports?.map((transport) =>
           this.ensureTransportConnected(transport, abortController, timeout),
         ),
-      );
+      ).andThen(() => ok());
     } finally {
       unlock();
     }
@@ -330,43 +334,46 @@ export class PCTransportManager {
     }
   };
 
-  private async ensureTransportConnected(
+  private ensureTransportConnected(
     pcTransport: PCTransport,
     abortController?: AbortController,
     timeout: number = this.peerConnectionTimeout,
-  ) {
+  ): ResultAsync<void, ConnectionError> {
     const connectionState = pcTransport.getConnectionState();
     if (connectionState === 'connected') {
-      return;
+      return okAsync();
     }
 
-    return new Promise<void>(async (resolve, reject) => {
-      const abortHandler = () => {
-        this.log.warn('abort transport connection', this.logContext);
-        CriticalTimers.clearTimeout(connectTimeout);
+    return ResultAsync.fromPromise(
+      new Promise<void>(async (resolve, reject) => {
+        const abortHandler = () => {
+          this.log.warn('abort transport connection', this.logContext);
+          CriticalTimers.clearTimeout(connectTimeout);
 
-        reject(ConnectionError.cancelled('room connection has been cancelled'));
-      };
-      if (abortController?.signal.aborted) {
-        abortHandler();
-      }
-      abortController?.signal.addEventListener('abort', abortHandler);
-
-      const connectTimeout = CriticalTimers.setTimeout(() => {
-        abortController?.signal.removeEventListener('abort', abortHandler);
-        reject(ConnectionError.internal('could not establish pc connection'));
-      }, timeout);
-
-      while (this.state !== PCTransportState.CONNECTED) {
-        await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
-        if (abortController?.signal.aborted) {
           reject(ConnectionError.cancelled('room connection has been cancelled'));
-          return;
+        };
+        if (abortController?.signal.aborted) {
+          abortHandler();
         }
-      }
-      CriticalTimers.clearTimeout(connectTimeout);
-      abortController?.signal.removeEventListener('abort', abortHandler);
-      resolve();
-    });
+        abortController?.signal.addEventListener('abort', abortHandler);
+
+        const connectTimeout = CriticalTimers.setTimeout(() => {
+          abortController?.signal.removeEventListener('abort', abortHandler);
+          reject(ConnectionError.internal('could not establish pc connection'));
+        }, timeout);
+
+        while (this.state !== PCTransportState.CONNECTED) {
+          await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
+          if (abortController?.signal.aborted) {
+            reject(ConnectionError.cancelled('room connection has been cancelled'));
+            return;
+          }
+        }
+        CriticalTimers.clearTimeout(connectTimeout);
+        abortController?.signal.removeEventListener('abort', abortHandler);
+        resolve();
+      }),
+      (e: unknown) => e as ConnectionError,
+    );
   }
 }

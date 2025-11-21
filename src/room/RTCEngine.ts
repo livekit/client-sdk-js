@@ -1119,7 +1119,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       self.client.setReconnected();
       self.emit(EngineEvent.SignalRestarted, joinResult.value);
 
-      await self.waitForPCReconnected();
+      yield* await self.waitForPCReconnected();
 
       // re-check signal connection state before setting engine as resumed
       if (self.client.currentState !== SignalConnectionState.CONNECTED) {
@@ -1150,7 +1150,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private async resumeConnection(
     reason?: ReconnectReason,
-  ): Promise<Result<void, SignalReconnectError>> {
+  ): Promise<Result<void, SignalReconnectError | UnexpectedConnectionState>> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       return errAsync(new UnexpectedConnectionState('could not reconnect, url or token not saved'));
@@ -1172,7 +1172,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     );
 
     if (reconnectResult.isErr()) {
-      return err(reconnectResult.error);
+      return err(
+        new SignalReconnectError(
+          `${reconnectResult.error.reasonName}: ${reconnectResult.error.message}`,
+        ),
+      );
     }
 
     this.emit(EngineEvent.SignalResumed);
@@ -1224,24 +1228,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    return this.pcManager.ensurePCTransportConnection(abortController, timeout);
   }
 
-  private async waitForPCReconnected() {
+  private async waitForPCReconnected(): Promise<
+    Result<void, UnexpectedConnectionState | ConnectionError>
+  > {
     this.pcState = PCState.Reconnecting;
 
     this.log.debug('waiting for peer connection to reconnect', this.logContext);
     try {
       await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
       if (!this.pcManager) {
-        throw new UnexpectedConnectionState('PC manager is closed');
+        return err(new UnexpectedConnectionState('PC manager is closed'));
       }
-      await this.pcManager.ensurePCTransportConnection(undefined, this.peerConnectionTimeout);
+      const res = await this.pcManager.ensurePCTransportConnection(
+        undefined,
+        this.peerConnectionTimeout,
+      );
       this.pcState = PCState.Connected;
+      return res;
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
       this.pcState = PCState.Disconnected;
-      throw ConnectionError.internal(`could not establish PC connection: ${e.message}`);
+      return err(ConnectionError.internal(`could not establish PC connection: ${e.message}`));
     }
   }
 
