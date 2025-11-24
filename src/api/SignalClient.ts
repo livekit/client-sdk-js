@@ -355,11 +355,11 @@ export class SignalClient {
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
-          this.ws.closed
-            .then((closeInfo) => {
+          this.ws.closed.match(
+            (closeInfo) => {
               if (this.isEstablishingConnection) {
                 reject(
-                  ConnectionError.internal(
+                  ConnectionError.websocket(
                     `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
                   ),
                 );
@@ -377,21 +377,24 @@ export class SignalClient {
                 }
               }
               return;
-            })
-            .catch((reason) => {
+            },
+            (reason) => {
               if (this.isEstablishingConnection) {
                 reject(
-                  ConnectionError.internal(
-                    `Websocket error during a (re)connection attempt: ${reason}`,
+                  ConnectionError.websocket(
+                    `Websocket error during a (re)connection attempt: ${reason.message}`,
                   ),
                 );
               }
-            });
-          const connection = await this.ws.opened.catch(async (reason: unknown) => {
+            },
+          );
+          const openResult = await this.ws.opened;
+          if (openResult.isErr()) {
+            const reason = openResult.error;
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
               clearTimeout(wsTimeout);
-              const error = await this.handleConnectionError(reason, validateUrl);
+              const error = await this.handleConnectionError(reason.message, validateUrl);
               reject(error);
               return;
             }
@@ -399,11 +402,10 @@ export class SignalClient {
             this.handleWSError(reason);
             reject(reason);
             return;
-          });
-          clearTimeout(wsTimeout);
-          if (!connection) {
-            return;
           }
+          clearTimeout(wsTimeout);
+          const connection = openResult.value;
+
           const signalReader = connection.readable.getReader();
           this.streamWriter = connection.writable.getWriter();
           const firstMessage = await signalReader.read();
