@@ -394,7 +394,7 @@ export class SignalClient {
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
               clearTimeout(wsTimeout);
-              const error = await this.handleConnectionError(reason.message, validateUrl);
+              const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
               return;
             }
