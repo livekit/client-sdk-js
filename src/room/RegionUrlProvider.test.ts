@@ -180,8 +180,9 @@ describe('RegionUrlProvider', () => {
       const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
       fetchMock.mockResolvedValue(createMockResponse(401));
 
-      await expect(provider.fetchRegionSettings()).rejects.toThrow(ConnectionError);
-      await expect(provider.fetchRegionSettings()).rejects.toMatchObject({
+      const error = await provider.fetchRegionSettings().catch((e) => e);
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error).toMatchObject({
         reason: ConnectionErrorReason.NotAllowed,
         status: 401,
       });
@@ -191,11 +192,9 @@ describe('RegionUrlProvider', () => {
       const provider = new RegionUrlProvider('wss://test.livekit.cloud', 'token');
       fetchMock.mockResolvedValue(createMockResponse(500));
 
-      await expect(provider.fetchRegionSettings()).rejects.toThrow(ConnectionError);
-      await expect(provider.fetchRegionSettings()).rejects.toMatchObject({
-        reason: ConnectionErrorReason.InternalError,
-        status: 500,
-      });
+      const error = await provider.fetchRegionSettings().catch((e) => e);
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.reason).toBe(ConnectionErrorReason.InternalError);
     });
 
     it('extracts max-age from Cache-Control header', async () => {
@@ -725,7 +724,7 @@ describe('RegionUrlProvider', () => {
 
       expect(error).toBeInstanceOf(ConnectionError);
       expect(error.reason).toBe(ConnectionErrorReason.ServerUnreachable);
-      expect(error.status).toBe(500);
+      expect(error.status).toBe(undefined);
       expect(error.message).toContain('Failed to fetch');
     });
 
