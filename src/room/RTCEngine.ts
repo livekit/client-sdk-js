@@ -62,6 +62,7 @@ import {
   ConnectionError,
   ConnectionErrorReason,
   NegotiationError,
+  SignalReconnectError,
   TrackInvalidError,
   UnexpectedConnectionState,
 } from './errors';
@@ -1737,8 +1738,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 }
-
-class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
   connected: (joinResp: JoinResponse) => void;
