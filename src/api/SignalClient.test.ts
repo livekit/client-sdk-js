@@ -1,4 +1,5 @@
 import {
+  DisconnectReason,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
@@ -177,9 +178,12 @@ describe('SignalClient.connect', () => {
         websocketTimeout: 100,
       };
 
-      await expect(
-        signalClient.join('wss://test.livekit.io', 'test-token', shortTimeoutOptions),
-      ).rejects.toThrow(ConnectionError);
+      const error = await signalClient
+        .join('wss://test.livekit.io', 'test-token', shortTimeoutOptions)
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ConnectionError);
+      expect(error.reason).toBe(ConnectionErrorReason.Cancelled);
     });
   });
 
@@ -333,11 +337,7 @@ describe('SignalClient.connect', () => {
     });
 
     it('should handle ConnectionError from WebSocket rejection', async () => {
-      const customError = new ConnectionError(
-        'Custom error',
-        ConnectionErrorReason.InternalError,
-        500,
-      );
+      const customError = ConnectionError.internal('Custom error', { status: 500 });
 
       mockWebSocketStream({
         opened: Promise.reject(customError),
@@ -393,11 +393,9 @@ describe('SignalClient.connect', () => {
       await expect(
         signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
       ).rejects.toMatchObject(
-        new ConnectionError(
+        ConnectionError.leaveRequest(
           'Received leave request while trying to (re)connect',
-          ConnectionErrorReason.LeaveRequest,
-          undefined,
-          1,
+          DisconnectReason.CLIENT_INITIATED,
         ),
       );
     });
@@ -700,11 +698,7 @@ describe('SignalClient.handleConnectionError', () => {
   });
 
   it('should return ConnectionError as-is if it is already a ConnectionError', async () => {
-    const connectionError = new ConnectionError(
-      'Custom error',
-      ConnectionErrorReason.InternalError,
-      500,
-    );
+    const connectionError = ConnectionError.internal('Custom error');
 
     (global.fetch as any).mockResolvedValueOnce({
       status: 500,
@@ -737,7 +731,6 @@ describe('SignalClient.handleConnectionError', () => {
 
       expect(result).toBeInstanceOf(ConnectionError);
       expect(result.reason).toBe(ConnectionErrorReason.InternalError);
-      expect(result.status).toBe(500);
     }
   });
 
@@ -755,7 +748,7 @@ describe('SignalClient.handleConnectionError', () => {
   });
 
   it('should handle fetch throwing ConnectionError', async () => {
-    const fetchError = new ConnectionError('Fetch failed', ConnectionErrorReason.ServerUnreachable);
+    const fetchError = ConnectionError.serverUnreachable('Fetch failed');
     (global.fetch as any).mockRejectedValueOnce(fetchError);
 
     const handleMethod = (signalClient as any).handleConnectionError;
