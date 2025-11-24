@@ -153,14 +153,6 @@ export class ConnectionError<
   }
 }
 
-export class SignalReconnectError extends LivekitError {
-  readonly name = 'SignalReconnectError';
-
-  constructor(message?: string) {
-    super(12, message);
-  }
-}
-
 export class DeviceUnsupportedError extends LivekitError {
   readonly name = 'DeviceUnsupportedError';
 
@@ -273,6 +265,14 @@ export class DataStreamError extends LivekitError {
     super(16, message);
     this.reason = reason;
     this.reasonName = DataStreamErrorReason[reason];
+  }
+}
+
+export class SignalReconnectError extends LivekitError {
+  readonly name = 'SignalReconnectError';
+
+  constructor(message?: string) {
+    super(18, message);
   }
 }
 
