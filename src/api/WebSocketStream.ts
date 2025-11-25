@@ -56,6 +56,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
       ws.close(code, reason);
 
     this.opened = R.try({
+      immediate: true,
       try: () =>
         new Promise<WebSocketConnection<T>>((resolve, r) => {
           const reject = (err: WebSocketError) => r(err);
@@ -111,9 +112,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           ws.addEventListener('close', onCloseDuringOpen, { once: true });
         }),
       catch: (error) => error as WebSocketError,
-    })();
+    });
 
     this.closed = R.try({
+      immediate: true,
       try: () =>
         new Promise<WebSocketCloseInfo>((resolve, r) => {
           const reject = (err: WebSocketError) => r(err);
@@ -156,7 +158,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           ws.addEventListener('error', errorHandler);
         }),
       catch: (error) => error as WebSocketError,
-    })();
+    });
 
     if (options.signal) {
       options.signal.onabort = () => ws.close(undefined, 'AbortSignal triggered');
