@@ -44,13 +44,19 @@ import {
   WrappedJoinRequest,
   protoInt64,
 } from '@livekit/protocol';
+import { R } from '@praha/byethrow';
 import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
+import {
+  type WebSocketCloseInfo,
+  type WebSocketConnection,
+  type WebSocketError,
+  WebSocketStream,
+} from './WebSocketStream';
 import {
   createRtcUrl,
   createValidateUrl,
@@ -359,42 +365,48 @@ export class SignalClient {
           // abortHandler() calls reject we simply return here
           return;
         }
-        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+
+        const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+        this.ws = ws;
+
+        const handleWebSocketClose = (
+          closeInfo: WebSocketCloseInfo,
+        ): R.Result<void, WebSocketError> => {
+          if (
+            // we only continue here if the current ws connection is still the same, we don't care about closing of older ws connections that have been replaced
+            ws !== this.ws
+          ) {
+            return R.succeed();
+          }
+          if (closeInfo.closeCode !== 1000) {
+            this.log.warn(`websocket closed`, {
+              ...this.logContext,
+              reason: closeInfo.reason,
+              code: closeInfo.closeCode,
+              wasClean: closeInfo.closeCode === 1000,
+              state: this.state,
+            });
+          }
+          if (this.isEstablishingConnection) {
+            return R.fail(
+              ConnectionError.websocket(
+                `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+              ),
+            );
+          } else if (this.state === SignalConnectionState.CONNECTED) {
+            this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
+          }
+          return R.succeed();
+        };
 
         try {
-          this.ws.closed.match(
-            (closeInfo) => {
-              if (closeInfo.closeCode !== 1000) {
-                this.log.warn(`websocket closed`, {
-                  ...this.logContext,
-                  reason: closeInfo.reason,
-                  code: closeInfo.closeCode,
-                  wasClean: closeInfo.closeCode === 1000,
-                  state: this.state,
-                });
-              }
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.websocket(
-                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
-                  ),
-                );
-              } else if (this.state === SignalConnectionState.CONNECTED) {
-                this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
-              }
-            },
-            (reason) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.websocket(
-                    `Websocket error during a (re)connection attempt: ${reason.message}`,
-                  ),
-                );
-              }
-            },
+          R.pipe(
+            ws.closed,
+            R.andThen(handleWebSocketClose),
+            R.inspectError((e) => reject(e)),
           );
           const openResult = await this.ws.opened;
-          if (openResult.isErr()) {
+          if (R.isFailure(openResult)) {
             const reason = openResult.error;
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
