@@ -300,6 +300,9 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
         let alreadyAborted = false;
+        if (abortSignal?.aborted) {
+          reject(ConnectionError.cancelled('join aborted before connection attempt'));
+        }
         const abortHandler = async (eventOrError: Event | Error) => {
           if (alreadyAborted) {
             return;
@@ -351,6 +354,10 @@ export class SignalClient {
         });
         if (this.ws) {
           await this.close(false);
+        }
+        if (abortSignal?.aborted) {
+          // abortHandler() calls reject we simply return here
+          return;
         }
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
