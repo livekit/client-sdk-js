@@ -340,7 +340,6 @@ export class SignalClient {
           connection: WebSocketConnection,
           firstMessage?: SignalResponse,
         ) => {
-          console.warn('signal back connected');
           this.handleSignalConnected(connection, wsTimeout, firstMessage);
         };
 
