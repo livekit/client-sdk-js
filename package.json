@@ -57,10 +57,10 @@
   "dependencies": {
     "@livekit/mutex": "1.1.1",
     "@livekit/protocol": "1.42.2",
+    "@praha/byethrow": "^0.8.1",
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
-    "neverthrow": "^8.2.0",
     "sdp-transform": "^2.15.0",
     "ts-debounce": "^4.0.0",
     "tslib": "2.8.1",

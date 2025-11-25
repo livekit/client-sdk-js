@@ -14,6 +14,9 @@ importers:
       '@livekit/protocol':
         specifier: 1.42.2
         version: 1.42.2
+      '@praha/byethrow':
+        specifier: ^0.8.1
+        version: 0.8.1(typescript@5.8.3)
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
@@ -26,9 +29,6 @@ importers:
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
-      neverthrow:
-        specifier: ^8.2.0
-        version: 8.2.0
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
@@ -1133,6 +1133,11 @@ packages:
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
+  '@praha/byethrow@0.8.1':
+    resolution: {integrity: sha512-THvagF+Fq43PV6NMkPjNt9aN1fP8LZdKBqNNHvdFmIv2oi2gy3ryU6HYTQqOT5LHsbD7Ih2qySvsW5gGPgGoCA==}
+    peerDependencies:
+      typescript: '>=5.0.0'
+
   '@rollup/plugin-babel@6.1.0':
     resolution: {integrity: sha512-dFZNuFD2YRcoomP4oYf+DvQNSUA9ih+A3vUqopQx5EdtPGo3WBnQcI/S8pwpz91UsGfL0HsMSOlaMld8HrbubA==}
     engines: {node: '>=14.0.0'}
@@ -1334,6 +1339,9 @@ packages:
     engines: {node: ^18.0.0 || >=20.0.0}
     peerDependencies:
       size-limit: 11.2.0
+
+  '@standard-schema/spec@1.0.0':
+    resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
 
   '@stylistic/eslint-plugin@3.1.0':
     resolution: {integrity: sha512-pA6VOrOqk0+S8toJYhQGv2MWpQQR0QpeUo9AhNkC49Y26nxBQ/nH1rta9bUU1rPw2fJ1zZEMV5oCX5AazT7J2g==}
@@ -2995,10 +3003,6 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  neverthrow@8.2.0:
-    resolution: {integrity: sha512-kOCT/1MCPAxY5iUV3wytNFUMUolzuwd/VF/1KCx7kf6CutrOsTie+84zTGTpgQycjvfLdBBdvBvFLqFD2c0wkQ==}
-    engines: {node: '>=18'}
-
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
     engines: {node: 4.x || >=6.0.0}
@@ -3641,8 +3645,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251124:
-    resolution: {integrity: sha512-3dp4cPGjA35NMKhzreQI41rYQTiLFWUjIoWCBAp/r27Ccf6HLZwniD0f3KSgruR6hhzb+2m5yrEn0RP7IaK1Bg==}
+  typescript@6.0.0-dev.20251125:
+    resolution: {integrity: sha512-9Z3Gc/FwO/swCqfmqvha4UkUVlEkBf1lu0u0ELR4TynnXV1lWHc9iomNPfNLzclcKK6xJS9fOgiNi3p8L5imUw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5069,6 +5073,11 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
+  '@praha/byethrow@0.8.1(typescript@5.8.3)':
+    dependencies:
+      '@standard-schema/spec': 1.0.0
+      typescript: 5.8.3
+
   '@rollup/plugin-babel@6.1.0(@babel/core@7.28.5)(rollup@4.53.2)':
     dependencies:
       '@babel/core': 7.28.5
@@ -5231,6 +5240,8 @@ snapshots:
       - esbuild
       - uglify-js
       - webpack-cli
+
+  '@standard-schema/spec@1.0.0': {}
 
   '@stylistic/eslint-plugin@3.1.0(eslint@9.39.1(jiti@2.4.2))(typescript@5.8.3)':
     dependencies:
@@ -6040,7 +6051,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20251124
+      typescript: 6.0.0-dev.20251125
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7110,10 +7121,6 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  neverthrow@8.2.0:
-    optionalDependencies:
-      '@rollup/rollup-linux-x64-gnu': 4.53.2
-
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
@@ -7815,7 +7822,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20251124: {}
+  typescript@6.0.0-dev.20251125: {}
 
   uc.micro@2.1.0: {}
 
