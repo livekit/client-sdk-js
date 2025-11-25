@@ -6,7 +6,7 @@ import {
   SignalRequest,
   SignalResponse,
 } from '@livekit/protocol';
-import { ResultAsync } from 'neverthrow';
+import { R } from '@praha/byethrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import { SignalClient, SignalConnectionState } from './SignalClient';
@@ -59,27 +59,33 @@ function createMockConnection(readable: ReadableStream<ArrayBuffer>): WebSocketC
 
 interface MockWebSocketStreamOptions {
   connection?: WebSocketConnection;
-  opened?: ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketError>;
-  closed?: ResultAsync<WebSocketCloseInfo, WebSocketError>;
+  opened?: R.ResultAsync<WebSocketConnection<ArrayBuffer>, WebSocketError>;
+  closed?: R.ResultAsync<WebSocketCloseInfo, WebSocketError>;
   readyState?: number;
 }
 
 function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
   const {
     connection,
-    // eslint-disable-next-line neverthrow-must-use/must-use-result
+
     opened = connection
-      ? ResultAsync.fromPromise(Promise.resolve(connection), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        }))
-      : // eslint-disable-next-line neverthrow-must-use/must-use-result
-        ResultAsync.fromPromise(new Promise(() => {}), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        })),
-    // eslint-disable-next-line neverthrow-must-use/must-use-result
-    closed = ResultAsync.fromPromise(new Promise(() => {}), (error) => error as WebSocketError),
+      ? R.try({
+          immediate: true,
+          try: () => Promise.resolve(connection),
+          catch: (error) => ({
+            type: 'connection' as const,
+            error: error as Event,
+          }),
+        })
+      : R.try({
+          immediate: true,
+          try: () => new Promise(() => {}),
+          catch: (error) => ({
+            type: 'connection' as const,
+            error: error as Event,
+          }),
+        }),
+    closed = R.try({ immediate: true, try: () => new Promise(() => {}), catch: (error) => error }),
     readyState = 1,
   } = options;
 
@@ -209,8 +215,16 @@ describe('SignalClient.connect', () => {
 
         return {
           url: 'wss://test.livekit.io',
-          opened: ResultAsync.fromPromise(new Promise(() => {}), (e) => e as WebSocketError), // Never resolves
-          closed: ResultAsync.fromPromise(new Promise(() => {}), (e) => e as WebSocketError),
+          opened: R.try({
+            immediate: true,
+            try: () => new Promise(() => {}),
+            catch: (e) => e as WebSocketError,
+          }), // Never resolves
+          closed: R.try({
+            immediate: true,
+            try: () => new Promise(() => {}),
+            catch: (e) => e as WebSocketError,
+          }),
           close: vi.fn(),
           readyState: 0,
         } as any;
@@ -265,16 +279,19 @@ describe('SignalClient.connect', () => {
       };
 
       vi.mocked(WebSocketStream).mockImplementation(() => {
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const opened = ResultAsync.fromPromise(Promise.resolve(mockConnection), (error) => ({
-          type: 'connection' as const,
-          error: error as Event,
-        }));
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const closed = ResultAsync.fromPromise(
-          new Promise(() => {}),
-          (error) => error as WebSocketError,
-        );
+        const opened = R.try({
+          immediate: true,
+          try: () => Promise.resolve(mockConnection),
+          catch: (error) => ({
+            type: 'connection' as const,
+            error: error as Event,
+          }),
+        });
+        const closed = R.try({
+          immediate: true,
+          try: () => new Promise(() => {}),
+          catch: (error) => error as WebSocketError,
+        });
         return {
           url: 'wss://test.livekit.io',
           opened,
@@ -323,10 +340,11 @@ describe('SignalClient.connect', () => {
   describe('Failure Case - WebSocket Connection Errors', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
       mockWebSocketStream({
-        opened: ResultAsync.fromPromise(
-          Promise.reject(new Error('Connection failed')),
-          (e) => e as WebSocketError,
-        ),
+        opened: R.try({
+          immediate: true,
+          try: () => Promise.reject(new Error('Connection failed')),
+          catch: (e) => e as WebSocketError,
+        }),
         readyState: 3,
       });
 
@@ -347,10 +365,11 @@ describe('SignalClient.connect', () => {
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
       mockWebSocketStream({
-        opened: ResultAsync.fromPromise(
-          Promise.reject(new Error('Connection failed')),
-          (e) => e as WebSocketError,
-        ),
+        opened: R.try({
+          immediate: true,
+          try: () => Promise.reject(new Error('Connection failed')),
+          catch: (e) => e as WebSocketError,
+        }),
         readyState: 3,
       });
 
@@ -368,7 +387,11 @@ describe('SignalClient.connect', () => {
       const customError = ConnectionError.websocket('Custom error');
 
       mockWebSocketStream({
-        opened: ResultAsync.fromPromise(Promise.reject(customError), (e) => e as WebSocketError),
+        opened: R.try({
+          immediate: true,
+          try: () => Promise.reject(customError),
+          catch: (e) => e as WebSocketError,
+        }),
         readyState: 3,
       });
 
@@ -465,12 +488,19 @@ describe('SignalClient.connect', () => {
           closedResolve({ closeCode: 1006, reason: 'Connection lost' });
         });
 
-        // eslint-disable-next-line neverthrow-must-use/must-use-result
-        const closed = ResultAsync.fromPromise(closedPromise, (e) => e as WebSocketError);
+        const closed = R.try({
+          immediate: true,
+          try: () => closedPromise,
+          catch: (e) => e as WebSocketError,
+        });
 
         return {
           url: 'wss://test.livekit.io',
-          opened: ResultAsync.fromPromise(new Promise(() => {}), (e) => e as WebSocketError), // Never resolves
+          opened: R.try({
+            immediate: true,
+            try: () => new Promise(() => {}),
+            catch: (e) => e as WebSocketError,
+          }), // Never resolves
           closed: closed,
           close: vi.fn(),
           readyState: 2, // CLOSING

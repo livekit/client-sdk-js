@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { R } from '@praha/byethrow';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionErrorReason } from '../room/errors';
 import { WebSocketStream } from './WebSocketStream';
@@ -126,8 +127,8 @@ vi.mock('../room/utils', () => ({
 // Helper function to unwrap Result from opened promise
 async function getConnectionOrFail(wsStream: WebSocketStream) {
   const result = await wsStream.opened;
-  expect(result.isOk()).toBe(true);
-  if (!result.isOk()) {
+  expect(R.isSuccess(result)).toBe(true);
+  if (!R.isSuccess(result)) {
     throw new Error('Failed to open connection');
   }
   return result.value;
@@ -214,8 +215,8 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerOpen();
       const result = await wsStream.opened;
 
-      expect(result.isOk()).toBe(true);
-      if (result.isOk()) {
+      expect(R.isSuccess(result)).toBe(true);
+      if (R.isSuccess(result)) {
         const connection = result.value;
         expect(connection.readable).toBeInstanceOf(ReadableStream);
         expect(connection.writable).toBeInstanceOf(WritableStream);
@@ -231,8 +232,8 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerError();
 
       const result = await wsStream.opened;
-      expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
+      expect(R.isFailure(result)).toBe(true);
+      if (R.isFailure(result)) {
         expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
       }
     });
@@ -248,8 +249,8 @@ describe('WebSocketStream', () => {
 
       const result = await wsStream.closed;
 
-      expect(result.isOk()).toBe(true);
-      if (result.isOk()) {
+      expect(R.isSuccess(result)).toBe(true);
+      if (R.isSuccess(result)) {
         expect(result.value.closeCode).toBe(1001);
         expect(result.value.reason).toBe('Going away');
       }
@@ -265,8 +266,8 @@ describe('WebSocketStream', () => {
 
       const result = await wsStream.closed;
 
-      expect(result.isOk()).toBe(true);
-      if (result.isOk()) {
+      expect(R.isSuccess(result)).toBe(true);
+      if (R.isSuccess(result)) {
         expect(result.value.closeCode).toBe(1006);
         expect(result.value.reason).toBe('Connection failed');
       }
@@ -282,8 +283,8 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerError();
 
       const result = await wsStream.closed;
-      expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
+      expect(R.isFailure(result)).toBe(true);
+      if (R.isFailure(result)) {
         expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
         expect(result.error.message).toBe(
           'Encountered unspecified websocket error without a timely close event',
@@ -298,8 +299,8 @@ describe('WebSocketStream', () => {
 
       mockWebSocket.triggerOpen();
       const result = await wsStream.opened;
-      expect(result.isOk()).toBe(true);
-      if (!result.isOk()) return;
+      expect(R.isSuccess(result)).toBe(true);
+      if (!R.isSuccess(result)) return;
 
       const connection = result.value;
       const reader = connection.readable.getReader();
@@ -333,7 +334,7 @@ describe('WebSocketStream', () => {
 
       const closedResult = await wsStream.closed;
       await expect(reader.read()).rejects.toBeDefined();
-      expect(closedResult.isErr()).toBe(true);
+      expect(R.isFailure(closedResult)).toBe(true);
     });
 
     it('should close WebSocket with custom close info when cancelled', async () => {
@@ -596,7 +597,7 @@ describe('WebSocketStream', () => {
 
       const closedResult = await wsStream.closed;
       await expect(readPromise).rejects.toBeDefined();
-      expect(closedResult.isErr()).toBe(true);
+      expect(R.isFailure(closedResult)).toBe(true);
     });
 
     it('should support zero-length and empty messages', async () => {
