@@ -340,6 +340,7 @@ export class SignalClient {
           connection: WebSocketConnection,
           firstMessage?: SignalResponse,
         ) => {
+          console.warn('signal back connected');
           this.handleSignalConnected(connection, wsTimeout, firstMessage);
         };
 
@@ -364,13 +365,6 @@ export class SignalClient {
         try {
           this.ws.closed.match(
             (closeInfo) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.websocket(
-                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
-                  ),
-                );
-              }
               if (closeInfo.closeCode !== 1000) {
                 this.log.warn(`websocket closed`, {
                   ...this.logContext,
@@ -379,11 +373,16 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: this.state,
                 });
-                if (this.state === SignalConnectionState.CONNECTED) {
-                  this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
-                }
               }
-              return;
+              if (this.isEstablishingConnection) {
+                reject(
+                  ConnectionError.websocket(
+                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+                  ),
+                );
+              } else if (this.state === SignalConnectionState.CONNECTED) {
+                this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
+              }
             },
             (reason) => {
               if (this.isEstablishingConnection) {
