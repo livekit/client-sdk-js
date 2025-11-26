@@ -937,7 +937,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.addEventListener('beforeunload', this.onPageLeave);
     }
     if (isWeb()) {
-      document.addEventListener('freeze', this.onPageLeave);
+      window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
