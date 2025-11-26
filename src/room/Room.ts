@@ -2503,10 +2503,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (
-                window.isSecureContext && window.navigator.mediaDevices
-                  ? await window.navigator.mediaDevices.getUserMedia({ video: true })
-                  : new MediaStream()
+            ? (window.isSecureContext && window.navigator.mediaDevices
+                ? await window.navigator.mediaDevices.getUserMedia({ video: true })
+                : new MediaStream()
               ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * (participantOptions.aspectRatios[0] ?? 1),
@@ -2534,10 +2533,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalAudioTrack(
           publishOptions.useRealTracks
-            ? (
-                window.isSecureContext && navigator.mediaDevices
-                  ? await navigator.mediaDevices.getUserMedia({ audio: true })
-                  : new MediaStream()
+            ? (window.isSecureContext && navigator.mediaDevices
+                ? await navigator.mediaDevices.getUserMedia({ audio: true })
+                : new MediaStream()
               ).getAudioTracks()[0]
             : getEmptyAudioStreamTrack(),
           undefined,
