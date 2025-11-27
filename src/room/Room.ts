@@ -276,11 +276,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const abortController = new AbortController();
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
-      if (window.isSecureContext && navigator.mediaDevices?.addEventListener) {
-        navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange, {
-          signal: abortController.signal,
-        });
-      }
+      navigator.mediaDevices?.addEventListener?.('devicechange', this.handleDeviceChange, {
+        signal: abortController.signal,
+      });
 
       if (Room.cleanupRegistry) {
         Room.cleanupRegistry.register(this, () => {
@@ -1617,9 +1615,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
         window.removeEventListener('freeze', this.onPageLeave);
-        if (window.isSecureContext && navigator.mediaDevices?.removeEventListener) {
-          navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
-        }
+        navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange);
       }
     } finally {
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
@@ -2503,9 +2499,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (window.isSecureContext && window.navigator.mediaDevices
-                ? await window.navigator.mediaDevices.getUserMedia({ video: true })
-                : new MediaStream()
+            ? (await window.navigator.mediaDevices?.getUserMedia?.({ video: true }) ?? new MediaStream()
               ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * (participantOptions.aspectRatios[0] ?? 1),
@@ -2533,9 +2527,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalAudioTrack(
           publishOptions.useRealTracks
-            ? (window.isSecureContext && navigator.mediaDevices
-                ? await navigator.mediaDevices.getUserMedia({ audio: true })
-                : new MediaStream()
+            ? (await navigator.mediaDevices?.getUserMedia?.({ audio: true }) ?? new MediaStream()
               ).getAudioTracks()[0]
             : getEmptyAudioStreamTrack(),
           undefined,
