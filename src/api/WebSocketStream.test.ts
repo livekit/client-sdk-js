@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConnectionErrorReason } from '../room/errors';
 import { WebSocketStream } from './WebSocketStream';
 
 // Mock WebSocket
@@ -122,6 +123,16 @@ vi.mock('../room/utils', () => ({
   sleep: vi.fn((duration: number) => new Promise((resolve) => setTimeout(resolve, duration))),
 }));
 
+// Helper function to unwrap Result from opened promise
+async function getConnectionOrFail(wsStream: WebSocketStream) {
+  const result = await wsStream.opened;
+  expect(result.isOk()).toBe(true);
+  if (!result.isOk()) {
+    throw new Error('Failed to open connection');
+  }
+  return result.value;
+}
+
 describe('WebSocketStream', () => {
   let mockWebSocket: MockWebSocket;
   let originalWebSocket: typeof WebSocket;
@@ -174,7 +185,7 @@ describe('WebSocketStream', () => {
         new WebSocketStream('wss://test.example.com', {
           signal: abortController.signal,
         });
-      }).toThrow('This operation was aborted');
+      }).toThrow('Aborted before WS was initialized');
     });
 
     it('should close when abort signal is triggered', () => {
@@ -201,21 +212,29 @@ describe('WebSocketStream', () => {
       const removeEventListenerSpy = vi.spyOn(mockWebSocket, 'removeEventListener');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const result = await wsStream.opened;
 
-      expect(connection.readable).toBeInstanceOf(ReadableStream);
-      expect(connection.writable).toBeInstanceOf(WritableStream);
-      expect(connection.protocol).toBe('test-protocol');
-      expect(connection.extensions).toBe('test-extension');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const connection = result.value;
+        expect(connection.readable).toBeInstanceOf(ReadableStream);
+        expect(connection.writable).toBeInstanceOf(WritableStream);
+        expect(connection.protocol).toBe('test-protocol');
+        expect(connection.extensions).toBe('test-extension');
+      }
       expect(removeEventListenerSpy).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
-    it('should reject when WebSocket errors before opening', async () => {
+    it('should return error Result when WebSocket errors before opening', async () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerError();
 
-      await expect(wsStream.opened).rejects.toThrow();
+      const result = await wsStream.opened;
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
+      }
     });
   });
 
@@ -227,10 +246,13 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerOpen();
       mockWebSocket.triggerClose(1001, 'Going away');
 
-      const closeInfo = await wsStream.closed;
+      const result = await wsStream.closed;
 
-      expect(closeInfo.closeCode).toBe(1001);
-      expect(closeInfo.reason).toBe('Going away');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.closeCode).toBe(1001);
+        expect(result.value.reason).toBe('Going away');
+      }
       expect(removeEventListenerSpy).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
@@ -241,13 +263,16 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerError();
       mockWebSocket.triggerClose(1006, 'Connection failed');
 
-      const closeInfo = await wsStream.closed;
+      const result = await wsStream.closed;
 
-      expect(closeInfo.closeCode).toBe(1006);
-      expect(closeInfo.reason).toBe('Connection failed');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.closeCode).toBe(1006);
+        expect(result.value.reason).toBe('Connection failed');
+      }
     });
 
-    it('should reject when error occurs without timely close event', async () => {
+    it('should return error Result when error occurs without timely close event', async () => {
       const { sleep } = await import('../room/utils');
       vi.mocked(sleep).mockResolvedValue(undefined);
 
@@ -256,9 +281,14 @@ describe('WebSocketStream', () => {
       mockWebSocket.triggerOpen();
       mockWebSocket.triggerError();
 
-      await expect(wsStream.closed).rejects.toThrow(
-        'Encountered unspecified websocket error without a timely close event',
-      );
+      const result = await wsStream.closed;
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.reason).toBe(ConnectionErrorReason.WebSocket);
+        expect(result.error.message).toBe(
+          'Encountered unspecified websocket error without a timely close event',
+        );
+      }
     });
   });
 
@@ -267,8 +297,11 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream<ArrayBuffer | string>('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const result = await wsStream.opened;
+      expect(result.isOk()).toBe(true);
+      if (!result.isOk()) return;
 
+      const connection = result.value;
       const reader = connection.readable.getReader();
 
       const message1 = new ArrayBuffer(8);
@@ -292,23 +325,22 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
 
       mockWebSocket.triggerError();
 
-      await Promise.all([
-        expect(reader.read()).rejects.toBeDefined(),
-        expect(wsStream.closed).rejects.toBeDefined(),
-      ]);
+      const closedResult = await wsStream.closed;
+      await expect(reader.read()).rejects.toBeDefined();
+      expect(closedResult.isErr()).toBe(true);
     });
 
     it('should close WebSocket with custom close info when cancelled', async () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
@@ -322,7 +354,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader1 = connection.readable.getReader();
 
@@ -337,7 +369,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream<ArrayBuffer | string>('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const writer = connection.writable.getWriter();
       const sendSpy = vi.spyOn(mockWebSocket, 'send');
@@ -362,7 +394,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const writer = connection.writable.getWriter();
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
@@ -376,7 +408,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const writer = connection.writable.getWriter();
 
@@ -418,7 +450,7 @@ describe('WebSocketStream', () => {
       });
 
       mockWebSocket.triggerOpen();
-      await wsStream.opened;
+      await getConnectionOrFail(wsStream);
 
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
 
@@ -433,7 +465,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
 
@@ -467,7 +499,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
       const writer = connection.writable.getWriter();
@@ -493,7 +525,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const sourceData = [new ArrayBuffer(8), new ArrayBuffer(16), new ArrayBuffer(32)];
       let dataIndex = 0;
@@ -524,7 +556,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const msg1 = new ArrayBuffer(8);
       const msg2 = new ArrayBuffer(16);
@@ -552,7 +584,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
 
@@ -562,17 +594,16 @@ describe('WebSocketStream', () => {
       // Trigger error while read is pending
       mockWebSocket.triggerError();
 
-      await Promise.all([
-        expect(readPromise).rejects.toBeDefined(),
-        expect(wsStream.closed).rejects.toBeDefined(),
-      ]);
+      const closedResult = await wsStream.closed;
+      await expect(readPromise).rejects.toBeDefined();
+      expect(closedResult.isErr()).toBe(true);
     });
 
     it('should support zero-length and empty messages', async () => {
       const wsStream = new WebSocketStream<ArrayBuffer | string>('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
       const writer = connection.writable.getWriter();
@@ -599,7 +630,7 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
 
       mockWebSocket.triggerOpen();
-      const connection = await wsStream.opened;
+      const connection = await getConnectionOrFail(wsStream);
 
       const reader = connection.readable.getReader();
 

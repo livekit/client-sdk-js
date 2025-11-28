@@ -300,6 +300,9 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
         let alreadyAborted = false;
+        if (abortSignal?.aborted) {
+          reject(ConnectionError.cancelled('join aborted before connection attempt'));
+        }
         const abortHandler = async (eventOrError: Event | Error) => {
           if (alreadyAborted) {
             return;
@@ -352,18 +355,15 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
+        if (abortSignal?.aborted) {
+          // abortHandler() calls reject we simply return here
+          return;
+        }
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
-          this.ws.closed
-            .then((closeInfo) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.internal(
-                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
-                  ),
-                );
-              }
+          this.ws.closed.match(
+            (closeInfo) => {
               if (closeInfo.closeCode !== 1000) {
                 this.log.warn(`websocket closed`, {
                   ...this.logContext,
@@ -372,22 +372,30 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: this.state,
                 });
-                if (this.state === SignalConnectionState.CONNECTED) {
-                  this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
-                }
               }
-              return;
-            })
-            .catch((reason) => {
               if (this.isEstablishingConnection) {
                 reject(
-                  ConnectionError.internal(
-                    `Websocket error during a (re)connection attempt: ${reason}`,
+                  ConnectionError.websocket(
+                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+                  ),
+                );
+              } else if (this.state === SignalConnectionState.CONNECTED) {
+                this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
+              }
+            },
+            (reason) => {
+              if (this.isEstablishingConnection) {
+                reject(
+                  ConnectionError.websocket(
+                    `Websocket error during a (re)connection attempt: ${reason.message}`,
                   ),
                 );
               }
-            });
-          const connection = await this.ws.opened.catch(async (reason: unknown) => {
+            },
+          );
+          const openResult = await this.ws.opened;
+          if (openResult.isErr()) {
+            const reason = openResult.error;
             if (this.state !== SignalConnectionState.CONNECTED) {
               this.state = SignalConnectionState.DISCONNECTED;
               clearTimeout(wsTimeout);
@@ -399,11 +407,10 @@ export class SignalClient {
             this.handleWSError(reason);
             reject(reason);
             return;
-          });
-          clearTimeout(wsTimeout);
-          if (!connection) {
-            return;
           }
+          clearTimeout(wsTimeout);
+          const connection = openResult.value;
+
           const signalReader = connection.readable.getReader();
           this.streamWriter = connection.writable.getWriter();
           const firstMessage = await signalReader.read();
