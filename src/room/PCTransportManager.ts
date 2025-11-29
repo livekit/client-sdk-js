@@ -1,9 +1,10 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
+import TypedPromise from '../utils/TypedPromise';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
-import { ConnectionError } from './errors';
+import { ConnectionError, NegotiationError } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
 import { sleep } from './utils';
@@ -220,14 +221,14 @@ export class PCTransportManager {
   }
 
   async negotiate(abortController: AbortController) {
-    return new Promise<void>(async (resolve, reject) => {
+    return new TypedPromise<void, NegotiationError | Error>(async (resolve, reject) => {
       const negotiationTimeout = setTimeout(() => {
-        reject('negotiation timed out');
+        reject(new NegotiationError('negotiation timed out'));
       }, this.peerConnectionTimeout);
 
       const abortHandler = () => {
         clearTimeout(negotiationTimeout);
-        reject('negotiation aborted');
+        reject(new NegotiationError('negotiation aborted'));
       };
 
       abortController.signal.addEventListener('abort', abortHandler);
@@ -243,7 +244,11 @@ export class PCTransportManager {
 
       await this.publisher.negotiate((e) => {
         clearTimeout(negotiationTimeout);
-        reject(e);
+        if (e instanceof Error) {
+          reject(e);
+        } else {
+          reject(new Error(String(e)));
+        }
       });
     });
   }
