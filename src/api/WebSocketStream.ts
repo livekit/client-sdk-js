@@ -90,7 +90,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
     this.closed = new TypedPromise<WebSocketCloseInfo, WebsocketError>((resolve, reject) => {
       const rejectHandler = async () => {
-        const closePromise = new Promise<CloseEvent>((res) => {
+        const closePromise = new TypedPromise<CloseEvent, never>((res) => {
           if (ws.readyState === WebSocket.CLOSED) return;
           else {
             ws.addEventListener(
@@ -102,7 +102,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
             );
           }
         });
-        const reason = await Promise.race([sleep(250), closePromise]);
+        const reason = await TypedPromise.race([sleep(250), closePromise]);
         if (!reason) {
           reject(
             ConnectionError.websocket(
