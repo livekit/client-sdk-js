@@ -24,6 +24,7 @@ import {
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
+import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
@@ -370,7 +371,7 @@ export default class LocalParticipant extends Participant {
     name?: string;
     attributes?: Record<string, string>;
   }) {
-    return new Promise<void>(async (resolve, reject) => {
+    return new TypedPromise<void, Error>(async (resolve, reject) => {
       try {
         let isRejected = false;
         const requestId = await this.engine.client.sendUpdateLocalMetadata(
@@ -406,8 +407,12 @@ export default class LocalParticipant extends Participant {
         reject(
           new SignalRequestError('Request to update local metadata timed out', 'TimeoutError'),
         );
-      } catch (e: any) {
-        if (e instanceof Error) reject(e);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          reject(e);
+        } else {
+          reject(new Error(String(e)));
+        }
       }
     });
   }
@@ -1583,7 +1588,7 @@ export default class LocalParticipant extends Participant {
     if (this.republishPromise) {
       await this.republishPromise;
     }
-    this.republishPromise = new Promise(async (resolve, reject) => {
+    this.republishPromise = new TypedPromise<void, Error>(async (resolve, reject) => {
       try {
         const localPubs: LocalTrackPublication[] = [];
         this.trackPublications.forEach((pub) => {
@@ -1619,8 +1624,12 @@ export default class LocalParticipant extends Participant {
           }),
         );
         resolve();
-      } catch (error: any) {
-        reject(error);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          reject(error);
+        } else {
+          reject(new Error(String(error)));
+        }
       } finally {
         this.republishPromise = undefined;
       }
@@ -1774,16 +1783,16 @@ export default class LocalParticipant extends Participant {
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-  async performRpc({
+  performRpc({
     destinationIdentity,
     method,
     payload,
     responseTimeout = 15000,
-  }: PerformRpcParams): Promise<string> {
+  }: PerformRpcParams): TypedPromise<string, RpcError> {
     const maxRoundTripLatency = 7000;
     const minEffectiveTimeout = maxRoundTripLatency + 1000;
 
-    return new Promise(async (resolve, reject) => {
+    return new TypedPromise<string, RpcError>(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
         reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
         return;
