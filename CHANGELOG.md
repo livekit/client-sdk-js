@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.16.1
+
+### Patch Changes
+
+- export type RoomEventCallbacks - [#1599](https://github.com/livekit/client-sdk-js/pull/1599) ([@shincurry](https://github.com/shincurry))
+
+- Tag errors by name - [#1764](https://github.com/livekit/client-sdk-js/pull/1764) ([@lukasIO](https://github.com/lukasIO))
+
+- Control latency of lossy data channel - [#1754](https://github.com/livekit/client-sdk-js/pull/1754) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Fix leaking memory by removing event listener from correct scope - [#1768](https://github.com/livekit/client-sdk-js/pull/1768) ([@wuhkuh](https://github.com/wuhkuh))
+
 ## 2.16.0
 
 ### Minor Changes
