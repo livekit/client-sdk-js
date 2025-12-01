@@ -354,9 +354,9 @@ await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: 
 #### TokenSource.Endpoint
 A configurable token source which makes a request to an endpoint to generate credentials. By
 default, a `POST` request with a `Content-Type: application/json` header is made, and the request
-body is expected to follow the [standard token format](https://github.com/livekit-examples/token-server-status/pull/33). If
+body is expected to follow the [standard token format](https://github.com/livekit-examples/token-server-node/blob/main/TEMPLATE.md#sandbox). If
 credentials generation is successful, the endpoint returns a 2xx status code with a body following
-the [standard token response format](https://github.com/livekit-examples/token-server-status/pull/33).
+the [standard token response format](https://github.com/livekit-examples/token-server-node/blob/main/TEMPLATE.md#sandbox).
 
 Example:
 ```ts
