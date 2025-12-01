@@ -313,7 +313,7 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 
 ### Generating a url/token with `TokenSource`
 
-A pre-implemented set of credentials fetching utilities. Once a `TokenSource` is constructed, call
+A TokenSource is a pre-implemented way of fetching credentials. Once a `TokenSource` is constructed, call
 `fetch` to generate a new set of credentials.
 
 There are two types of `TokenSource`'s - fixed and configurable. Configurable token sources can be
