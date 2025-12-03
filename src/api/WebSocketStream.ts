@@ -1,5 +1,7 @@
 // https://github.com/CarterLi/websocketstream-polyfill
+import { ConnectionError } from '../room/errors';
 import { sleep } from '../room/utils';
+import TypedPromise from '../utils/TypedPromise';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readable: ReadableStream<T>;
@@ -18,6 +20,8 @@ export interface WebSocketStreamOptions {
   signal?: AbortSignal;
 }
 
+type WebsocketError = ReturnType<typeof ConnectionError.websocket>;
+
 /**
  * [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) with [Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API)
  *
@@ -26,9 +30,9 @@ export interface WebSocketStreamOptions {
 export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readonly url: string;
 
-  readonly opened: Promise<WebSocketConnection<T>>;
+  readonly opened: TypedPromise<WebSocketConnection<T>, WebsocketError>;
 
-  readonly closed: Promise<WebSocketCloseInfo>;
+  readonly closed: TypedPromise<WebSocketCloseInfo, WebsocketError>;
 
   readonly close: (closeInfo?: WebSocketCloseInfo) => void;
 
@@ -52,7 +56,12 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
       ws.close(code, reason);
 
-    this.opened = new Promise((resolve, reject) => {
+    this.opened = new TypedPromise<WebSocketConnection<T>, WebsocketError>((resolve, reject) => {
+      const rejectHandler = () => {
+        reject(
+          ConnectionError.websocket('Encountered websocket error during connection establishment'),
+        );
+      };
       ws.onopen = () => {
         resolve({
           readable: new ReadableStream<T>({
@@ -74,14 +83,14 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           protocol: ws.protocol,
           extensions: ws.extensions,
         });
-        ws.removeEventListener('error', reject);
+        ws.removeEventListener('error', rejectHandler);
       };
-      ws.addEventListener('error', reject);
+      ws.addEventListener('error', rejectHandler);
     });
 
-    this.closed = new Promise<WebSocketCloseInfo>((resolve, reject) => {
+    this.closed = new TypedPromise<WebSocketCloseInfo, WebsocketError>((resolve, reject) => {
       const rejectHandler = async () => {
-        const closePromise = new Promise<CloseEvent>((res) => {
+        const closePromise = new TypedPromise<CloseEvent, never>((res) => {
           if (ws.readyState === WebSocket.CLOSED) return;
           else {
             ws.addEventListener(
@@ -93,9 +102,13 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
             );
           }
         });
-        const reason = await Promise.race([sleep(250), closePromise]);
+        const reason = await TypedPromise.race([sleep(250), closePromise]);
         if (!reason) {
-          reject(new Error('Encountered unspecified websocket error without a timely close event'));
+          reject(
+            ConnectionError.websocket(
+              'Encountered unspecified websocket error without a timely close event',
+            ),
+          );
         } else {
           // if we can infer the close reason from the close event then resolve the promise, we don't need to throw
           resolve(reason);
