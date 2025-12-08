@@ -245,9 +245,13 @@ class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
 }
 
 export {
+  /** The return type of {@link TokenSource.literal} */
   type TokenSourceLiteral,
+  /** The return type of {@link TokenSource.custom} */
   type TokenSourceCustom,
+  /** The return type of {@link TokenSource.endpoint} */
   type TokenSourceEndpoint,
+  /** The return type of {@link TokenSource.sandboxTokenServer} */
   type TokenSourceSandboxTokenServer,
   decodeTokenPayload,
   areTokenSourceFetchOptionsEqual,
