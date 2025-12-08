@@ -277,7 +277,7 @@ export const TokenSource = {
   /**
    * TokenSource.endpoint creates a token source that fetches credentials from a given URL using
    * the standard endpoint format:
-   * FIXME: add docs link here in the future!
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
    */
   endpoint(url: string, options: EndpointOptions = {}) {
     return new TokenSourceEndpoint(url, options);
