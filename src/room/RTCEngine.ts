@@ -51,6 +51,7 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
+import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -1378,12 +1379,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  waitForBufferStatusLow(kind: DataPacket_Kind): Promise<void> {
-    return new Promise(async (resolve, reject) => {
+  waitForBufferStatusLow(kind: DataPacket_Kind): TypedPromise<void, UnexpectedConnectionState> {
+    return new TypedPromise(async (resolve, reject) => {
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
-        const onClosing = () => reject('Engine closed');
+        const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
         while (!this.dcBufferStatus.get(kind)) {
           await sleep(10);
@@ -1480,7 +1481,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** @internal */
   async negotiate(): Promise<void> {
     // observe signal state
-    return new Promise<void>(async (resolve, reject) => {
+    return new TypedPromise<void, NegotiationError | Error>(async (resolve, reject) => {
       if (!this.pcManager) {
         reject(new NegotiationError('PC manager is closed'));
         return;
@@ -1506,7 +1507,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       };
 
       if (this.isClosed) {
-        reject('cannot negotiate on closed engine');
+        reject(new NegotiationError('cannot negotiate on closed engine'));
       }
       this.on(EngineEvent.Closing, handleClosed);
 
@@ -1527,12 +1528,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       try {
         await this.pcManager.negotiate(abortController);
         resolve();
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
         this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
-        reject(e);
+        if (e instanceof Error) {
+          reject(e);
+        } else {
+          reject(new Error(String(e)));
+        }
       } finally {
         this.off(EngineEvent.Closing, handleClosed);
       }
