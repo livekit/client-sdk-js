@@ -616,6 +616,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
       }
 
+      console.info(
+        `requirement for ${this.logContext.pID}, videos: ${requirement.numVideos}, audio: ${requirement.numAudios}`,
+      );
+
       this.negotiate();
     };
 
@@ -1479,6 +1483,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   async negotiate(): Promise<void> {
+    this.log.warn('negotiation started');
     // observe signal state
     return new Promise<void>(async (resolve, reject) => {
       if (!this.pcManager) {
