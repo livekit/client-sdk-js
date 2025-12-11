@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.16.1
+
+### Patch Changes
+
+- export type RoomEventCallbacks - [#1599](https://github.com/livekit/client-sdk-js/pull/1599) ([@shincurry](https://github.com/shincurry))
+
+- Remove experimental tag on some stabilized features - [#1777](https://github.com/livekit/client-sdk-js/pull/1777) ([@lukasIO](https://github.com/lukasIO))
+
+- Tag errors by name - [#1764](https://github.com/livekit/client-sdk-js/pull/1764) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix connection check issues with pinned regions - [#1775](https://github.com/livekit/client-sdk-js/pull/1775) ([@lukasIO](https://github.com/lukasIO))
+
+- Control latency of lossy data channel - [#1754](https://github.com/livekit/client-sdk-js/pull/1754) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Add docs comments making it clear TokenSource-prefixed exported types shouldn't be used for TokenSource construction - [#1776](https://github.com/livekit/client-sdk-js/pull/1776) ([@1egoman](https://github.com/1egoman))
+
+- Fix leaking memory by removing event listener from correct scope - [#1768](https://github.com/livekit/client-sdk-js/pull/1768) ([@wuhkuh](https://github.com/wuhkuh))
+
 ## 2.16.0
 
 ### Minor Changes
