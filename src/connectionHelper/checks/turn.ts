@@ -10,6 +10,7 @@ export class TURNCheck extends Checker {
 
   async perform(): Promise<void> {
     if (isCloud(new URL(this.url))) {
+      this.appendMessage('Using region specific url');
       this.url =
         (await new RegionUrlProvider(this.url, this.token).getNextBestRegionUrl()) ?? this.url;
     }
