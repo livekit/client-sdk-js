@@ -42,16 +42,16 @@ export class WebSocketCheck extends Checker {
           this.appendMessage(
             `Fallback to region worked. To avoid initial connections failing, ensure you're calling room.prepareConnection() ahead of time`,
           );
-          return;
         }
       }
-      this.appendError(`Websocket connection could not be established: ${e.message}`);
     }
     if (joinRes) {
       this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
       if (joinRes.serverInfo?.edition === ServerInfo_Edition.Cloud && joinRes.serverInfo?.region) {
         this.appendMessage(`LiveKit Cloud: ${joinRes.serverInfo?.region}`);
       }
+    } else {
+      this.appendError(`Websocket connection could not be established`);
     }
     await signalClient.close();
   }
