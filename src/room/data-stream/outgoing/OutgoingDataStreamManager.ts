@@ -93,7 +93,6 @@ export default class OutgoingDataStreamManager {
 
   /**
    * @internal
-   * @experimental CAUTION, might get removed in a minor release
    */
   async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
     const streamId = options?.streamId ?? crypto.randomUUID();

@@ -518,8 +518,6 @@ export default abstract class LocalTrack<
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   *
    * @param processor
    * @param showProcessedStreamLocally
    * @returns
@@ -592,8 +590,6 @@ export default abstract class LocalTrack<
    * Stops the track processor
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   * @returns
    */
   async stopProcessor(keepElement = true) {
     const unlock = await this.trackChangeLock.lock();
