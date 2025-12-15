@@ -277,7 +277,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const abortController = new AbortController();
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
-      navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
+      navigator.mediaDevices?.addEventListener?.('devicechange', this.handleDeviceChange, {
         signal: abortController.signal,
       });
 
@@ -1616,7 +1616,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
         window.removeEventListener('freeze', this.onPageLeave);
-        navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
+        navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange);
       }
     } finally {
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
@@ -2499,7 +2499,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           name: 'video-dummy',
         }),
         new LocalVideoTrack(
-          publishOptions.useRealTracks
+          publishOptions.useRealTracks && window.navigator.mediaDevices?.getUserMedia
             ? (
                 await window.navigator.mediaDevices.getUserMedia({ video: true })
               ).getVideoTracks()[0]
@@ -2528,7 +2528,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           type: TrackType.AUDIO,
         }),
         new LocalAudioTrack(
-          publishOptions.useRealTracks
+          publishOptions.useRealTracks && navigator.mediaDevices?.getUserMedia
             ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
             : getEmptyAudioStreamTrack(),
           undefined,
