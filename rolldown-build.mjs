@@ -24,7 +24,7 @@ const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
         tsconfig: 'tsconfig.json',
         parallel: true,
         emitDtsOnly: true,
-        tsgo: true,
+        tsgo: false,
       }),
     ],
   }),
@@ -34,59 +34,57 @@ const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
       dts({
         tsconfig: 'tsconfig.json',
         emitDtsOnly: true,
-        tsgo: true,
+        tsgo: false,
       }),
     ],
   }),
 ]);
 
-await Promise.all([
-  clientBundle.write({
-    file: `dist/${packageJson.name}.esm.mjs`,
-    format: 'es',
-    sourcemap: true,
-  }),
-  clientDts.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      return `${chunkInfo.name}.mjs`;
-    },
-  }),
-  clientBundle.write({
-    file: `dist/${packageJson.name}.umd.js`,
-    format: 'umd',
-    sourcemap: true,
-    name: kebabCaseToPascalCase(packageJson.name),
-    plugins: [minify()],
-  }),
-  clientDts.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      return `${chunkInfo.name}.js`;
-    },
-  }),
-  workerBundle.write({
-    file: `dist/${packageJson.name}.e2ee.worker.esm.mjs`,
-    format: 'esm',
-    sourcemap: true,
-  }),
-  workerDts.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      return `${chunkInfo.name}.mjs`;
-    },
-  }),
-  workerBundle.write({
-    file: `dist/${packageJson.name}.e2ee.worker.umd.js`,
-    format: 'umd',
-    sourcemap: true,
-    name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
-    plugins: [minify()],
-  }),
-  workerDts.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      return `${chunkInfo.name}.js`;
-    },
-  }),
-]);
+await clientBundle.write({
+  file: `dist/${packageJson.name}.esm.mjs`,
+  format: 'es',
+  sourcemap: true,
+});
+await clientDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.mjs`;
+  },
+});
+await clientBundle.write({
+  file: `dist/${packageJson.name}.umd.js`,
+  format: 'umd',
+  sourcemap: true,
+  name: kebabCaseToPascalCase(packageJson.name),
+  plugins: [],
+});
+await clientDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.js`;
+  },
+});
+await workerBundle.write({
+  file: `dist/${packageJson.name}.e2ee.worker.esm.mjs`,
+  format: 'esm',
+  sourcemap: true,
+});
+workerDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.mjs`;
+  },
+});
+await workerDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.js`;
+  },
+});
+await workerBundle.write({
+  file: `dist/${packageJson.name}.e2ee.worker.umd.js`,
+  format: 'umd',
+  sourcemap: true,
+  name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
+  plugins: [],
+});
