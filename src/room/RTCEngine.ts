@@ -260,14 +260,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       pID: this.participantSid,
     };
   }
-  x;
 
   async join(
     url: string,
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    forceLegacyPath?: boolean,
+    forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
@@ -277,7 +276,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal, forceLegacyPath);
+      const joinResponse = await this.client.join(url, token, opts, abortSignal, forceV0Path);
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 

@@ -246,13 +246,13 @@ export class SignalClient {
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    forceLegacyPath?: boolean,
+    forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, forceLegacyPath);
+    const res = await this.connect(url, token, opts, abortSignal, forceV0Path);
     return res as JoinResponse;
   }
 
