@@ -26,6 +26,7 @@ export enum ConnectionErrorReason {
   LeaveRequest,
   Timeout,
   WebSocket,
+  LegacyServer,
 }
 
 type NotAllowed = {
@@ -70,6 +71,12 @@ type WebSocket = {
   context?: string;
 };
 
+type LegacyServer = {
+  reason: ConnectionErrorReason.LegacyServer;
+  status: never;
+  context: never;
+};
+
 type ConnectionErrorVariants =
   | NotAllowed
   | ConnectionTimeout
@@ -77,7 +84,8 @@ type ConnectionErrorVariants =
   | InternalError
   | Cancelled
   | ServerUnreachable
-  | WebSocket;
+  | WebSocket
+  | LegacyServer;
 
 export class ConnectionError<
   Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
@@ -150,6 +158,10 @@ export class ConnectionError<
 
   static websocket(message: string, status?: number, reason?: string) {
     return new ConnectionError<WebSocket>(message, ConnectionErrorReason.WebSocket, status, reason);
+  }
+
+  static legacyServer(message: string) {
+    return new ConnectionError<LegacyServer>(message, ConnectionErrorReason.LegacyServer);
   }
 }
 
