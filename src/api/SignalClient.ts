@@ -1000,8 +1000,9 @@ export class SignalClient {
 
       switch (resp.status) {
         case 404:
-          return ConnectionError.legacyServer(
-            'RTC path not found. Consider upgrading your LiveKit server version',
+          return ConnectionError.serviceNotFound(
+            'v0 RTC path not found. Consider upgrading your LiveKit server version',
+            'v0-rtc',
           );
         case 401:
         case 403:

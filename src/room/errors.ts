@@ -26,7 +26,7 @@ export enum ConnectionErrorReason {
   LeaveRequest,
   Timeout,
   WebSocket,
-  LegacyServer,
+  ServiceNotFound,
 }
 
 type NotAllowed = {
@@ -71,10 +71,10 @@ type WebSocket = {
   context?: string;
 };
 
-type LegacyServer = {
-  reason: ConnectionErrorReason.LegacyServer;
+type ServiceNotFound = {
+  reason: ConnectionErrorReason.ServiceNotFound;
   status: never;
-  context: never;
+  context: string;
 };
 
 type ConnectionErrorVariants =
@@ -85,7 +85,7 @@ type ConnectionErrorVariants =
   | Cancelled
   | ServerUnreachable
   | WebSocket
-  | LegacyServer;
+  | ServiceNotFound;
 
 export class ConnectionError<
   Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
@@ -160,8 +160,13 @@ export class ConnectionError<
     return new ConnectionError<WebSocket>(message, ConnectionErrorReason.WebSocket, status, reason);
   }
 
-  static legacyServer(message: string) {
-    return new ConnectionError<LegacyServer>(message, ConnectionErrorReason.LegacyServer);
+  static serviceNotFound(message: string, serviceName: 'v0-rtc') {
+    return new ConnectionError<ServiceNotFound>(
+      message,
+      ConnectionErrorReason.ServiceNotFound,
+      undefined,
+      serviceName,
+    );
   }
 }
 

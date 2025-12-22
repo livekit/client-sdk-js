@@ -306,7 +306,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           if (this.joinAttempts < this.maxJoinAttempts) {
             return this.join(url, token, opts, abortSignal);
           }
-        } else if (e.reason === ConnectionErrorReason.LegacyServer) {
+        } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
           this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
           return this.join(url, token, opts, abortSignal, true);
         }
