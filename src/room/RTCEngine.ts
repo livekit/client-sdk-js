@@ -260,6 +260,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       pID: this.participantSid,
     };
   }
+  x;
 
   async join(
     url: string,
@@ -307,7 +308,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             return this.join(url, token, opts, abortSignal);
           }
         } else if (e.reason === ConnectionErrorReason.LegacyServer) {
-          this.log.warn(e.message);
+          this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
           return this.join(url, token, opts, abortSignal, true);
         }
       }
