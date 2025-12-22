@@ -287,7 +287,7 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-    forceLegacyPath?: boolean,
+    forceV0Path?: boolean,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
@@ -296,7 +296,7 @@ export class SignalClient {
     const params = opts.singlePeerConnection
       ? createJoinRequestConnectionParams(token, clientInfo, opts)
       : createConnectionParams(token, clientInfo, opts);
-    const rtcUrl = createRtcUrl(url, params, forceLegacyPath).toString();
+    const rtcUrl = createRtcUrl(url, params, forceV0Path).toString();
     const validateUrl = createValidateUrl(rtcUrl).toString();
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
