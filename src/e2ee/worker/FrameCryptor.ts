@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
@@ -10,10 +9,19 @@ import { type CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import {
+  type Av1E2eeMetadata,
+  GCM_TAG_LENGTH_BYTES,
+  buildAv1E2eeMetadataObu,
+  computeAv1EncryptionLayout,
+  extractAv1E2eeMetadataObu,
+} from './av1Utils';
 import { processNALUsForEncryption } from './naluUtils';
 import { identifySifPayload } from './sifPayload';
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
+
+const EMPTY_AAD = new Uint8Array();
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -48,6 +56,8 @@ export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitt
  */
 export class FrameCryptor extends BaseFrameCryptor {
   private sendCounts: Map<number, number>;
+
+  private av1LayoutFailureLogged: boolean = false;
 
   private participantIdentity: string | undefined;
 
@@ -341,6 +351,95 @@ export class FrameCryptor extends BaseFrameCryptor {
       );
       let frameInfo = this.getUnencryptedBytes(encodedFrame);
 
+      if (isVideoFrame(encodedFrame) && this.detectedCodec === 'av1') {
+        const plainPayload = new Uint8Array(encodedFrame.data);
+        const layout = computeAv1EncryptionLayout(plainPayload);
+
+        if (!layout) {
+          const debugInfo = this.av1LayoutFailureLogged
+            ? undefined
+            : {
+                length: plainPayload.byteLength,
+                firstByte: plainPayload[0],
+                looksLikeRtpAggregationHeader: (plainPayload[0] & 0x07) === 0,
+                looksLikeObuHeader:
+                  (plainPayload[0] & 0x80) === 0 && (plainPayload[0] & 0x01) === 0,
+              };
+          this.av1LayoutFailureLogged = true;
+          workerLogger.warn('AV1 E2EE could not determine encryption layout, dropping frame', {
+            ...this.logContext,
+            ...(debugInfo ? { debugInfo } : {}),
+          });
+          this.emitThrottledError(
+            new CryptorError(
+              `unable to encrypt AV1 frame: layout detection failed`,
+              CryptorErrorReason.InternalError,
+              this.participantIdentity,
+            ),
+          );
+          return;
+        }
+
+        try {
+          const plainProtected = layout.extractProtected(plainPayload);
+
+          const cipherProtectedWithTag = new Uint8Array(
+            await crypto.subtle.encrypt(
+              {
+                name: ENCRYPTION_ALGORITHM,
+                iv,
+                additionalData: EMPTY_AAD,
+              },
+              encryptionKey,
+              plainProtected,
+            ),
+          );
+
+          if (
+            cipherProtectedWithTag.byteLength !==
+            plainProtected.byteLength + GCM_TAG_LENGTH_BYTES
+          ) {
+            throw new Error(
+              `Unexpected AES-GCM output length: got ${cipherProtectedWithTag.byteLength}, expected ${
+                plainProtected.byteLength + GCM_TAG_LENGTH_BYTES
+              }`,
+            );
+          }
+
+          const cipherProtected = cipherProtectedWithTag.subarray(0, plainProtected.byteLength);
+          const tag = cipherProtectedWithTag.subarray(plainProtected.byteLength);
+
+          const metadataObu = buildAv1E2eeMetadataObu({
+            keyIndex,
+            iv: new Uint8Array(iv),
+            tag,
+          });
+
+          const newPayload = new Uint8Array(plainPayload.byteLength + metadataObu.byteLength);
+          newPayload.set(plainPayload);
+          layout.writeProtected(newPayload, cipherProtected);
+          newPayload.set(metadataObu, plainPayload.byteLength);
+
+          encodedFrame.data = newPayload.buffer;
+          return controller.enqueue(encodedFrame);
+        } catch (e: any) {
+          workerLogger.error('AV1 E2EE encryption failed, dropping frame', {
+            error: e,
+            errorName: e?.name,
+            errorMessage: e?.message ?? String(e),
+            ...this.logContext,
+          });
+          this.emitThrottledError(
+            new CryptorError(
+              `unable to encrypt AV1 frame: ${e?.message ?? String(e)}`,
+              CryptorErrorReason.InternalError,
+              this.participantIdentity,
+            ),
+          );
+          return;
+        }
+      }
+
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
       const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
 
@@ -434,7 +533,33 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     }
     const data = new Uint8Array(encodedFrame.data);
-    const keyIndex = data[encodedFrame.data.byteLength - 1];
+    const isLikelyAv1VideoFrame =
+      isVideoFrame(encodedFrame) && (this.detectedCodec === 'av1' || this.videoCodec === 'av1');
+
+    let keyIndex: number;
+    let av1Payload: Uint8Array | undefined;
+    let av1Meta: Av1E2eeMetadata | undefined;
+    if (isLikelyAv1VideoFrame) {
+      const extracted = extractAv1E2eeMetadataObu(data);
+      if (!extracted) {
+        workerLogger.warn('AV1 E2EE missing metadata OBU, dropping frame', {
+          ...this.logContext,
+        });
+        this.emitThrottledError(
+          new CryptorError(
+            `unable to decrypt AV1 frame: missing E2EE metadata`,
+            CryptorErrorReason.InternalError,
+            this.participantIdentity,
+          ),
+        );
+        return;
+      }
+      keyIndex = extracted.meta.keyIndex;
+      av1Payload = extracted.payload;
+      av1Meta = extracted.meta;
+    } else {
+      keyIndex = data[encodedFrame.data.byteLength - 1];
+    }
 
     if (this.keys.hasInvalidKeyAtIndex(keyIndex)) {
       // drop frame
@@ -443,7 +568,13 @@ export class FrameCryptor extends BaseFrameCryptor {
 
     if (this.keys.getKeySet(keyIndex)) {
       try {
-        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
+        const decodedFrame = await this.decryptFrame(
+          encodedFrame,
+          keyIndex,
+          undefined,
+          { ratchetCount: 0 },
+          isLikelyAv1VideoFrame ? { payload: av1Payload, meta: av1Meta } : undefined,
+        );
         this.keys.decryptionSuccess(keyIndex);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
@@ -482,6 +613,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     keyIndex: number,
     initialMaterial: KeySet | undefined = undefined,
     ratchetOpts: DecodeRatchetOptions = { ratchetCount: 0 },
+    av1?: { payload?: Uint8Array; meta?: Av1E2eeMetadata },
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const keySet = this.keys.getKeySet(keyIndex);
     if (!ratchetOpts.encryptionKey && !keySet) {
@@ -498,6 +630,54 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
+      if (isVideoFrame(encodedFrame) && this.detectedCodec === 'av1') {
+        const av1Payload = av1?.payload;
+        const av1Meta = av1?.meta;
+        const extracted =
+          av1Payload && av1Meta
+            ? { payload: av1Payload, meta: av1Meta }
+            : extractAv1E2eeMetadataObu(new Uint8Array(encodedFrame.data));
+        if (!extracted) {
+          throw new Error('Missing AV1 E2EE metadata OBU');
+        }
+
+        const { payload, meta } = extracted;
+        if (meta.keyIndex !== keyIndex) {
+          throw new Error(`AV1 key index mismatch (meta=${meta.keyIndex}, expected=${keyIndex})`);
+        }
+
+        const layout = computeAv1EncryptionLayout(payload);
+        if (!layout) {
+          throw new Error('AV1 layout detection failed during decryption');
+        }
+
+        const cipherProtected = layout.extractProtected(payload);
+        const cipherProtectedWithTag = new Uint8Array(
+          cipherProtected.byteLength + meta.tag.byteLength,
+        );
+        cipherProtectedWithTag.set(cipherProtected);
+        cipherProtectedWithTag.set(meta.tag, cipherProtected.byteLength);
+
+        const plainProtected = new Uint8Array(
+          await crypto.subtle.decrypt(
+            {
+              name: ENCRYPTION_ALGORITHM,
+              iv: meta.iv,
+              additionalData: EMPTY_AAD,
+            },
+            ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
+            cipherProtectedWithTag,
+          ),
+        );
+
+        const newPayload = new Uint8Array(payload.byteLength);
+        newPayload.set(payload);
+        layout.writeProtected(newPayload, plainProtected);
+
+        encodedFrame.data = newPayload.buffer;
+        return encodedFrame;
+      }
+
       const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
       var encryptedData = new Uint8Array(
         encodedFrame.data,
@@ -551,7 +731,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           workerLogger.debug(
             `ratcheting key attempt ${ratchetOpts.ratchetCount} of ${
               this.keyProviderOptions.ratchetWindowSize
-            }, for kind ${encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
+            }, for kind ${isVideoFrame(encodedFrame) ? 'video' : 'audio'}`,
           );
 
           let ratchetedKeySet: KeySet | undefined;
@@ -567,10 +747,16 @@ export class FrameCryptor extends BaseFrameCryptor {
             );
           }
 
-          const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
-            ratchetCount: ratchetOpts.ratchetCount + 1,
-            encryptionKey: ratchetedKeySet?.encryptionKey,
-          });
+          const frame = await this.decryptFrame(
+            encodedFrame,
+            keyIndex,
+            initialMaterial || keySet,
+            {
+              ratchetCount: ratchetOpts.ratchetCount + 1,
+              encryptionKey: ratchetedKeySet?.encryptionKey,
+            },
+            av1,
+          );
           if (frame && ratchetedKeySet) {
             // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
             // if it's not, a new key might have been set already, which we don't want to override
@@ -665,16 +851,14 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.detectedCodec = detectedCodec;
     }
 
-    // Check for unsupported codecs
-    if (detectedCodec === 'av1') {
-      throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
-    }
-
     // Handle VP8/VP9 codecs (no NALU processing needed)
     if (detectedCodec === 'vp8') {
       return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
     }
     if (detectedCodec === 'vp9') {
+      return { unencryptedBytes: 0, requiresNALUProcessing: false };
+    }
+    if (detectedCodec === 'av1') {
       return { unencryptedBytes: 0, requiresNALUProcessing: false };
     }
 
