@@ -266,6 +266,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
+    forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
@@ -275,7 +276,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal);
+      const joinResponse = await this.client.join(url, token, opts, abortSignal, forceV0Path);
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 
@@ -305,6 +306,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           if (this.joinAttempts < this.maxJoinAttempts) {
             return this.join(url, token, opts, abortSignal);
           }
+        } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
+          this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
+          return this.join(url, token, opts, abortSignal, true);
         }
       }
       throw e;
