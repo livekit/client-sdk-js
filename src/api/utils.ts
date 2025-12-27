@@ -1,16 +1,7 @@
 import { SignalResponse } from '@livekit/protocol';
 import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
-export function createRtcUrl(url: string, searchParams: URLSearchParams, useV0Path = false) {
-  const v0Url = createV0RtcUrl(url, searchParams);
-  if (useV0Path) {
-    return v0Url;
-  } else {
-    return appendUrlPath(v0Url, 'v1');
-  }
-}
-
-export function createV0RtcUrl(url: string, searchParams: URLSearchParams) {
+export function createRtcUrl(url: string, searchParams: URLSearchParams) {
   const urlObj = new URL(toWebsocketUrl(url));
   searchParams.forEach((value, key) => {
     urlObj.searchParams.set(key, value);
@@ -29,7 +20,7 @@ export function ensureTrailingSlash(path: string) {
 
 function appendUrlPath(urlObj: URL, path: string) {
   urlObj.pathname = `${ensureTrailingSlash(urlObj.pathname)}${path}`;
-  return urlObj;
+  return urlObj.toString();
 }
 
 export function parseSignalResponse(value: ArrayBuffer | string) {
