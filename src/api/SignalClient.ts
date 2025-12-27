@@ -246,13 +246,12 @@ export class SignalClient {
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, forceV0Path);
+    const res = await this.connect(url, token, opts, abortSignal);
     return res as JoinResponse;
   }
 
@@ -287,7 +286,6 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-    forceV0Path?: boolean,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
@@ -296,8 +294,8 @@ export class SignalClient {
     const params = opts.singlePeerConnection
       ? createJoinRequestConnectionParams(token, clientInfo, opts)
       : createConnectionParams(token, clientInfo, opts);
-    const rtcUrl = createRtcUrl(url, params, forceV0Path).toString();
-    const validateUrl = createValidateUrl(rtcUrl).toString();
+    const rtcUrl = createRtcUrl(url, params);
+    const validateUrl = createValidateUrl(rtcUrl);
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
@@ -997,22 +995,10 @@ export class SignalClient {
   ): Promise<ConnectionError> {
     try {
       const resp = await fetch(validateUrl);
-
-      switch (resp.status) {
-        case 404:
-          return ConnectionError.serviceNotFound(
-            'v0 RTC path not found. Consider upgrading your LiveKit server version',
-            'v0-rtc',
-          );
-        case 401:
-        case 403:
-          const msg = await resp.text();
-          return ConnectionError.notAllowed(msg, resp.status);
-        default:
-          break;
-      }
-
-      if (reason instanceof ConnectionError) {
+      if (resp.status.toFixed(0).startsWith('4')) {
+        const msg = await resp.text();
+        return ConnectionError.notAllowed(msg, resp.status);
+      } else if (reason instanceof ConnectionError) {
         return reason;
       } else {
         return ConnectionError.internal(
