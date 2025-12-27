@@ -5,6 +5,7 @@ import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { FrameCryptor, encryptionEnabledMap, isFrameServerInjected } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { extractAv1E2eeMetadataObu } from './av1Utils';
 
 function mockEncryptedRTCEncodedVideoFrame(keyIndex: number): RTCEncodedVideoFrame {
   const trailer = mockFrameTrailer(keyIndex);
@@ -102,6 +103,105 @@ function prepareParticipantTest(
 
 describe('FrameCryptor', () => {
   const participantIdentity = 'testParticipant';
+
+  it('encrypts and decrypts AV1 OBU stream frame', async () => {
+    vitest.useFakeTimers();
+    try {
+      const {
+        keys: encKeys,
+        cryptor: encCryptor,
+        input: encInput,
+        output: encOutput,
+      } = prepareParticipantTestEncoder(participantIdentity, {});
+      const {
+        keys: decKeys,
+        cryptor: decCryptor,
+        input: decInput,
+        output: decOutput,
+      } = prepareParticipantTestDecoder(participantIdentity, {});
+
+      const keyMaterial = await createKeyMaterialFromString('key1');
+      await encKeys.setKey(keyMaterial, 1);
+      await decKeys.setKey(keyMaterial, 1);
+
+      encCryptor.setVideoCodec('av1');
+      decCryptor.setVideoCodec('av1');
+
+      // Minimal AV1 OBU stream with size fields (Chromium's RTCEncodedVideoFrame.data format).
+      // 1) OBU_TEMPORAL_DELIMITER (type 2), size=0
+      // 2) OBU_SEQUENCE_HEADER (type 1), size=1, payload=[0xAA]
+      // 3) OBU_FRAME_HEADER (type 3), size=2, payload=[0x00, 0xBB]
+      //
+      // For SFU keyframe detection we keep OBU headers + size fields and the first payload byte of
+      // OBU_FRAME_HEADER/OBU_FRAME unencrypted.
+      const plainTextData = new Uint8Array([0x12, 0x00, 0x0a, 0x01, 0xaa, 0x1a, 0x02, 0x00, 0xbb]);
+      const frame = mockRTCEncodedVideoFrame(plainTextData);
+
+      encInput.write(frame);
+      await vitest.waitFor(() => expect(encOutput.chunks).toHaveLength(1));
+
+      const encryptedFrame = encOutput.chunks[0];
+      expect(encryptedFrame.data.byteLength).toBeGreaterThan(plainTextData.byteLength);
+
+      const extracted = extractAv1E2eeMetadataObu(new Uint8Array(encryptedFrame.data));
+      expect(extracted).toBeDefined();
+      expect(extracted!.payload.byteLength).toEqual(plainTextData.byteLength);
+      expect(extracted!.meta.keyIndex).toEqual(1);
+      expect(extracted!.meta.iv.byteLength).toEqual(IV_LENGTH);
+
+      const encryptedPayload = extracted!.payload;
+      // OBU headers and size fields are kept in the clear.
+      expect(encryptedPayload[0]).toBe(0x12);
+      expect(encryptedPayload[1]).toBe(0x00);
+      expect(encryptedPayload[2]).toBe(0x0a);
+      expect(encryptedPayload[3]).toBe(0x01);
+      expect(encryptedPayload[5]).toBe(0x1a);
+      expect(encryptedPayload[6]).toBe(0x02);
+      // First payload byte of OBU_FRAME_HEADER is kept in the clear for SFU keyframe detection.
+      expect(encryptedPayload[7]).toBe(0x00);
+
+      decInput.write(encryptedFrame);
+      await vitest.waitFor(() => expect(decOutput.chunks).toHaveLength(1));
+
+      const decryptedFrame = decOutput.chunks[0];
+      expect(new Uint8Array(decryptedFrame.data)).toEqual(plainTextData);
+    } finally {
+      encryptionEnabledMap.clear();
+      vitest.useRealTimers();
+    }
+  });
+
+  it('drops AV1 frame when layout detection fails', async () => {
+    vitest.useFakeTimers();
+    try {
+      const {
+        keys: encKeys,
+        cryptor: encCryptor,
+        input: encInput,
+        output: encOutput,
+      } = prepareParticipantTestEncoder(participantIdentity, {});
+
+      const keyMaterial = await createKeyMaterialFromString('key1');
+      await encKeys.setKey(keyMaterial, 1);
+
+      encCryptor.setVideoCodec('av1');
+
+      const errorListener = vitest.fn();
+      encCryptor.on(CryptorEvent.Error, errorListener);
+
+      // This payload intentionally does NOT match any supported AV1 layout parser and forces the
+      // encoder to drop the frame.
+      const plainTextData = new Uint8Array([0x80, 0x80, 0x01, 0x02, 0x03]);
+      const frame = mockRTCEncodedVideoFrame(plainTextData);
+
+      encInput.write(frame);
+      await vitest.waitFor(() => expect(errorListener).toHaveBeenCalled());
+      expect(encOutput.chunks).toHaveLength(0);
+    } finally {
+      encryptionEnabledMap.clear();
+      vitest.useRealTimers();
+    }
+  });
 
   it('identifies server injected frame correctly', () => {
     const frameTrailer = new TextEncoder().encode('LKROCKS');
