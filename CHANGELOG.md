@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.16.2
+
+### Patch Changes
+
+- Use TypedPromise for typesafe errors - [#1770](https://github.com/livekit/client-sdk-js/pull/1770) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.16.1
 
 ### Patch Changes
