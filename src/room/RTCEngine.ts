@@ -283,7 +283,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.pcManager) {
-        await this.configure(joinResponse);
+        await this.configure(joinResponse, !forceV0Path);
       }
 
       // create offer
@@ -445,7 +445,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.regionUrlProvider = provider;
   }
 
-  private async configure(joinResponse: JoinResponse) {
+  private async configure(joinResponse: JoinResponse, useSinglePeerConnection: boolean) {
     // already configured
     if (this.pcManager && this.pcManager.currentState !== PCTransportState.NEW) {
       return;
@@ -457,7 +457,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager = new PCTransportManager(
       rtcConfig,
-      this.options.singlePeerConnection
+      useSinglePeerConnection
         ? 'publisher-only'
         : joinResponse.subscriberPrimary
           ? 'subscriber-primary'
@@ -1598,32 +1598,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer: this.options.singlePeerConnection
-          ? previousPublisherAnswer
-            ? toProtoSessionDescription({
-                sdp: previousPublisherAnswer.sdp,
-                type: previousPublisherAnswer.type,
-              })
-            : undefined
-          : previousSubscriberAnswer
-            ? toProtoSessionDescription({
-                sdp: previousSubscriberAnswer.sdp,
-                type: previousSubscriberAnswer.type,
-              })
-            : undefined,
-        offer: this.options.singlePeerConnection
-          ? previousPublisherOffer
-            ? toProtoSessionDescription({
-                sdp: previousPublisherOffer.sdp,
-                type: previousPublisherOffer.type,
-              })
-            : undefined
-          : previousSubscriberOffer
-            ? toProtoSessionDescription({
-                sdp: previousSubscriberOffer.sdp,
-                type: previousSubscriberOffer.type,
-              })
-            : undefined,
+        answer:
+          this.pcManager.mode === 'publisher-only'
+            ? previousPublisherAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherAnswer.sdp,
+                  type: previousPublisherAnswer.type,
+                })
+              : undefined
+            : previousSubscriberAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberAnswer.sdp,
+                  type: previousSubscriberAnswer.type,
+                })
+              : undefined,
+        offer:
+          this.pcManager.mode === 'publisher-only'
+            ? previousPublisherOffer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherOffer.sdp,
+                  type: previousPublisherOffer.type,
+                })
+              : undefined
+            : previousSubscriberOffer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberOffer.sdp,
+                  type: previousSubscriberOffer.type,
+                })
+              : undefined,
         subscription: new UpdateSubscription({
           trackSids,
           subscribe: !autoSubscribe,

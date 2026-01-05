@@ -794,7 +794,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         websocketTimeout: connectOptions.websocketTimeout,
       },
       abortController.signal,
-      !!roomOptions.singlePeerConnection,
+      !roomOptions.singlePeerConnection,
     );
 
     let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
