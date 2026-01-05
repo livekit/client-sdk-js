@@ -75,7 +75,6 @@ export interface SignalOptions {
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
-  singlePeerConnection: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -287,6 +286,7 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
+    /** setting this to true results in dual peer connection mode being used */
     forceV0Path?: boolean,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();

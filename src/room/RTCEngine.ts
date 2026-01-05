@@ -266,6 +266,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
+    /** setting this to true results in dual peer connection mode being used */
     forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     this.url = url;

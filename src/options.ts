@@ -101,9 +101,10 @@ export interface InternalRoomOptions {
   loggerName?: string;
 
   /**
-   * @experimental
-   * only supported on LiveKit Cloud
-   * and LiveKit OSS >= 1.9.2
+   * will attempt to connect via single peer connection mode.
+   * falls back to dual peer connection mode if not available.
+   *
+   * @default true
    */
   singlePeerConnection: boolean;
 }
