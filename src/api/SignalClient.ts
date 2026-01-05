@@ -293,9 +293,9 @@ export class SignalClient {
 
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params = opts.singlePeerConnection
-      ? createJoinRequestConnectionParams(token, clientInfo, opts)
-      : createConnectionParams(token, clientInfo, opts);
+    const params = forceV0Path
+      ? createConnectionParams(token, clientInfo, opts)
+      : createJoinRequestConnectionParams(token, clientInfo, opts);
     const rtcUrl = createRtcUrl(url, params, forceV0Path).toString();
     const validateUrl = createValidateUrl(rtcUrl).toString();
 
