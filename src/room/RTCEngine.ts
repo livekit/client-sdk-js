@@ -305,7 +305,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             this.logContext,
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
-            return this.join(url, token, opts, abortSignal);
+            return this.join(url, token, opts, abortSignal, forceV0Path);
           }
         } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
           this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
@@ -1100,7 +1100,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
-        joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+        joinResponse = await this.join(
+          regionUrl ?? this.url,
+          this.token,
+          this.signalOpts,
+          undefined,
+          !this.options.singlePeerConnection,
+        );
       } catch (e) {
         if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
           throw new UnexpectedConnectionState('could not reconnect, token might be expired');
