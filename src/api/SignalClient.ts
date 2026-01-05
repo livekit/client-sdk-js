@@ -75,7 +75,6 @@ export interface SignalOptions {
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
-  singlePeerConnection: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -246,12 +245,13 @@ export class SignalClient {
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
+    forceV0Path?: boolean,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal);
+    const res = await this.connect(url, token, opts, abortSignal, forceV0Path);
     return res as JoinResponse;
   }
 
@@ -286,16 +286,18 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
+    /** setting this to true results in dual peer connection mode being used */
+    forceV0Path?: boolean,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params = opts.singlePeerConnection
-      ? createJoinRequestConnectionParams(token, clientInfo, opts)
-      : createConnectionParams(token, clientInfo, opts);
-    const rtcUrl = createRtcUrl(url, params);
-    const validateUrl = createValidateUrl(rtcUrl);
+    const params = forceV0Path
+      ? createConnectionParams(token, clientInfo, opts)
+      : createJoinRequestConnectionParams(token, clientInfo, opts);
+    const rtcUrl = createRtcUrl(url, params, forceV0Path).toString();
+    const validateUrl = createValidateUrl(rtcUrl).toString();
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
@@ -995,10 +997,22 @@ export class SignalClient {
   ): Promise<ConnectionError> {
     try {
       const resp = await fetch(validateUrl);
-      if (resp.status.toFixed(0).startsWith('4')) {
-        const msg = await resp.text();
-        return ConnectionError.notAllowed(msg, resp.status);
-      } else if (reason instanceof ConnectionError) {
+
+      switch (resp.status) {
+        case 404:
+          return ConnectionError.serviceNotFound(
+            'v1 RTC path not found. Consider upgrading your LiveKit server version',
+            'v0-rtc',
+          );
+        case 401:
+        case 403:
+          const msg = await resp.text();
+          return ConnectionError.notAllowed(msg, resp.status);
+        default:
+          break;
+      }
+
+      if (reason instanceof ConnectionError) {
         return reason;
       } else {
         return ConnectionError.internal(

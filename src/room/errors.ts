@@ -26,6 +26,7 @@ export enum ConnectionErrorReason {
   LeaveRequest,
   Timeout,
   WebSocket,
+  ServiceNotFound,
 }
 
 type NotAllowed = {
@@ -70,6 +71,12 @@ type WebSocket = {
   context?: string;
 };
 
+type ServiceNotFound = {
+  reason: ConnectionErrorReason.ServiceNotFound;
+  status: never;
+  context: string;
+};
+
 type ConnectionErrorVariants =
   | NotAllowed
   | ConnectionTimeout
@@ -77,7 +84,8 @@ type ConnectionErrorVariants =
   | InternalError
   | Cancelled
   | ServerUnreachable
-  | WebSocket;
+  | WebSocket
+  | ServiceNotFound;
 
 export class ConnectionError<
   Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
@@ -150,6 +158,15 @@ export class ConnectionError<
 
   static websocket(message: string, status?: number, reason?: string) {
     return new ConnectionError<WebSocket>(message, ConnectionErrorReason.WebSocket, status, reason);
+  }
+
+  static serviceNotFound(message: string, serviceName: 'v0-rtc') {
+    return new ConnectionError<ServiceNotFound>(
+      message,
+      ConnectionErrorReason.ServiceNotFound,
+      undefined,
+      serviceName,
+    );
   }
 }
 

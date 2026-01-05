@@ -66,6 +66,12 @@ export class PCTransportManager {
 
   private loggerOptions: LoggerOptions;
 
+  private _mode: PCMode;
+
+  get mode(): PCMode {
+    return this._mode;
+  }
+
   constructor(rtcConfig: RTCConfiguration, mode: PCMode, loggerOptions: LoggerOptions) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
@@ -73,6 +79,7 @@ export class PCTransportManager {
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
     this.publisher = new PCTransport(rtcConfig, loggerOptions);
+    this._mode = mode;
     if (mode !== 'publisher-only') {
       this.subscriber = new PCTransport(rtcConfig, loggerOptions);
       this.subscriber.onConnectionStateChange = this.updateState;
