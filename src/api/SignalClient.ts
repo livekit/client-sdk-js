@@ -225,6 +225,8 @@ export class SignalClient {
 
   private streamWriter: WritableStreamDefaultWriter<ArrayBuffer | string> | undefined;
 
+  private useV0SignalPath = false;
+
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
     this.loggerContextCb = loggerOptions.loggerContextCb;
@@ -245,13 +247,13 @@ export class SignalClient {
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
-    forceV0Path?: boolean,
+    useV0Path: boolean = false,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, forceV0Path);
+    const res = await this.connect(url, token, opts, abortSignal, useV0Path);
     return res as JoinResponse;
   }
 
@@ -272,12 +274,18 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = (await this.connect(url, token, {
-      ...this.options,
-      reconnect: true,
-      sid,
-      reconnectReason: reason,
-    })) as ReconnectResponse | undefined;
+    const res = (await this.connect(
+      url,
+      token,
+      {
+        ...this.options,
+        reconnect: true,
+        sid,
+        reconnectReason: reason,
+      },
+      undefined,
+      this.useV0SignalPath,
+    )) as ReconnectResponse | undefined;
     return res;
   }
 
@@ -287,16 +295,18 @@ export class SignalClient {
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
     /** setting this to true results in dual peer connection mode being used */
-    forceV0Path?: boolean,
+    useV0Path: boolean = false,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
     this.connectOptions = opts;
+    this.useV0SignalPath = useV0Path;
+
     const clientInfo = getClientInfo();
-    const params = forceV0Path
+    const params = useV0Path
       ? createConnectionParams(token, clientInfo, opts)
       : createJoinRequestConnectionParams(token, clientInfo, opts);
-    const rtcUrl = createRtcUrl(url, params, forceV0Path).toString();
+    const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
     const validateUrl = createValidateUrl(rtcUrl).toString();
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {

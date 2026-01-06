@@ -267,7 +267,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: SignalOptions,
     abortSignal?: AbortSignal,
     /** setting this to true results in dual peer connection mode being used */
-    forceV0Path?: boolean,
+    useV0Path: boolean = false,
   ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
@@ -277,13 +277,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal, forceV0Path);
+      const joinResponse = await this.client.join(url, token, opts, abortSignal, useV0Path);
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.pcManager) {
-        await this.configure(joinResponse, !forceV0Path);
+        await this.configure(joinResponse, !useV0Path);
       }
 
       // create offer
@@ -305,7 +305,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             this.logContext,
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
-            return this.join(url, token, opts, abortSignal, forceV0Path);
+            return this.join(url, token, opts, abortSignal, useV0Path);
           }
         } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
           this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
