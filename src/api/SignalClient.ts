@@ -300,7 +300,7 @@ export class SignalClient {
     const unlock = await this.connectionLock.lock();
 
     this.connectOptions = opts;
-    this.useV0SignalPath = !!useV0Path;
+    this.useV0SignalPath = useV0Path;
 
     const clientInfo = getClientInfo();
     const params = useV0Path
