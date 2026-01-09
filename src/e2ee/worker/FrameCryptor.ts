@@ -25,6 +25,7 @@ export interface TransformerInfo {
   transformer: TransformStream;
   trackId: string;
   operation: 'encode' | 'decode';
+  symbol: symbol;
 }
 
 export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
@@ -221,15 +222,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       return;
     }
 
-    // Clean up any existing transform before setting up a new one
-    if (this.currentTransform) {
-      workerLogger.debug('cleaning up previous transform before setting up new one', {
-        ...this.logContext,
-        oldTrackId: this.currentTransform.trackId,
-        newTrackId: trackId,
-      });
-      this.currentTransform = undefined;
-    }
+    const symbol = Symbol('transform');
 
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
@@ -243,6 +236,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       transformer: transformStream,
       trackId,
       operation,
+      symbol,
     };
 
     readable
@@ -264,7 +258,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       })
       .finally(() => {
         // Only clear currentTransform if it's still the same one we started
-        if (this.currentTransform?.trackId === trackId) {
+        if (this.currentTransform?.symbol === symbol) {
           workerLogger.debug('transform completed', {
             ...this.logContext,
             trackId,
