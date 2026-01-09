@@ -250,6 +250,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeTo(writable)
       .catch((e) => {
         if (e instanceof TypeError && e.message === 'Destination stream closed') {
+          // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
           workerLogger.debug('destination stream closed');
         } else {
           workerLogger.warn('transform error', { error: e, ...this.logContext });
