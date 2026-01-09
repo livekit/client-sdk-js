@@ -133,7 +133,6 @@ describe('FrameCryptor Race Conditions', () => {
       expect(output.chunks).toHaveLength(1);
 
       // Now switch to participant2 (transceiver reuse scenario)
-      // This will abort the old transform
       const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
       await keys2.setKey(await createKeyMaterialFromString('key2'), 0);
       encryptionEnabledMap.set('participant2', true);
@@ -154,7 +153,9 @@ describe('FrameCryptor Race Conditions', () => {
       );
 
       // Queue frame for participant2
-      const frame2 = mockRTCEncodedVideoFrame(new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]));
+      const frame2 = mockRTCEncodedVideoFrame(
+        new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
+      );
       input2.write(frame2);
 
       await vitest.waitFor(() => expect(output2.chunks).toHaveLength(1));
@@ -224,8 +225,6 @@ describe('FrameCryptor Race Conditions', () => {
       const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
       input2.write(frame);
 
-      // Note: In Node's test environment, the abort signal may not fully cancel the pipe
-      // The important fix is that trackId is correctly updated and old transforms are marked for abortion
       await vitest.advanceTimersToNextTimerAsync();
 
       // Verify trackId remains correct
@@ -353,9 +352,52 @@ describe('FrameCryptor Race Conditions', () => {
 
       // Create an encrypted frame for participant1
       const frameData = new Uint8Array([
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221, 233,
-        116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 199, 51,
-        12, 0, // key index 0
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        254,
+        96,
+        91,
+        111,
+        187,
+        132,
+        31,
+        12,
+        207,
+        136,
+        17,
+        221,
+        233,
+        116,
+        174,
+        6,
+        50,
+        37,
+        214,
+        71,
+        119,
+        196,
+        255,
+        255,
+        255,
+        255,
+        0,
+        0,
+        0,
+        0,
+        255,
+        255,
+        199,
+        51,
+        12,
+        0, // key index 0
       ]);
       const frame1 = mockRTCEncodedVideoFrame(frameData);
 
@@ -442,7 +484,9 @@ describe('FrameCryptor Race Conditions', () => {
       cryptor.setVideoCodec('h264');
 
       // Queue another frame
-      const frame2 = mockRTCEncodedVideoFrame(new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]));
+      const frame2 = mockRTCEncodedVideoFrame(
+        new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
+      );
       input.write(frame2);
 
       await vitest.waitFor(() => expect(output.chunks.length).toBe(2));

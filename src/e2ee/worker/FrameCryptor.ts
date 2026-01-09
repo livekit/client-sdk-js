@@ -249,13 +249,17 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        workerLogger.warn('transform error', { error: e, ...this.logContext });
-        this.emit(
-          CryptorEvent.Error,
-          e instanceof CryptorError
-            ? e
-            : new CryptorError(e.message, undefined, this.participantIdentity),
-        );
+        if (e instanceof TypeError && e.message === 'Destination stream closed') {
+          workerLogger.debug('destination stream closed');
+        } else {
+          workerLogger.warn('transform error', { error: e, ...this.logContext });
+          this.emit(
+            CryptorEvent.Error,
+            e instanceof CryptorError
+              ? e
+              : new CryptorError(e.message, undefined, this.participantIdentity),
+          );
+        }
       })
       .finally(() => {
         // Only clear currentTransform if it's still the same one we started
