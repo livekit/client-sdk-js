@@ -137,11 +137,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   unsetParticipant() {
     workerLogger.debug('unsetting participant', this.logContext);
 
-    // Abort any active transform when unsetting participant
     if (this.currentTransform) {
-      workerLogger.debug('aborting active transform during participant unset', {
-        ...this.logContext,
-      });
       this.currentTransform = undefined;
     }
 
