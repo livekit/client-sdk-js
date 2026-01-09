@@ -24,6 +24,8 @@ export interface TransformerInfo {
   writable: WritableStream;
   transformer: TransformStream;
   abortController: AbortController;
+  trackId: string;
+  operation: 'encode' | 'decode';
 }
 
 export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
@@ -68,7 +70,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private detectedCodec?: VideoCodec;
 
-  private isTransformActive: boolean = false;
+  private currentTransform?: TransformerInfo;
 
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
@@ -115,22 +117,36 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     workerLogger.debug('setting new participant on cryptor', {
       ...this.logContext,
-      participant: id,
+      newParticipant: id,
+      hadPreviousParticipant: !!this.participantIdentity,
     });
-    if (this.participantIdentity) {
-      workerLogger.error(
-        'cryptor has already a participant set, participant should have been unset before',
-        {
-          ...this.logContext,
-        },
-      );
+
+    if (this.participantIdentity && this.participantIdentity !== id) {
+      workerLogger.warn('cryptor has already a participant set, cleaning up before switching', {
+        oldParticipant: this.participantIdentity,
+        newParticipant: id,
+        trackId: this.trackId,
+      });
+      // Clean up state from previous participant
+      this.unsetParticipant();
     }
+
     this.participantIdentity = id;
     this.keys = keys;
   }
 
   unsetParticipant() {
     workerLogger.debug('unsetting participant', this.logContext);
+
+    // Abort any active transform when unsetting participant
+    if (this.currentTransform) {
+      workerLogger.debug('aborting active transform during participant unset', {
+        ...this.logContext,
+      });
+      this.currentTransform.abortController.abort();
+      this.currentTransform = undefined;
+    }
+
     this.participantIdentity = undefined;
     this.lastErrorTimestamp = new Map();
     this.errorCounts = new Map();
@@ -185,14 +201,37 @@ export class FrameCryptor extends BaseFrameCryptor {
       operation,
       passedTrackId: trackId,
       codec,
+      isReuse,
+      hasCurrentTransform: !!this.currentTransform,
       ...this.logContext,
     });
 
-    if (isReuse && this.isTransformActive) {
-      workerLogger.debug('reuse transform', {
+    // Always update trackId, even on reuse
+    this.trackId = trackId;
+
+    // If we're reusing and have an active transform for the same operation and trackId, skip setup
+    if (
+      isReuse &&
+      this.currentTransform &&
+      this.currentTransform.operation === operation &&
+      this.currentTransform.trackId === trackId
+    ) {
+      workerLogger.debug('reusing existing transform', {
         ...this.logContext,
+        trackId,
       });
       return;
+    }
+
+    // Clean up any existing transform before setting up a new one
+    if (this.currentTransform) {
+      workerLogger.debug('cleaning up previous transform before setting up new one', {
+        ...this.logContext,
+        oldTrackId: this.currentTransform.trackId,
+        newTrackId: trackId,
+      });
+      this.currentTransform.abortController.abort();
+      this.currentTransform = undefined;
     }
 
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
@@ -200,13 +239,31 @@ export class FrameCryptor extends BaseFrameCryptor {
       transform: transformFn.bind(this),
     });
 
-    this.isTransformActive = true;
+    const abortController = new AbortController();
+
+    // Store transform info before starting the pipe
+    this.currentTransform = {
+      readable,
+      writable,
+      transformer: transformStream,
+      abortController,
+      trackId,
+      operation,
+    };
 
     readable
       .pipeThrough(transformStream)
-      .pipeTo(writable)
+      .pipeTo(writable, { signal: abortController.signal })
       .catch((e) => {
-        workerLogger.warn(e);
+        // Don't log errors if the transform was intentionally aborted
+        if (e.name === 'AbortError' || abortController.signal.aborted) {
+          workerLogger.debug('transform aborted', {
+            ...this.logContext,
+            trackId,
+          });
+          return;
+        }
+        workerLogger.warn('transform error', { error: e, ...this.logContext });
         this.emit(
           CryptorEvent.Error,
           e instanceof CryptorError
@@ -215,9 +272,15 @@ export class FrameCryptor extends BaseFrameCryptor {
         );
       })
       .finally(() => {
-        this.isTransformActive = false;
+        // Only clear currentTransform if it's still the same one we started
+        if (this.currentTransform?.abortController === abortController) {
+          workerLogger.debug('transform completed', {
+            ...this.logContext,
+            trackId,
+          });
+          this.currentTransform = undefined;
+        }
       });
-    this.trackId = trackId;
   }
 
   setSifTrailer(trailer: Uint8Array) {
