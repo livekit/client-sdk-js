@@ -24,7 +24,6 @@ export interface TransformerInfo {
   writable: WritableStream;
   transformer: TransformStream;
   trackId: string;
-  operation: 'encode' | 'decode';
   symbol: symbol;
 }
 
@@ -208,13 +207,8 @@ export class FrameCryptor extends BaseFrameCryptor {
     // Always update trackId, even on reuse
     this.trackId = trackId;
 
-    // If we're reusing and have an active transform for the same operation and trackId, skip setup
-    if (
-      isReuse &&
-      this.currentTransform &&
-      this.currentTransform.operation === operation &&
-      this.currentTransform.trackId === trackId
-    ) {
+    // If we're reusing and have an active transform skip setup
+    if (isReuse && this.currentTransform) {
       workerLogger.debug('reusing existing transform', {
         ...this.logContext,
         trackId,
@@ -235,7 +229,6 @@ export class FrameCryptor extends BaseFrameCryptor {
       writable,
       transformer: transformStream,
       trackId,
-      operation,
       symbol,
     };
 

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest';
-import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
-import { CryptorEvent } from '../events';
+import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
