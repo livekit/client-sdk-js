@@ -23,7 +23,6 @@ export interface TransformerInfo {
   readable: ReadableStream;
   writable: WritableStream;
   transformer: TransformStream;
-  abortController: AbortController;
   trackId: string;
   operation: 'encode' | 'decode';
 }
@@ -143,7 +142,6 @@ export class FrameCryptor extends BaseFrameCryptor {
       workerLogger.debug('aborting active transform during participant unset', {
         ...this.logContext,
       });
-      this.currentTransform.abortController.abort();
       this.currentTransform = undefined;
     }
 
@@ -230,7 +228,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         oldTrackId: this.currentTransform.trackId,
         newTrackId: trackId,
       });
-      this.currentTransform.abortController.abort();
       this.currentTransform = undefined;
     }
 
@@ -239,30 +236,19 @@ export class FrameCryptor extends BaseFrameCryptor {
       transform: transformFn.bind(this),
     });
 
-    const abortController = new AbortController();
-
     // Store transform info before starting the pipe
     this.currentTransform = {
       readable,
       writable,
       transformer: transformStream,
-      abortController,
       trackId,
       operation,
     };
 
     readable
       .pipeThrough(transformStream)
-      .pipeTo(writable, { signal: abortController.signal })
+      .pipeTo(writable)
       .catch((e) => {
-        // Don't log errors if the transform was intentionally aborted
-        if (e.name === 'AbortError' || abortController.signal.aborted) {
-          workerLogger.debug('transform aborted', {
-            ...this.logContext,
-            trackId,
-          });
-          return;
-        }
         workerLogger.warn('transform error', { error: e, ...this.logContext });
         this.emit(
           CryptorEvent.Error,
@@ -273,7 +259,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       })
       .finally(() => {
         // Only clear currentTransform if it's still the same one we started
-        if (this.currentTransform?.abortController === abortController) {
+        if (this.currentTransform?.trackId === trackId) {
           workerLogger.debug('transform completed', {
             ...this.logContext,
             trackId,
