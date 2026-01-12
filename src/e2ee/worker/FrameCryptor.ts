@@ -204,7 +204,12 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.trackId = trackId;
 
     // If we're reusing and have an active transform skip setup
-    if (isReuse && this.currentTransform) {
+    if (
+      isReuse &&
+      this.currentTransform &&
+      readable === this.currentTransform.readable &&
+      writable === this.currentTransform.writable
+    ) {
       workerLogger.debug('reusing existing transform', {
         ...this.logContext,
         trackId,
