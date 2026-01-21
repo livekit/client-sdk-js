@@ -1,5 +1,5 @@
 import TypedPromise from "../../utils/TypedPromise";
-import { DataTrackError, DataTrackErrorReason } from "../errors";
+import { DataTrackHandleError } from "../errors";
 
 export const U16_MAX_SIZE = 0xFFFF;
 
@@ -44,12 +44,12 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 export class DataTrackHandle {
   public value: number;
 
-  static fromNumber(raw: number): TypedPromise<DataTrackHandle, DataTrackError<DataTrackErrorReason.DataTrackHandleReserved | DataTrackErrorReason.DataTrackHandleTooLarge>>  {
+  static fromNumber(raw: number) {
     if (raw === 0) {
-      return TypedPromise.reject(new DataTrackError("0x00 is a reserved value.", DataTrackErrorReason.DataTrackHandleTooLarge as 1 /* FIXME: get rid of the cast */));
+      return TypedPromise.reject(DataTrackHandleError.tooLarge());
     }
     if (raw > U16_MAX_SIZE) {
-      return TypedPromise.reject(new DataTrackError("The specified value is too large to be a valid track handle", DataTrackErrorReason.DataTrackHandleReserved as 0 /* FIXME: get rid of the cast */));
+      return TypedPromise.reject(DataTrackHandleError.reserved());
     }
     return TypedPromise.resolve(new DataTrackHandle(raw));
   }

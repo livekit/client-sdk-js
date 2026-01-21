@@ -10,6 +10,16 @@ export class LivekitError extends Error {
   }
 }
 
+export class LivekitWrapperError<E extends LivekitError> extends LivekitError {
+  inner: E;
+
+  constructor(inner: E) {
+    super(inner.code, `${inner.name}: ${inner.message}`);
+    this.name = 'LiveKitWrapperError';
+    this.inner = inner;
+  }
+}
+
 export class SimulatedError extends LivekitError {
   readonly name = 'simulated';
 
@@ -321,7 +331,7 @@ export namespace MediaDeviceFailure {
 }
 
 
-export enum DataTrackErrorReason {
+export enum DataTrackHandleErrorReason {
   // 0x00 is a reserved value.
   DataTrackHandleReserved = 0,
 
@@ -329,8 +339,8 @@ export enum DataTrackErrorReason {
   DataTrackHandleTooLarge = 1,
 }
 
-export class DataTrackError<Reason extends DataTrackErrorReason = DataTrackErrorReason> extends LivekitError {
-  readonly name = 'DataTrackError';
+export class DataTrackHandleError<Reason extends DataTrackHandleErrorReason = DataTrackHandleErrorReason> extends LivekitError {
+  readonly name = 'DataTrackHandleError';
 
   reason: Reason;
 
@@ -339,6 +349,40 @@ export class DataTrackError<Reason extends DataTrackErrorReason = DataTrackError
   constructor(message: string, reason: Reason) {
     super(19, message);
     this.reason = reason;
-    this.reasonName = DataTrackErrorReason[reason];
+    this.reasonName = DataTrackHandleErrorReason[reason];
   }
+
+  static tooLarge() {
+    return new DataTrackHandleError("0x00 is a reserved value.", DataTrackHandleErrorReason.DataTrackHandleTooLarge);
+  }
+
+  static reserved() {
+    return new DataTrackHandleError("The specified value is too large to be a valid track handle", DataTrackHandleErrorReason.DataTrackHandleReserved);
+  }
+}
+
+export enum DataTrackDeserializeErrorReason {
+  MissingExtWords = 0,
+}
+
+export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorReason = DataTrackDeserializeErrorReason> extends LivekitError {
+  readonly name = 'DataTrackDeserializeError';
+
+  reason: Reason;
+
+  reasonName: string;
+
+  constructor(message: string, reason: Reason) {
+    super(19, message);
+    this.reason = reason;
+    this.reasonName = DataTrackDeserializeErrorReason[reason];
+  }
+
+  static missingExtWords() {
+    return new DataTrackDeserializeError("TODO", DataTrackDeserializeErrorReason.MissingExtWords);
+  }
+}
+
+export class DataTrackError<E extends DataTrackHandleError | DataTrackDeserializeError> extends LivekitWrapperError<E> {
+  readonly name = 'DataTrackError';
 }
