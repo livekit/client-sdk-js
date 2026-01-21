@@ -139,15 +139,15 @@ export class DataTrackPacketHeader extends Serializable {
 }
 
 /** Marker indicating a packet's position in relation to a frame. */
-enum FrameMarker {
-    /** Packet is the first in a frame. */
-    Start = 0,
-    /** Packet is within a frame. */
-    Inter = 1,
-    /** Packet is the last in a frame. */
-    Final = 2,
-    /** Packet is the only one in a frame. */
-    Single = 3,
+export enum FrameMarker {
+  /** Packet is the first in a frame. */
+  Start = 0,
+  /** Packet is within a frame. */
+  Inter = 1,
+  /** Packet is the last in a frame. */
+  Final = 2,
+  /** Packet is the only one in a frame. */
+  Single = 3,
 }
 
 /** A class for serializing / deserializing data track packets. */
@@ -188,26 +188,3 @@ export class DataTrackPacket extends Serializable {
     return { header: this.header.toJSON(), payload: this.payload };
   }
 }
-
-export {
-  type DataTrackExtensions,
-  type DataTrackUserTimestampExtension,
-  type DataTrackE2eeExtension,
-} from "./extensions";
-
-
-// Example:
-//
-// const extensions = new DataTrackExtensions();
-// const header = new DataTrackPacketHeader({
-//   marker: FrameMarker.Single,
-//   trackHandle: DataTrackHandleAllocator.get()!,
-//   sequence: WrapAroundUnsignedInt.u16(3),
-//   frameNumber: WrapAroundUnsignedInt.u16(5),
-//   timestamp: DataTrackTimestamp.fromRtpTicks(100),
-//   extensions,
-// });
-// const payload = new ArrayBuffer(10);
-// const packet = new DataTrackPacket(header, payload);
-
-// console.log('PACKET:', packet.toBinary());

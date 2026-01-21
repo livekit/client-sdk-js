@@ -10,7 +10,7 @@ abstract class DataTrackExtension extends Serializable {
   abstract lengthBytes: number;
 
   toBinaryLengthBytes(): number {
-    return this.lengthBytes;
+    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
   }
 }
 
@@ -20,7 +20,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
   private timestamp: bigint;
 
-  private constructor(timestamp: bigint) {
+  constructor(timestamp: bigint) {
     super();
     this.timestamp = timestamp;
   }
@@ -36,6 +36,11 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
     dataView.setBigUint64(byteIndex, this.timestamp);
     byteIndex += 8;
+
+    const totalLengthBytes = this.toBinaryLengthBytes();
+    if (byteIndex !== totalLengthBytes) {
+      throw new Error(`DataTrackUserTimestampExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
+    }
 
     return byteIndex;
   }
@@ -57,7 +62,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
   private keyIndex: number;
   private iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
-  private constructor(keyIndex: number, iv: Uint8Array) {
+  constructor(keyIndex: number, iv: Uint8Array) {
     super();
     this.keyIndex = keyIndex;
     this.iv = iv;
@@ -78,6 +83,11 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     for (let i = 0; i < this.iv.length; i += 1) {
       dataView.setUint8(byteIndex, this.iv[i]);
       byteIndex += 1;
+    }
+
+    const totalLengthBytes = this.toBinaryLengthBytes();
+    if (byteIndex !== totalLengthBytes) {
+      throw new Error(`DataTrackE2eeExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
     }
 
     return byteIndex;
@@ -118,14 +128,19 @@ export class DataTrackExtensions extends Serializable {
   toBinaryInto(dataView: DataView) {
     let byteIndex = 0;
 
-    if (this.userTimestamp) {
-      const userTimestampBytes = this.userTimestamp.toBinaryInto(dataView);
+    if (this.e2ee) {
+      const userTimestampBytes = this.e2ee.toBinaryInto(dataView);
       byteIndex += userTimestampBytes;
     }
 
-    if (this.e2ee) {
-      const e2eeBytes = this.e2ee.toBinaryInto(dataView);
+    if (this.userTimestamp) {
+      const e2eeBytes = this.userTimestamp.toBinaryInto(new DataView(dataView.buffer, dataView.byteOffset + byteIndex));
       byteIndex += e2eeBytes;
+    }
+
+    const totalLengthBytes = this.toBinaryLengthBytes();
+    if (byteIndex !== totalLengthBytes) {
+      throw new Error(`DataTrackExtensions.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
     }
 
     return byteIndex;
