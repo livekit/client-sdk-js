@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '.';
-import { DataTrackHandle, DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
+import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
+import { DataTrackHandle } from '../handle';
 import { DataTrackE2eeExtension, DataTrackExtensions, DataTrackUserTimestampExtension } from './extensions';
 
 describe('DataTrackPacket', () => {
@@ -10,7 +11,7 @@ describe('DataTrackPacket', () => {
     it('should serialize a single packet', async () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Single,
-        trackHandle: await DataTrackHandle.fromNumber(101),
+        trackHandle: DataTrackHandle.fromNumber(101),
         sequence: WrapAroundUnsignedInt.u16(102),
         frameNumber: WrapAroundUnsignedInt.u16(103),
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
@@ -50,7 +51,7 @@ describe('DataTrackPacket', () => {
     it('should serialize a final packet with extensions', async () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Final,
-        trackHandle: await DataTrackHandle.fromNumber(0x8811),
+        trackHandle: DataTrackHandle.fromNumber(0x8811),
         sequence: WrapAroundUnsignedInt.u16(0x4422),
         frameNumber: WrapAroundUnsignedInt.u16(0x4411),
         timestamp: DataTrackTimestamp.fromRtpTicks(0x44221188),
@@ -158,7 +159,7 @@ describe('DataTrackPacket', () => {
     it('should serialize a start packet with only the e2ee extension', async () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Start,
-        trackHandle: await DataTrackHandle.fromNumber(101),
+        trackHandle: DataTrackHandle.fromNumber(101),
         sequence: WrapAroundUnsignedInt.u16(102),
         frameNumber: WrapAroundUnsignedInt.u16(103),
         timestamp: DataTrackTimestamp.fromRtpTicks(104),

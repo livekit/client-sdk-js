@@ -1,5 +1,7 @@
+import type { Throws } from "throws-transformer/src/throws";
 import { EXT_TAG_PADDING } from "./constants";
 import Serializable from "./serializable";
+import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from "./errors";
 
 enum DataTrackExtensionTag {
   UserTimestamp = 2,
@@ -7,8 +9,8 @@ enum DataTrackExtensionTag {
 }
 
 abstract class DataTrackExtension extends Serializable {
-  abstract static tag: DataTrackExtensionTag;
-  abstract static lengthBytes: number;
+  static tag: DataTrackExtensionTag;
+  static lengthBytes: number;
 
   toBinaryLengthBytes(): number {
     return 2 /* tag (u16) */ + 2 /* length (u16) */ + (this.constructor as typeof DataTrackExtension).lengthBytes;
@@ -147,7 +149,10 @@ export class DataTrackExtensions extends Serializable {
     return byteIndex;
   }
 
-  static async fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input) {
+  static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): Throws<
+    [extensions: DataTrackExtensions, byteLength: number],
+    DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
+  > {
     const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
 
     let userTimestamp: DataTrackUserTimestampExtension | undefined;
@@ -169,7 +174,7 @@ export class DataTrackExtensions extends Serializable {
       switch (tag) {
         case DataTrackExtensionTag.UserTimestamp:
           if ((dataView.byteLength - byteIndex) < DataTrackUserTimestampExtension.lengthBytes) {
-            return Err(DeserializeError::MalformedExt(tag));
+            throw DataTrackDeserializeError.malformedExt(tag);
           }
           userTimestamp = new DataTrackUserTimestampExtension(dataView.getBigUint64(byteIndex));
           byteIndex += 8;
@@ -177,7 +182,7 @@ export class DataTrackExtensions extends Serializable {
 
         case DataTrackExtensionTag.E2ee:
           if ((dataView.byteLength - byteIndex) < DataTrackE2eeExtension.lengthBytes) {
-            return Err(DeserializeError::MalformedExt(tag));
+            throw DataTrackDeserializeError.malformedExt(tag);
           }
 
           const keyIndex = dataView.getUint8(byteIndex);
@@ -195,14 +200,14 @@ export class DataTrackExtensions extends Serializable {
         default:
           // Skip over unknown extensions (forward compatible).
           if ((dataView.byteLength - byteIndex) < lengthBytes) {
-            return Err(DeserializeError::MalformedExt(tag));
+            throw DataTrackDeserializeError.malformedExt(tag);
           }
           byteIndex += lengthBytes;
           break;
       }
     }
 
-    return [new DataTrackExtensions({ userTimestamp, e2ee }), byteIndex] as [DataTrackExtensions, number];
+    return [new DataTrackExtensions({ userTimestamp, e2ee }), byteIndex];
   }
 
   toJSON() {

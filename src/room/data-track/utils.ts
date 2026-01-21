@@ -1,7 +1,3 @@
-import TypedPromise from "../../utils/TypedPromise";
-import { DataTrackHandleError, DataTrackHandleErrorReason } from "../errors";
-import { type Throws } from "throws-transformer/src/throws"
-
 export const U16_MAX_SIZE = 0xFFFF;
 
 /**
@@ -39,38 +35,6 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
   update(updateFn: (value: number) => number) {
     this.value = updateFn(this.value);
     this.clamp();
-  }
-}
-
-export class DataTrackHandle {
-  public value: number;
-
-  static fromNumber(raw: number): Throws<DataTrackHandle, DataTrackHandleError<DataTrackHandleErrorReason.DataTrackHandleTooLarge> | DataTrackHandleError<DataTrackHandleErrorReason.DataTrackHandleReserved>> {
-    if (raw === 0) {
-      throw DataTrackHandleError.tooLarge();
-    }
-    if (raw > U16_MAX_SIZE) {
-      throw DataTrackHandleError.reserved();
-    }
-    return new DataTrackHandle(raw);
-  }
-
-  constructor(raw: number) {
-    this.value = raw;
-  }
-}
-
-/** Manage allocating new handles which don't conflict over the lifetime of the client. */
-export class DataTrackHandleAllocator {
-  static value = 0;
-  
-  /** Returns a unique track handle for the next publication, if one can be obtained. */
-  static get(): DataTrackHandle | null {
-    this.value += 1;
-    if (this.value > U16_MAX_SIZE) {
-      return null;
-    }
-    return new DataTrackHandle(this.value);
   }
 }
 
