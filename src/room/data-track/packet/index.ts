@@ -2,7 +2,8 @@ import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestam
 
 import Serializable from "./serializable";
 import { DataTrackExtensions } from "./extensions";
-import { BASE_HEADER_LEN, EXT_WORDS_INDICATOR_SIZE, SUPPORTED_VERSION, VERSION_SHIFT, FRAME_MARKER_FINAL, FRAME_MARKER_INTER, FRAME_MARKER_SHIFT, FRAME_MARKER_START, FRAME_MARKER_SINGLE, EXT_FLAG_SHIFT } from "./constants";
+import { BASE_HEADER_LEN, EXT_WORDS_INDICATOR_SIZE, SUPPORTED_VERSION, VERSION_SHIFT, FRAME_MARKER_FINAL, FRAME_MARKER_INTER, FRAME_MARKER_SHIFT, FRAME_MARKER_START, FRAME_MARKER_SINGLE, EXT_FLAG_SHIFT, VERSION_MASK, FRAME_MARKER_MASK, EXT_FLAG_MASK } from "./constants";
+import { DataTrackError } from "../../errors";
 
 /** A class for serializing / deserializing data track packet header sections. */
 export class DataTrackPacketHeader extends Serializable {
@@ -112,18 +113,87 @@ export class DataTrackPacketHeader extends Serializable {
     return totalLengthBytes;
   }
 
-  toBinary() {
-    const lengthBytes = this.toBinaryLengthBytes();
-    const output = new ArrayBuffer(lengthBytes);
-    const view = new DataView(output);
+  static async fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input) {
+    const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
 
-    const writtenBytes = this.toBinaryInto(view);
-
-    if (lengthBytes !== writtenBytes) {
-      throw new Error(`DataTrackPacketHeader.toBinary: written bytes (${writtenBytes} bytes) not equal to allocated array buffer length (${lengthBytes} bytes).`);
+    if (dataView.byteLength < BASE_HEADER_LEN) {
+      return Err(DeserializeError::TooShort);
     }
 
-    return new Uint8Array(output); // FIXME: return uint8array here? Or the arraybuffer?
+    let byteIndex = 0;
+
+    const initial = dataView.getUint8(byteIndex);
+    byteIndex += 1;
+
+    const version = initial >> VERSION_SHIFT & VERSION_MASK;
+    if (version > SUPPORTED_VERSION) {
+      return Err(DeserializeError::UnsupportedVersion(version));
+    }
+
+    let marker;
+    switch (initial >> FRAME_MARKER_SHIFT & FRAME_MARKER_MASK) {
+      case FRAME_MARKER_START:
+        marker = FrameMarker.Start;
+        break;
+      case FRAME_MARKER_FINAL:
+        marker = FrameMarker.Final;
+        break;
+      case FRAME_MARKER_SINGLE:
+        marker = FrameMarker.Single;
+        break;
+      case FRAME_MARKER_INTER:
+      default:
+        marker = FrameMarker.Inter;
+        break;
+    }
+
+    const extensionsFlag = (initial >> EXT_FLAG_SHIFT & EXT_FLAG_MASK) > 0;
+
+    byteIndex += 1; // Reserved
+
+    const trackHandle = await DataTrackHandle.fromNumber(dataView.getUint16(byteIndex)).catch(e => { const a = e.into(DataTrackError); return a; });
+    byteIndex += 2;
+
+    const sequence = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
+    byteIndex += 2;
+
+    const frameNumber = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
+    byteIndex += 2;
+
+    const timestamp = DataTrackTimestamp.fromRtpTicks(dataView.getUint32(byteIndex));
+    byteIndex += 4;
+
+    let extensions = new DataTrackExtensions();
+    if (extensionsFlag) {
+      if ((dataView.byteLength - byteIndex) < 2) {
+        return Err(DeserializeError::MissingExtWords);
+      }
+      let extensionWords = dataView.getUint16(byteIndex);
+      byteIndex += 1;
+
+      let extensionLengthBytes = 4 * extensionWords;
+      if (extensionLengthBytes > (dataView.byteLength - byteIndex)) {
+        return Err(DeserializeError::HeaderOverrun);
+      }
+      let extensionDataView = new DataView(
+        dataView.buffer,
+        dataView.byteOffset + byteIndex,
+        dataView.byteLength - byteIndex,
+      );
+
+      const [result, readBytes] = await DataTrackExtensions.fromBinary(extensionDataView);
+      extensions = result;
+      byteIndex += readBytes;
+    }
+
+    return [new DataTrackPacketHeader({
+      marker,
+      trackHandle,
+      sequence,
+      frameNumber,
+      timestamp,
+      extensions,
+    }), byteIndex] as [DataTrackPacketHeader, number];
   }
 
   toJSON() {
@@ -182,6 +252,18 @@ export class DataTrackPacket extends Serializable {
     }
 
     return totalLengthBytes;
+  }
+
+  static async fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input) {
+    const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
+
+    const [header, headerByteLength] = await DataTrackPacketHeader.fromBinary(dataView);
+    const payload = dataView.buffer.transfer(
+      dataView.byteOffset + headerByteLength,
+      dataView.byteLength - headerByteLength
+    );
+
+    return [new DataTrackPacket(header, payload), dataView.byteLength] as [DataTrackPacket, number];
   }
 
   toJSON() {

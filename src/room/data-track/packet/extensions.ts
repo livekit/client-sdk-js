@@ -1,3 +1,4 @@
+import { EXT_TAG_PADDING } from "./constants";
 import Serializable from "./serializable";
 
 enum DataTrackExtensionTag {
@@ -6,11 +7,11 @@ enum DataTrackExtensionTag {
 }
 
 abstract class DataTrackExtension extends Serializable {
-  abstract tag: DataTrackExtensionTag;
-  abstract lengthBytes: number;
+  abstract static tag: DataTrackExtensionTag;
+  abstract static lengthBytes: number;
 
   toBinaryLengthBytes(): number {
-    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
+    return 2 /* tag (u16) */ + 2 /* length (u16) */ + (this.constructor as typeof DataTrackExtension).lengthBytes;
   }
 }
 
@@ -144,6 +145,64 @@ export class DataTrackExtensions extends Serializable {
     }
 
     return byteIndex;
+  }
+
+  static async fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input) {
+    const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
+
+    let userTimestamp: DataTrackUserTimestampExtension | undefined;
+    let e2ee: DataTrackE2eeExtension | undefined;
+
+    let byteIndex = 0;
+    while ((dataView.byteLength - byteIndex) >= 4) {
+      const tag = dataView.getUint16(byteIndex);
+      byteIndex += 1;
+
+      const lengthBytes = dataView.getUint16(byteIndex);
+      byteIndex += 1;
+
+      if (tag === EXT_TAG_PADDING) {
+        // Skip padding
+        continue;
+      }
+
+      switch (tag) {
+        case DataTrackExtensionTag.UserTimestamp:
+          if ((dataView.byteLength - byteIndex) < DataTrackUserTimestampExtension.lengthBytes) {
+            return Err(DeserializeError::MalformedExt(tag));
+          }
+          userTimestamp = new DataTrackUserTimestampExtension(dataView.getBigUint64(byteIndex));
+          byteIndex += 8;
+          break;
+
+        case DataTrackExtensionTag.E2ee:
+          if ((dataView.byteLength - byteIndex) < DataTrackE2eeExtension.lengthBytes) {
+            return Err(DeserializeError::MalformedExt(tag));
+          }
+
+          const keyIndex = dataView.getUint8(byteIndex);
+          byteIndex += 1;
+
+          const iv = new Uint8Array(12);
+          for (let i = 0; i < iv.length; i += 1) {
+            iv[i] = dataView.getUint8(byteIndex);
+            byteIndex += 1;
+          }
+
+          e2ee = new DataTrackE2eeExtension(keyIndex, iv);
+          break;
+
+        default:
+          // Skip over unknown extensions (forward compatible).
+          if ((dataView.byteLength - byteIndex) < lengthBytes) {
+            return Err(DeserializeError::MalformedExt(tag));
+          }
+          byteIndex += lengthBytes;
+          break;
+      }
+    }
+
+    return [new DataTrackExtensions({ userTimestamp, e2ee }), byteIndex] as [DataTrackExtensions, number];
   }
 
   toJSON() {
