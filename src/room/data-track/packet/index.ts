@@ -1,4 +1,4 @@
-import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestamp, DataTrackHandleAllocator } from "../utils";
+import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestamp } from "../utils";
 
 import Serializable from "./serializable";
 import { DataTrackExtensions } from "./extensions";
