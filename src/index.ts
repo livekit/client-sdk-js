@@ -149,5 +149,8 @@ export type {
   ReconnectPolicy,
   RoomEventCallbacks,
 };
+export {
+  DataTrackPacket,
+} from './room/data-track/packet';
 
 export { LocalTrackRecorder } from './room/track/record';

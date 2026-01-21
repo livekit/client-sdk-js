@@ -319,3 +319,26 @@ export namespace MediaDeviceFailure {
     }
   }
 }
+
+
+export enum DataTrackErrorReason {
+  // 0x00 is a reserved value.
+  DataTrackHandleReserved = 0,
+
+  // The specified value is too large to be a valid track handle
+  DataTrackHandleTooLarge = 1,
+}
+
+export class DataTrackError<Reason extends DataTrackErrorReason = DataTrackErrorReason> extends LivekitError {
+  readonly name = 'DataTrackError';
+
+  reason: Reason;
+
+  reasonName: string;
+
+  constructor(message: string, reason: Reason) {
+    super(19, message);
+    this.reason = reason;
+    this.reasonName = DataTrackErrorReason[reason];
+  }
+}
