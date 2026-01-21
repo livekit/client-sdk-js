@@ -1,169 +1,10 @@
-import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestamp, DataTrackHandleAllocator } from "./utils";
+import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestamp, DataTrackHandleAllocator } from "../utils";
+
+import Serializable from "./serializable";
+import { DataTrackExtensions } from "./extensions";
 import { BASE_HEADER_LEN, EXT_WORDS_INDICATOR_SIZE, SUPPORTED_VERSION, VERSION_SHIFT, FRAME_MARKER_FINAL, FRAME_MARKER_INTER, FRAME_MARKER_SHIFT, FRAME_MARKER_START, FRAME_MARKER_SINGLE, EXT_FLAG_SHIFT } from "./constants";
 
-/** An abstract class implementing common behavior related to data track binary serialization. */
-abstract class Serializable {
-  /** Returns the expected length of the serialized output in bytes */
-  abstract toBinaryLengthBytes(): number;
-
-  /** Given a DataView, serialize the instance inside and return the number of bytes written. */
-  abstract toBinaryInto(dataView: DataView): number;
-
-  /** Encodes the instance as binary and returns the data as a Uint8Array. */
-  toBinary() {
-    const lengthBytes = this.toBinaryLengthBytes();
-    const output = new ArrayBuffer(lengthBytes);
-    const view = new DataView(output);
-
-    const writtenBytes = this.toBinaryInto(view);
-
-    if (lengthBytes !== writtenBytes) {
-      throw new Error(`${this.constructor.name}.toBinary: written bytes (${writtenBytes} bytes) not equal to allocated array buffer length (${lengthBytes} bytes).`);
-    }
-
-    return new Uint8Array(output); // FIXME: return uint8array here? Or the arraybuffer?
-  }
-}
-
-enum DataTrackExtensionTag {
-  UserTimestamp = 2,
-  E2ee = 1,
-}
-
-abstract class DataTrackExtension extends Serializable {
-  abstract tag: DataTrackExtensionTag;
-  abstract lengthBytes: number;
-
-  toBinaryLengthBytes(): number {
-    return this.lengthBytes;
-  }
-}
-
-export class UserTimestampExtension extends DataTrackExtension {
-  tag = DataTrackExtensionTag.UserTimestamp;
-  lengthBytes = 8;
-
-  private timestamp: bigint;
-
-  private constructor(timestamp: bigint) {
-    super();
-    this.timestamp = timestamp;
-  }
-
-  toBinaryInto(dataView: DataView) {
-    let byteIndex = 0;
-
-    dataView.setUint16(byteIndex, this.tag);
-    byteIndex += 2;
-
-    dataView.setUint16(byteIndex, this.lengthBytes - 1);
-    byteIndex += 2;
-
-    dataView.setBigUint64(byteIndex, this.timestamp);
-    byteIndex += 8;
-
-    return byteIndex;
-  }
-
-  toJSON() {
-    return {
-      tag: this.tag,
-      lengthBytes: this.lengthBytes,
-
-      timestamp: this.timestamp,
-    };
-  }
-}
-
-export class E2eeExtExtension extends DataTrackExtension {
-  tag = DataTrackExtensionTag.E2ee;
-  lengthBytes = 13;
-
-  private keyIndex: number;
-  private iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
-
-  private constructor(keyIndex: number, iv: Uint8Array) {
-    super();
-    this.keyIndex = keyIndex;
-    this.iv = iv;
-  }
-
-  toBinaryInto(dataView: DataView) {
-    let byteIndex = 0;
-
-    dataView.setUint16(byteIndex, this.tag);
-    byteIndex += 2;
-
-    dataView.setUint16(byteIndex, this.lengthBytes - 1);
-    byteIndex += 2;
-
-    dataView.setUint8(byteIndex, this.keyIndex);
-    byteIndex += 1;
-
-    for (let i = 0; i < this.iv.length; i += 1) {
-      dataView.setUint8(byteIndex, this.iv[i]);
-      byteIndex += 1;
-    }
-
-    return byteIndex;
-  }
-
-  toJSON() {
-    return {
-      tag: this.tag,
-      lengthBytes: this.lengthBytes,
-
-      keyIndex: this.keyIndex,
-      iv: this.iv,
-    };
-  }
-}
-
-export class DataTrackExtensions extends Serializable {
-  userTimestamp?: UserTimestampExtension;
-  e2ee?: E2eeExtExtension;
-
-  constructor(opts: { userTimestamp?: UserTimestampExtension, e2ee?: E2eeExtExtension } = {}) {
-    super();
-    this.userTimestamp = opts.userTimestamp;
-    this.e2ee = opts.e2ee;
-  }
-
-  toBinaryLengthBytes() {
-    let lengthBytes = 0;
-    if (this.userTimestamp) {
-      lengthBytes += this.userTimestamp.toBinaryLengthBytes();
-    }
-    if (this.e2ee) {
-      lengthBytes += this.e2ee.toBinaryLengthBytes();
-    }
-    return lengthBytes;
-  }
-
-  toBinaryInto(dataView: DataView) {
-    let byteIndex = 0;
-
-    if (this.userTimestamp) {
-      const userTimestampBytes = this.userTimestamp.toBinaryInto(dataView);
-      byteIndex += userTimestampBytes;
-    }
-
-    if (this.e2ee) {
-      const e2eeBytes = this.e2ee.toBinaryInto(dataView);
-      byteIndex += e2eeBytes;
-    }
-
-    return byteIndex;
-  }
-
-  toJSON() {
-    return {
-      userTimestamp: this.userTimestamp?.toJSON() ?? null,
-      e2ee: this.e2ee?.toJSON() ?? null,
-    };
-  }
-}
-
+/** A class for serializing / deserializing data track packet header sections. */
 export class DataTrackPacketHeader extends Serializable {
   marker: FrameMarker;
   trackHandle: DataTrackHandle;
@@ -287,7 +128,7 @@ export class DataTrackPacketHeader extends Serializable {
 
   toJSON() {
     return {
-      marker: this.marker,
+      marker: FrameMarker[this.marker],
       trackHandle: this.trackHandle.value,
       sequence: this.sequence.value,
       frameNumber: this.frameNumber.value,
@@ -297,7 +138,7 @@ export class DataTrackPacketHeader extends Serializable {
   }
 }
 
-/// Marker indicating a packet's position in relation to a frame.
+/** Marker indicating a packet's position in relation to a frame. */
 enum FrameMarker {
     /** Packet is the first in a frame. */
     Start = 0,
@@ -309,6 +150,7 @@ enum FrameMarker {
     Single = 3,
 }
 
+/** A class for serializing / deserializing data track packets. */
 export class DataTrackPacket extends Serializable {
   header: DataTrackPacketHeader;
   payload: ArrayBuffer;
@@ -343,9 +185,15 @@ export class DataTrackPacket extends Serializable {
   }
 
   toJSON() {
-    return { header: this.header, payload: this.payload };
+    return { header: this.header.toJSON(), payload: this.payload };
   }
 }
+
+export {
+  type DataTrackExtensions,
+  type DataTrackUserTimestampExtension,
+  type DataTrackE2eeExtension,
+} from "./extensions";
 
 
 // Example:
