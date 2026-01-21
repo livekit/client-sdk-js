@@ -24,7 +24,14 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
-    "ignoreDeprecations": "5.0"
+    "ignoreDeprecations": "5.0",
+    "plugins": [
+      { "name": "throws-transformer" },
+      {
+        "name": "throws-transformer/transformer",
+        "transform": "throws-transformer/transformer"
+      }
+    ],
   },
   "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],

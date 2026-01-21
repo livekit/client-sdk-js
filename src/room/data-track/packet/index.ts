@@ -3,7 +3,8 @@ import { WrapAroundUnsignedInt, U16_MAX_SIZE, DataTrackHandle, DataTrackTimestam
 import Serializable from "./serializable";
 import { DataTrackExtensions } from "./extensions";
 import { BASE_HEADER_LEN, EXT_WORDS_INDICATOR_SIZE, SUPPORTED_VERSION, VERSION_SHIFT, FRAME_MARKER_FINAL, FRAME_MARKER_INTER, FRAME_MARKER_SHIFT, FRAME_MARKER_START, FRAME_MARKER_SINGLE, EXT_FLAG_SHIFT, VERSION_MASK, FRAME_MARKER_MASK, EXT_FLAG_MASK } from "./constants";
-import { DataTrackError } from "../../errors";
+import { DataTrackDeserializeError, DataTrackError } from "../../errors";
+import TypedPromise from "../../../utils/TypedPromise";
 
 /** A class for serializing / deserializing data track packet header sections. */
 export class DataTrackPacketHeader extends Serializable {
@@ -151,7 +152,7 @@ export class DataTrackPacketHeader extends Serializable {
 
     byteIndex += 1; // Reserved
 
-    const trackHandle = await DataTrackHandle.fromNumber(dataView.getUint16(byteIndex)).catch(e => { const a = e.into(DataTrackError); return a; });
+    const trackHandle = DataTrackHandle.fromNumber(dataView.getUint16(byteIndex));
     byteIndex += 2;
 
     const sequence = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
@@ -166,7 +167,9 @@ export class DataTrackPacketHeader extends Serializable {
     let extensions = new DataTrackExtensions();
     if (extensionsFlag) {
       if ((dataView.byteLength - byteIndex) < 2) {
-        return Err(DeserializeError::MissingExtWords);
+        // return Err(DeserializeError::MissingExtWords);
+        const a = TypedPromise.reject(DataTrackDeserializeError.missingExtWords()).catch(e => { const a = TypedPromise.reject(new DataTrackError(e)); return a; })
+        return a;
       }
       let extensionWords = dataView.getUint16(byteIndex);
       byteIndex += 1;

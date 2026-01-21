@@ -61,6 +61,7 @@
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
+    "throws-transformer": "github:livekit/throws-transformer-ts",
     "ts-debounce": "^4.0.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",

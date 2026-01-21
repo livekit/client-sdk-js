@@ -1,5 +1,6 @@
 import TypedPromise from "../../utils/TypedPromise";
-import { DataTrackHandleError } from "../errors";
+import { DataTrackHandleError, DataTrackHandleErrorReason } from "../errors";
+import { type Throws } from "throws-transformer/src/throws"
 
 export const U16_MAX_SIZE = 0xFFFF;
 
@@ -44,14 +45,14 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 export class DataTrackHandle {
   public value: number;
 
-  static fromNumber(raw: number) {
+  static fromNumber(raw: number): Throws<DataTrackHandle, DataTrackHandleError<DataTrackHandleErrorReason.DataTrackHandleTooLarge> | DataTrackHandleError<DataTrackHandleErrorReason.DataTrackHandleReserved>> {
     if (raw === 0) {
-      return TypedPromise.reject(DataTrackHandleError.tooLarge());
+      throw DataTrackHandleError.tooLarge();
     }
     if (raw > U16_MAX_SIZE) {
-      return TypedPromise.reject(DataTrackHandleError.reserved());
+      throw DataTrackHandleError.reserved();
     }
-    return TypedPromise.resolve(new DataTrackHandle(raw));
+    return new DataTrackHandle(raw);
   }
 
   constructor(raw: number) {
