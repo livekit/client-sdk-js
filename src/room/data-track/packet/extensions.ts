@@ -11,10 +11,6 @@ enum DataTrackExtensionTag {
 abstract class DataTrackExtension extends Serializable {
   static tag: DataTrackExtensionTag;
   static lengthBytes: number;
-
-  toBinaryLengthBytes(): number {
-    return 2 /* tag (u16) */ + 2 /* length (u16) */ + (this.constructor as typeof DataTrackExtension).lengthBytes;
-  }
 }
 
 export class DataTrackUserTimestampExtension extends DataTrackExtension {
@@ -26,6 +22,10 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
   constructor(timestamp: bigint) {
     super();
     this.timestamp = timestamp;
+  }
+
+  toBinaryLengthBytes(): number {
+    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
@@ -69,6 +69,10 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     super();
     this.keyIndex = keyIndex;
     this.iv = iv;
+  }
+
+  toBinaryLengthBytes(): number {
+    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
