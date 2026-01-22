@@ -188,8 +188,8 @@ export class DataTrackPacketHeader extends Serializable {
       }
       let extensionDataView = new DataView(
         dataView.buffer,
-        dataView.byteOffset + byteIndex,
-        dataView.byteLength - byteIndex,
+        dataView.byteOffset + (byteIndex + 1),
+        extensionLengthBytes,
       );
 
       const [result, readBytes] = DataTrackExtensions.fromBinary(extensionDataView);
@@ -199,7 +199,7 @@ export class DataTrackPacketHeader extends Serializable {
 
     return [new DataTrackPacketHeader({
       marker,
-      trackHandle,
+      trackHandle: trackHandle!,
       sequence,
       frameNumber,
       timestamp,
@@ -268,19 +268,19 @@ export class DataTrackPacket extends Serializable {
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): Throws<
     [packet: DataTrackPacket, byteLength: number],
     | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
     | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
-    | DataTrackHandleError<DataTrackHandleErrorReason.TooLarge>
-    | DataTrackHandleError<DataTrackHandleErrorReason.Reserved>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
   > {
     const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
 
     const [header, headerByteLength] = DataTrackPacketHeader.fromBinary(dataView);
+
     const payload = dataView.buffer.slice(
-      dataView.byteOffset + headerByteLength,
-      dataView.byteLength - headerByteLength
+      dataView.byteOffset + headerByteLength + 1,
+      dataView.byteLength,
     );
 
     return [new DataTrackPacket(header, payload), dataView.byteLength] as [DataTrackPacket, number];
