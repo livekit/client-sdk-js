@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '.';
 import { DataTrackHandle } from '../handle';
 import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
+import { EXT_FLAG_SHIFT } from './constants';
 import {
   DataTrackE2eeExtension,
   DataTrackExtensions,
@@ -255,7 +256,7 @@ describe('DataTrackPacket', () => {
   });
 
   describe('Deserialization', () => {
-    it('should deserialize a single packet', async () => {
+    it('should deserialize a single packet', () => {
       const [packet, bytes] = DataTrackPacket.fromBinary(
         new Uint8Array([
           0x18, // Version 0, final, extension
@@ -299,6 +300,41 @@ describe('DataTrackPacket', () => {
         },
         payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
       });
+    });
+
+    it('should fail to deserialize a too short buffer', () => {
+      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+      expect(() => DataTrackPacket.fromBinary(packet.slice(0, 5))).toThrow(
+        'Too short to contain a valid header',
+      );
+    });
+
+    it('should fail to deserialize a packet including extensions but missing the ext words value', () => {
+      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+      packet[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
+
+      expect(() => DataTrackPacket.fromBinary(packet)).toThrow(
+        'Extension word indicator is missing',
+      );
+    });
+
+    it('should fail to deserialize a packet which overruns headers', () => {
+      const packet = new Uint8Array([
+        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, /* one extension word (big endian) */ 0, 1,
+      ]);
+      packet[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
+
+      expect(() => DataTrackPacket.fromBinary(packet)).toThrow(
+        'Header exceeds total packet length',
+      );
+    });
+
+    it('should fail to deserialize a packet with an unsupported version', () => {
+      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+      packet[0] = 0x20; // Version 1 (not supported yet)
+
+      expect(() => DataTrackPacket.fromBinary(packet)).toThrow('Unsupported version 1');
     });
   });
 });
