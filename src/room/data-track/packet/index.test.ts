@@ -1,10 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '.';
-import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
 import { DataTrackHandle } from '../handle';
-import { DataTrackE2eeExtension, DataTrackExtensions, DataTrackUserTimestampExtension } from './extensions';
+import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
+import {
+  DataTrackE2eeExtension,
+  DataTrackExtensions,
+  DataTrackUserTimestampExtension,
+} from './extensions';
 
 describe('DataTrackPacket', () => {
   describe('Serialization', () => {
@@ -22,31 +25,33 @@ describe('DataTrackPacket', () => {
       const packet = new DataTrackPacket(header, payloadBytes.buffer);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(22);
-      expect(packet.toBinary()).toStrictEqual(new Uint8Array([
-        0x18, // Version 0, final, extension
-        0, // Reserved
-        0, // Track handle (big endian)
-        101,
-        0, // Sequence (big endian)
-        102,
-        0, // Frame number (bug endian)
-        103,
-        0, // Timestamp (big endian)
-        0,
-        0,
-        104,
-        /* (No extension words value) */
-        0, // Payload
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-      ]));
+      expect(packet.toBinary()).toStrictEqual(
+        new Uint8Array([
+          0x18, // Version 0, final, extension
+          0, // Reserved
+          0, // Track handle (big endian)
+          101,
+          0, // Sequence (big endian)
+          102,
+          0, // Frame number (bug endian)
+          103,
+          0, // Timestamp (big endian)
+          0,
+          0,
+          104,
+          /* (No extension words value) */
+          0, // Payload
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+        ]),
+      );
     });
     it('should serialize a final packet with extensions', async () => {
       const header = new DataTrackPacketHeader({
@@ -57,10 +62,7 @@ describe('DataTrackPacket', () => {
         timestamp: DataTrackTimestamp.fromRtpTicks(0x44221188),
         extensions: new DataTrackExtensions({
           userTimestamp: new DataTrackUserTimestampExtension(0x4411221111118811n),
-          e2ee: new DataTrackE2eeExtension(
-            0xFA,
-            new Uint8Array(12).fill(0x3c),
-          ),
+          e2ee: new DataTrackE2eeExtension(0xfa, new Uint8Array(12).fill(0x3c)),
         }),
       });
 
@@ -69,92 +71,94 @@ describe('DataTrackPacket', () => {
       const packet = new DataTrackPacket(header, payloadBytes.buffer);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(78);
-      expect(packet.toBinary()).toStrictEqual(new Uint8Array([
-        0xc, // Version 0, final, extension
-        0, // Reserved
-        136, // Track handle (big endian)
-        17,
-        68, // Sequence (big endian)
-        34,
-        68, // Frame number (bug endian)
-        17,
-        68, // Timestamp (big endian)
-        34,
-        17,
-        136,
-        0, // Extension words (big endian)
-        8,
+      expect(packet.toBinary()).toStrictEqual(
+        new Uint8Array([
+          0xc, // Version 0, final, extension
+          0, // Reserved
+          136, // Track handle (big endian)
+          17,
+          68, // Sequence (big endian)
+          34,
+          68, // Frame number (bug endian)
+          17,
+          68, // Timestamp (big endian)
+          34,
+          17,
+          136,
+          0, // Extension words (big endian)
+          8,
 
-        // E2ee extension
-        0, // ID 1 (big endian)
-        1,
-        0, // Length 12 (big endian)
-        12,
-        0xfa, // Key index
-        0x3c, // Iv array
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
+          // E2ee extension
+          0, // ID 1 (big endian)
+          1,
+          0, // Length 12 (big endian)
+          12,
+          0xfa, // Key index
+          0x3c, // Iv array
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
 
-        // User timestamp extension
-        0, // ID 2 (big endian)
-        2,
-        0, // Length 7 (big endian)
-        7,
-        68, // Timestamp value (big endian)
-        17,
-        34,
-        17,
-        17,
-        17,
-        136,
-        17,
+          // User timestamp extension
+          0, // ID 2 (big endian)
+          2,
+          0, // Length 7 (big endian)
+          7,
+          68, // Timestamp value (big endian)
+          17,
+          34,
+          17,
+          17,
+          17,
+          136,
+          17,
 
-        0, // Extension padding
-        0,
-        0,
+          0, // Extension padding
+          0,
+          0,
 
-        0xfa, // Payload
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-      ]));
+          0xfa, // Payload
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+        ]),
+      );
     });
     it('should serialize a start packet with only the e2ee extension', async () => {
       const header = new DataTrackPacketHeader({
@@ -164,10 +168,7 @@ describe('DataTrackPacket', () => {
         frameNumber: WrapAroundUnsignedInt.u16(103),
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
         extensions: new DataTrackExtensions({
-          e2ee: new DataTrackE2eeExtension(
-            0xFA,
-            new Uint8Array(12).fill(0x3c),
-          ),
+          e2ee: new DataTrackE2eeExtension(0xfa, new Uint8Array(12).fill(0x3c)),
         }),
       });
 
@@ -176,123 +177,127 @@ describe('DataTrackPacket', () => {
       const packet = new DataTrackPacket(header, payloadBytes.buffer);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(66);
-      expect(packet.toBinary()).toStrictEqual(new Uint8Array([
-        0x14, // Version 0, start, extension
-        0, // Reserved
-        0, // Track handle (big endian)
-        101,
-        0, // Sequence (big endian)
-        102,
-        0, // Frame number (bug endian)
-        103,
-        0, // Timestamp (big endian)
-        0,
-        0,
-        104,
-        0, // Extension words (big endian)
-        5,
+      expect(packet.toBinary()).toStrictEqual(
+        new Uint8Array([
+          0x14, // Version 0, start, extension
+          0, // Reserved
+          0, // Track handle (big endian)
+          101,
+          0, // Sequence (big endian)
+          102,
+          0, // Frame number (bug endian)
+          103,
+          0, // Timestamp (big endian)
+          0,
+          0,
+          104,
+          0, // Extension words (big endian)
+          5,
 
-        // E2ee extension
-        0, // ID 1 (big endian)
-        1,
-        0, // Length 12 (big endian)
-        12,
-        0xfa, // Key index
-        0x3c, // Iv array
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
-        0x3c,
+          // E2ee extension
+          0, // ID 1 (big endian)
+          1,
+          0, // Length 12 (big endian)
+          12,
+          0xfa, // Key index
+          0x3c, // Iv array
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
+          0x3c,
 
-        0, // Extension padding
-        0,
-        0,
+          0, // Extension padding
+          0,
+          0,
 
-        0xfa, // Payload
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-        0xfa,
-      ]));
+          0xfa, // Payload
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+          0xfa,
+        ]),
+      );
     });
   });
 
   describe('Deserialization', () => {
     it('should deserialize a single packet', async () => {
-      const [packet, bytes] = DataTrackPacket.fromBinary(new Uint8Array([
-        0x18, // Version 0, final, extension
-        0, // Reserved
-        0, // Track handle (big endian)
-        101,
-        0, // Sequence (big endian)
-        102,
-        0, // Frame number (bug endian)
-        103,
-        0, // Timestamp (big endian)
-        0,
-        0,
-        104,
-        /* (No extension words value) */
-        0, // Payload
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-      ]));
+      const [packet, bytes] = DataTrackPacket.fromBinary(
+        new Uint8Array([
+          0x18, // Version 0, final, extension
+          0, // Reserved
+          0, // Track handle (big endian)
+          101,
+          0, // Sequence (big endian)
+          102,
+          0, // Frame number (bug endian)
+          103,
+          0, // Timestamp (big endian)
+          0,
+          0,
+          104,
+          /* (No extension words value) */
+          0, // Payload
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+        ]),
+      );
 
       expect(bytes).toStrictEqual(22);
       expect(packet.toJSON()).toStrictEqual({
-        "header": {
-          "extensions": {
-            "e2ee": null,
-            "userTimestamp": null,
+        header: {
+          extensions: {
+            e2ee: null,
+            userTimestamp: null,
           },
-          "frameNumber": 103,
-          "marker": "Single",
-          "sequence": 102,
-          "timestamp": 104,
-          "trackHandle": 101,
+          frameNumber: 103,
+          marker: 'Single',
+          sequence: 102,
+          timestamp: 104,
+          trackHandle: 101,
         },
-        "payload": new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
+        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
       });
     });
   });

@@ -1,7 +1,7 @@
-import type { Throws } from "throws-transformer/src/throws";
-import { EXT_TAG_PADDING } from "./constants";
-import Serializable from "./serializable";
-import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from "./errors";
+import type { Throws } from 'throws-transformer/src/throws';
+import { EXT_TAG_PADDING } from './constants';
+import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
+import Serializable from './serializable';
 
 enum DataTrackExtensionTag {
   UserTimestamp = 2,
@@ -10,11 +10,13 @@ enum DataTrackExtensionTag {
 
 abstract class DataTrackExtension extends Serializable {
   static tag: DataTrackExtensionTag;
+
   static lengthBytes: number;
 }
 
 export class DataTrackUserTimestampExtension extends DataTrackExtension {
   tag = DataTrackExtensionTag.UserTimestamp;
+
   lengthBytes = 8;
 
   private timestamp: bigint;
@@ -42,7 +44,9 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
-      throw new Error(`DataTrackUserTimestampExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
+      throw new Error(
+        `DataTrackUserTimestampExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
+      );
     }
 
     return byteIndex;
@@ -60,9 +64,11 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
 export class DataTrackE2eeExtension extends DataTrackExtension {
   tag = DataTrackExtensionTag.E2ee;
+
   lengthBytes = 13;
 
   private keyIndex: number;
+
   private iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
   constructor(keyIndex: number, iv: Uint8Array) {
@@ -94,7 +100,9 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
-      throw new Error(`DataTrackE2eeExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
+      throw new Error(
+        `DataTrackE2eeExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
+      );
     }
 
     return byteIndex;
@@ -113,9 +121,12 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
 export class DataTrackExtensions extends Serializable {
   userTimestamp?: DataTrackUserTimestampExtension;
+
   e2ee?: DataTrackE2eeExtension;
 
-  constructor(opts: { userTimestamp?: DataTrackUserTimestampExtension, e2ee?: DataTrackE2eeExtension } = {}) {
+  constructor(
+    opts: { userTimestamp?: DataTrackUserTimestampExtension; e2ee?: DataTrackE2eeExtension } = {},
+  ) {
     super();
     this.userTimestamp = opts.userTimestamp;
     this.e2ee = opts.e2ee;
@@ -141,29 +152,38 @@ export class DataTrackExtensions extends Serializable {
     }
 
     if (this.userTimestamp) {
-      const e2eeBytes = this.userTimestamp.toBinaryInto(new DataView(dataView.buffer, dataView.byteOffset + byteIndex));
+      const e2eeBytes = this.userTimestamp.toBinaryInto(
+        new DataView(dataView.buffer, dataView.byteOffset + byteIndex),
+      );
       byteIndex += e2eeBytes;
     }
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
-      throw new Error(`DataTrackExtensions.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`);
+      throw new Error(
+        `DataTrackExtensions.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
+      );
     }
 
     return byteIndex;
   }
 
-  static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): Throws<
+  static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
+    input: Input,
+  ): Throws<
     [extensions: DataTrackExtensions, byteLength: number],
     DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
   > {
-    const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
+    const dataView =
+      input instanceof DataView
+        ? input
+        : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
 
     let userTimestamp: DataTrackUserTimestampExtension | undefined;
     let e2ee: DataTrackE2eeExtension | undefined;
 
     let byteIndex = 0;
-    while ((dataView.byteLength - byteIndex) >= 4) {
+    while (dataView.byteLength - byteIndex >= 4) {
       const tag = dataView.getUint16(byteIndex);
       byteIndex += 2;
 
@@ -177,15 +197,15 @@ export class DataTrackExtensions extends Serializable {
 
       switch (tag) {
         case DataTrackExtensionTag.UserTimestamp:
-          if ((dataView.byteLength - byteIndex) < DataTrackUserTimestampExtension.lengthBytes) {
+          if (dataView.byteLength - byteIndex < DataTrackUserTimestampExtension.lengthBytes) {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
           userTimestamp = new DataTrackUserTimestampExtension(dataView.getBigUint64(byteIndex));
-          byteIndex += lengthBytes+1;
+          byteIndex += lengthBytes + 1;
           break;
 
         case DataTrackExtensionTag.E2ee:
-          if ((dataView.byteLength - byteIndex) < DataTrackE2eeExtension.lengthBytes) {
+          if (dataView.byteLength - byteIndex < DataTrackE2eeExtension.lengthBytes) {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
 
@@ -197,15 +217,15 @@ export class DataTrackExtensions extends Serializable {
           }
 
           e2ee = new DataTrackE2eeExtension(keyIndex, iv);
-          byteIndex += lengthBytes+1;
+          byteIndex += lengthBytes + 1;
           break;
 
         default:
           // Skip over unknown extensions (forward compatible).
-          if ((dataView.byteLength - byteIndex) < lengthBytes) {
+          if (dataView.byteLength - byteIndex < lengthBytes) {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
-          byteIndex += lengthBytes+1;
+          byteIndex += lengthBytes + 1;
           break;
       }
     }

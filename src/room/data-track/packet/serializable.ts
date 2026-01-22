@@ -15,10 +15,11 @@ export default abstract class Serializable {
     const writtenBytes = this.toBinaryInto(view);
 
     if (lengthBytes !== writtenBytes) {
-      throw new Error(`${this.constructor.name}.toBinary: written bytes (${writtenBytes} bytes) not equal to allocated array buffer length (${lengthBytes} bytes).`);
+      throw new Error(
+        `${this.constructor.name}.toBinary: written bytes (${writtenBytes} bytes) not equal to allocated array buffer length (${lengthBytes} bytes).`,
+      );
     }
 
     return new Uint8Array(output); // FIXME: return uint8array here? Or the arraybuffer?
   }
 }
-

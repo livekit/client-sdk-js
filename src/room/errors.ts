@@ -12,11 +12,12 @@ export class LivekitError extends Error {
 }
 
 /**
-  * LiveKit specific error type representing an error with an associated set of reasons.
-  * Use this to represent an error with multiple different but contextually related variants.
-  * */
+ * LiveKit specific error type representing an error with an associated set of reasons.
+ * Use this to represent an error with multiple different but contextually related variants.
+ * */
 export abstract class LivekitReasonedError<Reason> extends LivekitError {
   abstract reason: Reason;
+
   abstract reasonName: string;
 }
 

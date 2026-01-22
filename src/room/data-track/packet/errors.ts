@@ -1,5 +1,5 @@
-import { LivekitReasonedError } from "../../errors";
-import type { DataTrackHandleError } from "../handle";
+import { LivekitReasonedError } from '../../errors';
+import type { DataTrackHandleError } from '../handle';
 
 export enum DataTrackDeserializeErrorReason {
   TooShort = 0,
@@ -10,14 +10,18 @@ export enum DataTrackDeserializeErrorReason {
   MalformedExt = 5,
 }
 
-export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorReason> extends LivekitReasonedError<DataTrackDeserializeErrorReason> {
+export class DataTrackDeserializeError<
+  Reason extends DataTrackDeserializeErrorReason,
+> extends LivekitReasonedError<DataTrackDeserializeErrorReason> {
   readonly name = 'DataTrackDeserializeError';
 
   reason: Reason;
 
   reasonName: string;
 
-  cause?: Reason extends DataTrackDeserializeErrorReason.InvalidHandle ? DataTrackHandleError : never;
+  cause?: Reason extends DataTrackDeserializeErrorReason.InvalidHandle
+    ? DataTrackHandleError
+    : never;
 
   constructor(message: string, reason: Reason, options?: ErrorOptions) {
     super(19, message, options);
@@ -26,19 +30,31 @@ export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorR
   }
 
   static tooShort() {
-    return new DataTrackDeserializeError("Too short to contain a valid header", DataTrackDeserializeErrorReason.TooShort);
+    return new DataTrackDeserializeError(
+      'Too short to contain a valid header',
+      DataTrackDeserializeErrorReason.TooShort,
+    );
   }
 
   static headerOverrun() {
-    return new DataTrackDeserializeError("Header exceeds total packet length", DataTrackDeserializeErrorReason.HeaderOverrun);
+    return new DataTrackDeserializeError(
+      'Header exceeds total packet length',
+      DataTrackDeserializeErrorReason.HeaderOverrun,
+    );
   }
 
   static missingExtWords() {
-    return new DataTrackDeserializeError("Extension word indicator is missing", DataTrackDeserializeErrorReason.MissingExtWords);
+    return new DataTrackDeserializeError(
+      'Extension word indicator is missing',
+      DataTrackDeserializeErrorReason.MissingExtWords,
+    );
   }
 
   static unsupportedVersion(version: number) {
-    return new DataTrackDeserializeError(`Unsupported version ${version}`, DataTrackDeserializeErrorReason.UnsupportedVersion);
+    return new DataTrackDeserializeError(
+      `Unsupported version ${version}`,
+      DataTrackDeserializeErrorReason.UnsupportedVersion,
+    );
   }
 
   static invalidHandle(cause: DataTrackHandleError) {
@@ -50,6 +66,9 @@ export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorR
   }
 
   static malformedExt(tag: number) {
-    return new DataTrackDeserializeError(`Extension with tag ${tag} is malformed`, DataTrackDeserializeErrorReason.MalformedExt);
+    return new DataTrackDeserializeError(
+      `Extension with tag ${tag} is malformed`,
+      DataTrackDeserializeErrorReason.MalformedExt,
+    );
   }
 }

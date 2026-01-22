@@ -16,9 +16,9 @@ export default class TypedPromise<T, E extends Error> extends Promise<T> {
 
   static resolve: {
     (): TypedPromise<void, never>;
-    <T>(value: T): TypedPromise<Awaited<T>, never>;
-  } = <T>(value?: T): TypedPromise<Awaited<T>, never> => {
-    return super.resolve(value) as TypedPromise<Awaited<T>, never>;
+    <V>(value: V): TypedPromise<Awaited<V>, never>;
+  } = <V>(value?: V): TypedPromise<Awaited<V>, never> => {
+    return super.resolve(value) as TypedPromise<Awaited<V>, never>;
   };
 
   static reject<E extends Error>(reason: E): TypedPromise<never, E> {
