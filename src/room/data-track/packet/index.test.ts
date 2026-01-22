@@ -250,4 +250,50 @@ describe('DataTrackPacket', () => {
       ]));
     });
   });
+
+  describe('Deserialization', () => {
+    it('should deserialize a single packet', async () => {
+      const [packet, bytes] = DataTrackPacket.fromBinary(new Uint8Array([
+        0x18, // Version 0, final, extension
+        0, // Reserved
+        0, // Track handle (big endian)
+        101,
+        0, // Sequence (big endian)
+        102,
+        0, // Frame number (bug endian)
+        103,
+        0, // Timestamp (big endian)
+        0,
+        0,
+        104,
+        /* (No extension words value) */
+        0, // Payload
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+      ]));
+
+      expect(bytes).toStrictEqual(22);
+      expect(packet.toJSON()).toStrictEqual({
+        "header": {
+          "extensions": {
+            "e2ee": null,
+            "userTimestamp": null,
+          },
+          "frameNumber": 103,
+          "marker": "Single",
+          "sequence": 102,
+          "timestamp": 104,
+          "trackHandle": 101,
+        },
+        "payload": new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
+      });
+    });
+  });
 });
