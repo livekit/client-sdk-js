@@ -118,12 +118,11 @@ export class DataTrackPacketHeader extends Serializable {
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): Throws<
     [header: DataTrackPacketHeader, byteLength: number],
     | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
     | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
-    | DataTrackHandleError<DataTrackHandleErrorReason.TooLarge>
-    | DataTrackHandleError<DataTrackHandleErrorReason.Reserved>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
+    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
   > {
     const dataView = input instanceof DataView ? input : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
 
@@ -162,7 +161,16 @@ export class DataTrackPacketHeader extends Serializable {
 
     byteIndex += 1; // Reserved
 
-    const trackHandle = DataTrackHandle.fromNumber(dataView.getUint16(byteIndex));
+    let trackHandle: DataTrackHandle | undefined;
+    try {
+      trackHandle = DataTrackHandle.fromNumber(dataView.getUint16(byteIndex));
+    } catch (e) {
+      if (e instanceof DataTrackHandleError && (e.isReason(DataTrackHandleErrorReason.Reserved) || e.isReason(DataTrackHandleErrorReason.TooLarge))) {
+        throw DataTrackDeserializeError.invalidHandle(e);
+      } else {
+        throw e;
+      }
+    }
     byteIndex += 2;
 
     const sequence = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
