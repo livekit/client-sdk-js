@@ -1,6 +1,6 @@
 import { type Throws } from "throws-transformer/dist/src/throws";
 
-import { LivekitError } from "../errors";
+import { LivekitReasonedError } from "../errors";
 import { U16_MAX_SIZE } from "./utils";
 
 export enum DataTrackHandleErrorReason {
@@ -8,7 +8,9 @@ export enum DataTrackHandleErrorReason {
   TooLarge = 1,
 }
 
-export class DataTrackHandleError<Reason extends DataTrackHandleErrorReason = DataTrackHandleErrorReason> extends LivekitError {
+export class DataTrackHandleError<
+  Reason extends DataTrackHandleErrorReason = DataTrackHandleErrorReason
+> extends LivekitReasonedError<DataTrackHandleErrorReason> {
   readonly name = 'DataTrackHandleError';
 
   reason: Reason;

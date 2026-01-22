@@ -1,4 +1,4 @@
-import { LivekitError } from "../../errors";
+import { LivekitReasonedError } from "../../errors";
 import type { DataTrackHandleError } from "../handle";
 
 export enum DataTrackDeserializeErrorReason {
@@ -10,7 +10,7 @@ export enum DataTrackDeserializeErrorReason {
   MalformedExt = 5,
 }
 
-export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorReason> extends LivekitError {
+export class DataTrackDeserializeError<Reason extends DataTrackDeserializeErrorReason> extends LivekitReasonedError<DataTrackDeserializeErrorReason> {
   readonly name = 'DataTrackDeserializeError';
 
   reason: Reason;

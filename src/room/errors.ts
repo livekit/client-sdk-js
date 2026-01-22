@@ -1,5 +1,6 @@
 import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 
+/** Base error that all LiveKit specific custom errors inherit from. */
 export class LivekitError extends Error {
   code: number;
 
@@ -8,6 +9,15 @@ export class LivekitError extends Error {
     this.name = 'LiveKitError';
     this.code = code;
   }
+}
+
+/**
+  * LiveKit specific error type representing an error with an associated set of reasons.
+  * Use this to represent an error with multiple different but contextually related variants.
+  * */
+export abstract class LivekitReasonedError<Reason> extends LivekitError {
+  abstract reason: Reason;
+  abstract reasonName: string;
 }
 
 export class SimulatedError extends LivekitError {
@@ -89,7 +99,7 @@ type ConnectionErrorVariants =
 
 export class ConnectionError<
   Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
-> extends LivekitError {
+> extends LivekitReasonedError<Variant['reason']> {
   status?: Variant['status'];
 
   context: Variant['context'];
@@ -233,7 +243,7 @@ export type RequestErrorReason =
   | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
   | 'TimeoutError';
 
-export class SignalRequestError extends LivekitError {
+export class SignalRequestError extends LivekitReasonedError<RequestErrorReason> {
   readonly name = 'SignalRequestError';
 
   reason: RequestErrorReason;
@@ -271,7 +281,7 @@ export enum DataStreamErrorReason {
   EncryptionTypeMismatch = 8,
 }
 
-export class DataStreamError extends LivekitError {
+export class DataStreamError extends LivekitReasonedError<DataStreamErrorReason> {
   readonly name = 'DataStreamError';
 
   reason: DataStreamErrorReason;
