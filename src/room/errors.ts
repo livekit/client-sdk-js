@@ -4,8 +4,8 @@ import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 export class LivekitError extends Error {
   code: number;
 
-  constructor(code: number, message?: string, options?: ErrorOptions) {
-    super(message || 'an error has occured', options);
+  constructor(code: number, message?: string, opts?: { cause?: unknown }) {
+    super(message || 'an error has occured', opts);
     this.name = 'LiveKitError';
     this.code = code;
   }
