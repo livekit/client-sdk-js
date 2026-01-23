@@ -15,9 +15,9 @@ abstract class DataTrackExtension extends Serializable {
 }
 
 export class DataTrackUserTimestampExtension extends DataTrackExtension {
-  tag = DataTrackExtensionTag.UserTimestamp;
+  static tag = DataTrackExtensionTag.UserTimestamp;
 
-  lengthBytes = 8;
+  static lengthBytes = 8;
 
   private timestamp: bigint;
 
@@ -27,16 +27,16 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + this.lengthBytes;
+    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + DataTrackUserTimestampExtension.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
     let byteIndex = 0;
 
-    dataView.setUint16(byteIndex, this.tag);
+    dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.tag);
     byteIndex += U16_LENGTH_BYTES;
 
-    dataView.setUint16(byteIndex, this.lengthBytes - 1);
+    dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.lengthBytes - 1);
     byteIndex += U16_LENGTH_BYTES;
 
     dataView.setBigUint64(byteIndex, this.timestamp);
@@ -54,8 +54,8 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
   toJSON() {
     return {
-      tag: this.tag as number,
-      lengthBytes: this.lengthBytes,
+      tag: DataTrackUserTimestampExtension.tag as number,
+      lengthBytes: DataTrackUserTimestampExtension.lengthBytes,
 
       timestamp: this.timestamp,
     };
@@ -63,9 +63,9 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 }
 
 export class DataTrackE2eeExtension extends DataTrackExtension {
-  tag = DataTrackExtensionTag.E2ee;
+  static tag = DataTrackExtensionTag.E2ee;
 
-  lengthBytes = 13;
+  static lengthBytes = 13;
 
   private keyIndex: number;
 
@@ -78,16 +78,16 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + this.lengthBytes;
+    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + DataTrackE2eeExtension.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
     let byteIndex = 0;
 
-    dataView.setUint16(byteIndex, this.tag);
+    dataView.setUint16(byteIndex, DataTrackE2eeExtension.tag);
     byteIndex += U16_LENGTH_BYTES;
 
-    dataView.setUint16(byteIndex, this.lengthBytes - 1);
+    dataView.setUint16(byteIndex, DataTrackE2eeExtension.lengthBytes - 1);
     byteIndex += U16_LENGTH_BYTES;
 
     dataView.setUint8(byteIndex, this.keyIndex);
@@ -110,8 +110,8 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   toJSON() {
     return {
-      tag: this.tag as number,
-      lengthBytes: this.lengthBytes,
+      tag: DataTrackE2eeExtension.tag as number,
+      lengthBytes: DataTrackE2eeExtension.lengthBytes,
 
       keyIndex: this.keyIndex,
       iv: this.iv,
