@@ -10,7 +10,7 @@
       "ES2017",
       "ES2018.Promise",
       "ES2021.WeakRef",
-      "ES2022"
+      "ES2022.Error"
     ],
     "rootDir": "./",
     "outDir": "dist",
