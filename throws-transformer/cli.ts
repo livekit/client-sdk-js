@@ -40,6 +40,10 @@ function main(): void {
 
   if (tsconfigPath) {
     const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+    if (configFile.error) {
+      console.error(`Error reading tsconfig: ${ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n')}`);
+      process.exit(1);
+    }
     const parsedConfig = ts.parseJsonConfigFileContent(
       configFile.config,
       ts.sys,
