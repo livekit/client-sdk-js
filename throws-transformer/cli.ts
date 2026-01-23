@@ -3,8 +3,7 @@
  * CLI tool to check TypeScript files for unhandled Throws errors.
  *
  * Usage:
- *   npx ts-node src/cli.ts src/examples.ts
- *   npx ts-node src/cli.ts "src/*.ts"
+ *   npx tsx ./throws-transformer/cli.ts 'src/*.ts'
  */
 
 import * as ts from "typescript";
