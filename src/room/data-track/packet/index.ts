@@ -228,14 +228,13 @@ export class DataTrackPacketHeader extends Serializable {
 
       let extensionLengthBytes = 4 * hackedExtensionWords;
 
-      const extensionsOffsetBytes = dataView.byteOffset + byteIndex;
-      if (extensionsOffsetBytes + extensionLengthBytes > dataView.buffer.byteLength) {
+      if (byteIndex + extensionLengthBytes > dataView.byteLength) {
         throw DataTrackDeserializeError.headerOverrun();
       }
 
       let extensionDataView = new DataView(
         dataView.buffer,
-        extensionsOffsetBytes,
+        dataView.byteOffset + byteIndex,
         extensionLengthBytes,
       );
 
