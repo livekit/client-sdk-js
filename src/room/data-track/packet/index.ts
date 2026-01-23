@@ -1,6 +1,6 @@
 import { type Throws } from '../../../utils/throws';
 import { DataTrackHandle, DataTrackHandleError, DataTrackHandleErrorReason } from '../handle';
-import { DataTrackTimestamp, U16_MAX_SIZE, WrapAroundUnsignedInt } from '../utils';
+import { coerceToDataView, DataTrackTimestamp, U16_MAX_SIZE, WrapAroundUnsignedInt } from '../utils';
 import {
   BASE_HEADER_LEN,
   EXT_FLAG_MASK,
@@ -150,10 +150,7 @@ export class DataTrackPacketHeader extends Serializable {
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
   ): Throws<[header: DataTrackPacketHeader, byteLength: number], DataTrackDeserializeErrorAll> {
-    const dataView =
-      input instanceof DataView
-        ? input
-        : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
+    const dataView = coerceToDataView(input);
 
     if (dataView.byteLength < BASE_HEADER_LEN) {
       throw DataTrackDeserializeError.tooShort();
@@ -324,10 +321,7 @@ export class DataTrackPacket extends Serializable {
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
   ): Throws<[packet: DataTrackPacket, byteLength: number], DataTrackDeserializeErrorAll> {
-    const dataView =
-      input instanceof DataView
-        ? input
-        : new DataView(input instanceof ArrayBuffer ? input : input.buffer);
+    const dataView = coerceToDataView(input);
 
     const [header, headerByteLength] = DataTrackPacketHeader.fromBinary(dataView);
 

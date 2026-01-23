@@ -59,3 +59,15 @@ export class DataTrackTimestamp<RateInHz extends number> {
     this.rateInHz = rateInHz;
   }
 }
+
+export function coerceToDataView<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): DataView {
+  if (input instanceof DataView) {
+    return input;
+  } else if (input instanceof ArrayBuffer) {
+    return new DataView(input);
+  } else if (input instanceof Uint8Array) {
+    return new DataView(input.buffer, input.byteOffset, input.byteLength);
+  } else {
+    throw new Error(`Error coercing ${input} to DataView - input was not DataView, ArrayBuffer, or Uint8Array.`);
+  }
+}
