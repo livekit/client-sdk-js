@@ -23,7 +23,7 @@ export class DataTrackDeserializeError<
     ? DataTrackHandleError
     : never;
 
-  constructor(message: string, reason: Reason, options?: ErrorOptions) {
+  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
     super(19, message, options);
     this.reason = reason;
     this.reasonName = DataTrackDeserializeErrorReason[reason];
