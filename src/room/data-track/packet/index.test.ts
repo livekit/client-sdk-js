@@ -7,6 +7,7 @@ import { EXT_FLAG_SHIFT } from './constants';
 import {
   DataTrackE2eeExtension,
   DataTrackExtensions,
+  DataTrackExtensionTag,
   DataTrackUserTimestampExtension,
 } from './extensions';
 
@@ -256,6 +257,8 @@ describe('DataTrackPacket', () => {
   });
 
   describe('Deserialization', () => {
+    const VALID_PACKET_BYTES = [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+
     it('should deserialize a single packet', () => {
       const [packet, bytes] = DataTrackPacket.fromBinary(
         new Uint8Array([
@@ -288,53 +291,231 @@ describe('DataTrackPacket', () => {
       expect(bytes).toStrictEqual(22);
       expect(packet.toJSON()).toStrictEqual({
         header: {
+          frameNumber: 103,
+          marker: FrameMarker.Single,
+          sequence: 102,
+          timestamp: 104,
+          trackHandle: 101,
           extensions: {
             e2ee: null,
             userTimestamp: null,
           },
-          frameNumber: 103,
-          marker: 'Single',
-          sequence: 102,
-          timestamp: 104,
-          trackHandle: 101,
         },
         payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
       });
     });
 
     it('should fail to deserialize a too short buffer', () => {
-      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
+      const packetBytes = new Uint8Array(VALID_PACKET_BYTES);
 
-      expect(() => DataTrackPacket.fromBinary(packet.slice(0, 5))).toThrow(
+      expect(() => DataTrackPacket.fromBinary(packetBytes.slice(0, 5))).toThrow(
         'Too short to contain a valid header',
       );
     });
 
     it('should fail to deserialize a packet including extensions but missing the ext words value', () => {
-      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
-      packet[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
+      const packetBytes = new Uint8Array(VALID_PACKET_BYTES);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
 
-      expect(() => DataTrackPacket.fromBinary(packet)).toThrow(
+      expect(() => DataTrackPacket.fromBinary(packetBytes)).toThrow(
         'Extension word indicator is missing',
       );
     });
 
     it('should fail to deserialize a packet which overruns headers', () => {
-      const packet = new Uint8Array([
-        0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, /* one extension word (big endian) */ 0, 1,
-      ]);
-      packet[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
 
-      expect(() => DataTrackPacket.fromBinary(packet)).toThrow(
+        0, // Extension word (big endian)
+        1,
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
+
+      expect(() => DataTrackPacket.fromBinary(packetBytes)).toThrow(
         'Header exceeds total packet length',
       );
     });
 
     it('should fail to deserialize a packet with an unsupported version', () => {
-      const packet = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
-      packet[0] = 0x20; // Version 1 (not supported yet)
+      const packetBytes = new Uint8Array(VALID_PACKET_BYTES);
+      packetBytes[0] = 0x20; // Version 1 (not supported yet)
 
-      expect(() => DataTrackPacket.fromBinary(packet)).toThrow('Unsupported version 1');
+      expect(() => DataTrackPacket.fromBinary(packetBytes)).toThrow('Unsupported version 1');
+    });
+
+    it('should deserialize base header', () => {
+      const [packet, bytes] = DataTrackPacket.fromBinary(
+        new Uint8Array([
+          0x8, // Version 0, final, extension
+          0x0, // Reserved
+          0x88, // Track handle (big endian)
+          0x11,
+          0x44, // Sequence (big endian)
+          0x22,
+          0x44, // Frame number (bug endian)
+          0x11,
+          0x44, // Timestamp (big endian)
+          0x22,
+          0x11,
+          0x88,
+        ]),
+      );
+
+      expect(bytes).toStrictEqual(12);
+      expect(packet.toJSON()).toStrictEqual({
+        header: {
+          marker: FrameMarker.Final,
+          trackHandle: 0x8811,
+          sequence: 0x4422,
+          frameNumber: 0x4411,
+          timestamp: 0x44221188,
+          extensions: {
+            e2ee: null,
+            userTimestamp: null,
+          },
+        },
+        payload: new Uint8Array([]).buffer,
+      });
+    });
+
+    it.each([0, 1, 24])('should skip extension padding', (extensionWords) => {
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
+
+        0, // Extension words (big endian)
+        extensionWords,
+
+        ...(new Array(extensionWords * 4).fill(0)), // Padding
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
+
+      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+
+      expect(new Uint8Array(packet.toJSON().payload).byteLength).toStrictEqual(0);
+    });
+
+    it('should deserialize e2ee extension properly', () => {
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
+
+        0, // Extension words (big endian)
+        5,
+
+        // E2ee extension
+        0, // ID 1 (big endian)
+        1,
+        0, // Length 12 (big endian)
+        12,
+        0xfa, // Key index
+        0x3c, // Iv array
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+        0x3c,
+
+        0, // Padding
+        0,
+        0,
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
+
+      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+
+      expect(packet.toJSON().header.extensions.e2ee).toStrictEqual({
+        tag: DataTrackExtensionTag.E2ee,
+        lengthBytes: 13,
+        keyIndex: 0xfa,
+        iv: new Uint8Array(12).fill(0x3c),
+      });
+    });
+
+    it('should deserialize user timestamp extension properly', () => {
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
+
+        0, // Extension words (big endian)
+        3,
+
+        // E2ee extension
+        0, // ID 1 (big endian)
+        2,
+        0, // Length 12 (big endian)
+        7,
+        0x44, // Timestamp (big endian)
+        0x11, 
+        0x22,
+        0x11,
+        0x11,
+        0x11,
+        0x88,
+        0x11,
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
+
+      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+
+      expect(packet.toJSON().header.extensions.userTimestamp).toStrictEqual({
+        tag: DataTrackExtensionTag.UserTimestamp,
+        lengthBytes: 8,
+        timestamp: 0x4411221111118811n,
+      });
+    });
+
+    it('should deserialize unknown extension properly', () => {
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
+
+        0, // Extension words (big endian)
+        3,
+
+        // Unknown / potential future extension
+        0, // ID 8 (big endian)
+        8,
+        0, // Length 12 (big endian)
+        6,
+        0x1, // Payload
+        0x2, 
+        0x3,
+        0x4,
+        0x5,
+        0x6,
+
+        0x0, // Padding
+        0x0,
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
+
+      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+
+      expect(packet.toJSON().header.extensions).toStrictEqual({
+        userTimestamp: null,
+        e2ee: null,
+      });
+    });
+
+    it('should ensure extensions are word aligned', () => {
+      const packetBytes = new Uint8Array([
+        ...VALID_PACKET_BYTES,
+
+        0, // Extension words (big endian)
+        1,
+
+        0x0, // Padding, missing one byte
+        0x0,
+        0x0,
+      ]);
+      packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
+
+      expect(() => DataTrackPacket.fromBinary(packetBytes)).toThrow(
+        'Header exceeds total packet length',
+      );
     });
   });
 });

@@ -3,7 +3,7 @@ import { EXT_TAG_PADDING } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
 import Serializable from './serializable';
 
-enum DataTrackExtensionTag {
+export enum DataTrackExtensionTag {
   UserTimestamp = 2,
   E2ee = 1,
 }

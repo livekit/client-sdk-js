@@ -223,12 +223,15 @@ export class DataTrackPacketHeader extends Serializable {
       byteIndex += 1;
 
       let extensionLengthBytes = 4 * extensionWords;
-      if (extensionLengthBytes > dataView.byteLength - byteIndex) {
+
+      const extensionsOffsetBytes = dataView.byteOffset + (byteIndex + 1);
+      if (extensionsOffsetBytes + extensionLengthBytes > dataView.buffer.byteLength) {
         throw DataTrackDeserializeError.headerOverrun();
       }
+
       let extensionDataView = new DataView(
         dataView.buffer,
-        dataView.byteOffset + (byteIndex + 1),
+        extensionsOffsetBytes,
         extensionLengthBytes,
       );
 
@@ -252,7 +255,7 @@ export class DataTrackPacketHeader extends Serializable {
 
   toJSON() {
     return {
-      marker: FrameMarker[this.marker],
+      marker: this.marker,
       trackHandle: this.trackHandle.value,
       sequence: this.sequence.value,
       frameNumber: this.frameNumber.value,
