@@ -49,6 +49,7 @@
     "deploy": "gh-pages -d examples/demo/dist",
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
+    "throws:check": "pnpm dlx tsx ./node_modules/throws-transformer/src/cli.ts 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
     "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
