@@ -8,7 +8,7 @@ export class LivekitError extends Error {
   cause?: unknown;
 
   constructor(code: number, message?: string, options?: { cause?: unknown }) {
-    super(message || 'an error has occured');
+    super(message || 'an error has occurred');
     this.name = 'LiveKitError';
     this.code = code;
 
