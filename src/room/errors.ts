@@ -5,7 +5,7 @@ export class LivekitError extends Error {
   code: number;
 
   // More info: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
-  cause: unknown;
+  cause?: unknown;
 
   constructor(code: number, message?: string, options?: { cause?: unknown }) {
     super(message || 'an error has occured');
