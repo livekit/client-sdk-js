@@ -47,7 +47,6 @@ function init(modules: {
       keyof ts.LanguageService
     >) {
       const x = info.languageService[k];
-      // // @ts-expect-error - dynamic proxy creation
       proxy[k] = typeof x === "function" ? x.bind(info.languageService) : x;
     }
 
