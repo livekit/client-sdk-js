@@ -257,20 +257,6 @@ class DatabaseError extends Error {
 2. Run `TypeScript: Restart TS Server`
 3. Check the TypeScript output panel for plugin initialization messages
 
-### Plugin not loading
-
-Verify the plugin is installed in `node_modules`:
-
-```bash
-ls node_modules/throws-transformer/dist/plugin.js
-```
-
-Rebuild if necessary:
-
-```bash
-cd node_modules/throws-transformer && npm run build
-```
-
 ## Limitations
 
 1. **Third-party libraries**: Only works with functions that use `Throws<>` annotations

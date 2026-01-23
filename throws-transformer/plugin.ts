@@ -8,7 +8,7 @@
  * 1. Add to tsconfig.json:
  *    {
  *      "compilerOptions": {
- *        "plugins": [{ "name": "throws-transformer" }]
+ *        "plugins": [{ "name": "./throws-transformer/plugin.ts" }]
  *      }
  *    }
  *
