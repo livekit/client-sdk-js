@@ -37,29 +37,39 @@ export function checkSourceFile(
     // Check regular call expressions
     if (ts.isCallExpression(node)) {
       const result = checkCallExpression(node, sourceFile, checker);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+      }
       
       // Also check if this is a Promise.reject() call
       const rejectResult = checkPromiseReject(node, sourceFile, checker);
-      if (rejectResult) results.push(rejectResult);
+      if (rejectResult) {
+        results.push(rejectResult);
+      }
     }
 
     // Check await expressions
     if (ts.isAwaitExpression(node) && ts.isCallExpression(node.expression)) {
       const result = checkCallExpression(node.expression, sourceFile, checker);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+      }
     }
 
     // Check throw statements
     if (ts.isThrowStatement(node)) {
       const result = checkThrowStatement(node, sourceFile, checker);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+      }
     }
 
     // Check return statements for Promise<Throws<T, E>> propagation
     if (ts.isReturnStatement(node) && node.expression) {
       const result = checkReturnStatement(node, sourceFile, checker);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+      }
     }
 
     ts.forEachChild(node, visit);
@@ -448,10 +458,14 @@ function getBaseTypes(checker: ts.TypeChecker, type: ts.Type): ts.Type[] {
   const bases: ts.Type[] = [];
 
   const symbol = type.getSymbol();
-  if (!symbol) return bases;
+  if (!symbol) {
+    return bases;
+  }
 
   const declarations = symbol.getDeclarations();
-  if (!declarations) return bases;
+  if (!declarations) {
+    return bases;
+  }
 
   for (const decl of declarations) {
     if (ts.isClassDeclaration(decl) && decl.heritageClauses) {
@@ -523,12 +537,15 @@ function isInTryBlock(node: ts.Node, tryStatement: ts.TryStatement): boolean {
   let current: ts.Node | undefined = node;
 
   while (current && current !== tryStatement) {
-    if (current === tryStatement.tryBlock) return true;
+    if (current === tryStatement.tryBlock) {
+      return true;
+    }
     if (
       current === tryStatement.catchClause ||
       current === tryStatement.finallyBlock
-    )
+    ) {
       return false;
+    }
     current = current.parent;
   }
 
@@ -578,7 +595,7 @@ function containsThrowStatement(block: ts.Block): boolean {
   let hasThrow = false;
 
   function visit(node: ts.Node): void {
-    if (hasThrow) return;
+    if (hasThrow) { return; }
 
     if (ts.isThrowStatement(node)) {
       hasThrow = true;
@@ -709,7 +726,7 @@ function getNarrowedTypeInBlock(
   let foundType: ts.Type | null = null;
 
   function visit(node: ts.Node): void {
-    if (foundType) return;
+    if (foundType) { return; }
 
     // Look for references to the error variable
     if (ts.isIdentifier(node) && node.text === varName) {
@@ -779,7 +796,7 @@ function getPropagatedErrorTypes(
 ): Set<string> {
   const propagated = new Set<string>();
 
-  if (!func.type) return propagated;
+  if (!func.type) { return propagated; }
 
   const returnType = checker.getTypeFromTypeNode(func.type);
   const errorTypes = extractThrowsErrorTypes(returnType, checker);
