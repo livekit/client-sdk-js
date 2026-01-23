@@ -1,7 +1,5 @@
-// @ts-check
 import { rolldown } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
-import { minify } from 'rollup-plugin-esbuild';
 import packageJson from './package.json' with { type: 'json' };
 
 export function kebabCaseToPascalCase(string = '') {
@@ -55,6 +53,7 @@ await clientBundle.write({
   file: `dist/${packageJson.name}.umd.js`,
   format: 'umd',
   sourcemap: true,
+  minify: true,
   name: kebabCaseToPascalCase(packageJson.name),
   plugins: [],
 });
@@ -85,6 +84,7 @@ await workerBundle.write({
   file: `dist/${packageJson.name}.e2ee.worker.umd.js`,
   format: 'umd',
   sourcemap: true,
+  minify: true,
   name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
   plugins: [],
 });
