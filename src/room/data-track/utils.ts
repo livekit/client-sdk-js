@@ -37,6 +37,9 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
     while (this.value > this.maxSize) {
       this.value -= this.maxSize;
     }
+    while (this.value < 0) {
+      this.value += this.maxSize;
+    }
   }
 
   /** When called, maps the containing value to a new containing value. After mapping, the wrap

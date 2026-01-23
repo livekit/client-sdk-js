@@ -10,11 +10,19 @@ describe('WrapAroundUnsignedInt', () => {
       'WrapAroundUnsignedInt: cannot faithfully represent an integer smaller than 0',
     );
   });
-  it('should test explicit wrap around behavior', () => {
+  it('should test explicit positive wrap around behavior', () => {
     const n = WrapAroundUnsignedInt.u16(65534);
     n.update((v) => v + 1);
     expect(n.value).toBe(65535);
     n.update((v) => v + 1);
     expect(n.value).toBe(1);
+  });
+
+  it('should test explicit negative wrap around behavior', () => {
+    const n = WrapAroundUnsignedInt.u16(1);
+    n.update((v) => v - 1);
+    expect(n.value).toBe(0);
+    n.update((v) => v - 1);
+    expect(n.value).toBe(65534);
   });
 });
