@@ -29,14 +29,14 @@ export class DataTrackHandleError<
   static tooLarge() {
     return new DataTrackHandleError(
       'Value too large to be a valid track handle',
-      DataTrackHandleErrorReason.Reserved,
+      DataTrackHandleErrorReason.TooLarge,
     );
   }
 
   static reserved(value: number) {
     return new DataTrackHandleError(
       `0x${value.toString(16)} is a reserved value.`,
-      DataTrackHandleErrorReason.TooLarge,
+      DataTrackHandleErrorReason.Reserved,
     );
   }
 }
