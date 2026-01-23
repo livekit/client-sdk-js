@@ -4,10 +4,15 @@ import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 export class LivekitError extends Error {
   code: number;
 
-  constructor(code: number, message?: string, opts?: { cause?: unknown }) {
-    super(message || 'an error has occured', opts);
+  constructor(code: number, message?: string, options?: { cause?: unknown }) {
+    super(message || 'an error has occured');
     this.name = 'LiveKitError';
     this.code = code;
+
+    if (typeof options?.cause === 'undefined') {
+      // More info: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
+      this.cause = options?.cause;
+    }
   }
 }
 
