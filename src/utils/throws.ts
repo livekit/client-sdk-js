@@ -1,9 +1,9 @@
 /**
  * Branded type that encodes possible thrown errors in the return type.
- * 
+ *
  * Usage:
  *   function fetchUser(id: string): Throws<User, NetworkError | NotFoundError> { ... }
- * 
+ *
  * The actual runtime value is just T - the error types are phantom types
  * that exist only for static analysis.
  *
@@ -32,5 +32,7 @@ export type CombineErrors<T extends any[]> = T extends [infer First, ...infer Re
  * Helper to propagate errors - use this when your function calls other
  * throwing functions and wants to propagate their errors.
  */
-export type PropagatesErrors<T, AdditionalErrors extends Error = never> = 
-  Throws<ExtractSuccess<T>, ExtractErrors<T> | AdditionalErrors>;
+export type PropagatesErrors<T, AdditionalErrors extends Error = never> = Throws<
+  ExtractSuccess<T>,
+  ExtractErrors<T> | AdditionalErrors
+>;

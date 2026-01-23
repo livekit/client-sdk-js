@@ -6,8 +6,8 @@ import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
 import { EXT_FLAG_SHIFT } from './constants';
 import {
   DataTrackE2eeExtension,
-  DataTrackExtensions,
   DataTrackExtensionTag,
+  DataTrackExtensions,
   DataTrackUserTimestampExtension,
 } from './extensions';
 
@@ -385,11 +385,11 @@ describe('DataTrackPacket', () => {
         0, // Extension words (big endian)
         extensionWords,
 
-        ...(new Array(extensionWords * 4).fill(0)), // Padding
+        ...new Array(extensionWords * 4).fill(0), // Padding
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
-      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+      const [packet] = DataTrackPacket.fromBinary(packetBytes);
 
       expect(new Uint8Array(packet.toJSON().payload).byteLength).toStrictEqual(0);
     });
@@ -426,7 +426,7 @@ describe('DataTrackPacket', () => {
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
-      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+      const [packet] = DataTrackPacket.fromBinary(packetBytes);
 
       expect(packet.toJSON().header.extensions.e2ee).toStrictEqual({
         tag: DataTrackExtensionTag.E2ee,
@@ -449,7 +449,7 @@ describe('DataTrackPacket', () => {
         0, // Length 12 (big endian)
         7,
         0x44, // Timestamp (big endian)
-        0x11, 
+        0x11,
         0x22,
         0x11,
         0x11,
@@ -459,7 +459,7 @@ describe('DataTrackPacket', () => {
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
-      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+      const [packet] = DataTrackPacket.fromBinary(packetBytes);
 
       expect(packet.toJSON().header.extensions.userTimestamp).toStrictEqual({
         tag: DataTrackExtensionTag.UserTimestamp,
@@ -481,7 +481,7 @@ describe('DataTrackPacket', () => {
         0, // Length 12 (big endian)
         6,
         0x1, // Payload
-        0x2, 
+        0x2,
         0x3,
         0x4,
         0x5,
@@ -492,7 +492,7 @@ describe('DataTrackPacket', () => {
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
-      const [packet, ] = DataTrackPacket.fromBinary(packetBytes);
+      const [packet] = DataTrackPacket.fromBinary(packetBytes);
 
       expect(packet.toJSON().header.extensions).toStrictEqual({
         userTimestamp: null,

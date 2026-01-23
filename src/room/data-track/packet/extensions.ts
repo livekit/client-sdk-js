@@ -213,7 +213,9 @@ export class DataTrackExtensions extends Serializable {
 
           const iv = new Uint8Array(12);
           for (let i = 0; i < iv.length; i += 1) {
-            iv[i] = dataView.getUint8(byteIndex + U8_LENGTH_BYTES /* key index */ + (i * U8_LENGTH_BYTES));
+            iv[i] = dataView.getUint8(
+              byteIndex + U8_LENGTH_BYTES /* key index */ + i * U8_LENGTH_BYTES,
+            );
           }
 
           e2ee = new DataTrackE2eeExtension(keyIndex, iv);

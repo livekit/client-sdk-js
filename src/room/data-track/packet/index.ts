@@ -13,12 +13,11 @@ import {
   FRAME_MARKER_SINGLE,
   FRAME_MARKER_START,
   SUPPORTED_VERSION,
-  VERSION_MASK,
-  VERSION_SHIFT,
-
   U8_LENGTH_BYTES,
   U16_LENGTH_BYTES,
   U32_LENGTH_BYTES,
+  VERSION_MASK,
+  VERSION_SHIFT,
 } from './constants';
 import { DataTrackDeserializeError, type DataTrackDeserializeErrorAll } from './errors';
 import { DataTrackExtensions } from './extensions';
@@ -144,10 +143,7 @@ export class DataTrackPacketHeader extends Serializable {
 
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
-  ): Throws<
-    [header: DataTrackPacketHeader, byteLength: number],
-    DataTrackDeserializeErrorAll
-  > {
+  ): Throws<[header: DataTrackPacketHeader, byteLength: number], DataTrackDeserializeErrorAll> {
     const dataView =
       input instanceof DataView
         ? input
@@ -315,10 +311,7 @@ export class DataTrackPacket extends Serializable {
 
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
-  ): Throws<
-    [packet: DataTrackPacket, byteLength: number],
-    DataTrackDeserializeErrorAll
-  > {
+  ): Throws<[packet: DataTrackPacket, byteLength: number], DataTrackDeserializeErrorAll> {
     const dataView =
       input instanceof DataView
         ? input
