@@ -87,8 +87,8 @@ describe('DataTrackPacket', () => {
           34,
           17,
           136,
-          0, // Extension words (big endian)
-          8,
+          0, // HACKED Extension words (big endian)
+          7,
 
           // E2ee extension
           0, // ID 1 (big endian)
@@ -193,8 +193,8 @@ describe('DataTrackPacket', () => {
           0,
           0,
           104,
-          0, // Extension words (big endian)
-          5,
+          0, // HACKED Extension words (big endian)
+          4,
 
           // E2ee extension
           0, // ID 1 (big endian)
@@ -385,7 +385,7 @@ describe('DataTrackPacket', () => {
         0, // Extension words (big endian)
         extensionWords,
 
-        ...new Array(extensionWords * 4).fill(0), // Padding
+        ...new Array((extensionWords + 1) /* HACKED */ * 4).fill(0), // Padding
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -398,8 +398,8 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // Extension words (big endian)
-        5,
+        0, // HACKED Extension words (big endian)
+        4,
 
         // E2ee extension
         0, // ID 1 (big endian)
@@ -441,7 +441,7 @@ describe('DataTrackPacket', () => {
         ...VALID_PACKET_BYTES,
 
         0, // Extension words (big endian)
-        3,
+        2,
 
         // E2ee extension
         0, // ID 1 (big endian)
@@ -472,8 +472,8 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // Extension words (big endian)
-        3,
+        0, // HACKED Extension words (big endian)
+        2,
 
         // Unknown / potential future extension
         0, // ID 8 (big endian)
@@ -504,8 +504,8 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // Extension words (big endian)
-        1,
+        0, // HACKED Extension words (big endian)
+        0,
 
         0x0, // Padding, missing one byte
         0x0,

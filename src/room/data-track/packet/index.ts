@@ -119,7 +119,13 @@ export class DataTrackPacketHeader extends Serializable {
     byteIndex += U32_LENGTH_BYTES;
 
     if (extensionsLengthBytes > 0) {
-      dataView.setUint16(byteIndex, extensionsLengthWords);
+      // NOTE: the below value shouldn't have one subtracted from it.
+      //
+      // There is an off by one bug in the SFU logic which to fix would require making a
+      // backwards incompatible change, so he decision was made to just subtract one here instead.
+      const hackedExtensionLengthWords = extensionsLengthWords - 1;
+
+      dataView.setUint16(byteIndex, hackedExtensionLengthWords);
       byteIndex += U16_LENGTH_BYTES;
       const extensionBytes = this.extensions.toBinaryInto(
         new DataView(dataView.buffer, dataView.byteOffset + byteIndex),
@@ -217,7 +223,13 @@ export class DataTrackPacketHeader extends Serializable {
       let extensionWords = dataView.getUint16(byteIndex);
       byteIndex += U16_LENGTH_BYTES;
 
-      let extensionLengthBytes = 4 * extensionWords;
+      // NOTE: the below value shouldn't have one added to it.
+      //
+      // There is an off by one bug in the SFU logic which to fix would require making a
+      // backwards incompatible change, so he decision was made to just add one here instead.
+      const hackedExtensionWords = extensionWords + 1;
+
+      let extensionLengthBytes = 4 * hackedExtensionWords;
 
       const extensionsOffsetBytes = dataView.byteOffset + byteIndex;
       if (extensionsOffsetBytes + extensionLengthBytes > dataView.buffer.byteLength) {
