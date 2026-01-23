@@ -5,7 +5,7 @@ import { WrapAroundUnsignedInt } from './utils';
 describe('WrapAroundUnsignedInt', () => {
   it('should test initialization + edge cases', () => {
     expect(WrapAroundUnsignedInt.u16(1).value).toEqual(1);
-    expect(WrapAroundUnsignedInt.u16(196_606 /* (3 * 65535) + 1 */).value).toEqual(1);
+    expect(WrapAroundUnsignedInt.u16(196_606 /* (3 * 65535) + 1 */).value).toEqual(65534);
     expect(() => WrapAroundUnsignedInt.u16(-1).value).toThrow(
       'WrapAroundUnsignedInt: cannot faithfully represent an integer smaller than 0',
     );
@@ -15,7 +15,7 @@ describe('WrapAroundUnsignedInt', () => {
     n.update((v) => v + 1);
     expect(n.value).toBe(65535);
     n.update((v) => v + 1);
-    expect(n.value).toBe(1);
+    expect(n.value).toBe(0);
   });
 
   it('should test explicit negative wrap around behavior', () => {
@@ -23,6 +23,6 @@ describe('WrapAroundUnsignedInt', () => {
     n.update((v) => v - 1);
     expect(n.value).toBe(0);
     n.update((v) => v - 1);
-    expect(n.value).toBe(65534);
+    expect(n.value).toBe(65535);
   });
 });

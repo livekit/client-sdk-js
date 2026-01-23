@@ -35,10 +35,10 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
    * this after out of bounds modification to the contained value by external code. */
   clamp() {
     while (this.value > this.maxSize) {
-      this.value -= this.maxSize;
+      this.value -= this.maxSize + 1;
     }
     while (this.value < 0) {
-      this.value += this.maxSize;
+      this.value += this.maxSize + 1;
     }
   }
 
