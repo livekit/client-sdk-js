@@ -12,7 +12,7 @@ export class LivekitError extends Error {
     this.name = 'LiveKitError';
     this.code = code;
 
-    if (typeof options?.cause === 'undefined') {
+    if (typeof options?.cause !== 'undefined') {
       this.cause = options?.cause;
     }
   }
