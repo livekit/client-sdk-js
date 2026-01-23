@@ -49,6 +49,14 @@ function main(): void {
       ts.sys,
       path.dirname(tsconfigPath),
     );
+    if (parsedConfig.errors.length > 0) {
+      const msg = ts.flattenDiagnosticMessageText(
+        parsedConfig.errors[0].messageText,
+        "\n",
+      );
+      console.error(`Error parsing tsconfig: ${msg}`);
+      process.exit(1);
+    }
     compilerOptions = parsedConfig.options;
   }
 
