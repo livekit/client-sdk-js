@@ -72,3 +72,11 @@ export class DataTrackDeserializeError<
     );
   }
 }
+
+export type DataTrackDeserializeErrorAll =
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
+  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>;

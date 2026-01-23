@@ -20,7 +20,7 @@ import {
   U16_LENGTH_BYTES,
   U32_LENGTH_BYTES,
 } from './constants';
-import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
+import { DataTrackDeserializeError, type DataTrackDeserializeErrorAll } from './errors';
 import { DataTrackExtensions } from './extensions';
 import Serializable from './serializable';
 
@@ -146,12 +146,7 @@ export class DataTrackPacketHeader extends Serializable {
     input: Input,
   ): Throws<
     [header: DataTrackPacketHeader, byteLength: number],
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
+    DataTrackDeserializeErrorAll
   > {
     const dataView =
       input instanceof DataView
@@ -322,12 +317,7 @@ export class DataTrackPacket extends Serializable {
     input: Input,
   ): Throws<
     [packet: DataTrackPacket, byteLength: number],
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
-    | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>
+    DataTrackDeserializeErrorAll
   > {
     const dataView =
       input instanceof DataView
