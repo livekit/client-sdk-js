@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.17.0
+
+### Minor Changes
+
+- Add new rtc path that defaults to single peer connection mode and falls back to legacy dual pc - [#1785](https://github.com/livekit/client-sdk-js/pull/1785) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Use TypedPromise for typesafe errors - [#1770](https://github.com/livekit/client-sdk-js/pull/1770) ([@lukasIO](https://github.com/lukasIO))
+
+- e2ee: ensure frame cryptor transform setup works for rapid subscription changes - [#1789](https://github.com/livekit/client-sdk-js/pull/1789) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.16.1
 
 ### Patch Changes

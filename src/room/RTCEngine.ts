@@ -266,6 +266,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     token: string,
     opts: SignalOptions,
     abortSignal?: AbortSignal,
+    /** setting this to true results in dual peer connection mode being used */
+    useV0Path: boolean = false,
   ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
@@ -275,13 +277,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal);
+      const joinResponse = await this.client.join(url, token, opts, abortSignal, useV0Path);
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.pcManager) {
-        await this.configure(joinResponse);
+        await this.configure(joinResponse, !useV0Path);
       }
 
       // create offer
@@ -303,8 +305,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             this.logContext,
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
-            return this.join(url, token, opts, abortSignal);
+            return this.join(url, token, opts, abortSignal, useV0Path);
           }
+        } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
+          this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
+          return this.join(url, token, opts, abortSignal, true);
         }
       }
       throw e;
@@ -440,7 +445,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.regionUrlProvider = provider;
   }
 
-  private async configure(joinResponse: JoinResponse) {
+  private async configure(joinResponse: JoinResponse, useSinglePeerConnection: boolean) {
     // already configured
     if (this.pcManager && this.pcManager.currentState !== PCTransportState.NEW) {
       return;
@@ -452,7 +457,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager = new PCTransportManager(
       rtcConfig,
-      this.options.singlePeerConnection
+      useSinglePeerConnection
         ? 'publisher-only'
         : joinResponse.subscriberPrimary
           ? 'subscriber-primary'
@@ -1095,7 +1100,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
-        joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+        joinResponse = await this.join(
+          regionUrl ?? this.url,
+          this.token,
+          this.signalOpts,
+          undefined,
+          !this.options.singlePeerConnection,
+        );
       } catch (e) {
         if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
           throw new UnexpectedConnectionState('could not reconnect, token might be expired');
@@ -1593,32 +1604,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer: this.options.singlePeerConnection
-          ? previousPublisherAnswer
-            ? toProtoSessionDescription({
-                sdp: previousPublisherAnswer.sdp,
-                type: previousPublisherAnswer.type,
-              })
-            : undefined
-          : previousSubscriberAnswer
-            ? toProtoSessionDescription({
-                sdp: previousSubscriberAnswer.sdp,
-                type: previousSubscriberAnswer.type,
-              })
-            : undefined,
-        offer: this.options.singlePeerConnection
-          ? previousPublisherOffer
-            ? toProtoSessionDescription({
-                sdp: previousPublisherOffer.sdp,
-                type: previousPublisherOffer.type,
-              })
-            : undefined
-          : previousSubscriberOffer
-            ? toProtoSessionDescription({
-                sdp: previousSubscriberOffer.sdp,
-                type: previousSubscriberOffer.type,
-              })
-            : undefined,
+        answer:
+          this.pcManager.mode === 'publisher-only'
+            ? previousPublisherAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherAnswer.sdp,
+                  type: previousPublisherAnswer.type,
+                })
+              : undefined
+            : previousSubscriberAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberAnswer.sdp,
+                  type: previousSubscriberAnswer.type,
+                })
+              : undefined,
+        offer:
+          this.pcManager.mode === 'publisher-only'
+            ? previousPublisherOffer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherOffer.sdp,
+                  type: previousPublisherOffer.type,
+                })
+              : undefined
+            : previousSubscriberOffer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberOffer.sdp,
+                  type: previousSubscriberOffer.type,
+                })
+              : undefined,
         subscription: new UpdateSubscription({
           trackSids,
           subscribe: !autoSubscribe,

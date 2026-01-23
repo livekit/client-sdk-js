@@ -17,13 +17,18 @@ export class WebSocketCheck extends Checker {
     let signalClient = new SignalClient();
     let joinRes: JoinResponse | undefined;
     try {
-      joinRes = await signalClient.join(this.url, this.token, {
-        autoSubscribe: true,
-        maxRetries: 0,
-        e2eeEnabled: false,
-        websocketTimeout: 15_000,
-        singlePeerConnection: false,
-      });
+      joinRes = await signalClient.join(
+        this.url,
+        this.token,
+        {
+          autoSubscribe: true,
+          maxRetries: 0,
+          e2eeEnabled: false,
+          websocketTimeout: 15_000,
+        },
+        undefined,
+        true,
+      );
     } catch (e: any) {
       if (isCloud(new URL(this.url))) {
         this.appendMessage(
@@ -32,13 +37,18 @@ export class WebSocketCheck extends Checker {
         const regionProvider = new RegionUrlProvider(this.url, this.token);
         const regionUrl = await regionProvider.getNextBestRegionUrl();
         if (regionUrl) {
-          joinRes = await signalClient.join(regionUrl, this.token, {
-            autoSubscribe: true,
-            maxRetries: 0,
-            e2eeEnabled: false,
-            websocketTimeout: 15_000,
-            singlePeerConnection: false,
-          });
+          joinRes = await signalClient.join(
+            regionUrl,
+            this.token,
+            {
+              autoSubscribe: true,
+              maxRetries: 0,
+              e2eeEnabled: false,
+              websocketTimeout: 15_000,
+            },
+            undefined,
+            true,
+          );
           this.appendMessage(
             `Fallback to region worked. To avoid initial connections failing, ensure you're calling room.prepareConnection() ahead of time`,
           );

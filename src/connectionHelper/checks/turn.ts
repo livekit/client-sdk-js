@@ -15,13 +15,18 @@ export class TURNCheck extends Checker {
         (await new RegionUrlProvider(this.url, this.token).getNextBestRegionUrl()) ?? this.url;
     }
     const signalClient = new SignalClient();
-    const joinRes = await signalClient.join(this.url, this.token, {
-      autoSubscribe: true,
-      maxRetries: 0,
-      e2eeEnabled: false,
-      websocketTimeout: 15_000,
-      singlePeerConnection: false,
-    });
+    const joinRes = await signalClient.join(
+      this.url,
+      this.token,
+      {
+        autoSubscribe: true,
+        maxRetries: 0,
+        e2eeEnabled: false,
+        websocketTimeout: 15_000,
+      },
+      undefined,
+      true,
+    );
 
     let hasTLS = false;
     let hasTURN = false;
