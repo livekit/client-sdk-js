@@ -28,7 +28,11 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + DataTrackUserTimestampExtension.lengthBytes;
+    return (
+      U16_LENGTH_BYTES /* tag */ +
+      U16_LENGTH_BYTES /* length */ +
+      DataTrackUserTimestampExtension.lengthBytes
+    );
   }
 
   toBinaryInto(dataView: DataView) {
@@ -79,7 +83,11 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + DataTrackE2eeExtension.lengthBytes;
+    return (
+      U16_LENGTH_BYTES /* tag */ +
+      U16_LENGTH_BYTES /* length */ +
+      DataTrackE2eeExtension.lengthBytes
+    );
   }
 
   toBinaryInto(dataView: DataView) {

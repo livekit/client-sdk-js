@@ -1,6 +1,11 @@
 import { type Throws } from '../../../utils/throws';
 import { DataTrackHandle, DataTrackHandleError, DataTrackHandleErrorReason } from '../handle';
-import { coerceToDataView, DataTrackTimestamp, U16_MAX_SIZE, WrapAroundUnsignedInt } from '../utils';
+import {
+  DataTrackTimestamp,
+  U16_MAX_SIZE,
+  WrapAroundUnsignedInt,
+  coerceToDataView,
+} from '../utils';
 import {
   BASE_HEADER_LEN,
   EXT_FLAG_MASK,

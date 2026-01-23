@@ -66,7 +66,9 @@ export class DataTrackTimestamp<RateInHz extends number> {
   }
 }
 
-export function coerceToDataView<Input extends DataView | ArrayBuffer | Uint8Array>(input: Input): DataView {
+export function coerceToDataView<Input extends DataView | ArrayBuffer | Uint8Array>(
+  input: Input,
+): DataView {
   if (input instanceof DataView) {
     return input;
   } else if (input instanceof ArrayBuffer) {
@@ -74,6 +76,8 @@ export function coerceToDataView<Input extends DataView | ArrayBuffer | Uint8Arr
   } else if (input instanceof Uint8Array) {
     return new DataView(input.buffer, input.byteOffset, input.byteLength);
   } else {
-    throw new Error(`Error coercing ${input} to DataView - input was not DataView, ArrayBuffer, or Uint8Array.`);
+    throw new Error(
+      `Error coercing ${input} to DataView - input was not DataView, ArrayBuffer, or Uint8Array.`,
+    );
   }
 }
