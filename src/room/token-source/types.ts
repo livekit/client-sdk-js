@@ -1,8 +1,4 @@
-import {
-  RoomConfiguration,
-  TokenSourceRequest,
-  TokenSourceResponse,
-} from '@livekit/protocol';
+import { RoomConfiguration, TokenSourceRequest, TokenSourceResponse } from '@livekit/protocol';
 import type { JWTPayload } from 'jose';
 import type { ValueToSnakeCase } from '../../utils/camelToSnakeCase';
 // The below imports are being linked in tsdoc comments, so they have to be imported even if they
