@@ -181,7 +181,7 @@ export class DataTrackExtensions extends Serializable {
     let e2ee: DataTrackE2eeExtension | undefined;
 
     let byteIndex = 0;
-    while (dataView.byteLength - byteIndex >= 4) {
+    while (dataView.byteLength - byteIndex >= U16_LENGTH_BYTES + U16_LENGTH_BYTES) {
       const tag = dataView.getUint16(byteIndex);
       byteIndex += U16_LENGTH_BYTES;
 
@@ -211,13 +211,14 @@ export class DataTrackExtensions extends Serializable {
 
           const iv = new Uint8Array(12);
           for (let i = 0; i < iv.length; i += 1) {
-            iv[i] = dataView.getUint8(
-              byteIndex + U8_LENGTH_BYTES /* key index */ + i * U8_LENGTH_BYTES,
-            );
+            let byteIndexForIv = byteIndex;
+            byteIndexForIv += U8_LENGTH_BYTES; // key index
+            byteIndexForIv += i * U8_LENGTH_BYTES; // Index into iv array
+            iv[i] = dataView.getUint8(byteIndexForIv);
           }
 
           e2ee = new DataTrackE2eeExtension(keyIndex, iv);
-          byteIndex += lengthBytes + U8_LENGTH_BYTES;
+          byteIndex += lengthBytes;
           break;
 
         default:
@@ -225,10 +226,12 @@ export class DataTrackExtensions extends Serializable {
           if (dataView.byteLength - byteIndex < lengthBytes) {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
-          byteIndex += lengthBytes + U8_LENGTH_BYTES;
+          byteIndex += lengthBytes;
           break;
       }
     }
+
+    // NOTE: padding bytes after extension data is intentionally not being processed
 
     return [new DataTrackExtensions({ userTimestamp, e2ee }), dataView.byteLength];
   }
