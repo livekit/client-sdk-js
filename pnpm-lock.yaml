@@ -20,9 +20,6 @@ importers:
       events:
         specifier: ^3.3.0
         version: 3.3.0
-      glob:
-        specifier: ^13.0.0
-        version: 13.0.0
       jose:
         specifier: ^6.1.0
         version: 6.1.2
@@ -32,9 +29,6 @@ importers:
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
-      throws-transformer:
-        specifier: github:livekit/throws-transformer-ts
-        version: git+https://git@github.com:livekit/throws-transformer-ts.git#1991e656bde7723a7d4c92ed9dc4cd9da45eaff0(typescript@5.8.3)
       ts-debounce:
         specifier: ^4.0.0
         version: 4.0.0
@@ -132,6 +126,9 @@ importers:
       gh-pages:
         specifier: 6.3.0
         version: 6.3.0
+      glob:
+        specifier: ^13.0.0
+        version: 13.0.0
       happy-dom:
         specifier: ^17.2.0
         version: 17.6.3
@@ -3551,13 +3548,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  throws-transformer@git+https://git@github.com:livekit/throws-transformer-ts.git#1991e656bde7723a7d4c92ed9dc4cd9da45eaff0:
-    resolution: {commit: 1991e656bde7723a7d4c92ed9dc4cd9da45eaff0, repo: git@github.com:livekit/throws-transformer-ts.git, type: git}
-    version: 0.1.0
-    hasBin: true
-    peerDependencies:
-      typescript: '>=4.7.0'
-
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
@@ -3692,8 +3682,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20260121:
-    resolution: {integrity: sha512-rv2oMpqRA/ns4x2AlQbFhnMYtXJkeYKoEMkAzMlBIkRK7X7D0AweHCclJWt+LrmhJLP5K2F1GwEO1qZWPyYs0w==}
+  typescript@6.0.0-dev.20260122:
+    resolution: {integrity: sha512-WnKEBDTdvo/zvxcMZvpXFNuVPupiMcKOhX51jSdniyaTMNvGvbgOgJklq6hswmV2dKpCVndtTkBCUNOO/klujA==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -6102,7 +6092,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20260121
+      typescript: 6.0.0-dev.20260122
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7371,7 +7361,7 @@ snapshots:
 
   rechoir@0.6.2:
     dependencies:
-      resolve: 1.22.10
+      resolve: 1.22.11
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -7437,7 +7427,6 @@ snapshots:
       is-core-module: 2.16.1
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
-    optional: true
 
   reusify@1.0.4: {}
 
@@ -7759,10 +7748,6 @@ snapshots:
       commander: 2.20.3
       source-map-support: 0.5.21
 
-  throws-transformer@git+https://git@github.com:livekit/throws-transformer-ts.git#1991e656bde7723a7d4c92ed9dc4cd9da45eaff0(typescript@5.8.3):
-    dependencies:
-      typescript: 5.8.3
-
   tinybench@2.9.0: {}
 
   tinyexec@0.3.2: {}
@@ -7911,7 +7896,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20260121: {}
+  typescript@6.0.0-dev.20260122: {}
 
   uc.micro@2.1.0: {}
 

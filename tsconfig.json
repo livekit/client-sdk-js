@@ -26,13 +26,7 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0",
-    "plugins": [
-      { "name": "throws-transformer" },
-      {
-        "name": "throws-transformer/transformer",
-        "transform": "throws-transformer/transformer"
-      }
-    ],
+    "plugins": [{ "name": "./throws-transformer/plugin.ts" }],
   },
   "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],

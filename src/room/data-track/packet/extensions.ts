@@ -1,4 +1,4 @@
-import type { Throws } from 'throws-transformer/src/throws';
+import { type Throws } from '../../../utils/throws';
 import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U16_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
 import Serializable from './serializable';

@@ -1,4 +1,4 @@
-import type { Throws } from 'throws-transformer/src/throws';
+import { type Throws } from '../../../utils/throws';
 import { DataTrackHandle, DataTrackHandleError, DataTrackHandleErrorReason } from '../handle';
 import { DataTrackTimestamp, U16_MAX_SIZE, WrapAroundUnsignedInt } from '../utils';
 import {
