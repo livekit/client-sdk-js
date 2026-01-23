@@ -17,18 +17,24 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 
   constructor(raw: number, maxSize: MaxSize) {
     this.value = raw;
+    if (raw < 0) {
+      throw new Error(
+        'WrapAroundUnsignedInt: cannot faithfully represent an integer smaller than 0',
+      );
+    }
     if (maxSize > Number.MAX_SAFE_INTEGER) {
       throw new Error(
         'WrapAroundUnsignedInt: cannot faithfully represent an integer bigger than MAX_SAFE_INTEGER.',
       );
     }
     this.maxSize = maxSize;
+    this.clamp();
   }
 
   /** Manually clamp the given containing value according to the wrap around max size bounds. Use
    * this after out of bounds modification to the contained value by external code. */
   clamp() {
-    while (this.value >= this.maxSize) {
+    while (this.value > this.maxSize) {
       this.value -= this.maxSize;
     }
   }
