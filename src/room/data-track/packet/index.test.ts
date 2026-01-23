@@ -35,7 +35,7 @@ describe('DataTrackPacket', () => {
           101,
           0, // Sequence (big endian)
           102,
-          0, // Frame number (bug endian)
+          0, // Frame number (big endian)
           103,
           0, // Timestamp (big endian)
           0,
@@ -81,7 +81,7 @@ describe('DataTrackPacket', () => {
           17,
           68, // Sequence (big endian)
           34,
-          68, // Frame number (bug endian)
+          68, // Frame number (big endian)
           17,
           68, // Timestamp (big endian)
           34,
@@ -187,7 +187,7 @@ describe('DataTrackPacket', () => {
           101,
           0, // Sequence (big endian)
           102,
-          0, // Frame number (bug endian)
+          0, // Frame number (big endian)
           103,
           0, // Timestamp (big endian)
           0,
@@ -268,7 +268,7 @@ describe('DataTrackPacket', () => {
           101,
           0, // Sequence (big endian)
           102,
-          0, // Frame number (bug endian)
+          0, // Frame number (big endian)
           103,
           0, // Timestamp (big endian)
           0,
@@ -352,7 +352,7 @@ describe('DataTrackPacket', () => {
           0x11,
           0x44, // Sequence (big endian)
           0x22,
-          0x44, // Frame number (bug endian)
+          0x44, // Frame number (big endian)
           0x11,
           0x44, // Timestamp (big endian)
           0x22,
@@ -443,10 +443,10 @@ describe('DataTrackPacket', () => {
         0, // Extension words (big endian)
         2,
 
-        // E2ee extension
-        0, // ID 1 (big endian)
+        // User timestamp extension
+        0, // ID 2 (big endian)
         2,
-        0, // Length 12 (big endian)
+        0, // Length 7 (big endian)
         7,
         0x44, // Timestamp (big endian)
         0x11,
