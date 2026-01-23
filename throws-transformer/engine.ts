@@ -641,11 +641,11 @@ function findNarrowedErrorTypes(
     
     // Check if the then-block handles the error (doesn't re-throw)
     const thenStatement = ifStmt.thenStatement;
-    const thenHandles = ts.isBlock(thenStatement) 
+    const thenRethrows = ts.isBlock(thenStatement)
       ? containsThrowStatement(thenStatement)
       : ts.isThrowStatement(thenStatement);
     
-    if (thenHandles) {
+    if (thenRethrows) {
       // Get narrowed type in the then-block
       const narrowedType = getNarrowedTypeInBlock(
         thenStatement,
