@@ -1,5 +1,4 @@
 import {
-  AudioMixing,
   RoomConfiguration,
   TokenSourceRequest,
   TokenSourceResponse,
