@@ -156,15 +156,15 @@ export class DataTrackExtensions extends Serializable {
     let byteIndex = 0;
 
     if (this.e2ee) {
-      const userTimestampBytes = this.e2ee.toBinaryInto(dataView);
-      byteIndex += userTimestampBytes;
+      const e2eeBytes = this.e2ee.toBinaryInto(dataView);
+      byteIndex += e2eeBytes;
     }
 
     if (this.userTimestamp) {
-      const e2eeBytes = this.userTimestamp.toBinaryInto(
+      const userTimestampBytes = this.userTimestamp.toBinaryInto(
         new DataView(dataView.buffer, dataView.byteOffset + byteIndex),
       );
-      byteIndex += e2eeBytes;
+      byteIndex += userTimestampBytes;
     }
 
     const totalLengthBytes = this.toBinaryLengthBytes();
