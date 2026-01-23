@@ -1,3 +1,9 @@
+// Number type sizes
+export const U8_LENGTH_BYTES = 1;
+export const U16_LENGTH_BYTES = 2;
+export const U32_LENGTH_BYTES = 4;
+export const U64_LENGTH_BYTES = 8;
+
 /// Constants used for serialization and deserialization.
 export const SUPPORTED_VERSION = 0;
 export const BASE_HEADER_LEN = 12;

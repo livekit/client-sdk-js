@@ -15,6 +15,10 @@ import {
   SUPPORTED_VERSION,
   VERSION_MASK,
   VERSION_SHIFT,
+
+  U8_LENGTH_BYTES,
+  U16_LENGTH_BYTES,
+  U32_LENGTH_BYTES,
 } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
 import { DataTrackExtensions } from './extensions';
@@ -102,29 +106,29 @@ export class DataTrackPacketHeader extends Serializable {
 
     let byteIndex = 0;
     dataView.setUint8(byteIndex, initial);
-    byteIndex += 1;
+    byteIndex += U8_LENGTH_BYTES;
     dataView.setUint8(byteIndex, 0); // Reserved
-    byteIndex += 1;
+    byteIndex += U8_LENGTH_BYTES;
 
     dataView.setUint16(byteIndex, this.trackHandle.value);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
     dataView.setUint16(byteIndex, this.sequence.value);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
     dataView.setUint16(byteIndex, this.frameNumber.value);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
     dataView.setUint32(byteIndex, this.timestamp.asTicks());
-    byteIndex += 4;
+    byteIndex += U32_LENGTH_BYTES;
 
     if (extensionsLengthBytes > 0) {
       dataView.setUint16(byteIndex, extensionsLengthWords);
-      byteIndex += 2;
+      byteIndex += U16_LENGTH_BYTES;
       const extensionBytes = this.extensions.toBinaryInto(
         new DataView(dataView.buffer, dataView.byteOffset + byteIndex),
       );
       byteIndex += extensionBytes;
       for (let i = 0; i < extensionsPaddingLengthBytes; i += 1) {
         dataView.setUint8(byteIndex, 0);
-        byteIndex += 1;
+        byteIndex += U8_LENGTH_BYTES;
       }
     }
 
@@ -161,7 +165,7 @@ export class DataTrackPacketHeader extends Serializable {
     let byteIndex = 0;
 
     const initial = dataView.getUint8(byteIndex);
-    byteIndex += 1;
+    byteIndex += U8_LENGTH_BYTES;
 
     const version = (initial >> VERSION_SHIFT) & VERSION_MASK;
     if (version > SUPPORTED_VERSION) {
@@ -187,7 +191,7 @@ export class DataTrackPacketHeader extends Serializable {
 
     const extensionsFlag = ((initial >> EXT_FLAG_SHIFT) & EXT_FLAG_MASK) > 0;
 
-    byteIndex += 1; // Reserved
+    byteIndex += U8_LENGTH_BYTES; // Reserved
 
     let trackHandle: DataTrackHandle | undefined;
     try {
@@ -203,28 +207,28 @@ export class DataTrackPacketHeader extends Serializable {
         throw e;
       }
     }
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     const sequence = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     const frameNumber = WrapAroundUnsignedInt.u16(dataView.getUint16(byteIndex));
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     const timestamp = DataTrackTimestamp.fromRtpTicks(dataView.getUint32(byteIndex));
-    byteIndex += 4;
+    byteIndex += U32_LENGTH_BYTES;
 
     let extensions = new DataTrackExtensions();
     if (extensionsFlag) {
-      if (dataView.byteLength - byteIndex < 2) {
+      if (dataView.byteLength - byteIndex < U16_LENGTH_BYTES) {
         throw DataTrackDeserializeError.missingExtWords();
       }
       let extensionWords = dataView.getUint16(byteIndex);
-      byteIndex += 1;
+      byteIndex += U16_LENGTH_BYTES;
 
       let extensionLengthBytes = 4 * extensionWords;
 
-      const extensionsOffsetBytes = dataView.byteOffset + (byteIndex + 1);
+      const extensionsOffsetBytes = dataView.byteOffset + byteIndex;
       if (extensionsOffsetBytes + extensionLengthBytes > dataView.buffer.byteLength) {
         throw DataTrackDeserializeError.headerOverrun();
       }
@@ -301,7 +305,7 @@ export class DataTrackPacket extends Serializable {
     const payloadBytes = new Uint8Array(this.payload);
     for (let index = 0; index < payloadBytes.length; index += 1) {
       dataView.setUint8(byteIndex, payloadBytes[index]);
-      byteIndex += 1;
+      byteIndex += U8_LENGTH_BYTES;
     }
 
     const totalLengthBytes = this.toBinaryLengthBytes();
@@ -333,7 +337,7 @@ export class DataTrackPacket extends Serializable {
     const [header, headerByteLength] = DataTrackPacketHeader.fromBinary(dataView);
 
     const payload = dataView.buffer.slice(
-      dataView.byteOffset + headerByteLength + 1,
+      dataView.byteOffset + headerByteLength + U8_LENGTH_BYTES,
       dataView.byteLength,
     );
 

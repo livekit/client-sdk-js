@@ -1,5 +1,5 @@
 import type { Throws } from 'throws-transformer/src/throws';
-import { EXT_TAG_PADDING } from './constants';
+import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U16_LENGTH_BYTES, U32_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
 import Serializable from './serializable';
 
@@ -34,13 +34,13 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     let byteIndex = 0;
 
     dataView.setUint16(byteIndex, this.tag);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     dataView.setUint16(byteIndex, this.lengthBytes - 1);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     dataView.setBigUint64(byteIndex, this.timestamp);
-    byteIndex += 8;
+    byteIndex += U64_LENGTH_BYTES;
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
@@ -85,17 +85,17 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     let byteIndex = 0;
 
     dataView.setUint16(byteIndex, this.tag);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     dataView.setUint16(byteIndex, this.lengthBytes - 1);
-    byteIndex += 2;
+    byteIndex += U16_LENGTH_BYTES;
 
     dataView.setUint8(byteIndex, this.keyIndex);
-    byteIndex += 1;
+    byteIndex += U8_LENGTH_BYTES;
 
     for (let i = 0; i < this.iv.length; i += 1) {
       dataView.setUint8(byteIndex, this.iv[i]);
-      byteIndex += 1;
+      byteIndex += U8_LENGTH_BYTES;
     }
 
     const totalLengthBytes = this.toBinaryLengthBytes();
@@ -185,10 +185,10 @@ export class DataTrackExtensions extends Serializable {
     let byteIndex = 0;
     while (dataView.byteLength - byteIndex >= 4) {
       const tag = dataView.getUint16(byteIndex);
-      byteIndex += 2;
+      byteIndex += U16_LENGTH_BYTES;
 
       const lengthBytes = dataView.getUint16(byteIndex);
-      byteIndex += 2;
+      byteIndex += U16_LENGTH_BYTES;
 
       if (tag === EXT_TAG_PADDING) {
         // Skip padding
@@ -201,7 +201,7 @@ export class DataTrackExtensions extends Serializable {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
           userTimestamp = new DataTrackUserTimestampExtension(dataView.getBigUint64(byteIndex));
-          byteIndex += lengthBytes + 1;
+          byteIndex += lengthBytes + U8_LENGTH_BYTES;
           break;
 
         case DataTrackExtensionTag.E2ee:
@@ -213,11 +213,11 @@ export class DataTrackExtensions extends Serializable {
 
           const iv = new Uint8Array(12);
           for (let i = 0; i < iv.length; i += 1) {
-            iv[i] = dataView.getUint8(byteIndex + 1 /* key index */ + i);
+            iv[i] = dataView.getUint8(byteIndex + U8_LENGTH_BYTES /* key index */ + (i * U8_LENGTH_BYTES));
           }
 
           e2ee = new DataTrackE2eeExtension(keyIndex, iv);
-          byteIndex += lengthBytes + 1;
+          byteIndex += lengthBytes + U8_LENGTH_BYTES;
           break;
 
         default:
@@ -225,7 +225,7 @@ export class DataTrackExtensions extends Serializable {
           if (dataView.byteLength - byteIndex < lengthBytes) {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
-          byteIndex += lengthBytes + 1;
+          byteIndex += lengthBytes + U8_LENGTH_BYTES;
           break;
       }
     }
