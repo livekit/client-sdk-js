@@ -27,7 +27,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
+    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + this.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
@@ -78,7 +78,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
   }
 
   toBinaryLengthBytes(): number {
-    return 2 /* tag (u16) */ + 2 /* length (u16) */ + this.lengthBytes;
+    return U16_LENGTH_BYTES /* tag */ + U16_LENGTH_BYTES /* length */ + this.lengthBytes;
   }
 
   toBinaryInto(dataView: DataView) {
