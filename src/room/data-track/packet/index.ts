@@ -326,7 +326,7 @@ export class DataTrackPacket extends Serializable {
 
     const payload = dataView.buffer.slice(
       dataView.byteOffset + headerByteLength + U8_LENGTH_BYTES,
-      dataView.byteLength,
+      dataView.byteOffset + dataView.byteLength,
     );
 
     return [new DataTrackPacket(header, payload), dataView.byteLength] as [DataTrackPacket, number];
