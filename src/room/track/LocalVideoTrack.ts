@@ -168,7 +168,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         this.log.debug('reacquiring camera track', this.logContext);
-        await this.restartTrack();
+        await this.restartTrack(undefined, true);
       }
       await super.unmute();
       return this;
@@ -246,7 +246,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     this.setPublishingLayers(isSVCCodec(this.codec), qualities);
   }
 
-  async restartTrack(options?: VideoCaptureOptions) {
+  async restartTrack(options?: VideoCaptureOptions, targetEnabled?: boolean) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
       const streamConstraints = constraintsForOptions({ video: options });
@@ -254,7 +254,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         constraints = streamConstraints.video;
       }
     }
-    await this.restart(constraints);
+    await this.restart(constraints, targetEnabled);
 
     // reset cpu constrained state after track is restarted
     this.isCpuConstrained = false;
