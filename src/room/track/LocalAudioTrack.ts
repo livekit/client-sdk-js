@@ -85,7 +85,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         !this.isUserProvided
       ) {
         this.log.debug('reacquiring mic track', this.logContext);
-        await this.restartTrack();
+        await this.restartTrack(undefined, true);
       }
       await super.unmute();
 
@@ -95,7 +95,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     }
   }
 
-  async restartTrack(options?: AudioCaptureOptions) {
+  async restartTrack(options?: AudioCaptureOptions, targetEnabled?: boolean) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
       const streamConstraints = constraintsForOptions({ audio: options });
@@ -103,11 +103,14 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         constraints = streamConstraints.audio;
       }
     }
-    await this.restart(constraints);
+    await this.restart(constraints, targetEnabled);
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<typeof this> {
-    const track = await super.restart(constraints);
+  protected async restart(
+    constraints?: MediaTrackConstraints,
+    targetEnabled?: boolean,
+  ): Promise<typeof this> {
+    const track = await super.restart(constraints, targetEnabled);
     this.checkForSilence();
     return track;
   }
