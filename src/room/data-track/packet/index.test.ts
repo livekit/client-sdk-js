@@ -29,7 +29,7 @@ describe('DataTrackPacket', () => {
       expect(packet.toBinaryLengthBytes()).toStrictEqual(22);
       expect(packet.toBinary()).toStrictEqual(
         new Uint8Array([
-          0x18, // Version 0, final, extension
+          0x18, // Version 0, single, extension
           0, // Reserved
           0, // Track handle (big endian)
           101,
@@ -295,7 +295,7 @@ describe('DataTrackPacket', () => {
     it('should deserialize a single packet', () => {
       const [packet, bytes] = DataTrackPacket.fromBinary(
         new Uint8Array([
-          0x18, // Version 0, final, extension
+          0x18, // Version 0, single, extension
           0, // Reserved
           0, // Track handle (big endian)
           101,
@@ -568,7 +568,7 @@ describe('DataTrackPacket', () => {
       expect(encodedPacket.toBinaryLengthBytes()).toStrictEqual(21);
       expect(encodedPacket.toBinary()).toStrictEqual(
         new Uint8Array([
-          0x18, // Version 0, final, extension
+          0x18, // Version 0, single, extension
           0, // Reserved
           0, // Track handle (big endian)
           101,
