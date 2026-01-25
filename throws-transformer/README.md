@@ -107,7 +107,7 @@ Add the transformer to `tsconfig.json`:
       { "name": "./throws-transformer/plugin.ts" },
       {
         "name": "throws-transformer/transformer",
-        "transform": "./throws-transformer/transformer/transformer.ts"
+        "transform": "./throws-transformer/transformer.ts"
       }
     ]
   }
