@@ -87,7 +87,7 @@ describe('DataTrackPacket', () => {
           34,
           17,
           136,
-          0, // HACKED Extension words (big endian)
+          0, // Rtp oriented extension words (big endian)
           7,
 
           // E2ee extension
@@ -193,7 +193,7 @@ describe('DataTrackPacket', () => {
           0,
           0,
           104,
-          0, // HACKED Extension words (big endian)
+          0, // RTP oriented extension words (big endian)
           4,
 
           // E2ee extension
@@ -385,7 +385,7 @@ describe('DataTrackPacket', () => {
         0, // Extension words (big endian)
         extensionWords,
 
-        ...new Array((extensionWords + 1) /* HACKED */ * 4).fill(0), // Padding
+        ...new Array((extensionWords + 1) /* RTP oriented extension words */ * 4).fill(0), // Padding
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -398,7 +398,7 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // HACKED Extension words (big endian)
+        0, // RTP oriented extension words (big endian)
         4,
 
         // E2ee extension
@@ -472,7 +472,7 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // HACKED Extension words (big endian)
+        0, // RTP oriented extension words (big endian)
         2,
 
         // Unknown / potential future extension
@@ -504,7 +504,7 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // HACKED Extension words (big endian)
+        0, // RTP oriented extension words (big endian)
         0,
 
         0x0, // Padding, missing one byte

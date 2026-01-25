@@ -124,13 +124,13 @@ export class DataTrackPacketHeader extends Serializable {
     byteIndex += U32_LENGTH_BYTES;
 
     if (extensionsLengthBytes > 0) {
-      // NOTE: the below value shouldn't have one subtracted from it.
-      //
-      // There is an off by one bug in the SFU logic which to fix would require making a
-      // backwards incompatible change, so he decision was made to just subtract one here instead.
-      const hackedExtensionLengthWords = extensionsLengthWords - 1;
+      // NOTE: The protocol is implemented in a way where if the extension bit is set, any
+      // deserializer assumes the extensions section is at least one byte long, and the "length"
+      // field represents the "number of additional bytes" long the extensions section is. This is
+      // potentially unintuitive so I wanted to call it out.
+      const rtpOrientedExtensionLengthWords = extensionsLengthWords - 1;
 
-      dataView.setUint16(byteIndex, hackedExtensionLengthWords);
+      dataView.setUint16(byteIndex, rtpOrientedExtensionLengthWords);
       byteIndex += U16_LENGTH_BYTES;
       const extensionBytes = this.extensions.toBinaryInto(
         new DataView(dataView.buffer, dataView.byteOffset + byteIndex),
@@ -222,16 +222,16 @@ export class DataTrackPacketHeader extends Serializable {
       if (dataView.byteLength - byteIndex < U16_LENGTH_BYTES) {
         throw DataTrackDeserializeError.missingExtWords();
       }
-      let extensionWords = dataView.getUint16(byteIndex);
+      let rtpOrientedExtensionWords = dataView.getUint16(byteIndex);
       byteIndex += U16_LENGTH_BYTES;
 
-      // NOTE: the below value shouldn't have one added to it.
-      //
-      // There is an off by one bug in the SFU logic which to fix would require making a
-      // backwards incompatible change, so he decision was made to just add one here instead.
-      const hackedExtensionWords = extensionWords + 1;
+      // NOTE: The protocol is implemented in a way where if the extension bit is set, any
+      // deserializer assumes the extensions section is at least one byte long, and the "length"
+      // field represents the "number of additional bytes" long the extensions section is. This is
+      // potentially unintuitive so I wanted to call it out.
+      const extensionWords = rtpOrientedExtensionWords + 1;
 
-      let extensionLengthBytes = 4 * hackedExtensionWords;
+      let extensionLengthBytes = 4 * extensionWords;
 
       if (byteIndex + extensionLengthBytes > dataView.byteLength) {
         throw DataTrackDeserializeError.headerOverrun();
