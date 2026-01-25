@@ -254,6 +254,35 @@ describe('DataTrackPacket', () => {
         ]),
       );
     });
+
+    it('should be unable to serialize a packet header into a DataView which is too small', () => {
+      const header = new DataTrackPacketHeader({
+        marker: FrameMarker.Single,
+        trackHandle: DataTrackHandle.fromNumber(101),
+        sequence: WrapAroundUnsignedInt.u16(102),
+        frameNumber: WrapAroundUnsignedInt.u16(103),
+        timestamp: DataTrackTimestamp.fromRtpTicks(104),
+      });
+      const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+
+      const twoByteLongDataView = new DataView(new ArrayBuffer(2));
+      expect(() => packet.toBinaryInto(twoByteLongDataView)).toThrow('Buffer cannot fit header');
+    });
+    it('should be unable to serialize a packet payload into a DataView which is too small', () => {
+      const header = new DataTrackPacketHeader({
+        marker: FrameMarker.Single,
+        trackHandle: DataTrackHandle.fromNumber(101),
+        sequence: WrapAroundUnsignedInt.u16(102),
+        frameNumber: WrapAroundUnsignedInt.u16(103),
+        timestamp: DataTrackTimestamp.fromRtpTicks(104),
+      });
+      const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+
+      const fourteenByteLongDataView = new DataView(new ArrayBuffer(14 /* 12 byte header + 2 extra bytes */));
+      expect(() => packet.toBinaryInto(fourteenByteLongDataView)).toThrow('Buffer cannot fit payload');
+    });
   });
 
   describe('Deserialization', () => {

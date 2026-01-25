@@ -80,3 +80,43 @@ export type DataTrackDeserializeErrorAll =
   | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
   | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
   | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>;
+
+
+export enum DataTrackSerializeErrorReason {
+  TooSmallForHeader = 0,
+  TooSmallForPayload = 1,
+}
+
+export class DataTrackSerializeError<
+  Reason extends DataTrackSerializeErrorReason,
+> extends LivekitReasonedError<DataTrackSerializeErrorReason> {
+  readonly name = 'DataTrackSerializeError';
+
+  reason: Reason;
+
+  reasonName: string;
+
+  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
+    super(19, message, options);
+    this.reason = reason;
+    this.reasonName = DataTrackSerializeErrorReason[reason];
+  }
+
+  static tooSmallForHeader() {
+    return new DataTrackSerializeError(
+      'Buffer cannot fit header',
+      DataTrackSerializeErrorReason.TooSmallForHeader,
+    );
+  }
+
+  static tooSmallForPayload() {
+    return new DataTrackSerializeError(
+      'Buffer cannot fit payload',
+      DataTrackSerializeErrorReason.TooSmallForPayload,
+    );
+  }
+}
+
+export type DataTrackSerializeErrorAll =
+  | DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForHeader>
+  | DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForPayload>;

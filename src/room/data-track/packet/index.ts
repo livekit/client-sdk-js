@@ -24,7 +24,13 @@ import {
   VERSION_MASK,
   VERSION_SHIFT,
 } from './constants';
-import { DataTrackDeserializeError, type DataTrackDeserializeErrorAll } from './errors';
+import {
+  DataTrackDeserializeError,
+  type DataTrackDeserializeErrorAll,
+  DataTrackSerializeError,
+  type DataTrackSerializeErrorAll,
+  DataTrackSerializeErrorReason,
+} from './errors';
 import { DataTrackExtensions } from './extensions';
 import Serializable from './serializable';
 
@@ -78,7 +84,11 @@ export class DataTrackPacketHeader extends Serializable {
     return totalLengthBytes;
   }
 
-  toBinaryInto(dataView: DataView): number {
+  toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForHeader>> {
+    if (dataView.byteLength < this.toBinaryLengthBytes()) {
+      throw DataTrackSerializeError.tooSmallForHeader();
+    }
+
     let initial = SUPPORTED_VERSION << VERSION_SHIFT;
 
     let marker;
@@ -301,10 +311,14 @@ export class DataTrackPacket extends Serializable {
     return this.header.toBinaryLengthBytes() + this.payload.byteLength;
   }
 
-  toBinaryInto(dataView: DataView): number {
+  toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeErrorAll> {
     let byteIndex = 0;
     const headerLengthBytes = this.header.toBinaryInto(dataView);
     byteIndex += headerLengthBytes;
+
+    if (dataView.byteLength - byteIndex < this.payload.byteLength) {
+      throw DataTrackSerializeError.tooSmallForPayload();
+    }
 
     const payloadBytes = new Uint8Array(this.payload);
     for (let index = 0; index < payloadBytes.length; index += 1) {
