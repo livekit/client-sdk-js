@@ -156,6 +156,7 @@ export class DataTrackPacketHeader extends Serializable {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `DataTrackPacketHeader.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
       );
@@ -330,6 +331,7 @@ export class DataTrackPacket extends Serializable {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `DataTrackPacket.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
       );

@@ -18,6 +18,7 @@ export default abstract class Serializable {
     const writtenBytes = this.toBinaryInto(view);
 
     if (lengthBytes !== writtenBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `${this.constructor.name}.toBinary: written bytes (${writtenBytes} bytes) not equal to allocated array buffer length (${lengthBytes} bytes).`,
       );

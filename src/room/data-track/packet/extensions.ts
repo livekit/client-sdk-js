@@ -35,7 +35,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     );
   }
 
-  toBinaryInto(dataView: DataView) {
+  toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
     dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.tag);
@@ -49,6 +49,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `DataTrackUserTimestampExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
       );
@@ -90,7 +91,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     );
   }
 
-  toBinaryInto(dataView: DataView) {
+  toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
     dataView.setUint16(byteIndex, DataTrackE2eeExtension.tag);
@@ -109,6 +110,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `DataTrackE2eeExtension.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
       );
@@ -152,7 +154,7 @@ export class DataTrackExtensions extends Serializable {
     return lengthBytes;
   }
 
-  toBinaryInto(dataView: DataView) {
+  toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
     if (this.e2ee) {
@@ -169,6 +171,7 @@ export class DataTrackExtensions extends Serializable {
 
     const totalLengthBytes = this.toBinaryLengthBytes();
     if (byteIndex !== totalLengthBytes) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `DataTrackExtensions.toBinaryInto: Wrote ${byteIndex} bytes but expected length was ${totalLengthBytes} bytes`,
       );
