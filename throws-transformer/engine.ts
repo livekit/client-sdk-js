@@ -436,6 +436,12 @@ function isErrorTypeDeclared(
 
   const thrownName = checker.typeToString(thrownType);
 
+  // Always allow throwing `Error` as this is treated as a "panic" type error and is not meant to be
+  // handled by the Throws<...> type branding system.
+  if (thrownName === "Error") {
+    return true;
+  }
+
   for (const declared of declaredTypes) {
     const declaredName = checker.typeToString(declared);
 

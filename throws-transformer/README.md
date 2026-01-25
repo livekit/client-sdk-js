@@ -31,6 +31,9 @@ The `Throws<T, E>` type is entirely opt in - ie, if a function doesn't return a 
 functions within that return a branded type, the check will pass. This makes gradual migration
 possible.
 
+Also, the `Throws<T, E>` type only is meant to handle `Error` subclasses. Maually throwing of
+`Error`s is left open as an escape hatch for implementing `panic!()`-like behavior.
+
 ## VS Code Setup (Recommended)
 
 To get real-time error squiggles in VS Code:
