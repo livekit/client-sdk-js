@@ -13,7 +13,7 @@ import {
 
 describe('DataTrackPacket', () => {
   describe('Serialization', () => {
-    it('should serialize a single packet', async () => {
+    it('should serialize a single packet', () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Single,
         trackHandle: DataTrackHandle.fromNumber(101),
@@ -55,7 +55,7 @@ describe('DataTrackPacket', () => {
         ]),
       );
     });
-    it('should serialize a final packet with extensions', async () => {
+    it('should serialize a final packet with extensions', () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Final,
         trackHandle: DataTrackHandle.fromNumber(0x8811),
@@ -162,7 +162,7 @@ describe('DataTrackPacket', () => {
         ]),
       );
     });
-    it('should serialize a start packet with only the e2ee extension', async () => {
+    it('should serialize a start packet with only the e2ee extension', () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Start,
         trackHandle: DataTrackHandle.fromNumber(101),
@@ -548,7 +548,7 @@ describe('DataTrackPacket', () => {
   });
 
   describe('Round trip serialization + deserialization', () => {
-    it('should serialize a single packet', async () => {
+    it('should serialize a single packet', () => {
       const header = new DataTrackPacketHeader({
         marker: FrameMarker.Single,
         trackHandle: DataTrackHandle.fromNumber(101),
