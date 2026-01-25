@@ -7,9 +7,11 @@
  * The actual runtime value is just T - the error types are phantom types
  * that exist only for static analysis.
  *
+ * To indicate that a function shouldn't throw any errors, make it return `Throws<T, never>`.
+ *
  * For more info about how this is checked, see ./throws-transformer at the root of this repo.
  */
-export type Throws<T, E extends Error = never> = T & { readonly __throws?: E };
+export type Throws<T, E extends Error> = T & { readonly __throws?: E };
 
 /**
  * Extract the error types from a Throws type.
