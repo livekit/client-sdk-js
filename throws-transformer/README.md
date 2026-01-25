@@ -31,8 +31,24 @@ The `Throws<T, E>` type is entirely opt in - ie, if a function doesn't return a 
 functions within that return a branded type, the check will pass. This makes gradual migration
 possible.
 
-Also, the `Throws<T, E>` type only is meant to handle `Error` subclasses. Maually throwing of
-`Error`s is left open as an escape hatch for implementing `panic!()`-like behavior.
+If you have a situation where you would like to throw inside of a function annotated with a `Throws`
+type and don't want this throw to be part of the `Throws` branded type (for example: throwing plain
+`Error`s for assertion type cases that should result in "panic"s), you can add a
+`// @throws-transformer ignore` comment above and the checker will skip validating the given throw.
+
+For example:
+```typescript
+// The below should validate successfully.
+function parseJSON(input: string): Throws<User, SyntaxError /* Note - no `Error` here. */> {
+    if (input.length === 0) {
+        // @throws-transformer ignore
+        throw new Error('Assertion failed, input was not empty.');
+    }
+
+    // ...
+}
+```
+
 
 ## VS Code Setup (Recommended)
 

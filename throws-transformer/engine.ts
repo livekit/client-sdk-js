@@ -104,6 +104,26 @@ function checkThrowStatement(
     return null;
   }
 
+  // Check to see if there is a comment about the throw site starting with "@throws-transformer
+  // ignore", and if so, disregard.
+  const foundComments = ts.getLeadingCommentRanges(sourceFile.text, node.pos);
+  if (foundComments) {
+    const foundCommentsText = foundComments.map((info) => {
+      return sourceFile
+        .text
+        .slice(info.pos, info.end)
+        .replace(/^(\/\/|\/\*)\s*/ /* Remove leading comment prefix */, '');
+    });
+
+    const isIgnoreComment = foundCommentsText.find((commentText) => {
+      return commentText.startsWith('@throws-transformer ignore');
+    });
+
+    if (isIgnoreComment) {
+      return null;
+    }
+  }
+
   const thrownType = checker.getTypeAtLocation(node.expression);
   const thrownTypeName = checker.typeToString(thrownType);
 
@@ -435,12 +455,6 @@ function isErrorTypeDeclared(
   }
 
   const thrownName = checker.typeToString(thrownType);
-
-  // Always allow throwing `Error` as this is treated as a "panic" type error and is not meant to be
-  // handled by the Throws<...> type branding system.
-  if (thrownName === "Error") {
-    return true;
-  }
 
   for (const declared of declaredTypes) {
     const declaredName = checker.typeToString(declared);
