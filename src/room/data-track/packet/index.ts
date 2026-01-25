@@ -84,7 +84,9 @@ export class DataTrackPacketHeader extends Serializable {
     return totalLengthBytes;
   }
 
-  toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForHeader>> {
+  toBinaryInto(
+    dataView: DataView,
+  ): Throws<number, DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForHeader>> {
     if (dataView.byteLength < this.toBinaryLengthBytes()) {
       throw DataTrackSerializeError.tooSmallForHeader();
     }

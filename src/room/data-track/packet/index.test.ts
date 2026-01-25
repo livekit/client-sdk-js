@@ -280,8 +280,12 @@ describe('DataTrackPacket', () => {
       const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
       const packet = new DataTrackPacket(header, payloadBytes.buffer);
 
-      const fourteenByteLongDataView = new DataView(new ArrayBuffer(14 /* 12 byte header + 2 extra bytes */));
-      expect(() => packet.toBinaryInto(fourteenByteLongDataView)).toThrow('Buffer cannot fit payload');
+      const fourteenByteLongDataView = new DataView(
+        new ArrayBuffer(14 /* 12 byte header + 2 extra bytes */),
+      );
+      expect(() => packet.toBinaryInto(fourteenByteLongDataView)).toThrow(
+        'Buffer cannot fit payload',
+      );
     });
   });
 

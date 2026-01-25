@@ -81,7 +81,6 @@ export type DataTrackDeserializeErrorAll =
   | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
   | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>;
 
-
 export enum DataTrackSerializeErrorReason {
   TooSmallForHeader = 0,
   TooSmallForPayload = 1,
