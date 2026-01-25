@@ -275,8 +275,7 @@ describe('DataTrackPacket', () => {
           0,
           104,
           /* (No extension words value) */
-          0, // Payload
-          1,
+          1, // Payload
           2,
           3,
           4,
@@ -288,7 +287,7 @@ describe('DataTrackPacket', () => {
         ]),
       );
 
-      expect(bytes).toStrictEqual(22);
+      expect(bytes).toStrictEqual(21);
       expect(packet.toJSON()).toStrictEqual({
         header: {
           frameNumber: 103,
@@ -529,13 +528,41 @@ describe('DataTrackPacket', () => {
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
       });
 
-      const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      const payloadBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
       const encodedPacket = new DataTrackPacket(header, payloadBytes.buffer);
 
+      expect(encodedPacket.toBinaryLengthBytes()).toStrictEqual(21);
+      expect(encodedPacket.toBinary()).toStrictEqual(
+        new Uint8Array([
+          0x18, // Version 0, final, extension
+          0, // Reserved
+          0, // Track handle (big endian)
+          101,
+          0, // Sequence (big endian)
+          102,
+          0, // Frame number (big endian)
+          103,
+          0, // Timestamp (big endian)
+          0,
+          0,
+          104,
+          /* (No extension words value) */
+          1, // Payload
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+        ]),
+      );
+
       const [decodedPacket, bytes] = DataTrackPacket.fromBinary(encodedPacket.toBinary());
 
-      expect(bytes).toStrictEqual(22);
+      expect(bytes).toStrictEqual(21);
       expect(decodedPacket.toJSON()).toStrictEqual({
         header: {
           frameNumber: 103,

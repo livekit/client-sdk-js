@@ -330,7 +330,7 @@ export class DataTrackPacket extends Serializable {
     const [header, headerByteLength] = DataTrackPacketHeader.fromBinary(dataView);
 
     const payload = dataView.buffer.slice(
-      dataView.byteOffset + headerByteLength + U8_LENGTH_BYTES,
+      dataView.byteOffset + headerByteLength,
       dataView.byteOffset + dataView.byteLength,
     );
 
