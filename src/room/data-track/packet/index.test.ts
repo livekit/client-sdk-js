@@ -518,4 +518,38 @@ describe('DataTrackPacket', () => {
       );
     });
   });
+
+  describe('Round trip serialization + deserialization', () => {
+    it('should serialize a single packet', async () => {
+      const header = new DataTrackPacketHeader({
+        marker: FrameMarker.Single,
+        trackHandle: DataTrackHandle.fromNumber(101),
+        sequence: WrapAroundUnsignedInt.u16(102),
+        frameNumber: WrapAroundUnsignedInt.u16(103),
+        timestamp: DataTrackTimestamp.fromRtpTicks(104),
+      });
+
+      const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+      const encodedPacket = new DataTrackPacket(header, payloadBytes.buffer);
+
+      const [decodedPacket, bytes] = DataTrackPacket.fromBinary(encodedPacket.toBinary());
+
+      expect(bytes).toStrictEqual(22);
+      expect(decodedPacket.toJSON()).toStrictEqual({
+        header: {
+          frameNumber: 103,
+          marker: FrameMarker.Single,
+          sequence: 102,
+          timestamp: 104,
+          trackHandle: 101,
+          extensions: {
+            e2ee: null,
+            userTimestamp: null,
+          },
+        },
+        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
+      });
+    });
+  });
 });
