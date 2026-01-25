@@ -261,7 +261,3 @@ type ExtractSuccess<T> = T extends Throws<infer S, any> ? S : T;
 1. **Third-party libraries**: Only works with functions that use `Throws<>` annotations
 2. **Dynamic throws**: Static analysis only - can't detect runtime-conditional throws
 3. **VS Code only**: The language service plugin is VS Code specific (other editors may vary)
-
-## License
-
-MIT
