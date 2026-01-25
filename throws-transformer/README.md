@@ -122,10 +122,10 @@ For quick checks without modifying your build:
 
 ```bash
 # Check specific files
-npx throws-check src/myfile.ts
+npx tsx ./throws-transformer/cli.ts src/myfile.ts
 
 # Check multiple files
-npx throws-check src/*.ts
+npx tsx ./throws-transformer/cli.ts src/*.ts
 ```
 
 ## Usage
@@ -246,26 +246,6 @@ type ExtractErrors<T> = T extends Throws<any, infer E> ? E : never;
 
 // Extract success type from a Throws type
 type ExtractSuccess<T> = T extends Throws<infer S, any> ? S : T;
-```
-
-### Built-in Error Classes
-
-The package includes some common error classes:
-
-- `NetworkError`
-- `NotFoundError`
-- `ValidationError`
-- `ParseError`
-
-You can also define your own:
-
-```typescript
-class DatabaseError extends Error {
-  constructor(message = "Database operation failed") {
-    super(message);
-    this.name = "DatabaseError";
-  }
-}
 ```
 
 ## Troubleshooting
