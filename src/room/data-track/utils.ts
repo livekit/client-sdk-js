@@ -1,4 +1,5 @@
 export const U16_MAX_SIZE = 0xffff;
+export const U32_MAX_SIZE = 0xffffffff;
 
 /**
  * A number of fields withing the data tracks packet specification assume wrap around behavior when
@@ -13,6 +14,10 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 
   static u16(raw: number) {
     return new WrapAroundUnsignedInt(raw, U16_MAX_SIZE);
+  }
+
+  static u32(raw: number) {
+    return new WrapAroundUnsignedInt(raw, U32_MAX_SIZE);
   }
 
   constructor(raw: number, maxSize: MaxSize) {
@@ -47,6 +52,20 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
   update(updateFn: (value: number) => number) {
     this.value = updateFn(this.value);
     this.clamp();
+  }
+
+  add(n = 1) {
+    this.update((value) => value + n);
+  }
+
+  subtract(n = 1) {
+    this.update((value) => value - n);
+  }
+
+  getThenIncrement() {
+    const previousValue = this.value;
+    this.add();
+    return new WrapAroundUnsignedInt(previousValue, this.maxSize);
   }
 }
 
