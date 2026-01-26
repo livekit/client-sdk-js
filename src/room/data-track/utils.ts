@@ -72,19 +72,94 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 export class DataTrackTimestamp<RateInHz extends number> {
   rateInHz: RateInHz;
 
-  timestamp: number;
+  timestamp: WrapAroundUnsignedInt<typeof U32_MAX_SIZE>;
 
   static fromRtpTicks(rtpTicks: number) {
     return new DataTrackTimestamp(rtpTicks, 90_000);
+  }
+
+  static rtpRandom() {
+    // FIXME: does this need to be a higher quality PRNG?
+    const randomValue = Math.round(Math.random() * U32_MAX_SIZE);
+    return DataTrackTimestamp.fromRtpTicks(randomValue);
+  }
+
+  private constructor(raw: number, rateInHz: RateInHz) {
+    this.timestamp = WrapAroundUnsignedInt.u32(raw);
+    this.rateInHz = rateInHz;
   }
 
   asTicks() {
     return this.timestamp;
   }
 
-  private constructor(raw: number, rateInHz: RateInHz) {
-    this.timestamp = raw;
+  clone() {
+    return new DataTrackTimestamp(this.timestamp.value, this.rateInHz);
+  }
+
+  wrappingAdd(n: number) {
+    this.timestamp.add(n);
+  }
+
+  isBefore(other: DataTrackTimestamp<RateInHz>) {
+    return this.timestamp.value < other.timestamp.value;
+  }
+}
+
+export class DataTrackClock<RateInHz extends number> {
+  epoch: Date;
+  base: DataTrackTimestamp<RateInHz>;
+  previous: DataTrackTimestamp<RateInHz>;
+  rateInHz: RateInHz;
+
+  private constructor(rateInHz: RateInHz, epoch: Date, base: DataTrackTimestamp<RateInHz>) {
+    this.epoch = epoch;
+    this.base = base;
+    this.previous = base;
     this.rateInHz = rateInHz;
+  }
+
+  static startingNow<RateInHz extends number>(base: DataTrackTimestamp<RateInHz>, rateInHz: RateInHz) {
+    return new DataTrackClock(rateInHz, new Date(), base);
+  }
+
+  static startingAtTime<RateInHz extends number>(epoch: Date, base: DataTrackTimestamp<RateInHz>, rateInHz: RateInHz) {
+    return new DataTrackClock(rateInHz, epoch, base);
+  }
+
+  static rtpStartingNow(base: DataTrackTimestamp<90_000>) {
+    return DataTrackClock.startingNow(base, 90_000);
+  }
+
+  static rtpStartingAtTime(epoch: Date, base: DataTrackTimestamp<90_000>) {
+    return DataTrackClock.startingAtTime(epoch, base, 90_000);
+  }
+
+  now(): DataTrackTimestamp<RateInHz> {
+    return this.at(new Date());
+  }
+
+  at(timestamp: Date) {
+    let elapsedMs = this.epoch.getTime() - timestamp.getTime();
+    let durationTicks = DataTrackClock.durationInMsToTicks(elapsedMs, this.rateInHz);
+
+    let result = this.base.clone();
+    result.wrappingAdd(durationTicks);
+
+    // Enforce monotonicity in RTP wraparound space
+    if (result.isBefore(this.previous)) {
+      result = this.previous;
+    }
+    this.previous = result;
+    return result;
+  }
+
+  /** Convert a duration since the epoch into clock ticks. */
+  static durationInMsToTicks(durationMilliseconds: number, rateInHz: number) {
+    // round(nanos * rate_hz / 1e9)
+    let durationNanoseconds = durationMilliseconds * 1000;
+    let ticks = ((durationNanoseconds * rateInHz) + 500_000_000) / 1_000_000_000;
+    return Math.round(ticks);
   }
 }
 
