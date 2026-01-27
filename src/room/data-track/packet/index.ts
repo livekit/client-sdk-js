@@ -351,7 +351,10 @@ export class DataTrackPacket extends Serializable {
       dataView.byteOffset + dataView.byteLength,
     );
 
-    return [new DataTrackPacket(header, new Uint8Array(payload)), dataView.byteLength] as [DataTrackPacket, number];
+    return [new DataTrackPacket(header, new Uint8Array(payload)), dataView.byteLength] as [
+      DataTrackPacket,
+      number,
+    ];
   }
 
   toJSON() {

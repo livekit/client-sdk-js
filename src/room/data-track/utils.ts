@@ -108,8 +108,11 @@ export class DataTrackTimestamp<RateInHz extends number> {
 
 export class DataTrackClock<RateInHz extends number> {
   epoch: Date;
+
   base: DataTrackTimestamp<RateInHz>;
+
   previous: DataTrackTimestamp<RateInHz>;
+
   rateInHz: RateInHz;
 
   private constructor(rateInHz: RateInHz, epoch: Date, base: DataTrackTimestamp<RateInHz>) {
@@ -119,11 +122,18 @@ export class DataTrackClock<RateInHz extends number> {
     this.rateInHz = rateInHz;
   }
 
-  static startingNow<RateInHz extends number>(base: DataTrackTimestamp<RateInHz>, rateInHz: RateInHz) {
+  static startingNow<RateInHz extends number>(
+    base: DataTrackTimestamp<RateInHz>,
+    rateInHz: RateInHz,
+  ) {
     return new DataTrackClock(rateInHz, new Date(), base);
   }
 
-  static startingAtTime<RateInHz extends number>(epoch: Date, base: DataTrackTimestamp<RateInHz>, rateInHz: RateInHz) {
+  static startingAtTime<RateInHz extends number>(
+    epoch: Date,
+    base: DataTrackTimestamp<RateInHz>,
+    rateInHz: RateInHz,
+  ) {
     return new DataTrackClock(rateInHz, epoch, base);
   }
 
@@ -158,7 +168,7 @@ export class DataTrackClock<RateInHz extends number> {
   static durationInMsToTicks(durationMilliseconds: number, rateInHz: number) {
     // round(nanos * rate_hz / 1e9)
     let durationNanoseconds = durationMilliseconds * 1000;
-    let ticks = ((durationNanoseconds * rateInHz) + 500_000_000) / 1_000_000_000;
+    let ticks = (durationNanoseconds * rateInHz + 500_000_000) / 1_000_000_000;
     return Math.round(ticks);
   }
 }
