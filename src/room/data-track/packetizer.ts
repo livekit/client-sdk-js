@@ -1,14 +1,9 @@
 import type { Throws } from '../../utils/throws';
+import { DataTrackFrame } from './frame';
 import { DataTrackHandle } from './handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
 import { DataTrackClock, DataTrackTimestamp, WrapAroundUnsignedInt } from './utils';
-
-/** A pair of payload bytes and packet extensions fed into a {@link DataTrackPacketizer}. */
-export type DataTrackPacketizerFrame = {
-  payload: ArrayBuffer;
-  extensions: DataTrackExtensions;
-};
 
 type PacketizeOptions = {
   /** "now" timestamp to use as a base when generating new packet timestamps. If not specified,
@@ -54,7 +49,7 @@ export class DataTrackPacketizer {
    * or converted to an array with {@link Array.from}.
    */
   *packetize(
-    frame: DataTrackPacketizerFrame,
+    frame: DataTrackFrame,
     options?: PacketizeOptions,
   ): Throws<Generator<DataTrackPacket>, never> {
     const frameNumber = this.frameNumber.getThenIncrement();
