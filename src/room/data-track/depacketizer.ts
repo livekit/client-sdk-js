@@ -73,9 +73,9 @@ class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTrackDepac
     );
   }
 
-  static incomplete(frameNumber: number, receivedBytes: number, expectedBytes: number) {
+  static incomplete(frameNumber: number, receivedPackets: number, expectedPackets: number) {
     return new DataTrackDepacketizerDropError(
-      `Not all packets received before final packet. Received ${receivedBytes} bytes, expected ${expectedBytes} bytes.`,
+      `Not all packets received before final packet. Received ${receivedPackets} packets, expected ${expectedPackets} packets.`,
       DataTrackDepacketizerDropReason.Incomplete,
       frameNumber,
     );
@@ -189,7 +189,7 @@ export class DataTrackDepacketizer {
     const received = partial.payloads.size;
     const payload = new Uint8Array(partial.payloadLenBytes);
 
-    let sequencePointer = partial.startSequence;
+    let sequencePointer = partial.startSequence.clone();
     let payloadOffsetPointerBytes = 0;
     while (true) {
       const partialPayload = partial.payloads.get(sequencePointer.value);
@@ -209,7 +209,7 @@ export class DataTrackDepacketizer {
       payloadOffsetPointerBytes += partialPayload.length;
 
       if (sequencePointer.value < endSequence) {
-        sequencePointer.add(1);
+        sequencePointer.increment(1);
         continue;
       }
 
