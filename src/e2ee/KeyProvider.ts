@@ -91,8 +91,10 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
 
   /**
    * Accepts a passphrase that's used to create the crypto keys.
-   * When passing in a string, PBKDF2 is used.
-   * When passing in an Array buffer of cryptographically random numbers, HKDF is being used. (recommended)
+   * When passing in a string, PBKDF2 is used. (recommended)
+   * When passing in an Array buffer of cryptographically random numbers, HKDF is being used.
+   *
+   * Note that not all client sdks support HKDF.
    * @param key
    */
   async setKey(key: string | ArrayBuffer) {
