@@ -1,31 +1,31 @@
-import { LivekitReasonedError } from "../errors";
-import { type DataTrackFrame } from "./frame";
-import { DataTrackPacket, FrameMarker } from "./packet";
-import { DataTrackExtensions } from "./packet/extensions";
-import { U16_MAX_SIZE, WrapAroundUnsignedInt } from "./utils";
+import { LivekitReasonedError } from '../errors';
+import { type DataTrackFrame } from './frame';
+import { DataTrackPacket, FrameMarker } from './packet';
+import { DataTrackExtensions } from './packet/extensions';
+import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
 
 type PartialFrame = {
   /** Frame number from the start packet. */
-  frameNumber: number,
+  frameNumber: number;
   /** Sequence of the start packet. */
-  startSequence: WrapAroundUnsignedInt<typeof U16_MAX_SIZE>,
+  startSequence: WrapAroundUnsignedInt<typeof U16_MAX_SIZE>;
   /** Extensions from the start packet. */
-  extensions: DataTrackExtensions,
+  extensions: DataTrackExtensions;
   /** Mapping between sequence number and packet payload. */
-  payloads: Map<number, Uint8Array>,
+  payloads: Map<number, Uint8Array>;
   /** Sum of payload lengths. */
-  payloadLenBytes: number,
+  payloadLenBytes: number;
 };
 
 /**
-  * Result from a call to {@link Depacketizer.push}.
-  * The reason this type is used instead of just a DepacketizerFrame is due to the fact a single
-  * call to push can result in both a complete frame being delivered and a previous frame
-  * being dropped.
-*/
+ * Result from a call to {@link Depacketizer.push}.
+ * The reason this type is used instead of just a DepacketizerFrame is due to the fact a single
+ * call to push can result in both a complete frame being delivered and a previous frame
+ * being dropped.
+ */
 type DepacketizerPushResult = {
-  frame: DataTrackFrame | null,
-  dropError: DataTrackDepacketizerDropError | null,
+  frame: DataTrackFrame | null;
+  dropError: DataTrackDepacketizerDropError | null;
 };
 
 /*8 An error indicating a frame was dropped. */
@@ -37,7 +37,12 @@ class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTrackDepac
 
   frameNumber: number;
 
-  constructor(message: string, reason: DataTrackDepacketizerDropReason, frameNumber: number, options?: { cause?: unknown }) {
+  constructor(
+    message: string,
+    reason: DataTrackDepacketizerDropReason,
+    frameNumber: number,
+    options?: { cause?: unknown },
+  ) {
     super(19, `Frame ${frameNumber} dropped: ${message}`, options);
     this.reason = reason;
     this.reasonName = DataTrackDepacketizerDropReason[reason];
@@ -109,12 +114,14 @@ export class DataTrackDepacketizer {
 
   private frameFromSingle(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Single) {
-      throw new Error(`Depacketizer.frameFromSingle: packet.header.marker was not FrameMarker.Single, found ${packet.header.marker}.`);
+      throw new Error(
+        `Depacketizer.frameFromSingle: packet.header.marker was not FrameMarker.Single, found ${packet.header.marker}.`,
+      );
     }
 
-    const dropError = this.partial ? (
-      DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
-    ) : null;
+    const dropError = this.partial
+      ? DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
+      : null;
     this.partial = null;
 
     const frame: DataTrackFrame = { payload: packet.payload, extensions: packet.header.extensions };
@@ -125,12 +132,14 @@ export class DataTrackDepacketizer {
   /** Begin assembling a new packet. */
   private beginPartial(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Start) {
-      throw new Error(`Depacketizer.beginPartial: packet.header.marker was not FrameMarker.Start, found ${packet.header.marker}.`);
+      throw new Error(
+        `Depacketizer.beginPartial: packet.header.marker was not FrameMarker.Start, found ${packet.header.marker}.`,
+      );
     }
 
-    const dropError = this.partial ? (
-      DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
-    ) : null;
+    const dropError = this.partial
+      ? DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
+      : null;
     this.partial = null;
 
     const startSequence = packet.header.sequence;
@@ -150,7 +159,9 @@ export class DataTrackDepacketizer {
   /** Push to the existing partial frame. */
   private pushToPartial(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
-      throw new Error(`Depacketizer.pushToPartial: packet.header.marker was not FrameMarker.Inter or FrameMarker.Final, found ${packet.header.marker}.`);
+      throw new Error(
+        `Depacketizer.pushToPartial: packet.header.marker was not FrameMarker.Inter or FrameMarker.Final, found ${packet.header.marker}.`,
+      );
     }
 
     if (!this.partial) {
@@ -189,7 +200,9 @@ export class DataTrackDepacketizer {
 
       const payloadRemainingBytes = payload.length - payloadOffsetPointerBytes;
       if (partialPayload.length > payloadRemainingBytes) {
-        throw new Error(`Depacketizer.finalize: Expected at least ${partialPayload.length} more bytes left in the payload buffer, only got ${payloadRemainingBytes} bytes.`);
+        throw new Error(
+          `Depacketizer.finalize: Expected at least ${partialPayload.length} more bytes left in the payload buffer, only got ${payloadRemainingBytes} bytes.`,
+        );
       }
 
       payload.set(partialPayload, payloadOffsetPointerBytes);
