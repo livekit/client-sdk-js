@@ -4,15 +4,20 @@ import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from "./packet";
 import { DataTrackExtensions } from "./packet/extensions";
 import { DataTrackTimestamp, DataTrackClock, WrapAroundUnsignedInt } from "./utils";
 
-export type PacketizerFrame = {
+/** A pair of payload bytes and packet extensions fed into a {@link DataTrackPacketizer}. */
+export type DataTrackPacketizerFrame = {
   payload: ArrayBuffer;
   extensions: DataTrackExtensions,
 };
 
 type PacketizeOptions = {
+  /** "now" timestamp to use as a base when generating new packet timestamps. If not specified,
+    * defaults to the return value of {@link DataTrackClock#now}. */
   now?: DataTrackTimestamp<90_000>;
 };
 
+/** A packetizer takes a {@link DataTrackPacketizerFrame} as input and generates a series
+  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
 export class DataTrackPacketizer {
   private handle: DataTrackHandle;
   private mtuSizeBytes: number;
@@ -39,7 +44,12 @@ export class DataTrackPacketizer {
     }
   }
 
-  *packetize(frame: PacketizerFrame, options?: PacketizeOptions): Throws<Generator<DataTrackPacket>, never> {
+  /** Generates a series of packets for the specified {@link DataTrackPacketizerFrame}.
+    *
+    * NOTE: The return value of this function is a generator, so it can be lazily ran if desired,
+    * or converted to an array with {@link Array.from}.
+    */
+  *packetize(frame: DataTrackPacketizerFrame, options?: PacketizeOptions): Throws<Generator<DataTrackPacket>, never> {
     const frameNumber = this.frameNumber.getThenIncrement();
     const headerParams = {
       marker: FrameMarker.Inter,
