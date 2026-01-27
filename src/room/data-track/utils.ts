@@ -47,24 +47,30 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
     }
   }
 
+  clone() {
+    return new WrapAroundUnsignedInt(this.value, this.maxSize);
+  }
+
   /** When called, maps the containing value to a new containing value. After mapping, the wrap
-   * around external max size bounds are applied. */
+   * around external max size bounds are applied. Note that this is a mutative operation. */
   update(updateFn: (value: number) => number) {
     this.value = updateFn(this.value);
     this.clamp();
   }
 
-  add(n = 1) {
+  /** Increments the given `n` to the inner value. Note that this is a mutative operation. */
+  increment(n = 1) {
     this.update((value) => value + n);
   }
 
-  subtract(n = 1) {
+  /** Decrements the given `n` from the inner value. Note that this is a mutative operation. */
+  decrement(n = 1) {
     this.update((value) => value - n);
   }
 
   getThenIncrement() {
     const previousValue = this.value;
-    this.add();
+    this.increment();
     return new WrapAroundUnsignedInt(previousValue, this.maxSize);
   }
 }
@@ -98,7 +104,7 @@ export class DataTrackTimestamp<RateInHz extends number> {
   }
 
   wrappingAdd(n: number) {
-    this.timestamp.add(n);
+    this.timestamp.increment(n);
   }
 
   isBefore(other: DataTrackTimestamp<RateInHz>) {
