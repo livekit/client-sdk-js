@@ -280,7 +280,7 @@ export class DataTrackPacketHeader extends Serializable {
       trackHandle: this.trackHandle.value,
       sequence: this.sequence.value,
       frameNumber: this.frameNumber.value,
-      timestamp: this.timestamp.timestamp,
+      timestamp: this.timestamp.asTicks(),
       extensions: this.extensions.toJSON(),
     };
   }

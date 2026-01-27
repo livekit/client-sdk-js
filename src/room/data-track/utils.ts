@@ -90,7 +90,7 @@ export class DataTrackTimestamp<RateInHz extends number> {
   }
 
   asTicks() {
-    return this.timestamp;
+    return this.timestamp.value;
   }
 
   clone() {
