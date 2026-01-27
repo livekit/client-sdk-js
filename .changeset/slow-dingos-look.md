@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Update docs to clarify other client client HKDF support
+Update docs to clarify other client HKDF support
