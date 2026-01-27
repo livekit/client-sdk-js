@@ -1,8 +1,7 @@
 import type { Throws } from '../../utils/throws';
-import { DataTrackFrame } from './frame';
+import { type DataTrackFrame } from './frame';
 import { DataTrackHandle } from './handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from './packet';
-import { DataTrackExtensions } from './packet/extensions';
 import { DataTrackClock, DataTrackTimestamp, WrapAroundUnsignedInt } from './utils';
 
 type PacketizeOptions = {
