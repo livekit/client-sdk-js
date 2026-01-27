@@ -31,7 +31,8 @@ export class DataTrackPacketizer {
     this.mtuSizeBytes = mtuSizeBytes;
   }
 
-  private computeFrameMarker(index: number, packetCount: number) {
+  /** @internal */
+  static computeFrameMarker(index: number, packetCount: number) {
     if (packetCount <= 1) {
       return FrameMarker.Single;
     }
@@ -68,11 +69,11 @@ export class DataTrackPacketizer {
 
     const packetCount = Math.ceil(frame.payload.byteLength / maxPayloadSizeBytes);
 
-    for (let indexBytes = 0; indexBytes < frame.payload.byteLength; indexBytes += maxPayloadSizeBytes) {
+    for (let index = 0, indexBytes = 0; indexBytes < frame.payload.byteLength; [index, indexBytes] = [index+1, indexBytes+maxPayloadSizeBytes]) {
       const sequence = this.sequence.getThenIncrement();
       const packetHeader = new DataTrackPacketHeader({
         ...headerParams,
-        marker: this.computeFrameMarker(indexBytes, packetCount),
+        marker: DataTrackPacketizer.computeFrameMarker(index, packetCount),
         sequence,
       });
 
@@ -88,11 +89,3 @@ export class DataTrackPacketizer {
     }
   }
 }
-
-// const packetizer = new DataTrackPacketizer(DataTrackHandle.fromNumber(1), 100);
-// for (const packet of packetizer.packetize({
-//   payload: new Uint8Array(300).fill(0xbe).buffer,
-//   extensions: new DataTrackExtensions(),
-// })) {
-//   console.log('PACKET:', packet, packet.toBinary());
-// }
