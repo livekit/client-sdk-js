@@ -122,7 +122,7 @@ export class DataTrackDepacketizer {
     const dropError = this.partial
       ? DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
       : null;
-    this.partial = null;
+    this.reset();
 
     const frame: DataTrackFrame = { payload: packet.payload, extensions: packet.header.extensions };
 
@@ -140,7 +140,7 @@ export class DataTrackDepacketizer {
     const dropError = this.partial
       ? DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber)
       : null;
-    this.partial = null;
+    this.reset();
 
     const startSequence = packet.header.sequence;
     const payloadLenBytes = packet.payload.length;
