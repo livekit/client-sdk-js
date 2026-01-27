@@ -1,5 +1,5 @@
 import { LivekitReasonedError } from "../errors";
-import { DataTrackFrame } from "./frame";
+import { type DataTrackFrame } from "./frame";
 import { DataTrackPacket, FrameMarker } from "./packet";
 import { DataTrackExtensions } from "./packet/extensions";
 import { U16_MAX_SIZE, WrapAroundUnsignedInt } from "./utils";
@@ -85,13 +85,13 @@ export enum DataTrackDepacketizerDropReason {
   Incomplete = 3,
 }
 
-export class Depacketizer {
+export class DataTrackDepacketizer {
   /** Maximum number of packets to buffer per frame before dropping. */
   static MAX_BUFFER_PACKETS = 128;
 
-  partial: PartialFrame | null = null;
+  private partial: PartialFrame | null = null;
 
-  push(packet: DataTrackPacket) {
+  push(packet: DataTrackPacket): DepacketizerPushResult {
     switch (packet.header.marker) {
       case FrameMarker.Single:
         return this.frameFromSingle(packet);
@@ -107,7 +107,7 @@ export class Depacketizer {
     this.partial = null;
   }
 
-  private frameFromSingle(packet: DataTrackPacket): DepacketizerPushResult {
+  private frameFromSingle(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Single) {
       throw new Error(`Depacketizer.frameFromSingle: packet.header.marker was not FrameMarker.Single, found ${packet.header.marker}.`);
     }
@@ -123,7 +123,7 @@ export class Depacketizer {
   }
 
   /** Begin assembling a new packet. */
-  private beginPartial(packet: DataTrackPacket): DepacketizerPushResult {
+  private beginPartial(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Start) {
       throw new Error(`Depacketizer.beginPartial: packet.header.marker was not FrameMarker.Start, found ${packet.header.marker}.`);
     }
@@ -148,7 +148,7 @@ export class Depacketizer {
   }
 
   /** Push to the existing partial frame. */
-  private pushToPartial(packet: DataTrackPacket): DepacketizerPushResult {
+  private pushToPartial(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
       throw new Error(`Depacketizer.pushToPartial: packet.header.marker was not FrameMarker.Inter or FrameMarker.Final, found ${packet.header.marker}.`);
     }
@@ -160,7 +160,7 @@ export class Depacketizer {
     if (packet.header.frameNumber.value !== this.partial.frameNumber) {
       throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
     }
-    if (this.partial.payloads.size == Depacketizer.MAX_BUFFER_PACKETS) {
+    if (this.partial.payloads.size == DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
       throw DataTrackDepacketizerDropError.bufferFull(this.partial.frameNumber);
     }
     this.partial.payloadLenBytes += packet.payload.length;
@@ -174,9 +174,9 @@ export class Depacketizer {
   }
 
   /** Try to reassemble the complete frame. */
-  private finalize(partial: PartialFrame, endSequence: number): DepacketizerPushResult {
+  private finalize(partial: PartialFrame, endSequence: number) {
     const received = partial.payloads.size;
-    const payload = new ArrayBuffer(partial.payloadLenBytes);
+    const payload = new Uint8Array(partial.payloadLenBytes);
 
     let sequencePointer = partial.startSequence;
     let payloadOffsetPointerBytes = 0;
@@ -187,12 +187,12 @@ export class Depacketizer {
       }
       partial.payloads.delete(sequencePointer.value);
 
-      const payloadRemainingBytes = payload.byteLength - payloadOffsetPointerBytes;
-      if (payload.byteLength + partialPayload.length > payloadRemainingBytes) {
+      const payloadRemainingBytes = payload.length - payloadOffsetPointerBytes;
+      if (partialPayload.length > payloadRemainingBytes) {
         throw new Error(`Depacketizer.finalize: Expected at least ${partialPayload.length} more bytes left in the payload buffer, only got ${payloadRemainingBytes} bytes.`);
       }
 
-      partialPayload.set(partialPayload, payloadOffsetPointerBytes);
+      payload.set(partialPayload, payloadOffsetPointerBytes);
       payloadOffsetPointerBytes += partialPayload.length;
 
       if (sequencePointer.value < endSequence) {
