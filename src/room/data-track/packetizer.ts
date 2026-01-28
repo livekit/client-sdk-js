@@ -20,8 +20,6 @@ export class DataTrackPacketizerError<
 
   reasonName: string;
 
-  frameNumber: number;
-
   constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
     super(19, message, options);
     this.reason = reason;
