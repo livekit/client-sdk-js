@@ -261,6 +261,8 @@ export class DataTrackDepacketizer {
         continue;
       }
 
+      // The packet is done processing, reset the state so another frame can be processed next.
+      this.reset();
       return { payload, extensions: partial.extensions };
     }
 

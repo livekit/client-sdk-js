@@ -206,4 +206,77 @@ describe('DataTrackDepacketizer', () => {
       'Frame 103 dropped: Reorder buffer is full.',
     );
   });
+
+  it('should depacketize two frames worth of packets', () => {
+    const depacketizer = new DataTrackDepacketizer();
+
+    const packetPayload = new Uint8Array(8);
+    const packetHeaderParams = {
+      /* no marker */
+      trackHandle: DataTrackHandle.fromNumber(101),
+      sequence: WrapAroundUnsignedInt.u16(0),
+      frameNumber: WrapAroundUnsignedInt.u16(103),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // Now first frame successfully
+    const startPacketA = new DataTrackPacket(
+      new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startPacketA)).toBeNull();
+
+    const interPacketA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(interPacketA)).toBeNull();
+
+    const finalPacketA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(2),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(finalPacketA)).not.toBeNull();
+
+    // Now process another frame successfully
+    const startPacketB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Start,
+        frameNumber: WrapAroundUnsignedInt.u16(999),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startPacketB)).toBeNull();
+
+    const interPacketB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+        frameNumber: WrapAroundUnsignedInt.u16(999),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(interPacketB)).toBeNull();
+
+    const finalPacketB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(2),
+        frameNumber: WrapAroundUnsignedInt.u16(999),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(finalPacketB)).not.toBeNull();
+  });
 });
