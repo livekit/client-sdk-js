@@ -156,7 +156,7 @@ export class DataTrackClock<RateInHz extends number> {
   }
 
   at(timestamp: Date) {
-    let elapsedMs = this.epoch.getTime() - timestamp.getTime();
+    let elapsedMs = timestamp.getTime() - this.epoch.getTime();
     let durationTicks = DataTrackClock.durationInMsToTicks(elapsedMs, this.rateInHz);
 
     let result = this.base.clone();
@@ -173,7 +173,7 @@ export class DataTrackClock<RateInHz extends number> {
   /** Convert a duration since the epoch into clock ticks. */
   static durationInMsToTicks(durationMilliseconds: number, rateInHz: number) {
     // round(nanos * rate_hz / 1e9)
-    let durationNanoseconds = durationMilliseconds * 1000;
+    let durationNanoseconds = durationMilliseconds * 1e6;
     let ticks = (durationNanoseconds * rateInHz + 500_000_000) / 1_000_000_000;
     return Math.round(ticks);
   }

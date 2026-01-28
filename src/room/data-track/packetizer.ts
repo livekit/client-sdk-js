@@ -38,7 +38,7 @@ export enum DataTrackPacketizerReason {
   MtuTooShort = 0,
 }
 
-/** A packetizer takes a {@link DataTrackPacketizerFrame} as input and generates a series
+/** A packetizer takes a {@link DataTrackFrame} as input and generates a series
  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
 export class DataTrackPacketizer {
   private handle: DataTrackHandle;
@@ -94,7 +94,7 @@ export class DataTrackPacketizer {
     const headerSerializedLengthBytes = new DataTrackPacketHeader(
       headerParams,
     ).toBinaryLengthBytes();
-    if (headerSerializedLengthBytes > this.mtuSizeBytes) {
+    if (headerSerializedLengthBytes >= this.mtuSizeBytes) {
       throw DataTrackPacketizerError.mtuTooShort();
     }
 

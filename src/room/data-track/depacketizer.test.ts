@@ -52,7 +52,7 @@ describe('DataTrackDepacketizer', () => {
           new DataTrackPacketHeader({
             ...packetHeaderParams,
             marker: FrameMarker.Inter,
-            sequence: WrapAroundUnsignedInt.u16(i),
+            sequence: WrapAroundUnsignedInt.u16(i + 1),
           }),
           packetPayload,
         );
@@ -185,7 +185,7 @@ describe('DataTrackDepacketizer', () => {
         new DataTrackPacketHeader({
           ...packetHeaderParams,
           marker: FrameMarker.Inter,
-          sequence: WrapAroundUnsignedInt.u16(i),
+          sequence: WrapAroundUnsignedInt.u16(i + 1),
         }),
         packetPayload,
       );
