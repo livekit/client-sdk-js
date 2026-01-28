@@ -31,7 +31,7 @@ The `Throws<T, E>` type is entirely opt in - ie, if a function doesn't return a 
 functions within that return a branded type, the check will pass. This makes gradual migration
 possible.
 
-If you have a situation where you would like to throw inside of a function annotated with a `Throws`
+If you have a situation where you would like to throw inside a function annotated with a `Throws`
 type and don't want this throw to be part of the `Throws` branded type (for example: throwing plain
 `Error`s for assertion type cases that should result in "panic"s), you can add a
 `// @throws-transformer ignore` comment above and the checker will skip validating the given throw.
@@ -238,8 +238,12 @@ async function getNameSafe(id: string): Promise<string | null> {
 ### Types
 
 ```typescript
+type Primitives = null | undefined | string | number | bigint | boolean | symbol;
+
 // Brand a return type with possible errors
-type Throws<T, E extends Error = never> = T & { readonly __throws?: E };
+type Throws<T, E extends Error> =
+  | (T & { readonly __throws?: E })
+  | Extract<T, Primitives>;
 
 // Extract error types from a Throws type
 type ExtractErrors<T> = T extends Throws<any, infer E> ? E : never;

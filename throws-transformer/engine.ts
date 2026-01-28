@@ -401,6 +401,12 @@ function extractThrowsErrorTypes(
     if (promiseType) {
       return extractThrowsErrorTypes(promiseType, checker);
     }
+
+    if (!promiseType && type.isUnion()) {
+      // Check for union with null / undefined
+      return type.types.flatMap(t => extractThrowsErrorTypes(t, checker));
+    }
+
     return [];
   }
 

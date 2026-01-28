@@ -155,5 +155,7 @@ export {
   type DataTrackUserTimestampExtension,
   type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
+export { DataTrackPacketizer } from './room/data-track/packetizer'; // FIXME: should this be exported? Maybe not?
+export { DataTrackDepacketizer } from './room/data-track/depacketizer'; // FIXME: should this be exported? Maybe not?
 
 export { LocalTrackRecorder } from './room/track/record';
