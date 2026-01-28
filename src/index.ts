@@ -149,5 +149,11 @@ export type {
   ReconnectPolicy,
   RoomEventCallbacks,
 };
+export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
+export {
+  type DataTrackExtensions,
+  type DataTrackUserTimestampExtension,
+  type DataTrackE2eeExtension,
+} from './room/data-track/packet/extensions';
 
 export { LocalTrackRecorder } from './room/track/record';

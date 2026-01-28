@@ -26,6 +26,9 @@ jobs:
     - name: Prettier
       run: pnpm format:check
 
+    - name: Throws check
+      run: pnpm throws:check
+
     - name: Run Tests
       run: pnpm test
 
