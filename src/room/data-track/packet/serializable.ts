@@ -24,6 +24,6 @@ export default abstract class Serializable {
       );
     }
 
-    return new Uint8Array(output); // FIXME: return uint8array here? Or the arraybuffer?
+    return new Uint8Array(output);
   }
 }
