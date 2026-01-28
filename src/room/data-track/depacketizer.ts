@@ -1,9 +1,9 @@
+import { LoggerNames, getLogger } from '../../logger';
 import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrame } from './frame';
 import { DataTrackPacket, FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
 import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
-import { getLogger, LoggerNames } from "../../logger";
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -25,6 +25,7 @@ export class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTra
   readonly name = 'DataTrackDepacketizerDropError';
 
   reason: DataTrackDepacketizerDropReason;
+
   reasonName: string;
 
   frameNumber: number;
@@ -84,7 +85,7 @@ export enum DataTrackDepacketizerDropReason {
 
 type PushOptions = {
   /** If true, throws an error instead of logging a warning when a new frame is encountered half way
-    * through processing a pre-existing frame. */
+   * through processing a pre-existing frame. */
   errorOnPartialFrames: boolean;
 };
 
@@ -121,7 +122,9 @@ export class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
       } else {
-        log.warn(`Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`);
+        log.warn(
+          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
+        );
       }
     }
     this.reset();
@@ -141,7 +144,9 @@ export class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
       } else {
-        log.warn(`Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`);
+        log.warn(
+          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
+        );
       }
     }
     this.reset();
