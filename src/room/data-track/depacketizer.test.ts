@@ -18,11 +18,11 @@ describe('DataTrackDepacketizer', () => {
         frameNumber: WrapAroundUnsignedInt.u16(103),
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
       }),
-      new Uint8Array(0),
+      new Uint8Array(8),
     );
 
     const frame = depacketizer.push(packet);
-    expect(frame!.payload).toStrictEqual(new Uint8Array(0));
+    expect(frame!.payload).toStrictEqual(new Uint8Array(8));
     expect(frame!.extensions.toJSON()).toStrictEqual(EMPTY_EXTENSIONS_JSON);
   });
 
