@@ -20,8 +20,8 @@ type PartialFrame = {
   payloadLenBytes: number;
 };
 
-/*8 An error indicating a frame was dropped. */
-class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTrackDepacketizerDropReason> {
+/** An error indicating a frame was dropped. */
+export class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTrackDepacketizerDropReason> {
   readonly name = 'DataTrackDepacketizerDropError';
 
   reason: DataTrackDepacketizerDropReason;
