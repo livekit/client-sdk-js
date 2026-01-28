@@ -238,12 +238,12 @@ async function getNameSafe(id: string): Promise<string | null> {
 ### Types
 
 ```typescript
-type Primatives = null | undefined | string | number | bigint | boolean | symbol;
+type Primitives = null | undefined | string | number | bigint | boolean | symbol;
 
 // Brand a return type with possible errors
 type Throws<T, E extends Error> =
   | (T & { readonly __throws?: E })
-  | Extract<T, Primatives>;
+  | Extract<T, Primitives>;
 
 // Extract error types from a Throws type
 type ExtractErrors<T> = T extends Throws<any, infer E> ? E : never;
