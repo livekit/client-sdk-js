@@ -41,7 +41,8 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.tag);
     byteIndex += U16_LENGTH_BYTES;
 
-    dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.lengthBytes - 1);
+    const rtpOrientedLength = DataTrackUserTimestampExtension.lengthBytes - 1;
+    dataView.setUint16(byteIndex, rtpOrientedLength);
     byteIndex += U16_LENGTH_BYTES;
 
     dataView.setBigUint64(byteIndex, this.timestamp);
@@ -97,7 +98,8 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     dataView.setUint16(byteIndex, DataTrackE2eeExtension.tag);
     byteIndex += U16_LENGTH_BYTES;
 
-    dataView.setUint16(byteIndex, DataTrackE2eeExtension.lengthBytes - 1);
+    const rtpOrientedLength = DataTrackE2eeExtension.lengthBytes - 1;
+    dataView.setUint16(byteIndex, rtpOrientedLength);
     byteIndex += U16_LENGTH_BYTES;
 
     dataView.setUint8(byteIndex, this.keyIndex);
@@ -196,7 +198,8 @@ export class DataTrackExtensions extends Serializable {
       const tag = dataView.getUint16(byteIndex);
       byteIndex += U16_LENGTH_BYTES;
 
-      const lengthBytes = dataView.getUint16(byteIndex);
+      const rtpOrientedLength = dataView.getUint16(byteIndex);
+      const lengthBytes = rtpOrientedLength + 1;
       byteIndex += U16_LENGTH_BYTES;
 
       if (tag === EXT_TAG_PADDING) {
@@ -210,7 +213,7 @@ export class DataTrackExtensions extends Serializable {
             throw DataTrackDeserializeError.malformedExt(tag);
           }
           userTimestamp = new DataTrackUserTimestampExtension(dataView.getBigUint64(byteIndex));
-          byteIndex += lengthBytes + U8_LENGTH_BYTES;
+          byteIndex += lengthBytes;
           break;
 
         case DataTrackExtensionTag.E2ee:
