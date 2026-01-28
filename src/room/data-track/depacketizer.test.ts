@@ -21,11 +21,9 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array(0),
     );
 
-    const result = depacketizer.push(packet);
-
-    expect(result.dropError).toBeNull();
-    expect(result.frame!.payload).toStrictEqual(new Uint8Array(0));
-    expect(result.frame!.extensions.toJSON()).toStrictEqual(EMPTY_EXTENSIONS_JSON);
+    const frame = depacketizer.push(packet);
+    expect(frame!.payload).toStrictEqual(new Uint8Array(0));
+    expect(frame!.extensions.toJSON()).toStrictEqual(EMPTY_EXTENSIONS_JSON);
   });
 
   it.each([0, 8, DataTrackDepacketizer.MAX_BUFFER_PACKETS - 2])('should depacketize a multi packet message', (interPacketCount) => {
@@ -44,29 +42,26 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
       packetPayload,
     );
-    const startPacketResult = depacketizer.push(startPacket);
-    expect(startPacketResult.frame).toBeNull();
-    expect(startPacketResult.dropError).toBeNull();
+    const startPacketFrame = depacketizer.push(startPacket);
+    expect(startPacketFrame).toBeNull();
 
     for (let i = 0; i < interPacketCount; i += 1) {
       const interPacket = new DataTrackPacket(
         new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Inter, sequence: WrapAroundUnsignedInt.u16(i) }),
         packetPayload,
       );
-      const interPacketResult = depacketizer.push(interPacket);
-      expect(interPacketResult.frame).toBeNull();
-      expect(interPacketResult.dropError).toBeNull();
+      const interPacketFrame = depacketizer.push(interPacket);
+      expect(interPacketFrame).toBeNull();
     }
 
     const finalPacket = new DataTrackPacket(
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Final, sequence: WrapAroundUnsignedInt.u16(interPacketCount) }),
       packetPayload,
     );
-    const finalPacketResult = depacketizer.push(finalPacket);
-    expect(finalPacketResult.dropError).toBeNull();
 
-    expect(finalPacketResult.frame!.extensions.toJSON()).toStrictEqual(EMPTY_EXTENSIONS_JSON);
-    expect(finalPacketResult.frame!.payload.byteLength).toStrictEqual(packetPayload.byteLength * (1 /* start */ + interPacketCount + 1 /* final */));
+    const finalPacketFrame = depacketizer.push(finalPacket);
+    expect(finalPacketFrame!.extensions.toJSON()).toStrictEqual(EMPTY_EXTENSIONS_JSON);
+    expect(finalPacketFrame!.payload.byteLength).toStrictEqual(packetPayload.byteLength * (1 /* start */ + interPacketCount + 1 /* final */));
   });
 
   it('should throw "interrupted" when frame number changes midway through depacketizing', () => {
@@ -82,9 +77,8 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array(8),
     );
 
-    const resultA = depacketizer.push(packetA);
-    expect(resultA.frame).toBeNull();
-    expect(resultA.dropError).toBeNull();
+    const frameA = depacketizer.push(packetA);
+    expect(frameA).toBeNull();
 
     // Now feed in a packet with a different frame number:
     const nextFrameNumber = packetA.header.frameNumber.value + 1;
@@ -99,10 +93,7 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array(8),
     );
 
-    const resultB = depacketizer.push(packetB);
-    expect(resultB.frame).toBeNull();
-    expect(resultB.dropError!.message).toStrictEqual("Frame 5 dropped: Interrupted by the start of a new frame");
-    expect(resultB.dropError!.frameNumber).toStrictEqual(packetA.header.frameNumber.value);
+    expect(() => depacketizer.push(packetB, { errorOnPartialFrames: true })).toThrowError("Frame 5 dropped: Interrupted by the start of a new frame");
   });
 
   it('should throw "incomplete" when final packet comes too early', () => {
@@ -121,18 +112,14 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
       packetPayload,
     );
-    const startPacketResult = depacketizer.push(startPacket);
-    expect(startPacketResult.frame).toBeNull();
-    expect(startPacketResult.dropError).toBeNull();
+    const startPacketFrame = depacketizer.push(startPacket);
+    expect(startPacketFrame).toBeNull();
 
     const finalPacket = new DataTrackPacket(
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Final, sequence: WrapAroundUnsignedInt.u16(3) }),
       packetPayload,
     );
-    const finalPacketResult = depacketizer.push(finalPacket);
-    expect(finalPacketResult.frame).toBeNull();
-    expect(finalPacketResult.dropError!.message).toStrictEqual("Frame 103 dropped: Not all packets received before final packet. Received 2 packets, expected 4 packets.");
-    expect(finalPacketResult.dropError!.frameNumber).toStrictEqual(startPacket.header.frameNumber.value);
+    expect(() => depacketizer.push(finalPacket)).toThrowError("Frame 103 dropped: Not all packets received before final packet. Received 2 packets, expected 4 packets.");
   });
 
   it('should throw "unknownFrame" when a non single packet frame does not start with a "start" packet', () => {
@@ -167,18 +154,16 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
       packetPayload,
     );
-    const startPacketResult = depacketizer.push(startPacket);
-    expect(startPacketResult.frame).toBeNull();
-    expect(startPacketResult.dropError).toBeNull();
+    const startPacketFrame = depacketizer.push(startPacket);
+    expect(startPacketFrame).toBeNull();
 
     for (let i = 0; i < DataTrackDepacketizer.MAX_BUFFER_PACKETS; i += 1) {
       const interPacket = new DataTrackPacket(
         new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Inter, sequence: WrapAroundUnsignedInt.u16(i) }),
         packetPayload,
       );
-      const interPacketResult = depacketizer.push(interPacket);
-      expect(interPacketResult.frame).toBeNull();
-      expect(interPacketResult.dropError).toBeNull();
+      const interPacketFrame = depacketizer.push(interPacket);
+      expect(interPacketFrame).toBeNull();
     }
 
     // Send one final inter packet (so one more than the max), and make sure the error case gets hit
