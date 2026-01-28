@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.17.1
+
+### Patch Changes
+
+- Add data track packet serialization + deserialization logic - [#1792](https://github.com/livekit/client-sdk-js/pull/1792) ([@1egoman](https://github.com/1egoman))
+
+- Update docs to clarify other client HKDF support - [#1796](https://github.com/livekit/client-sdk-js/pull/1796) ([@1egoman](https://github.com/1egoman))
+
 ## 2.17.0
 
 ### Minor Changes
