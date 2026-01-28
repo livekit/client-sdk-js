@@ -180,7 +180,7 @@ describe('DataTrackDepacketizer', () => {
     const startPacketFrame = depacketizer.push(startPacket);
     expect(startPacketFrame).toBeNull();
 
-    for (let i = 0; i < DataTrackDepacketizer.MAX_BUFFER_PACKETS; i += 1) {
+    for (let i = 0; i < DataTrackDepacketizer.MAX_BUFFER_PACKETS - 1; i += 1) {
       const interPacket = new DataTrackPacket(
         new DataTrackPacketHeader({
           ...packetHeaderParams,
