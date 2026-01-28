@@ -1,3 +1,5 @@
+type Primatives = null | undefined | string | number | bigint | boolean | symbol;
+
 /**
  * Branded type that encodes possible thrown errors in the return type.
  *
@@ -13,7 +15,7 @@
  */
 export type Throws<T, E extends Error> =
   | (T & { readonly __throws?: E })
-  | Extract<T, null | undefined>;
+  | Extract<T, Primatives>;
 
 /**
  * Extract the error types from a Throws type.
