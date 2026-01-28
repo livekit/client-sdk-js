@@ -107,6 +107,9 @@ export class DataTrackTimestamp<RateInHz extends number> {
     this.timestamp.increment(n);
   }
 
+  /** Returns true if {@link this} is before the passed other {@link DataTrackTimestamp}.
+   * Note that if the timestamp wraps around past its bounds, this function may not produce the
+   * correct result. */
   isBefore(other: DataTrackTimestamp<RateInHz>) {
     return this.timestamp.value < other.timestamp.value;
   }
