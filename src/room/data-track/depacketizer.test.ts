@@ -64,7 +64,7 @@ describe('DataTrackDepacketizer', () => {
         new DataTrackPacketHeader({
           ...packetHeaderParams,
           marker: FrameMarker.Final,
-          sequence: WrapAroundUnsignedInt.u16(interPacketCount+1),
+          sequence: WrapAroundUnsignedInt.u16(interPacketCount + 1),
         }),
         packetPayload,
       );
@@ -327,6 +327,8 @@ describe('DataTrackDepacketizer', () => {
       }),
       new Uint8Array(0),
     );
-    expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(new Uint8Array([0x04, 0x05, 0x06]));
+    expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(
+      new Uint8Array([0x04, 0x05, 0x06]),
+    );
   });
 });

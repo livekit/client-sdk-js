@@ -216,7 +216,9 @@ export class DataTrackDepacketizer {
     // happen in actual use, but even if it does (maybe a low level network retransmission?) the
     // last packet with a given sequence received should always win.
     if (this.partial.payloads.has(packet.header.sequence.value)) {
-      log.warn(`Data track frame ${this.partial.frameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`);
+      log.warn(
+        `Data track frame ${this.partial.frameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`,
+      );
     }
     this.partial.payloads.set(packet.header.sequence.value, packet.payload);
 
@@ -236,7 +238,10 @@ export class DataTrackDepacketizer {
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
   > {
     const received = partial.payloads.size;
-    const payloadLengthBytes = Array.from(partial.payloads.values()).reduce((sum, i) => sum + i.length, 0);
+    const payloadLengthBytes = Array.from(partial.payloads.values()).reduce(
+      (sum, i) => sum + i.length,
+      0,
+    );
     const payload = new Uint8Array(payloadLengthBytes);
 
     let sequencePointer = partial.startSequence.value;
