@@ -113,6 +113,7 @@ export class DataTrackDepacketizer {
 
   private frameFromSingle(packet: DataTrackPacket, options?: PushOptions) {
     if (packet.header.marker !== FrameMarker.Single) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `Depacketizer.frameFromSingle: packet.header.marker was not FrameMarker.Single, found ${packet.header.marker}.`,
       );
@@ -135,6 +136,7 @@ export class DataTrackDepacketizer {
   /** Begin assembling a new packet. */
   private beginPartial(packet: DataTrackPacket, options?: PushOptions) {
     if (packet.header.marker !== FrameMarker.Start) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `Depacketizer.beginPartial: packet.header.marker was not FrameMarker.Start, found ${packet.header.marker}.`,
       );
@@ -168,6 +170,7 @@ export class DataTrackDepacketizer {
   /** Push to the existing partial frame. */
   private pushToPartial(packet: DataTrackPacket) {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
+      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
         `Depacketizer.pushToPartial: packet.header.marker was not FrameMarker.Inter or FrameMarker.Final, found ${packet.header.marker}.`,
       );
@@ -209,6 +212,7 @@ export class DataTrackDepacketizer {
 
       const payloadRemainingBytes = payload.length - payloadOffsetPointerBytes;
       if (partialPayload.length > payloadRemainingBytes) {
+        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
         throw new Error(
           `Depacketizer.finalize: Expected at least ${partialPayload.length} more bytes left in the payload buffer, only got ${payloadRemainingBytes} bytes.`,
         );
