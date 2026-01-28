@@ -93,6 +93,11 @@ export class DataTrackDepacketizer {
 
   private partial: PartialFrame | null = null;
 
+  /** Should be repeatedly called with received {@link DataTrackPacket}s - intermediate calls
+   * aggregate the packet's state internally, and return null.
+   *
+   * Once this method is called with the final packet to form a frame, a new {@link DataTrackFrame}
+   * is returned.*/
   push(
     packet: DataTrackPacket,
     options?: PushOptions,
