@@ -1,4 +1,5 @@
 import type { Throws } from '../../utils/throws';
+import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrame } from './frame';
 import { DataTrackHandle } from './handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from './packet';
@@ -9,6 +10,35 @@ type PacketizeOptions = {
    * defaults to the return value of {@link DataTrackClock#now}. */
   now?: DataTrackTimestamp<90_000>;
 };
+
+export class DataTrackPacketizerError<
+  Reason extends DataTrackPacketizerReason,
+> extends LivekitReasonedError<Reason> {
+  readonly name = 'DataTrackPacketizerError';
+
+  reason: Reason;
+
+  reasonName: string;
+
+  frameNumber: number;
+
+  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
+    super(19, message, options);
+    this.reason = reason;
+    this.reasonName = DataTrackPacketizerReason[reason];
+  }
+
+  static mtuTooShort() {
+    return new DataTrackPacketizerError(
+      'MTU is too short to send frame',
+      DataTrackPacketizerReason.MtuTooShort,
+    );
+  }
+}
+
+export enum DataTrackPacketizerReason {
+  MtuTooShort = 0,
+}
 
 /** A packetizer takes a {@link DataTrackPacketizerFrame} as input and generates a series
  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
@@ -50,7 +80,10 @@ export class DataTrackPacketizer {
   *packetize(
     frame: DataTrackFrame,
     options?: PacketizeOptions,
-  ): Throws<Generator<DataTrackPacket>, never> {
+  ): Throws<
+    Generator<DataTrackPacket>,
+    DataTrackPacketizerError<DataTrackPacketizerReason.MtuTooShort>
+  > {
     const frameNumber = this.frameNumber.getThenIncrement();
     const headerParams = {
       marker: FrameMarker.Inter,
@@ -64,7 +97,7 @@ export class DataTrackPacketizer {
       headerParams,
     ).toBinaryLengthBytes();
     if (headerSerializedLengthBytes > this.mtuSizeBytes) {
-      throw new Error('PacketizerError::MtuTooShort');
+      throw DataTrackPacketizerError.mtuTooShort();
     }
 
     const maxPayloadSizeBytes = this.mtuSizeBytes - headerSerializedLengthBytes;
