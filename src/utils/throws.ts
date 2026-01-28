@@ -11,7 +11,9 @@
  *
  * For more info about how this is checked, see ./throws-transformer at the root of this repo.
  */
-export type Throws<T, E extends Error> = T & { readonly __throws?: E };
+export type Throws<T, E extends Error> =
+  | (T & { readonly __throws?: E })
+  | Extract<T, null | undefined>;
 
 /**
  * Extract the error types from a Throws type.

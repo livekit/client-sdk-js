@@ -1,4 +1,5 @@
 import { LoggerNames, getLogger } from '../../logger';
+import { type Throws } from '../../utils/throws';
 import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrame } from './frame';
 import { DataTrackPacket, FrameMarker } from './packet';
@@ -21,21 +22,18 @@ type PartialFrame = {
 };
 
 /** An error indicating a frame was dropped. */
-export class DataTrackDepacketizerDropError extends LivekitReasonedError<DataTrackDepacketizerDropReason> {
+export class DataTrackDepacketizerDropError<
+  Reason extends DataTrackDepacketizerDropReason,
+> extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackDepacketizerDropError';
 
-  reason: DataTrackDepacketizerDropReason;
+  reason: Reason;
 
   reasonName: string;
 
   frameNumber: number;
 
-  constructor(
-    message: string,
-    reason: DataTrackDepacketizerDropReason,
-    frameNumber: number,
-    options?: { cause?: unknown },
-  ) {
+  constructor(message: string, reason: Reason, frameNumber: number, options?: { cause?: unknown }) {
     super(19, `Frame ${frameNumber} dropped: ${message}`, options);
     this.reason = reason;
     this.reasonName = DataTrackDepacketizerDropReason[reason];
@@ -95,7 +93,16 @@ export class DataTrackDepacketizer {
 
   private partial: PartialFrame | null = null;
 
-  push(packet: DataTrackPacket, options?: PushOptions): DataTrackFrame | null {
+  push(
+    packet: DataTrackPacket,
+    options?: PushOptions,
+  ): Throws<
+    DataTrackFrame | null,
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.BufferFull>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.UnknownFrame>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
+  > {
     switch (packet.header.marker) {
       case FrameMarker.Single:
         return this.frameFromSingle(packet, options);
@@ -111,7 +118,13 @@ export class DataTrackDepacketizer {
     this.partial = null;
   }
 
-  private frameFromSingle(packet: DataTrackPacket, options?: PushOptions) {
+  private frameFromSingle(
+    packet: DataTrackPacket,
+    options?: PushOptions,
+  ): Throws<
+    DataTrackFrame | null,
+    DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
+  > {
     if (packet.header.marker !== FrameMarker.Single) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
@@ -134,7 +147,10 @@ export class DataTrackDepacketizer {
   }
 
   /** Begin assembling a new packet. */
-  private beginPartial(packet: DataTrackPacket, options?: PushOptions) {
+  private beginPartial(
+    packet: DataTrackPacket,
+    options?: PushOptions,
+  ): Throws<null, DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>> {
     if (packet.header.marker !== FrameMarker.Start) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
@@ -168,7 +184,15 @@ export class DataTrackDepacketizer {
   }
 
   /** Push to the existing partial frame. */
-  private pushToPartial(packet: DataTrackPacket) {
+  private pushToPartial(
+    packet: DataTrackPacket,
+  ): Throws<
+    DataTrackFrame | null,
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.UnknownFrame>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.BufferFull>
+    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
+  > {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
@@ -197,7 +221,13 @@ export class DataTrackDepacketizer {
   }
 
   /** Try to reassemble the complete frame. */
-  private finalize(partial: PartialFrame, endSequence: number) {
+  private finalize(
+    partial: PartialFrame,
+    endSequence: number,
+  ): Throws<
+    DataTrackFrame,
+    DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
+  > {
     const received = partial.payloads.size;
     const payload = new Uint8Array(partial.payloadLenBytes);
 
