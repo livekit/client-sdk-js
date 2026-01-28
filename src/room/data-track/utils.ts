@@ -127,7 +127,7 @@ export class DataTrackClock<RateInHz extends number> {
   private constructor(rateInHz: RateInHz, epoch: Date, base: DataTrackTimestamp<RateInHz>) {
     this.epoch = epoch;
     this.base = base;
-    this.previous = base;
+    this.previous = base.clone();
     this.rateInHz = rateInHz;
   }
 
@@ -169,8 +169,8 @@ export class DataTrackClock<RateInHz extends number> {
     if (result.isBefore(this.previous)) {
       result = this.previous;
     }
-    this.previous = result;
-    return result;
+    this.previous = result.clone();
+    return result.clone();
   }
 
   /** Convert a duration since the epoch into clock ticks. */
