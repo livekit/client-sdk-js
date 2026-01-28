@@ -17,8 +17,6 @@ type PartialFrame = {
   extensions: DataTrackExtensions;
   /** Mapping between sequence number and packet payload. */
   payloads: Map<number, Uint8Array>;
-  /** Sum of payload lengths. */
-  payloadLenBytes: number;
 };
 
 /** An error indicating a frame was dropped. */
@@ -175,14 +173,12 @@ export class DataTrackDepacketizer {
     this.reset();
 
     const startSequence = packet.header.sequence;
-    const payloadLenBytes = packet.payload.length;
 
     this.partial = {
       frameNumber: packet.header.frameNumber.value,
       startSequence,
       extensions: packet.header.extensions,
       payloads: new Map([[startSequence.value, packet.payload]]),
-      payloadLenBytes,
     };
 
     return null;
@@ -215,7 +211,13 @@ export class DataTrackDepacketizer {
     if (this.partial.payloads.size == DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
       throw DataTrackDepacketizerDropError.bufferFull(this.partial.frameNumber);
     }
-    this.partial.payloadLenBytes += packet.payload.length;
+
+    // Note: receiving a packet with a duplicate `sequence` value is something that likely won't
+    // happen in actual use, but even if it does (maybe a low level network retransmission?) the
+    // last packet with a given sequence received should always win.
+    if (this.partial.payloads.has(packet.header.sequence.value)) {
+      log.warn(`Data track frame ${this.partial.frameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`);
+    }
     this.partial.payloads.set(packet.header.sequence.value, packet.payload);
 
     if (packet.header.marker === FrameMarker.Final) {
@@ -234,7 +236,8 @@ export class DataTrackDepacketizer {
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
   > {
     const received = partial.payloads.size;
-    const payload = new Uint8Array(partial.payloadLenBytes);
+    const payloadLengthBytes = Array.from(partial.payloads.values()).reduce((sum, i) => sum + i.length, 0);
+    const payload = new Uint8Array(payloadLengthBytes);
 
     let sequencePointer = partial.startSequence.value;
     let payloadOffsetPointerBytes = 0;

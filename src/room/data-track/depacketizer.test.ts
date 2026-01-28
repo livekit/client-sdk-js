@@ -64,7 +64,7 @@ describe('DataTrackDepacketizer', () => {
         new DataTrackPacketHeader({
           ...packetHeaderParams,
           marker: FrameMarker.Final,
-          sequence: WrapAroundUnsignedInt.u16(interPacketCount),
+          sequence: WrapAroundUnsignedInt.u16(interPacketCount+1),
         }),
         packetPayload,
       );
@@ -219,7 +219,7 @@ describe('DataTrackDepacketizer', () => {
       timestamp: DataTrackTimestamp.fromRtpTicks(104),
     };
 
-    // Now first frame successfully
+    // Process first frame successfully
     const startPacketA = new DataTrackPacket(
       new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
       packetPayload,
@@ -278,5 +278,55 @@ describe('DataTrackDepacketizer', () => {
       packetPayload,
     );
     expect(depacketizer.push(finalPacketB)).not.toBeNull();
+  });
+
+  it('should ensure that if duplicate packets with the same sequence number are received, the last packet wins', () => {
+    const depacketizer = new DataTrackDepacketizer();
+
+    const packetHeaderParams = {
+      /* no marker */
+      trackHandle: DataTrackHandle.fromNumber(101),
+      sequence: WrapAroundUnsignedInt.u16(0),
+      frameNumber: WrapAroundUnsignedInt.u16(103),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    const startPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(startPacket)).toBeNull();
+
+    // First version of the inter packet
+    const interPacketA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+      }),
+      new Uint8Array([0x01, 0x02, 0x03]),
+    );
+    expect(depacketizer.push(interPacketA)).toBeNull();
+
+    // Second version of the inter packet
+    const interPacketB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+      }),
+      new Uint8Array([0x04, 0x05, 0x06]),
+    );
+    expect(depacketizer.push(interPacketB)).toBeNull();
+
+    const finalPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(2),
+      }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(new Uint8Array([0x04, 0x05, 0x06]));
   });
 });
