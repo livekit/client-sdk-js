@@ -1,7 +1,7 @@
 import { Mutex } from '@livekit/mutex';
-import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
+import { debounce } from '../debounce';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
