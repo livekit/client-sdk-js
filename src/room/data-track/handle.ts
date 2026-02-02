@@ -41,10 +41,9 @@ export class DataTrackHandleError<
   }
 }
 
-export class DataTrackHandle {
-  public value: number;
-
-  static fromNumber(
+export type DataTrackHandle = number;
+export const DataTrackHandle = {
+  fromNumber(
     raw: number,
   ): Throws<
     DataTrackHandle,
@@ -57,24 +56,20 @@ export class DataTrackHandle {
     if (raw > U16_MAX_SIZE) {
       throw DataTrackHandleError.tooLarge();
     }
-    return new DataTrackHandle(raw);
-  }
-
-  constructor(raw: number) {
-    this.value = raw;
+    return raw;
   }
 }
 
 /** Manage allocating new handles which don't conflict over the lifetime of the client. */
 export class DataTrackHandleAllocator {
-  static value = 0;
+  value = 0;
 
   /** Returns a unique track handle for the next publication, if one can be obtained. */
-  static get(): DataTrackHandle | null {
+  get(): DataTrackHandle | null {
     this.value += 1;
     if (this.value > U16_MAX_SIZE) {
       return null;
     }
-    return new DataTrackHandle(this.value);
+    return this.value;
   }
 }
