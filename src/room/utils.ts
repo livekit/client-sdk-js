@@ -27,6 +27,7 @@ import type { TrackPublication } from './track/TrackPublication';
 import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
+import { type Throws } from '../utils/throws';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -458,7 +459,7 @@ export function getStereoAudioStreamTrack() {
 }
 
 export class Future<T, E extends Error> {
-  promise: Promise<T>;
+  promise: Promise<Throws<T, E>>;
 
   resolve?: (arg: T) => void;
 
@@ -486,7 +487,7 @@ export class Future<T, E extends Error> {
     }).finally(() => {
       this._isResolved = true;
       this.onFinally?.();
-    });
+    }) as Promise<Throws<T, E>>;
   }
 }
 
