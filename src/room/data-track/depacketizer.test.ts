@@ -251,6 +251,7 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({
         ...packetHeaderParams,
         marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(3),
         frameNumber: WrapAroundUnsignedInt.u16(999),
       }),
       packetPayload,
@@ -261,7 +262,7 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({
         ...packetHeaderParams,
         marker: FrameMarker.Inter,
-        sequence: WrapAroundUnsignedInt.u16(1),
+        sequence: WrapAroundUnsignedInt.u16(4),
         frameNumber: WrapAroundUnsignedInt.u16(999),
       }),
       packetPayload,
@@ -272,7 +273,7 @@ describe('DataTrackDepacketizer', () => {
       new DataTrackPacketHeader({
         ...packetHeaderParams,
         marker: FrameMarker.Final,
-        sequence: WrapAroundUnsignedInt.u16(2),
+        sequence: WrapAroundUnsignedInt.u16(5),
         frameNumber: WrapAroundUnsignedInt.u16(999),
       }),
       packetPayload,
