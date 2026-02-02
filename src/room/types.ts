@@ -19,6 +19,7 @@ export interface SendTextOptions {
   topic?: string;
   // replyToMessageId?: string;
   destinationIdentities?: Array<string>;
+  /** @deprecated Use the Data Streams API instead: https://docs.livekit.io/transport/data/byte-streams/ */
   attachments?: Array<File>;
   onProgress?: (progress: number) => void;
   attributes?: Record<string, string>;
@@ -115,7 +116,9 @@ export interface ChatMessage {
   id: string;
   timestamp: number;
   message: string;
+  /** @deprecated No longer recommended, use the Text Streams API instead: https://docs.livekit.io/transport/data/text-streams/ */
   editTimestamp?: number;
+  /** @deprecated Use the Data Streams API instead: https://docs.livekit.io/transport/data/byte-streams/ */
   attachedFiles?: Array<File>;
 }
 
