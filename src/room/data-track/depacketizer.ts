@@ -137,7 +137,9 @@ export class DataTrackDepacketizer {
 
     if (this.partial) {
       if (options?.errorOnPartialFrames) {
-        throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
+        const frameNumber = this.partial.frameNumber;
+        this.reset();
+        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
       } else {
         log.warn(
           `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
@@ -163,7 +165,9 @@ export class DataTrackDepacketizer {
 
     if (this.partial) {
       if (options?.errorOnPartialFrames) {
-        throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
+        const frameNumber = this.partial.frameNumber;
+        this.reset();
+        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
       } else {
         log.warn(
           `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
@@ -202,17 +206,22 @@ export class DataTrackDepacketizer {
     }
 
     if (!this.partial) {
+      this.reset();
       throw DataTrackDepacketizerDropError.unknownFrame(packet.header.frameNumber.value);
     }
 
     if (packet.header.frameNumber.value !== this.partial.frameNumber) {
-      throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
+      const frameNumber = this.partial.frameNumber;
+      this.reset();
+      throw DataTrackDepacketizerDropError.interrupted(frameNumber);
     }
 
     // NOTE: this check will block reprocessing packets with duplicate sequence values if the
     // buffer is full already, which could maybe be problematic for very large frames.
     if (this.partial.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
-      throw DataTrackDepacketizerDropError.bufferFull(this.partial.frameNumber);
+      const frameNumber = this.partial.frameNumber;
+      this.reset();
+      throw DataTrackDepacketizerDropError.bufferFull(frameNumber);
     }
 
     // Note: receiving a packet with a duplicate `sequence` value is something that likely won't

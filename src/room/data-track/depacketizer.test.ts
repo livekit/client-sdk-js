@@ -384,4 +384,59 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
     );
   });
+
+  it('should be able to continue to depacketize if a bad packet puts the depacketizer into a bad state', () => {
+    const depacketizer = new DataTrackDepacketizer();
+
+    const packetHeaderParams = {
+      /* no marker */
+      trackHandle: DataTrackHandle.fromNumber(101),
+      sequence: WrapAroundUnsignedInt.u16(0),
+      frameNumber: WrapAroundUnsignedInt.u16(103),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // First, put the depacketizer into a bad state by feeding in a final packet
+    const preemptiveFinalPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        frameNumber: WrapAroundUnsignedInt.u16(102),
+        sequence: WrapAroundUnsignedInt.u16(0),
+      }),
+      new Uint8Array(0),
+    );
+    expect(() => depacketizer.push(preemptiveFinalPacket)).toThrowError(
+      'Frame 102 dropped: Initial packet was never received.',
+    );
+
+    // Then, try to parse a valid multi byte frame made up of three packets
+    const startPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(startPacket)).toBeNull();
+
+    const interPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+      }),
+      new Uint8Array([0x01, 0x02, 0x03]),
+    );
+    expect(depacketizer.push(interPacket)).toBeNull();
+
+    const finalPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(2),
+      }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(
+      new Uint8Array([0x01, 0x02, 0x03]),
+    );
+  });
 });
