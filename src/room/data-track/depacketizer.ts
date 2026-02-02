@@ -278,6 +278,7 @@ export class DataTrackDepacketizer {
       return { payload, extensions: partial.extensions };
     }
 
+    this.reset();
     throw DataTrackDepacketizerDropError.incomplete(
       partial.frameNumber,
       received,
