@@ -332,4 +332,56 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array([0x04, 0x05, 0x06]),
     );
   });
+
+  it('should ensure packets can be received out of order', () => {
+    const depacketizer = new DataTrackDepacketizer();
+
+    const packetHeaderParams = {
+      /* no marker */
+      trackHandle: DataTrackHandle.fromNumber(101),
+      sequence: WrapAroundUnsignedInt.u16(0),
+      frameNumber: WrapAroundUnsignedInt.u16(103),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    const startPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({ ...packetHeaderParams, marker: FrameMarker.Start }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(startPacket)).toBeNull();
+
+    // Second inter packet comes first
+    const interPacketB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(2),
+      }),
+      new Uint8Array([0x04, 0x05, 0x06]),
+    );
+    expect(depacketizer.push(interPacketB)).toBeNull();
+
+    // First inter packet comes second
+    const interPacketA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Inter,
+        sequence: WrapAroundUnsignedInt.u16(1),
+      }),
+      new Uint8Array([0x01, 0x02, 0x03]),
+    );
+    expect(depacketizer.push(interPacketA)).toBeNull();
+
+    const finalPacket = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...packetHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(3),
+      }),
+      new Uint8Array(0),
+    );
+    expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(
+      new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+    );
+  });
 });
