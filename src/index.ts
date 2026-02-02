@@ -12,6 +12,10 @@ import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
 import type { RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
+// FIXME: remove this import in a follow up data track pull request.
+import './room/data-track/depacketizer';
+// FIXME: remove this import in a follow up data track pull request.
+import './room/data-track/packetizer';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
@@ -155,7 +159,5 @@ export {
   type DataTrackUserTimestampExtension,
   type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
-export { DataTrackPacketizer } from './room/data-track/packetizer'; // FIXME: should this be exported? Maybe not?
-export { DataTrackDepacketizer } from './room/data-track/depacketizer'; // FIXME: should this be exported? Maybe not?
 
 export { LocalTrackRecorder } from './room/track/record';
