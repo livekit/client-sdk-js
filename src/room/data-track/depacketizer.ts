@@ -208,7 +208,7 @@ export class DataTrackDepacketizer {
     if (packet.header.frameNumber.value !== this.partial.frameNumber) {
       throw DataTrackDepacketizerDropError.interrupted(this.partial.frameNumber);
     }
-    if (this.partial.payloads.size == DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
+    if (this.partial.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
       throw DataTrackDepacketizerDropError.bufferFull(this.partial.frameNumber);
     }
 
