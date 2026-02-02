@@ -238,10 +238,11 @@ export class DataTrackDepacketizer {
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
   > {
     const received = partial.payloads.size;
-    const payloadLengthBytes = Array.from(partial.payloads.values()).reduce(
-      (sum, i) => sum + i.length,
-      0,
-    );
+
+    let payloadLengthBytes = 0;
+    for (const p of partial.payloads.values()) {
+      payloadLengthBytes += p.length;
+    }
     const payload = new Uint8Array(payloadLengthBytes);
 
     let sequencePointer = partial.startSequence.value;
