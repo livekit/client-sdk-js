@@ -73,6 +73,14 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
     this.increment();
     return new WrapAroundUnsignedInt(previousValue, this.maxSize);
   }
+
+  /** Returns true if {@link this} is before the passed other {@link WrapAroundUnsignedInt}. */
+  isBefore(other: WrapAroundUnsignedInt<MaxSize>) {
+    const a = this.value >>> 0;
+    const b = other.value >>> 0;
+    const diff = (b - a) >>> 0;
+    return diff !== 0 && diff < this.maxSize;
+  }
 }
 
 export class DataTrackTimestamp<RateInHz extends number> {
@@ -107,11 +115,9 @@ export class DataTrackTimestamp<RateInHz extends number> {
     this.timestamp.increment(n);
   }
 
-  /** Returns true if {@link this} is before the passed other {@link DataTrackTimestamp}.
-   * Note that if the timestamp wraps around past its bounds, this function may not produce the
-   * correct result. */
+  /** Returns true if {@link this} is before the passed other {@link DataTrackTimestamp}. */
   isBefore(other: DataTrackTimestamp<RateInHz>) {
-    return this.timestamp.value < other.timestamp.value;
+    return this.timestamp.isBefore(other.timestamp);
   }
 }
 
