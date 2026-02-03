@@ -323,7 +323,7 @@ export default class LocalParticipant extends Participant {
         } else if (rpcResponse.value.case === 'error') {
           error = RpcError.fromProto(rpcResponse.value.value);
         }
-        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
+        this._handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
         break;
       case 'rpcAck':
         let rpcAck = packet.value.value as RpcAck;
