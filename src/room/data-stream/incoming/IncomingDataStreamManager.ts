@@ -191,6 +191,7 @@ export default class IncomingDataStreamManager {
         timestamp: Number(streamHeader.timestamp),
         attributes: streamHeader.attributes,
         encryptionType,
+        attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
       };
 
       const stream = new ReadableStream<DataStream_Chunk>({
