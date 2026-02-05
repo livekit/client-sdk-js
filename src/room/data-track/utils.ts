@@ -92,8 +92,9 @@ export class DataTrackTimestamp<RateInHz extends number> {
     return new DataTrackTimestamp(rtpTicks, 90_000);
   }
 
+  /** Generates a timestamp initialized to a non cryptographically secure random value, so that
+   * different streams are more difficult to correlate in packet capture. */
   static rtpRandom() {
-    // FIXME: does this need to be a higher quality PRNG?
     const randomValue = Math.round(Math.random() * U32_MAX_SIZE);
     return DataTrackTimestamp.fromRtpTicks(randomValue);
   }
