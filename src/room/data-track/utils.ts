@@ -79,7 +79,7 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
     const a = this.value >>> 0;
     const b = other.value >>> 0;
     const diff = (b - a) >>> 0;
-    return diff !== 0 && diff < this.maxSize;
+    return diff !== 0 && diff < this.maxSize + 1;
   }
 }
 
