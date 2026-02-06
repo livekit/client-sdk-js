@@ -5,6 +5,7 @@ export type EncryptedPayload = {
 };
 
 export type EncryptionProvider = {
+  // FIXME: add in explicit `Throws<..., EncryptionError>`?
   encrypt(payload: Uint8Array): EncryptedPayload;
 };
 

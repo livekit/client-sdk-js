@@ -85,7 +85,7 @@ type PushOptions = {
   errorOnPartialFrames: boolean;
 };
 
-export class DataTrackDepacketizer {
+export default class DataTrackDepacketizer {
   /** Maximum number of packets to buffer per frame before dropping. */
   static MAX_BUFFER_PACKETS = 128;
 

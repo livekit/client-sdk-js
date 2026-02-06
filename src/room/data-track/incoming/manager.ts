@@ -5,10 +5,12 @@ import { LoggerNames, getLogger } from '../../../logger';
 import { Future } from '../../utils';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { type EncryptionProvider } from '../e2ee';
+import { type DataTrackInfo } from '../track';
+import DataTrackIncomingPipeline from './pipeline';
 
 const log = getLogger(LoggerNames.DataTracks);
 
-type LocalDataTrack = { info: DataTrackInfo };
+type LocalDataTrack = { info: DataTrackInfo; pipeline: DataTrackIncomingPipeline };
 
 type PendingDescriptor = {
   type: 'pending';
@@ -24,6 +26,8 @@ type ActiveDescriptor = {
   type: 'active';
   info: DataTrackInfo;
   // FIXME: add track task fields here.
+
+  pipeline: DataTrackIncomingPipeline,
 };
 type Descriptor = PendingDescriptor | ActiveDescriptor;
 
@@ -37,16 +41,6 @@ type DataTrackIncomingManagerCallbacks = {
 /** Options for publishing a data track. */
 type DataTrackOptions = {
   name: string,
-};
-
-type DataTrackSid = string;
-
-/** Information about a published data track. */
-type DataTrackInfo = {
-  sid: DataTrackSid,
-  pubHandle: DataTrackHandle,
-  name: String,
-  usesE2ee: boolean,
 };
 
 type InputEventPublishRequest = {
@@ -93,17 +87,35 @@ type DataTrackLocalManagerOptions = {
 };
 
 enum DataTrackPublishErrorReason {
-  LimitReached,
-  Internal,
-  Disconnected,
+  /**
+    * Local participant does not have permission to publish data tracks.
+    *
+    * Ensure the participant's token contains the `canPublishData` grant.
+    */
+  NotAllowed = 0,
+
+  /** A track with the same name is already published by the local participant. */
+  DuplicateName = 1,
+
+  /** Request to publish the track took long to complete. */
+  Timeout = 2,
+
+  /** No additional data tracks can be published by the local participant. */
+  LimitReached = 3,
+
+  /** Cannot publish data track when the room is disconnected. */
+  Disconnected = 4,
+
+  /** Internal error, please report on GitHub. */
+  Internal = 5,
 
   // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
-  Cancelled,
+  Cancelled = 6,
 }
 
 class DataTrackPublishError<
   Reason extends DataTrackPublishErrorReason,
-> extends LivekitReasonedError<DataTrackPublishErrorReason> {
+> extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPublishError';
 
   reason: Reason;
@@ -116,8 +128,24 @@ class DataTrackPublishError<
     this.reasonName = DataTrackPublishErrorReason[reason];
   }
 
+  static notAllowed() {
+    return new DataTrackPublishError("Data track publishing unauthorized", DataTrackPublishErrorReason.NotAllowed);
+  }
+
+  static duplicateName() {
+    return new DataTrackPublishError("Track name already taken", DataTrackPublishErrorReason.DuplicateName);
+  }
+
+  static timeout() {
+    return new DataTrackPublishError("Publish data track timed-out", DataTrackPublishErrorReason.Timeout);
+  }
+
   static limitReached() {
-    return new DataTrackPublishError('FIXME', DataTrackPublishErrorReason.LimitReached);
+    return new DataTrackPublishError("Data track publication limit reached", DataTrackPublishErrorReason.LimitReached);
+  }
+
+  static disconnected() {
+    return new DataTrackPublishError("Room disconnected", DataTrackPublishErrorReason.Disconnected);
   }
 
   // FIXME: is this internal thing a good idea?
@@ -125,13 +153,9 @@ class DataTrackPublishError<
     return new DataTrackPublishError('FIXME', DataTrackPublishErrorReason.Internal, { cause });
   }
 
-  // FIXME: this was introduced by web / there isn't a corresponding case i nthe rust version.
+  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
   static cancelled() {
     return new DataTrackPublishError('FIXME', DataTrackPublishErrorReason.Cancelled);
-  }
-
-  static disconnected() {
-    return new DataTrackPublishError('FIXME', DataTrackPublishErrorReason.Disconnected);
   }
 }
 
@@ -253,7 +277,7 @@ export class DataTrackIncomingManager extends (EventEmitter as new () => TypedEm
   }
 
   /** Shuts down the manager and all associated tracks. */
-  private handleShutdown(event: InputEventShutdown) {
+  private handleShutdown(_event: InputEventShutdown) {
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
@@ -269,22 +293,23 @@ export class DataTrackIncomingManager extends (EventEmitter as new () => TypedEm
 
   private createLocalTrack(info: DataTrackInfo) {
     // FIXME: initialize track task in here!
+    const encryptionProvider = info.usesE2ee ? this.encryptionProvider : null;
+
+    const pipeline = new DataTrackIncomingPipeline({ info, encryptionProvider });
 
     this.descriptors.set(
       info.pubHandle,
       {
         type: 'active',
         info,
-        // FIXME: add track task metadata in here!
-        // published_tx,
-        // task_handle,
+        pipeline,
       },
     );
 
     // FIXME: create local data track
     // let inner = LocalTrackInner { frame_tx, published_tx };
     // return LocalDataTrack::new(info, inner)
-    return { info } as LocalDataTrack;
+    return { info, pipeline } as LocalDataTrack;
   }
 
   private removeDescriptorIfExists(handle: DataTrackHandle) {
