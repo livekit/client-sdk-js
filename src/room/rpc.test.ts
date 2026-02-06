@@ -207,7 +207,7 @@ describe('LocalParticipant', () => {
         setTimeout(() => {
           localParticipant.handleIncomingRpcAck(requestId);
           setTimeout(() => {
-            localParticipant.handleIncomingRpcResponse(requestId, responsePayload, null);
+            localParticipant._handleIncomingRpcResponse(requestId, responsePayload, null);
           }, 10);
         }, 10);
       });
@@ -262,7 +262,7 @@ describe('LocalParticipant', () => {
         const requestId = packet.value.value.id;
         setTimeout(() => {
           localParticipant.handleIncomingRpcAck(requestId);
-          localParticipant.handleIncomingRpcResponse(
+          localParticipant._handleIncomingRpcResponse(
             requestId,
             null,
             new RpcError(errorCode, errorMessage),
