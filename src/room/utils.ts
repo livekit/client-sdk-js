@@ -458,6 +458,10 @@ export function getStereoAudioStreamTrack() {
   return stereoTrack;
 }
 
+/** An object that represents a serialized version of a `new Promise((resolve, reject) => {})`
+  * constructor. Wait for a promise resolution with `await future.promise` and explicitly resolve or
+  * reject the inner promise with `future.resolve(...)` or `future.reject(...)`.
+  */
 export class Future<T, E extends Error> {
   promise: Promise<Throws<T, E>>;
 
