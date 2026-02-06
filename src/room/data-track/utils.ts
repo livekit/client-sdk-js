@@ -1,4 +1,5 @@
 export const U16_MAX_SIZE = 0xffff;
+export const U32_MAX_SIZE = 0xffffffff;
 
 /**
  * A number of fields withing the data tracks packet specification assume wrap around behavior when
@@ -13,6 +14,10 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
 
   static u16(raw: number) {
     return new WrapAroundUnsignedInt(raw, U16_MAX_SIZE);
+  }
+
+  static u32(raw: number) {
+    return new WrapAroundUnsignedInt(raw, U32_MAX_SIZE);
   }
 
   constructor(raw: number, maxSize: MaxSize) {
@@ -42,30 +47,145 @@ export class WrapAroundUnsignedInt<MaxSize extends number> {
     }
   }
 
+  clone() {
+    return new WrapAroundUnsignedInt(this.value, this.maxSize);
+  }
+
   /** When called, maps the containing value to a new containing value. After mapping, the wrap
-   * around external max size bounds are applied. */
+   * around external max size bounds are applied. Note that this is a mutative operation. */
   update(updateFn: (value: number) => number) {
     this.value = updateFn(this.value);
     this.clamp();
+  }
+
+  /** Increments the given `n` to the inner value. Note that this is a mutative operation. */
+  increment(n = 1) {
+    this.update((value) => value + n);
+  }
+
+  /** Decrements the given `n` from the inner value. Note that this is a mutative operation. */
+  decrement(n = 1) {
+    this.update((value) => value - n);
+  }
+
+  getThenIncrement() {
+    const previousValue = this.value;
+    this.increment();
+    return new WrapAroundUnsignedInt(previousValue, this.maxSize);
+  }
+
+  /** Returns true if {@link this} is before the passed other {@link WrapAroundUnsignedInt}. */
+  isBefore(other: WrapAroundUnsignedInt<MaxSize>) {
+    const a = this.value >>> 0;
+    const b = other.value >>> 0;
+    const diff = (b - a) >>> 0;
+    return diff !== 0 && diff < this.maxSize + 1;
   }
 }
 
 export class DataTrackTimestamp<RateInHz extends number> {
   rateInHz: RateInHz;
 
-  timestamp: number;
+  timestamp: WrapAroundUnsignedInt<typeof U32_MAX_SIZE>;
 
   static fromRtpTicks(rtpTicks: number) {
     return new DataTrackTimestamp(rtpTicks, 90_000);
   }
 
-  asTicks() {
-    return this.timestamp;
+  /** Generates a timestamp initialized to a non cryptographically secure random value, so that
+   * different streams are more difficult to correlate in packet capture. */
+  static rtpRandom() {
+    const randomValue = Math.round(Math.random() * U32_MAX_SIZE);
+    return DataTrackTimestamp.fromRtpTicks(randomValue);
   }
 
   private constructor(raw: number, rateInHz: RateInHz) {
-    this.timestamp = raw;
+    this.timestamp = WrapAroundUnsignedInt.u32(raw);
     this.rateInHz = rateInHz;
+  }
+
+  asTicks() {
+    return this.timestamp.value;
+  }
+
+  clone() {
+    return new DataTrackTimestamp(this.timestamp.value, this.rateInHz);
+  }
+
+  wrappingAdd(n: number) {
+    this.timestamp.increment(n);
+  }
+
+  /** Returns true if {@link this} is before the passed other {@link DataTrackTimestamp}. */
+  isBefore(other: DataTrackTimestamp<RateInHz>) {
+    return this.timestamp.isBefore(other.timestamp);
+  }
+}
+
+export class DataTrackClock<RateInHz extends number> {
+  epoch: Date;
+
+  base: DataTrackTimestamp<RateInHz>;
+
+  previous: DataTrackTimestamp<RateInHz>;
+
+  rateInHz: RateInHz;
+
+  private constructor(rateInHz: RateInHz, epoch: Date, base: DataTrackTimestamp<RateInHz>) {
+    this.epoch = epoch;
+    this.base = base;
+    this.previous = base.clone();
+    this.rateInHz = rateInHz;
+  }
+
+  static startingNow<RateInHz extends number>(
+    base: DataTrackTimestamp<RateInHz>,
+    rateInHz: RateInHz,
+  ) {
+    return new DataTrackClock(rateInHz, new Date(), base);
+  }
+
+  static startingAtTime<RateInHz extends number>(
+    epoch: Date,
+    base: DataTrackTimestamp<RateInHz>,
+    rateInHz: RateInHz,
+  ) {
+    return new DataTrackClock(rateInHz, epoch, base);
+  }
+
+  static rtpStartingNow(base: DataTrackTimestamp<90_000>) {
+    return DataTrackClock.startingNow(base, 90_000);
+  }
+
+  static rtpStartingAtTime(epoch: Date, base: DataTrackTimestamp<90_000>) {
+    return DataTrackClock.startingAtTime(epoch, base, 90_000);
+  }
+
+  now(): DataTrackTimestamp<RateInHz> {
+    return this.at(new Date());
+  }
+
+  at(timestamp: Date) {
+    let elapsedMs = timestamp.getTime() - this.epoch.getTime();
+    let durationTicks = DataTrackClock.durationInMsToTicks(elapsedMs, this.rateInHz);
+
+    let result = this.base.clone();
+    result.wrappingAdd(durationTicks);
+
+    // Enforce monotonicity in RTP wraparound space
+    if (result.isBefore(this.previous)) {
+      result = this.previous;
+    }
+    this.previous = result.clone();
+    return result.clone();
+  }
+
+  /** Convert a duration since the epoch into clock ticks. */
+  static durationInMsToTicks(durationMilliseconds: number, rateInHz: number) {
+    // round(nanos * rate_hz / 1e9)
+    let durationNanoseconds = durationMilliseconds * 1e6;
+    let ticks = (durationNanoseconds * rateInHz + 500_000_000) / 1_000_000_000;
+    return Math.round(ticks);
   }
 }
 

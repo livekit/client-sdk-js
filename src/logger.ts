@@ -21,6 +21,7 @@ export enum LoggerNames {
   PCManager = 'livekit-pc-manager',
   PCTransport = 'livekit-pc-transport',
   E2EE = 'lk-e2ee',
+  DataTracks = 'livekit-data-tracks',
 }
 
 type LogLevelString = keyof typeof LogLevel;
