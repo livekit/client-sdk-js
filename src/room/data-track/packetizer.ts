@@ -40,7 +40,7 @@ export enum DataTrackPacketizerReason {
 
 /** A packetizer takes a {@link DataTrackFrame} as input and generates a series
  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
-export class DataTrackPacketizer {
+export default class DataTrackPacketizer {
   private handle: DataTrackHandle;
 
   private mtuSizeBytes: number;
