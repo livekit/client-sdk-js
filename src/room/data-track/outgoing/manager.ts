@@ -6,11 +6,11 @@ import { Future } from '../../utils';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { type EncryptionProvider } from '../e2ee';
 import { type DataTrackInfo } from '../track';
-import DataTrackIncomingPipeline from './pipeline';
+import DataTrackOutgoingPipeline from './pipeline';
 
 const log = getLogger(LoggerNames.DataTracks);
 
-type LocalDataTrack = { info: DataTrackInfo; pipeline: DataTrackIncomingPipeline };
+type LocalDataTrack = { info: DataTrackInfo; pipeline: DataTrackOutgoingPipeline };
 
 type PendingDescriptor = {
   type: 'pending';
@@ -27,11 +27,11 @@ type ActiveDescriptor = {
   info: DataTrackInfo;
   // FIXME: add track task fields here.
 
-  pipeline: DataTrackIncomingPipeline,
+  pipeline: DataTrackOutgoingPipeline,
 };
 type Descriptor = PendingDescriptor | ActiveDescriptor;
 
-type DataTrackIncomingManagerCallbacks = {
+type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
   sfuPublishRequest: (event: {handle: DataTrackHandle, name: string, usesE2ee: boolean}) => void;
   /** Request sent to the SFU to unpublish a track. */
@@ -159,7 +159,7 @@ class DataTrackPublishError<
   }
 }
 
-export class DataTrackIncomingManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
+export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
   private encryptionProvider: EncryptionProvider | null;
   private handleAllocator = new DataTrackHandleAllocator();
   // FIXME: key of this map is the same as the value Descriptor["info"]["pubHandle"]
@@ -295,7 +295,7 @@ export class DataTrackIncomingManager extends (EventEmitter as new () => TypedEm
     // FIXME: initialize track task in here!
     const encryptionProvider = info.usesE2ee ? this.encryptionProvider : null;
 
-    const pipeline = new DataTrackIncomingPipeline({ info, encryptionProvider });
+    const pipeline = new DataTrackOutgoingPipeline({ info, encryptionProvider });
 
     this.descriptors.set(
       info.pubHandle,
