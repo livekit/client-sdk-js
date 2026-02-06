@@ -1,21 +1,21 @@
 import { LivekitReasonedError } from '../../errors';
-import { EncryptedPayload, type EncryptionProvider } from '../e2ee';
+import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import type { DataTrackInfo } from '../track';
 import DataTrackPacketizer, { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
-import { DataTrackFrame } from '../frame';
-import { Throws } from '../../../utils/throws';
+import { type DataTrackFrame } from '../frame';
+import { type Throws } from '../../../utils/throws';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
 
-enum DataTrackIncomingPipelineErrorReason {
+enum DataTrackOutgoingPipelineErrorReason {
   Packetizer = 0,
   Encryption = 1,
 }
 
-class DataTrackIncomingPipelineError<
-  Reason extends DataTrackIncomingPipelineErrorReason,
+class DataTrackOutgoingPipelineError<
+  Reason extends DataTrackOutgoingPipelineErrorReason,
 > extends LivekitReasonedError<Reason> {
-  readonly name = 'DataTrackIncomingPipelineError';
+  readonly name = 'DataTrackOutgoingPipelineError';
 
   reason: Reason;
 
@@ -24,15 +24,15 @@ class DataTrackIncomingPipelineError<
   constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
     super(21, message, options);
     this.reason = reason;
-    this.reasonName = DataTrackIncomingPipelineErrorReason[reason];
+    this.reasonName = DataTrackOutgoingPipelineErrorReason[reason];
   }
 
   static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason>) {
-    return new DataTrackIncomingPipelineError("Error packetizing frame", DataTrackIncomingPipelineErrorReason.Packetizer, { cause });
+    return new DataTrackOutgoingPipelineError("Error packetizing frame", DataTrackOutgoingPipelineErrorReason.Packetizer, { cause });
   }
 
   static encryption(cause: unknown) {
-    return new DataTrackIncomingPipelineError("Error encrypting frame", DataTrackIncomingPipelineErrorReason.Encryption, { cause });
+    return new DataTrackOutgoingPipelineError("Error encrypting frame", DataTrackOutgoingPipelineErrorReason.Encryption, { cause });
   }
 }
 
@@ -41,7 +41,7 @@ type Options = {
   encryptionProvider: EncryptionProvider | null;
 };
 
-export default class DataTrackIncomingPipeline {
+export default class DataTrackOutgoingPipeline {
   private encryptionProvider: EncryptionProvider | null;
   private packetizer: DataTrackPacketizer;
 
@@ -50,13 +50,13 @@ export default class DataTrackIncomingPipeline {
 
   constructor(options: Options) {
     this.encryptionProvider = options.encryptionProvider;
-    this.packetizer = new DataTrackPacketizer(options.info.pubHandle, DataTrackIncomingPipeline.TRANSPORT_MTU_BYTES);
+    this.packetizer = new DataTrackPacketizer(options.info.pubHandle, DataTrackOutgoingPipeline.TRANSPORT_MTU_BYTES);
   }
 
   *processFrame(frame: DataTrackFrame): Throws<
     Generator<DataTrackPacket>,
-    | DataTrackIncomingPipelineError<DataTrackIncomingPipelineErrorReason.Packetizer>
-    | DataTrackIncomingPipelineError<DataTrackIncomingPipelineErrorReason.Encryption>
+    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Packetizer>
+    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
   > {
     let encryptedFrame = this.encryptIfNeeded(frame);
 
@@ -64,13 +64,13 @@ export default class DataTrackIncomingPipeline {
       yield* this.packetizer.packetize(encryptedFrame);
     } catch (error) {
       if (error instanceof DataTrackPacketizerError) {
-        throw DataTrackIncomingPipelineError.packetizer(error);
+        throw DataTrackOutgoingPipelineError.packetizer(error);
       }
       throw error;
     }
   }
 
-  encryptIfNeeded(frame: DataTrackFrame): Throws<DataTrackFrame, DataTrackIncomingPipelineError<DataTrackIncomingPipelineErrorReason.Encryption>> {
+  encryptIfNeeded(frame: DataTrackFrame): Throws<DataTrackFrame, DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>> {
     if (!this.encryptionProvider) {
       return frame;
     }
@@ -79,7 +79,7 @@ export default class DataTrackIncomingPipeline {
     try {
       encryptedResult = this.encryptionProvider.encrypt(frame.payload);
     } catch (err) {
-      throw DataTrackIncomingPipelineError.encryption(err);
+      throw DataTrackOutgoingPipelineError.encryption(err);
     }
 
     frame.payload = encryptedResult.payload;
