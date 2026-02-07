@@ -1477,8 +1477,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       return false;
     }
-    // primary connection
-    if (this.pcManager.currentState !== PCTransportState.CONNECTED) {
+    const allowedConnectionStates: PCTransportState[] = [
+      PCTransportState.CONNECTING,
+      PCTransportState.CONNECTED,
+    ];
+    if (!allowedConnectionStates.includes(this.pcManager.currentState)) {
       return false;
     }
 

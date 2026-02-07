@@ -2307,7 +2307,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           engine: this.engine
             ? {
                 closed: this.engine.isClosed,
-                transportsConnected: this.engine.verifyTransport(),
+                transportsConnectedOrConnecting: this.engine.verifyTransport(),
               }
             : undefined,
         });
