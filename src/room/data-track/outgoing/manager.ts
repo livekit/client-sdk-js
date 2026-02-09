@@ -9,6 +9,7 @@ import { LocalDataTrack, type DataTrackInfo } from '../track';
 import DataTrackOutgoingPipeline from './pipeline';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackExtensions } from '../packet/extensions';
+import { type InputEventPublishRequest, type InputEventQueryPublished, type InputEventSfuPublishResponse, type InputEventSfuUnPublishResponse, type InputEventShutdown, type InputEventUnpublishRequest, type OutputEventPacketsAvailable, type OutputEventSfuPublishRequest, type OutputEventSfuUnpublishRequest } from './events';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -55,21 +56,6 @@ export const Descriptor = {
   },
 };
 
-export type OutputEventSfuPublishRequest = {
-  handle: DataTrackHandle;
-  name: string;
-  usesE2ee: boolean;
-};
-
-export type OutputEventSfuUnpublishRequest = {
-  handle: DataTrackHandle;
-};
-
-export type OutputEventPacketsAvailable = {
-  bytes: Uint8Array;
-  signal?: AbortSignal;
-};
-
 export type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
   sfuPublishRequest: (event: OutputEventSfuPublishRequest) => void;
@@ -78,45 +64,6 @@ export type DataTrackOutgoingManagerCallbacks = {
   /** Serialized packets are ready to be sent over the transport. */
   packetsAvailable: (event: OutputEventPacketsAvailable) => void;
 };
-
-/** Options for publishing a data track. */
-type DataTrackOptions = {
-  name: string,
-};
-
-type InputEventPublishRequest = {
-  type: 'publishRequest';
-  options: DataTrackOptions;
-  signal?: AbortSignal;
-};
-
-export type InputEventQueryPublished = {
-  type: 'queryPublished',
-  // FIXME: use onehsot future vs sending corresponding "-Response" event?
-  future: Future<Array<DataTrackInfo>, never>;
-};
-type InputEventUnpublishRequest = { type: 'unpublishRequest', handle: DataTrackHandle };
-type InputEventSfuPublishResponse = {
-  type: 'sfuPublishResponse';
-  handle: DataTrackHandle;
-  result: (
-    | { type: 'ok', data: DataTrackInfo }
-    | { type: 'error', error: DataTrackPublishError<DataTrackPublishErrorReason.LimitReached> }
-  );
-};
-type InputEventSfuUnPublishResponse = { type: 'sfuUnpublishResponse', handle: DataTrackHandle };
-/** Shutdown the manager and all associated tracks. */
-type InputEventShutdown = { type: 'shutdown' };
-
-// type InputEvent =
-//   | InputEventPublishRequest
-//   // FIXME: no cancelled event
-//   // | { type: 'publishCancelled', handle: DataTrackHandle }
-//   | InputEventQueryPublished
-//   | InputEventUnpublishRequest
-//   | InputEventSfuPublishResponse
-//   | InputEventSfuUnPublishResponse
-//   | InputEventShutdown;
 
 type DataTrackLocalManagerOptions = {
   /**
@@ -127,7 +74,7 @@ type DataTrackLocalManagerOptions = {
   decryptionProvider?: EncryptionProvider;
 };
 
-enum DataTrackPublishErrorReason {
+export enum DataTrackPublishErrorReason {
   /**
     * Local participant does not have permission to publish data tracks.
     *
