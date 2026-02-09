@@ -5,14 +5,13 @@ import { LoggerNames, getLogger } from '../../../logger';
 import { Future } from '../../utils';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { type EncryptionProvider } from '../e2ee';
-import { type DataTrackInfo } from '../track';
+import { LocalDataTrack, type DataTrackInfo } from '../track';
 import DataTrackOutgoingPipeline from './pipeline';
+import type { DataTrackFrame } from '../frame';
 
 const log = getLogger(LoggerNames.DataTracks);
 
-type LocalDataTrack = { info: DataTrackInfo; pipeline: DataTrackOutgoingPipeline };
-
-type PendingDescriptor = {
+export type PendingDescriptor = {
   type: 'pending';
   completionFuture: Future<
     LocalDataTrack,
@@ -22,7 +21,7 @@ type PendingDescriptor = {
     | DataTrackPublishError<DataTrackPublishErrorReason.Cancelled>
   >;
 };
-type ActiveDescriptor = {
+export type ActiveDescriptor = {
   type: 'active';
   info: DataTrackInfo;
   // FIXME: add track task fields here.
@@ -36,6 +35,8 @@ type DataTrackOutgoingManagerCallbacks = {
   sfuPublishRequest: (event: {handle: DataTrackHandle, name: string, usesE2ee: boolean}) => void;
   /** Request sent to the SFU to unpublish a track. */
   sfuUnpublishRequest: (event: {handle: DataTrackHandle}) => void;
+  /** Serialized packets are ready to be sent over the transport. */
+  packetsAvailable: (event: { bytes: Uint8Array, signal?: AbortSignal }) => void;
 };
 
 /** Options for publishing a data track. */
@@ -170,6 +171,34 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     this.encryptionProvider = options.decryptionProvider ?? null;
   }
 
+  /**
+    * Used by attached {@link LocalDataTrack} instances to query their associated descriptor info.
+    * @internal
+    */
+  getDescriptor(handle: DataTrackHandle) {
+    return this.descriptors.get(handle) ?? null;
+  }
+
+  /** Used by attached {@link LocalDataTrack} instances to broadcast data track packets to other
+    * subscribers.
+    * @internal
+    */
+  trySend(handle: DataTrackHandle, frame: DataTrackFrame, options: { signal?: AbortSignal }) {
+    const descriptor = this.getDescriptor(handle);
+    if (descriptor?.type !== 'active') {
+      // return Err(PushFrameError::new(frame, PushFrameErrorReason::TrackUnpublished));
+      throw new Error("Pipeline not created, local data track not yet published.");
+    }
+
+    // FIXME: catch and drop processFrame error? That is what the rust implementation is doing.
+    // .inspect_err(|err| log::debug!("Process failed: {}", err))
+    for (const packet of descriptor.pipeline.processFrame(frame)) {
+      // .inspect_err(|err| log::debug!("Cannot send packet to transport: {}", err));
+      this.emit("packetsAvailable", { bytes: packet.toBinary(), signal });
+    }
+  }
+
+  /** Process an incoming command and control event ({@link InputEvent}). */
   async handle(event: InputEvent) {
     switch (event.type) {
       case 'publishRequest':
@@ -309,7 +338,7 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     // FIXME: create local data track
     // let inner = LocalTrackInner { frame_tx, published_tx };
     // return LocalDataTrack::new(info, inner)
-    return { info, pipeline } as LocalDataTrack;
+    return new LocalDataTrack(info, this);
   }
 
   private removeDescriptorIfExists(handle: DataTrackHandle) {
