@@ -27,6 +27,7 @@ export type PendingDescriptor = {
   type: 'pending';
   completionFuture: Future<
     LocalDataTrack,
+    | DataTrackPublishError<DataTrackPublishErrorReason.Timeout>
     | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>
     | DataTrackPublishError<DataTrackPublishErrorReason.Internal>
     | DataTrackPublishError<DataTrackPublishErrorReason.Disconnected>
@@ -36,7 +37,6 @@ export type PendingDescriptor = {
 export type ActiveDescriptor = {
   type: 'active';
   info: DataTrackInfo;
-  // FIXME: add track task fields here.
 
   pipeline: DataTrackOutgoingPipeline;
 };
@@ -165,12 +165,15 @@ export class DataTrackPublishError<
 
   // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
   static cancelled() {
-    return new DataTrackPublishError('FIXME', DataTrackPublishErrorReason.Cancelled);
+    return new DataTrackPublishError(
+      'Publish data track cancelled by caller',
+      DataTrackPublishErrorReason.Cancelled,
+    );
   }
 }
 
-// FIXME: use this value in the publish
-const PUBLISH_TIMEOUT_SECONDS = 10;
+/** How long to wait when attempting to publish before timing out. */
+const PUBLISH_TIMEOUT_MILLISECONDS = 10_000;
 
 export default class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
   private encryptionProvider: EncryptionProvider | null;
@@ -240,6 +243,11 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
       throw DataTrackPublishError.limitReached();
     }
 
+    const timeoutSignal = AbortSignal.timeout(PUBLISH_TIMEOUT_MILLISECONDS);
+    const combinedSignal = event.signal
+      ? AbortSignal.any([event.signal, timeoutSignal])
+      : timeoutSignal;
+
     if (this.descriptors.has(handle)) {
       throw DataTrackPublishError.internal(new Error('Descriptor for handle already exists'));
     }
@@ -256,12 +264,16 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
       }
       this.descriptors.delete(handle);
 
-      // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
       if (existingDescriptor.type === 'pending') {
-        existingDescriptor.completionFuture.reject?.(DataTrackPublishError.cancelled());
+        existingDescriptor.completionFuture.reject?.(
+          timeoutSignal.aborted
+            ? DataTrackPublishError.timeout()
+            : // FIXME: the below cancelled case was introduced by web / there isn't a corresponding case in the rust version.
+              DataTrackPublishError.cancelled(),
+        );
       }
     };
-    event.signal?.addEventListener('abort', onAbort);
+    combinedSignal.addEventListener('abort', onAbort);
 
     this.emit('sfuPublishRequest', {
       handle,
@@ -270,7 +282,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     });
 
     const localDataTrack = await descriptor.completionFuture.promise;
-    event.signal?.removeEventListener('abort', onAbort);
+    combinedSignal.removeEventListener('abort', onAbort);
     return localDataTrack;
   }
 
