@@ -4,7 +4,7 @@ import { DataTrackFrame } from './frame';
 import { DataTrackHandle } from './handle';
 import { FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
-import { DataTrackPacketizer } from './packetizer';
+import DataTrackPacketizer from './packetizer';
 import { DataTrackTimestamp } from './utils';
 
 describe('DataTrackPacketizer', () => {
@@ -13,7 +13,7 @@ describe('DataTrackPacketizer', () => {
     const packets = Array.from(
       packetizer.packetize(
         {
-          payload: new Uint8Array(300).fill(0xbe).buffer,
+          payload: new Uint8Array(300).fill(0xbe),
           extensions: new DataTrackExtensions(),
         },
         { now: DataTrackTimestamp.fromRtpTicks(1804548298) },
@@ -91,7 +91,7 @@ describe('DataTrackPacketizer', () => {
     const packetizer = new DataTrackPacketizer(DataTrackHandle.fromNumber(1), mtuSizeBytes);
 
     const frame: DataTrackFrame = {
-      payload: new Uint8Array(payloadSizeBytes).fill(0xab).buffer,
+      payload: new Uint8Array(payloadSizeBytes).fill(0xab),
       extensions: new DataTrackExtensions(),
     };
     const packets = Array.from(

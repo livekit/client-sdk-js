@@ -120,7 +120,11 @@ export default class DataTrackPacketizer {
         // ... and the last packet will be as long as it needs to be to finish out the buffer.
         frame.payload.byteLength - indexBytes,
       );
-      const packetPayload = new Uint8Array(frame.payload, indexBytes, packetPayloadLengthBytes);
+      const packetPayload = new Uint8Array(
+        frame.payload.buffer,
+        frame.payload.byteOffset + indexBytes,
+        packetPayloadLengthBytes
+      );
 
       yield new DataTrackPacket(packetHeader, packetPayload);
     }
