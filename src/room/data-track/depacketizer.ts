@@ -257,14 +257,14 @@ export class DataTrackDepacketizer {
     }
     const payload = new Uint8Array(payloadLengthBytes);
 
-    let sequencePointer = partial.startSequence.value;
+    let sequencePointer = partial.startSequence.clone();
     let payloadOffsetPointerBytes = 0;
     while (true) {
-      const partialPayload = partial.payloads.get(sequencePointer);
+      const partialPayload = partial.payloads.get(sequencePointer.value);
       if (!partialPayload) {
         break;
       }
-      partial.payloads.delete(sequencePointer);
+      partial.payloads.delete(sequencePointer.value);
 
       const payloadRemainingBytes = payload.length - payloadOffsetPointerBytes;
       if (partialPayload.length > payloadRemainingBytes) {
@@ -277,8 +277,9 @@ export class DataTrackDepacketizer {
       payload.set(partialPayload, payloadOffsetPointerBytes);
       payloadOffsetPointerBytes += partialPayload.length;
 
-      if (sequencePointer < endSequence) {
-        sequencePointer += 1;
+      // NOTE: sequencePointer could wrap around, which is why this isn't a "<"
+      if (sequencePointer.value != endSequence) {
+        sequencePointer.increment();
         continue;
       }
 
