@@ -57,8 +57,8 @@ export const DataTrackHandle = {
       throw DataTrackHandleError.tooLarge();
     }
     return raw;
-  }
-}
+  },
+};
 
 /** Manage allocating new handles which don't conflict over the lifetime of the client. */
 export class DataTrackHandleAllocator {

@@ -1,11 +1,14 @@
+import { type Throws } from '../../../utils/throws';
 import { LivekitReasonedError } from '../../errors';
 import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
-import type { DataTrackInfo } from '../track';
-import DataTrackPacketizer, { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
 import { type DataTrackFrame } from '../frame';
-import { type Throws } from '../../../utils/throws';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
+import DataTrackPacketizer, {
+  DataTrackPacketizerError,
+  DataTrackPacketizerReason,
+} from '../packetizer';
+import type { DataTrackInfo } from '../track';
 
 enum DataTrackOutgoingPipelineErrorReason {
   Packetizer = 0,
@@ -28,11 +31,19 @@ class DataTrackOutgoingPipelineError<
   }
 
   static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason>) {
-    return new DataTrackOutgoingPipelineError("Error packetizing frame", DataTrackOutgoingPipelineErrorReason.Packetizer, { cause });
+    return new DataTrackOutgoingPipelineError(
+      'Error packetizing frame',
+      DataTrackOutgoingPipelineErrorReason.Packetizer,
+      { cause },
+    );
   }
 
   static encryption(cause: unknown) {
-    return new DataTrackOutgoingPipelineError("Error encrypting frame", DataTrackOutgoingPipelineErrorReason.Encryption, { cause });
+    return new DataTrackOutgoingPipelineError(
+      'Error encrypting frame',
+      DataTrackOutgoingPipelineErrorReason.Encryption,
+      { cause },
+    );
   }
 }
 
@@ -50,10 +61,15 @@ export default class DataTrackOutgoingPipeline {
 
   constructor(options: Options) {
     this.encryptionProvider = options.encryptionProvider;
-    this.packetizer = new DataTrackPacketizer(options.info.pubHandle, DataTrackOutgoingPipeline.TRANSPORT_MTU_BYTES);
+    this.packetizer = new DataTrackPacketizer(
+      options.info.pubHandle,
+      DataTrackOutgoingPipeline.TRANSPORT_MTU_BYTES,
+    );
   }
 
-  *processFrame(frame: DataTrackFrame): Throws<
+  *processFrame(
+    frame: DataTrackFrame,
+  ): Throws<
     Generator<DataTrackPacket>,
     | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Packetizer>
     | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
@@ -70,7 +86,12 @@ export default class DataTrackOutgoingPipeline {
     }
   }
 
-  encryptIfNeeded(frame: DataTrackFrame): Throws<DataTrackFrame, DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>> {
+  encryptIfNeeded(
+    frame: DataTrackFrame,
+  ): Throws<
+    DataTrackFrame,
+    DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
+  > {
     if (!this.encryptionProvider) {
       return frame;
     }
@@ -83,7 +104,10 @@ export default class DataTrackOutgoingPipeline {
     }
 
     frame.payload = encryptedResult.payload;
-    frame.extensions.e2ee = new DataTrackE2eeExtension(encryptedResult.keyIndex, encryptedResult.iv);
+    frame.extensions.e2ee = new DataTrackE2eeExtension(
+      encryptedResult.keyIndex,
+      encryptedResult.iv,
+    );
 
     return frame;
   }

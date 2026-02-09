@@ -1,15 +1,15 @@
-import type { DataTrackFrame } from "./frame";
-import { type DataTrackHandle } from "./handle";
-import type DataTrackOutgoingManager from "./outgoing/manager";
+import type { DataTrackFrame } from './frame';
+import { type DataTrackHandle } from './handle';
+import type DataTrackOutgoingManager from './outgoing/manager';
 
 export type DataTrackSid = string;
 
 /** Information about a published data track. */
 export type DataTrackInfo = {
-  sid: DataTrackSid,
-  pubHandle: DataTrackHandle,
-  name: String,
-  usesE2ee: boolean,
+  sid: DataTrackSid;
+  pubHandle: DataTrackHandle;
+  name: String;
+  usesE2ee: boolean;
 };
 
 export class LocalDataTrack {
@@ -28,7 +28,7 @@ export class LocalDataTrack {
   }
 
   isPublished() {
-    return this.descriptor?.type === "active";
+    return this.descriptor?.type === 'active';
   }
 
   /** Try pushing a frame to subscribers of the track.
@@ -39,7 +39,7 @@ export class LocalDataTrack {
    * - The room is no longer connected
    * - Frames are being pushed too fast (FIXME: this isn't the case in the js implementation?)
    */
-  tryPush(payload: DataTrackFrame["payload"], options: { signal?: AbortSignal }) {
+  tryPush(payload: DataTrackFrame['payload'], options: { signal?: AbortSignal }) {
     // FIXME: rust implementation maps errors to dropped here?
     // .map_err(|err| PushFrameError::new(err.into_inner(), PushFrameErrorReason::Dropped))
     return this.manager.tryProcessAndSend(this.info.pubHandle, payload, options);

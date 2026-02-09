@@ -1,11 +1,11 @@
-import { type Future } from "../../utils";
-import { type DataTrackHandle } from "../handle";
-import { type DataTrackInfo } from "../track";
-import { type DataTrackPublishError, type DataTrackPublishErrorReason } from "./manager";
+import { type Future } from '../../utils';
+import { type DataTrackHandle } from '../handle';
+import { type DataTrackInfo } from '../track';
+import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './manager';
 
 /** Options for publishing a data track. */
 type DataTrackOptions = {
-  name: string,
+  name: string;
 };
 
 /** Client requested to publish a track. */
@@ -17,26 +17,28 @@ export type InputEventPublishRequest = {
 
 /** Get information about all currently published tracks. */
 export type InputEventQueryPublished = {
-  type: 'queryPublished',
+  type: 'queryPublished';
   // FIXME: use onehsot future vs sending corresponding "-Response" event?
   future: Future<Array<DataTrackInfo>, never>;
 };
 
 /** Client request to unpublish a track (internal). */
-export type InputEventUnpublishRequest = { type: 'unpublishRequest', handle: DataTrackHandle };
+export type InputEventUnpublishRequest = { type: 'unpublishRequest'; handle: DataTrackHandle };
 
 /** SFU responded to a request to publish a data track. */
 export type InputEventSfuPublishResponse = {
   type: 'sfuPublishResponse';
   handle: DataTrackHandle;
-  result: (
-    | { type: 'ok', data: DataTrackInfo }
-    | { type: 'error', error: DataTrackPublishError<DataTrackPublishErrorReason.LimitReached> }
-  );
+  result:
+    | { type: 'ok'; data: DataTrackInfo }
+    | { type: 'error'; error: DataTrackPublishError<DataTrackPublishErrorReason.LimitReached> };
 };
 
 /** SFU notification that a track has been unpublished. */
-export type InputEventSfuUnPublishResponse = { type: 'sfuUnpublishResponse', handle: DataTrackHandle };
+export type InputEventSfuUnPublishResponse = {
+  type: 'sfuUnpublishResponse';
+  handle: DataTrackHandle;
+};
 
 /** Shutdown the manager and all associated tracks. */
 export type InputEventShutdown = { type: 'shutdown' };
@@ -50,7 +52,6 @@ export type InputEventShutdown = { type: 'shutdown' };
 //   | InputEventSfuPublishResponse
 //   | InputEventSfuUnPublishResponse
 //   | InputEventShutdown;
-
 
 /** Request sent to the SFU to publish a track. */
 export type OutputEventSfuPublishRequest = {
@@ -69,4 +70,3 @@ export type OutputEventPacketsAvailable = {
   bytes: Uint8Array;
   signal?: AbortSignal;
 };
-

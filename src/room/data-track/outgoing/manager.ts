@@ -1,15 +1,25 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { LivekitReasonedError } from '../../errors';
 import { LoggerNames, getLogger } from '../../../logger';
+import { LivekitReasonedError } from '../../errors';
 import { Future } from '../../utils';
-import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { type EncryptionProvider } from '../e2ee';
-import { LocalDataTrack, type DataTrackInfo } from '../track';
-import DataTrackOutgoingPipeline from './pipeline';
 import type { DataTrackFrame } from '../frame';
+import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
-import { type InputEventPublishRequest, type InputEventQueryPublished, type InputEventSfuPublishResponse, type InputEventSfuUnPublishResponse, type InputEventShutdown, type InputEventUnpublishRequest, type OutputEventPacketsAvailable, type OutputEventSfuPublishRequest, type OutputEventSfuUnpublishRequest } from './events';
+import { type DataTrackInfo, LocalDataTrack } from '../track';
+import {
+  type InputEventPublishRequest,
+  type InputEventQueryPublished,
+  type InputEventSfuPublishResponse,
+  type InputEventSfuUnPublishResponse,
+  type InputEventShutdown,
+  type InputEventUnpublishRequest,
+  type OutputEventPacketsAvailable,
+  type OutputEventSfuPublishRequest,
+  type OutputEventSfuUnpublishRequest,
+} from './events';
+import DataTrackOutgoingPipeline from './pipeline';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -28,7 +38,7 @@ export type ActiveDescriptor = {
   info: DataTrackInfo;
   // FIXME: add track task fields here.
 
-  pipeline: DataTrackOutgoingPipeline,
+  pipeline: DataTrackOutgoingPipeline;
 };
 // FIXME: rust doesn't have this unpublishing descriptor, is it a good idea?
 export type UnpublishingDescriptor = {
@@ -76,10 +86,10 @@ type DataTrackLocalManagerOptions = {
 
 export enum DataTrackPublishErrorReason {
   /**
-    * Local participant does not have permission to publish data tracks.
-    *
-    * Ensure the participant's token contains the `canPublishData` grant.
-    */
+   * Local participant does not have permission to publish data tracks.
+   *
+   * Ensure the participant's token contains the `canPublishData` grant.
+   */
   NotAllowed = 0,
 
   /** A track with the same name is already published by the local participant. */
@@ -117,23 +127,35 @@ export class DataTrackPublishError<
   }
 
   static notAllowed() {
-    return new DataTrackPublishError("Data track publishing unauthorized", DataTrackPublishErrorReason.NotAllowed);
+    return new DataTrackPublishError(
+      'Data track publishing unauthorized',
+      DataTrackPublishErrorReason.NotAllowed,
+    );
   }
 
   static duplicateName() {
-    return new DataTrackPublishError("Track name already taken", DataTrackPublishErrorReason.DuplicateName);
+    return new DataTrackPublishError(
+      'Track name already taken',
+      DataTrackPublishErrorReason.DuplicateName,
+    );
   }
 
   static timeout() {
-    return new DataTrackPublishError("Publish data track timed-out", DataTrackPublishErrorReason.Timeout);
+    return new DataTrackPublishError(
+      'Publish data track timed-out',
+      DataTrackPublishErrorReason.Timeout,
+    );
   }
 
   static limitReached() {
-    return new DataTrackPublishError("Data track publication limit reached", DataTrackPublishErrorReason.LimitReached);
+    return new DataTrackPublishError(
+      'Data track publication limit reached',
+      DataTrackPublishErrorReason.LimitReached,
+    );
   }
 
   static disconnected() {
-    return new DataTrackPublishError("Room disconnected", DataTrackPublishErrorReason.Disconnected);
+    return new DataTrackPublishError('Room disconnected', DataTrackPublishErrorReason.Disconnected);
   }
 
   // FIXME: is this internal thing a good idea?
@@ -168,9 +190,9 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
   }
 
   /**
-    * Used by attached {@link LocalDataTrack} instances to query their associated descriptor info.
-    * @internal
-    */
+   * Used by attached {@link LocalDataTrack} instances to query their associated descriptor info.
+   * @internal
+   */
   getDescriptor(handle: DataTrackHandle) {
     return this.descriptors.get(handle) ?? null;
   }
@@ -184,14 +206,18 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
   }
 
   /** Used by attached {@link LocalDataTrack} instances to broadcast data track packets to other
-    * subscribers.
-    * @internal
-    */
-  tryProcessAndSend(handle: DataTrackHandle, payload: Uint8Array, options?: { signal?: AbortSignal }) {
+   * subscribers.
+   * @internal
+   */
+  tryProcessAndSend(
+    handle: DataTrackHandle,
+    payload: Uint8Array,
+    options?: { signal?: AbortSignal },
+  ) {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       // return Err(PushFrameError::new(frame, PushFrameErrorReason::TrackUnpublished));
-      throw new Error("Pipeline not created, local data track not yet published.");
+      throw new Error('Pipeline not created, local data track not yet published.');
     }
 
     const frame: DataTrackFrame = {
@@ -203,7 +229,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     // .inspect_err(|err| log::debug!("Process failed: {}", err))
     for (const packet of descriptor.pipeline.processFrame(frame)) {
       // .inspect_err(|err| log::debug!("Cannot send packet to transport: {}", err));
-      this.emit("packetsAvailable", { bytes: packet.toBinary(), signal: options?.signal });
+      this.emit('packetsAvailable', { bytes: packet.toBinary(), signal: options?.signal });
     }
   }
 
@@ -250,8 +276,8 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
 
   handleQueryPublished(event: InputEventQueryPublished) {
     const descriptorInfos = Array.from(this.descriptors.values())
-      .filter((descriptor): descriptor is ActiveDescriptor => descriptor.type === "active")
-      .map(descriptor => descriptor.info);
+      .filter((descriptor): descriptor is ActiveDescriptor => descriptor.type === 'active')
+      .map((descriptor) => descriptor.info);
 
     event.future.resolve?.(descriptorInfos);
   }
@@ -290,7 +316,9 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
       const localDataTrack = this.createLocalDataTrack(info.pubHandle);
       if (!localDataTrack) {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-        throw new Error("DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.");
+        throw new Error(
+          'DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.',
+        );
       }
 
       descriptor.completionFuture.resolve?.(localDataTrack);
@@ -322,7 +350,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
-          descriptor.completionFuture.reject?.(DataTrackPublishError.disconnected())
+          descriptor.completionFuture.reject?.(DataTrackPublishError.disconnected());
           break;
         case 'active':
           // FIXME: cleanup active descriptor

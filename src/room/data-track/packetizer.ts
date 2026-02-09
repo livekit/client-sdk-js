@@ -123,7 +123,7 @@ export default class DataTrackPacketizer {
       const packetPayload = new Uint8Array(
         frame.payload.buffer,
         frame.payload.byteOffset + indexBytes,
-        packetPayloadLengthBytes
+        packetPayloadLengthBytes,
       );
 
       yield new DataTrackPacket(packetHeader, packetPayload);

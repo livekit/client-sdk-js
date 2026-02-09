@@ -8,6 +8,7 @@ import {
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
+import { type Throws } from '../utils/throws';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
@@ -27,7 +28,6 @@ import type { TrackPublication } from './track/TrackPublication';
 import { type AudioCodec, type VideoCodec, audioCodecs, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
-import { type Throws } from '../utils/throws';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -459,9 +459,9 @@ export function getStereoAudioStreamTrack() {
 }
 
 /** An object that represents a serialized version of a `new Promise((resolve, reject) => {})`
-  * constructor. Wait for a promise resolution with `await future.promise` and explicitly resolve or
-  * reject the inner promise with `future.resolve(...)` or `future.reject(...)`.
-  */
+ * constructor. Wait for a promise resolution with `await future.promise` and explicitly resolve or
+ * reject the inner promise with `future.resolve(...)` or `future.reject(...)`.
+ */
 export class Future<T, E extends Error> {
   promise: Promise<Throws<T, E>>;
 
