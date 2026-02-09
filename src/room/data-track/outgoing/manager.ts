@@ -36,13 +36,28 @@ export type UnpublishingDescriptor = {
 };
 type Descriptor = PendingDescriptor | ActiveDescriptor | UnpublishingDescriptor;
 
+export type OutputEventSfuPublishRequest = {
+  handle: DataTrackHandle;
+  name: string;
+  usesE2ee: boolean;
+};
+
+export type OutputEventSfuUnpublishRequest = {
+  handle: DataTrackHandle;
+};
+
+export type OutputEventPacketsAvailable = {
+  bytes: Uint8Array;
+  signal?: AbortSignal;
+};
+
 export type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
-  sfuPublishRequest: (event: { handle: DataTrackHandle, name: string, usesE2ee: boolean }) => void;
+  sfuPublishRequest: (event: OutputEventSfuPublishRequest) => void;
   /** Request sent to the SFU to unpublish a track. */
-  sfuUnpublishRequest: (event: { handle: DataTrackHandle }) => void;
+  sfuUnpublishRequest: (event: OutputEventSfuUnpublishRequest) => void;
   /** Serialized packets are ready to be sent over the transport. */
-  packetsAvailable: (event: { bytes: Uint8Array, signal?: AbortSignal }) => void;
+  packetsAvailable: (event: OutputEventPacketsAvailable) => void;
 };
 
 /** Options for publishing a data track. */
