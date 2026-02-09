@@ -321,4 +321,38 @@ describe('DataTrackOutgoingManager', () => {
       { sid: 'bogus-sid-6', pubHandle: 6, name: 'sixsixsix', usesE2ee: false },
     ]);
   });
+
+  it('should shutdown cleanly', async () => {
+    // Create a manager prefilled with a descriptor
+    const pendingDescriptor = Descriptor.pending();
+    const manager = DataTrackOutgoingManager.withDescriptors(
+      new Map<DataTrackHandle, Descriptor>([
+        [DataTrackHandle.fromNumber(2), pendingDescriptor],
+        [DataTrackHandle.fromNumber(6), Descriptor.active({
+          sid: 'bogus-sid-6',
+          pubHandle: 6,
+          name: 'sixsixsix',
+          usesE2ee: false,
+        }, null)],
+      ]),
+    );
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuUnpublishRequest',
+    ]);
+
+    // Shut down the manager
+    const shutdownPromise = manager.handleShutdown({ type: 'shutdown' });
+
+    // The pending data track should be cancelled
+    expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
+
+    // And the active data track should be requested to be unpublished
+    const unpublishEvent = await managerEvents.waitFor("sfuUnpublishRequest");
+    expect(unpublishEvent.handle).toStrictEqual(6);
+
+    // Acknowledge that the unpublish has occurred
+    manager.handleSfuUnpublishResponse({ type: "sfuUnpublishResponse", handle: 6 });
+
+    await shutdownPromise;
+  });
 });

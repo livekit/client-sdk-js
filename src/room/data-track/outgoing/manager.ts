@@ -358,14 +358,14 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
   }
 
   /** Shuts down the manager and all associated tracks. */
-  handleShutdown(_event: InputEventShutdown) {
+  async handleShutdown(_event: InputEventShutdown) {
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
           descriptor.completionFuture.reject?.(DataTrackPublishError.disconnected());
           break;
         case 'active':
-          // FIXME: cleanup active descriptor
+          await this.handleUnpublishRequest({ type: 'unpublishRequest', handle: descriptor.info.pubHandle });
           break;
       }
     }
