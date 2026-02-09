@@ -236,6 +236,9 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     }
   }
 
+  // FIXME: reintroduce bare handle? Or convert to completely seperate handle implementations for
+  // each event (and if so, drop the `type` params from `event`)?
+
   /** Client requested to publish a track. */
   async handlePublishRequest(event: InputEventPublishRequest) {
     const handle = this.handleAllocator.get();

@@ -38,6 +38,8 @@ export type InputEventSfuPublishResponse = {
 export type InputEventSfuUnPublishResponse = {
   type: 'sfuUnpublishResponse';
   handle: DataTrackHandle;
+  // FIXME: does there need to be an error case encoded in this event as well? Can unpublishing a
+  // data track fail?
 };
 
 /** Shutdown the manager and all associated tracks. */
