@@ -34,7 +34,26 @@ export type UnpublishingDescriptor = {
   type: 'unpublishing';
   completionFuture: Future<void, never>;
 };
-type Descriptor = PendingDescriptor | ActiveDescriptor | UnpublishingDescriptor;
+export type Descriptor = PendingDescriptor | ActiveDescriptor | UnpublishingDescriptor;
+
+export const Descriptor = {
+  pending(): PendingDescriptor {
+    return {
+      type: 'pending',
+      completionFuture: new Future(),
+    };
+  },
+  active(info: DataTrackInfo, encryptionProvider: EncryptionProvider | null): ActiveDescriptor {
+    return {
+      type: 'active',
+      info,
+      pipeline: new DataTrackOutgoingPipeline({ info, encryptionProvider }),
+    };
+  },
+  unpublishing(): UnpublishingDescriptor {
+    return { type: 'unpublishing', completionFuture: new Future() };
+  },
+};
 
 export type OutputEventSfuPublishRequest = {
   handle: DataTrackHandle;
@@ -71,7 +90,7 @@ type InputEventPublishRequest = {
   signal?: AbortSignal;
 };
 
-type InputEventQueryPublished = {
+export type InputEventQueryPublished = {
   type: 'queryPublished',
   // FIXME: use onehsot future vs sending corresponding "-Response" event?
   future: Future<Array<DataTrackInfo>, never>;
@@ -135,7 +154,7 @@ enum DataTrackPublishErrorReason {
   Cancelled = 6,
 }
 
-class DataTrackPublishError<
+export class DataTrackPublishError<
   Reason extends DataTrackPublishErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPublishError';
@@ -195,6 +214,12 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     this.encryptionProvider = options?.decryptionProvider ?? null;
   }
 
+  static withDescriptors(descriptors: Map<DataTrackHandle, Descriptor>) {
+    const manager = new DataTrackOutgoingManager();
+    manager.descriptors = descriptors;
+    return manager;
+  }
+
   /**
     * Used by attached {@link LocalDataTrack} instances to query their associated descriptor info.
     * @internal
@@ -203,11 +228,19 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     return this.descriptors.get(handle) ?? null;
   }
 
+  createLocalDataTrack(handle: DataTrackHandle) {
+    const descriptor = this.getDescriptor(handle);
+    if (descriptor?.type !== 'active') {
+      return null;
+    }
+    return new LocalDataTrack(descriptor.info, this);
+  }
+
   /** Used by attached {@link LocalDataTrack} instances to broadcast data track packets to other
     * subscribers.
     * @internal
     */
-  tryProcessAndSend(handle: DataTrackHandle, payload: Uint8Array, options: { signal?: AbortSignal }) {
+  tryProcessAndSend(handle: DataTrackHandle, payload: Uint8Array, options?: { signal?: AbortSignal }) {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       // return Err(PushFrameError::new(frame, PushFrameErrorReason::TrackUnpublished));
@@ -238,7 +271,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
       throw DataTrackPublishError.internal(new Error('Descriptor for handle already exists'));
     }
 
-    const descriptor: PendingDescriptor = { type: 'pending', completionFuture: new Future() };
+    const descriptor = Descriptor.pending();
     this.descriptors.set(handle, descriptor);
 
     const onAbort = () => {
@@ -278,10 +311,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
 
   /** Client request to unpublish a track. */
   async handleUnpublishRequest(event: InputEventUnpublishRequest) {
-    const descriptor: UnpublishingDescriptor = {
-      type: 'unpublishing',
-      completionFuture: new Future(),
-    };
+    const descriptor = Descriptor.unpublishing();
     this.descriptors.set(event.handle, descriptor);
 
     this.emit('sfuUnpublishRequest', { handle: event.handle });
@@ -305,7 +335,18 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
     }
 
     if (event.result.type === 'ok') {
-      descriptor.completionFuture.resolve?.(this.createLocalTrack(event.result.data));
+      const info = event.result.data;
+
+      const encryptionProvider = info.usesE2ee ? this.encryptionProvider : null;
+      this.descriptors.set(info.pubHandle, Descriptor.active(info, encryptionProvider));
+
+      const localDataTrack = this.createLocalDataTrack(info.pubHandle);
+      if (!localDataTrack) {
+        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
+        throw new Error("DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.");
+      }
+
+      descriptor.completionFuture.resolve?.(localDataTrack);
     } else {
       descriptor.completionFuture.reject?.(event.result.error);
     }
@@ -342,26 +383,5 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
       }
     }
     this.descriptors.clear();
-  }
-
-  private createLocalTrack(info: DataTrackInfo) {
-    // FIXME: initialize track task in here!
-    const encryptionProvider = info.usesE2ee ? this.encryptionProvider : null;
-
-    const pipeline = new DataTrackOutgoingPipeline({ info, encryptionProvider });
-
-    this.descriptors.set(
-      info.pubHandle,
-      {
-        type: 'active',
-        info,
-        pipeline,
-      },
-    );
-
-    // FIXME: create local data track
-    // let inner = LocalTrackInner { frame_tx, published_tx };
-    // return LocalDataTrack::new(info, inner)
-    return new LocalDataTrack(info, this);
   }
 }
