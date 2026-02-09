@@ -1,6 +1,6 @@
 import type { DataTrackFrame } from "./frame";
 import { type DataTrackHandle } from "./handle";
-import { type DataTrackOutgoingManager } from "./outgoing/manager";
+import type DataTrackOutgoingManager from "./outgoing/manager";
 
 export type DataTrackSid = string;
 
@@ -39,9 +39,9 @@ export class LocalDataTrack {
    * - The room is no longer connected
    * - Frames are being pushed too fast (FIXME: this isn't the case in the js implementation?)
    */
-  tryPush(frame: DataTrackFrame, options: { signal?: AbortSignal }) {
+  tryPush(payload: DataTrackFrame["payload"], options: { signal?: AbortSignal }) {
     // FIXME: rust implementation maps errors to dropped here?
     // .map_err(|err| PushFrameError::new(err.into_inner(), PushFrameErrorReason::Dropped))
-    return this.manager.trySend(this.info.pubHandle, frame, options);
+    return this.manager.tryProcessAndSend(this.info.pubHandle, payload, options);
   }
 }

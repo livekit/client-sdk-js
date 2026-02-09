@@ -8,6 +8,7 @@ import { type EncryptionProvider } from '../e2ee';
 import { LocalDataTrack, type DataTrackInfo } from '../track';
 import DataTrackOutgoingPipeline from './pipeline';
 import type { DataTrackFrame } from '../frame';
+import { DataTrackExtensions } from '../packet/extensions';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -28,13 +29,18 @@ export type ActiveDescriptor = {
 
   pipeline: DataTrackOutgoingPipeline,
 };
-type Descriptor = PendingDescriptor | ActiveDescriptor;
+// FIXME: rust doesn't have this unpublishing descriptor, is it a good idea?
+export type UnpublishingDescriptor = {
+  type: 'unpublishing';
+  completionFuture: Future<void, never>;
+};
+type Descriptor = PendingDescriptor | ActiveDescriptor | UnpublishingDescriptor;
 
-type DataTrackOutgoingManagerCallbacks = {
+export type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
-  sfuPublishRequest: (event: {handle: DataTrackHandle, name: string, usesE2ee: boolean}) => void;
+  sfuPublishRequest: (event: { handle: DataTrackHandle, name: string, usesE2ee: boolean }) => void;
   /** Request sent to the SFU to unpublish a track. */
-  sfuUnpublishRequest: (event: {handle: DataTrackHandle}) => void;
+  sfuUnpublishRequest: (event: { handle: DataTrackHandle }) => void;
   /** Serialized packets are ready to be sent over the transport. */
   packetsAvailable: (event: { bytes: Uint8Array, signal?: AbortSignal }) => void;
 };
@@ -68,15 +74,15 @@ type InputEventSfuUnPublishResponse = { type: 'sfuUnpublishResponse', handle: Da
 /** Shutdown the manager and all associated tracks. */
 type InputEventShutdown = { type: 'shutdown' };
 
-type InputEvent =
-  | InputEventPublishRequest
-  // FIXME: no cancelled event
-  // | { type: 'publishCancelled', handle: DataTrackHandle }
-  | InputEventQueryPublished
-  | InputEventUnpublishRequest
-  | InputEventSfuPublishResponse
-  | InputEventSfuUnPublishResponse
-  | InputEventShutdown;
+// type InputEvent =
+//   | InputEventPublishRequest
+//   // FIXME: no cancelled event
+//   // | { type: 'publishCancelled', handle: DataTrackHandle }
+//   | InputEventQueryPublished
+//   | InputEventUnpublishRequest
+//   | InputEventSfuPublishResponse
+//   | InputEventSfuUnPublishResponse
+//   | InputEventShutdown;
 
 type DataTrackLocalManagerOptions = {
   /**
@@ -160,15 +166,18 @@ class DataTrackPublishError<
   }
 }
 
-export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
+// FIXME: use this value in the publish
+const PUBLISH_TIMEOUT_SECONDS = 10;
+
+export default class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
   private encryptionProvider: EncryptionProvider | null;
   private handleAllocator = new DataTrackHandleAllocator();
   // FIXME: key of this map is the same as the value Descriptor["info"]["pubHandle"]
   private descriptors = new Map<DataTrackHandle, Descriptor>();
 
-  constructor(options: DataTrackLocalManagerOptions) {
+  constructor(options?: DataTrackLocalManagerOptions) {
     super();
-    this.encryptionProvider = options.decryptionProvider ?? null;
+    this.encryptionProvider = options?.decryptionProvider ?? null;
   }
 
   /**
@@ -183,47 +192,28 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     * subscribers.
     * @internal
     */
-  trySend(handle: DataTrackHandle, frame: DataTrackFrame, options: { signal?: AbortSignal }) {
+  tryProcessAndSend(handle: DataTrackHandle, payload: Uint8Array, options: { signal?: AbortSignal }) {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       // return Err(PushFrameError::new(frame, PushFrameErrorReason::TrackUnpublished));
       throw new Error("Pipeline not created, local data track not yet published.");
     }
 
+    const frame: DataTrackFrame = {
+      payload,
+      extensions: new DataTrackExtensions(),
+    };
+
     // FIXME: catch and drop processFrame error? That is what the rust implementation is doing.
     // .inspect_err(|err| log::debug!("Process failed: {}", err))
     for (const packet of descriptor.pipeline.processFrame(frame)) {
       // .inspect_err(|err| log::debug!("Cannot send packet to transport: {}", err));
-      this.emit("packetsAvailable", { bytes: packet.toBinary(), signal });
-    }
-  }
-
-  /** Process an incoming command and control event ({@link InputEvent}). */
-  async handle(event: InputEvent) {
-    switch (event.type) {
-      case 'publishRequest':
-        return this.handlePublishRequest(event);
-      case 'queryPublished':
-        return this.handleQueryPublished(event);
-      case 'unpublishRequest':
-        return this.handleUnpublishRequest(event);
-      case 'sfuPublishResponse':
-        return this.handleSfuPublishResponse(event);
-      case 'sfuUnpublishResponse':
-        return this.handleSfuUnpublishResponse(event);
-      case 'shutdown':
-        return this.handleShutdown(event);
-      default:
-        // Make sure there is a typescript error if not all the input events are handled above.
-        event satisfies never;
-
-        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-        throw new Error(`DataTrackLocalManager.handle: Unknown event type ${(event as InputEvent)?.type} found.`);
+      this.emit("packetsAvailable", { bytes: packet.toBinary(), signal: options?.signal });
     }
   }
 
   /** Client requested to publish a track. */
-  private async handlePublishRequest(event: InputEventPublishRequest) {
+  async handlePublishRequest(event: InputEventPublishRequest) {
     const handle = this.handleAllocator.get();
     if (!handle) {
       throw DataTrackPublishError.limitReached();
@@ -255,7 +245,7 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     this.emit('sfuPublishRequest', {
       handle,
       name: event.options.name,
-      usesE2ee: this.encryptionProvider === null,
+      usesE2ee: this.encryptionProvider !== null,
     });
 
     const localDataTrack = await descriptor.completionFuture.promise;
@@ -263,7 +253,7 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     return localDataTrack;
   }
 
-  private handleQueryPublished(event: InputEventQueryPublished) {
+  handleQueryPublished(event: InputEventQueryPublished) {
     const descriptorInfos = Array.from(this.descriptors.values())
       .filter((descriptor): descriptor is ActiveDescriptor => descriptor.type === "active")
       .map(descriptor => descriptor.info);
@@ -272,14 +262,20 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
   }
 
   /** Client request to unpublish a track. */
-  private handleUnpublishRequest(event: InputEventUnpublishRequest) {
-    this.removeDescriptorIfExists(event.handle);
+  async handleUnpublishRequest(event: InputEventUnpublishRequest) {
+    const descriptor: UnpublishingDescriptor = {
+      type: 'unpublishing',
+      completionFuture: new Future(),
+    };
+    this.descriptors.set(event.handle, descriptor);
 
     this.emit('sfuUnpublishRequest', { handle: event.handle });
+
+    await descriptor.completionFuture.promise;
   }
 
   /** SFU responded to a request to publish a data track. */
-  private handleSfuPublishResponse(event: InputEventSfuPublishResponse) {
+  handleSfuPublishResponse(event: InputEventSfuPublishResponse) {
     const descriptor = this.descriptors.get(event.handle);
     if (!descriptor) {
       // FIXME: should this be an internal error?
@@ -301,12 +297,25 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
   }
 
   /** SFU notification that a track has been unpublished. */
-  private handleSfuUnpublishResponse(event: InputEventSfuUnPublishResponse) {
-    this.removeDescriptorIfExists(event.handle);
+  handleSfuUnpublishResponse(event: InputEventSfuUnPublishResponse) {
+    const descriptor = this.descriptors.get(event.handle);
+    if (!descriptor) {
+      // FIXME: should this be an internal error?
+      log.warn(`No descriptor for ${event.handle}`);
+      return;
+    }
+    this.descriptors.delete(event.handle);
+
+    if (descriptor.type !== 'unpublishing') {
+      log.warn(`Track ${event.handle} hasn't been put into unpublishing status`);
+      return;
+    }
+
+    descriptor.completionFuture.resolve?.();
   }
 
   /** Shuts down the manager and all associated tracks. */
-  private handleShutdown(_event: InputEventShutdown) {
+  handleShutdown(_event: InputEventShutdown) {
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
@@ -339,10 +348,5 @@ export class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEm
     // let inner = LocalTrackInner { frame_tx, published_tx };
     // return LocalDataTrack::new(info, inner)
     return new LocalDataTrack(info, this);
-  }
-
-  private removeDescriptorIfExists(handle: DataTrackHandle) {
-    // FIXME: cleanup active descriptors, stop track task, etc
-    this.descriptors.delete(handle);
   }
 }
