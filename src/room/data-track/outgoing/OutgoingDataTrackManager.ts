@@ -29,6 +29,8 @@ export type PendingDescriptor = {
   type: 'pending';
   completionFuture: Future<
     LocalDataTrack,
+    | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
+    | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
     | DataTrackPublishError<DataTrackPublishErrorReason.Timeout>
     | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>
     | DataTrackPublishError<DataTrackPublishErrorReason.Disconnected>
