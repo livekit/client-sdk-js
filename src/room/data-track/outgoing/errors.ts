@@ -93,7 +93,7 @@ export enum DataTrackPushFrameErrorReason {
 }
 
 export class DataTrackPushFrameError<
-  Reason extends DataTrackPushFrameErrorReason,
+  Reason extends DataTrackPushFrameErrorReason = DataTrackPushFrameErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPushFrameError';
 
@@ -127,7 +127,7 @@ export enum DataTrackOutgoingPipelineErrorReason {
 }
 
 export class DataTrackOutgoingPipelineError<
-  Reason extends DataTrackOutgoingPipelineErrorReason,
+  Reason extends DataTrackOutgoingPipelineErrorReason = DataTrackOutgoingPipelineErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackOutgoingPipelineError';
 

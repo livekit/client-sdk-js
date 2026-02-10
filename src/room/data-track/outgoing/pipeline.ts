@@ -31,11 +31,7 @@ export default class DataTrackOutgoingPipeline {
 
   *processFrame(
     frame: DataTrackFrame,
-  ): Throws<
-    Generator<DataTrackPacket>,
-    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Packetizer>
-    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
-  > {
+  ): Throws<Generator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
     const encryptedFrame = this.encryptIfNeeded(frame);
 
     try {
