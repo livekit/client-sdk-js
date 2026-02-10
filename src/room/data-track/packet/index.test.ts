@@ -24,7 +24,7 @@ describe('DataTrackPacket', () => {
 
       const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+      const packet = new DataTrackPacket(header, payloadBytes);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(22);
       expect(packet.toBinary()).toStrictEqual(
@@ -70,7 +70,7 @@ describe('DataTrackPacket', () => {
 
       const payloadBytes = new Uint8Array(32).fill(0xfa);
 
-      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+      const packet = new DataTrackPacket(header, payloadBytes);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(78);
       expect(packet.toBinary()).toStrictEqual(
@@ -176,7 +176,7 @@ describe('DataTrackPacket', () => {
 
       const payloadBytes = new Uint8Array(32).fill(0xfa);
 
-      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+      const packet = new DataTrackPacket(header, payloadBytes);
 
       expect(packet.toBinaryLengthBytes()).toStrictEqual(66);
       expect(packet.toBinary()).toStrictEqual(
@@ -264,7 +264,7 @@ describe('DataTrackPacket', () => {
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
       });
       const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+      const packet = new DataTrackPacket(header, payloadBytes);
 
       const twoByteLongDataView = new DataView(new ArrayBuffer(2));
       expect(() => packet.toBinaryInto(twoByteLongDataView)).toThrow('Buffer cannot fit header');
@@ -278,7 +278,7 @@ describe('DataTrackPacket', () => {
         timestamp: DataTrackTimestamp.fromRtpTicks(104),
       });
       const payloadBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-      const packet = new DataTrackPacket(header, payloadBytes.buffer);
+      const packet = new DataTrackPacket(header, payloadBytes);
 
       const fourteenByteLongDataView = new DataView(
         new ArrayBuffer(14 /* 12 byte header + 2 extra bytes */),
@@ -333,7 +333,7 @@ describe('DataTrackPacket', () => {
             userTimestamp: null,
           },
         },
-        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
+        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       });
     });
 
@@ -406,7 +406,7 @@ describe('DataTrackPacket', () => {
             userTimestamp: null,
           },
         },
-        payload: new Uint8Array([]).buffer,
+        payload: new Uint8Array([]),
       });
     });
 
@@ -563,7 +563,7 @@ describe('DataTrackPacket', () => {
 
       const payloadBytes = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-      const encodedPacket = new DataTrackPacket(header, payloadBytes.buffer);
+      const encodedPacket = new DataTrackPacket(header, payloadBytes);
 
       expect(encodedPacket.toBinaryLengthBytes()).toStrictEqual(21);
       expect(encodedPacket.toBinary()).toStrictEqual(
@@ -608,7 +608,7 @@ describe('DataTrackPacket', () => {
             userTimestamp: null,
           },
         },
-        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer,
+        payload: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       });
     });
   });

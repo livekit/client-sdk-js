@@ -280,7 +280,7 @@ export class DataTrackPacketHeader extends Serializable {
       trackHandle: this.trackHandle.value,
       sequence: this.sequence.value,
       frameNumber: this.frameNumber.value,
-      timestamp: this.timestamp.timestamp,
+      timestamp: this.timestamp.asTicks(),
       extensions: this.extensions.toJSON(),
     };
   }
@@ -302,9 +302,9 @@ export enum FrameMarker {
 export class DataTrackPacket extends Serializable {
   header: DataTrackPacketHeader;
 
-  payload: ArrayBuffer;
+  payload: Uint8Array;
 
-  constructor(header: DataTrackPacketHeader, payload: ArrayBuffer) {
+  constructor(header: DataTrackPacketHeader, payload: Uint8Array) {
     super();
     this.header = header;
     this.payload = payload;
@@ -323,9 +323,8 @@ export class DataTrackPacket extends Serializable {
       throw DataTrackSerializeError.tooSmallForPayload();
     }
 
-    const payloadBytes = new Uint8Array(this.payload);
-    for (let index = 0; index < payloadBytes.length; index += 1) {
-      dataView.setUint8(byteIndex, payloadBytes[index]);
+    for (let index = 0; index < this.payload.length; index += 1) {
+      dataView.setUint8(byteIndex, this.payload[index]);
       byteIndex += U8_LENGTH_BYTES;
     }
 
@@ -352,7 +351,10 @@ export class DataTrackPacket extends Serializable {
       dataView.byteOffset + dataView.byteLength,
     );
 
-    return [new DataTrackPacket(header, payload), dataView.byteLength] as [DataTrackPacket, number];
+    return [new DataTrackPacket(header, new Uint8Array(payload)), dataView.byteLength] as [
+      DataTrackPacket,
+      number,
+    ];
   }
 
   toJSON() {

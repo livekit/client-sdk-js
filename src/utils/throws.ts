@@ -1,3 +1,5 @@
+type Primitives = null | undefined | string | number | bigint | boolean | symbol;
+
 /**
  * Branded type that encodes possible thrown errors in the return type.
  *
@@ -11,7 +13,7 @@
  *
  * For more info about how this is checked, see ./throws-transformer at the root of this repo.
  */
-export type Throws<T, E extends Error> = T & { readonly __throws?: E };
+export type Throws<T, E extends Error> = (T & { readonly __throws?: E }) | Extract<T, Primitives>;
 
 /**
  * Extract the error types from a Throws type.
