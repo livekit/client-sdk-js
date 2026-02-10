@@ -445,11 +445,7 @@ function extractThrowsErrorTypes(
   );
 
   if (throwsType.isUnion()) {
-    // Check if this is a distributed generic union (e.g., TypedError<Types.Foo> | TypedError<Types.Bar>)
-    // If so, collapse it back to a single type
-    const collapsed = collapseDistributedGenericUnion(throwsType, checker);
-    
-    for (const t of collapsed) {
+    for (const t of throwsType.types) {
       if (!isUndefinedType(t) && !isNeverType(t)) {
         errors.push(t);
       }
@@ -476,70 +472,6 @@ function extractPromiseType(
   }
 
   return null;
-}
-
-function collapseDistributedGenericUnion(
-  unionType: ts.UnionType,
-  checker: ts.TypeChecker,
-): ts.Type[] {
-  const types = unionType.types;
-  
-  // Group types by their base symbol
-  const groupedBySymbol = new Map<ts.Symbol | undefined, ts.Type[]>();
-  
-  for (const t of types) {
-    const symbol = t.getSymbol();
-    const key = symbol;
-    
-    if (!groupedBySymbol.has(key)) {
-      groupedBySymbol.set(key, []);
-    }
-    groupedBySymbol.get(key)!.push(t);
-  }
-  
-  const result: ts.Type[] = [];
-  
-  // For each group, check if they're all the same generic type with different type parameters
-  for (const [symbol, groupTypes] of groupedBySymbol) {
-    if (!symbol) {
-      // No symbol, just add them individually
-      result.push(...groupTypes);
-      continue;
-    }
-    
-    // Check if all types in this group are type references with the same base
-    const allTypeRefs = groupTypes.every(t => {
-      const ref = t as ts.TypeReference;
-      return ref.typeArguments !== undefined;
-    });
-    
-    if (!allTypeRefs || groupTypes.length === 1) {
-      // Not all type references or only one type, add individually
-      result.push(...groupTypes);
-      continue;
-    }
-    
-    // Check if all have the same number of type arguments
-    const firstRef = groupTypes[0] as ts.TypeReference;
-    const argCount = firstRef.typeArguments?.length || 0;
-    const allSameArgCount = groupTypes.every(t => {
-      const ref = t as ts.TypeReference;
-      return (ref.typeArguments?.length || 0) === argCount;
-    });
-    
-    if (!allSameArgCount) {
-      result.push(...groupTypes);
-      continue;
-    }
-    
-    // This appears to be a distributed generic union
-    // Instead of returning all the individual types, just return the first one
-    // which represents the collapsed form
-    // The compatibility checking will handle matching specific instances to the general form
-    result.push(groupTypes[0]);
-  }
-  
-  return result;
 }
 
 function isErrorTypeDeclared(
