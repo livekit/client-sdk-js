@@ -39,7 +39,7 @@ export class LocalDataTrack {
    * - The room is no longer connected
    * - Frames are being pushed too fast (FIXME: this isn't the case in the js implementation?)
    */
-  tryPush(payload: DataTrackFrame['payload'], options: { signal?: AbortSignal }) {
+  tryPush(payload: DataTrackFrame['payload'], options?: { signal?: AbortSignal }) {
     // FIXME: rust implementation maps errors to dropped here?
     // .map_err(|err| PushFrameError::new(err.into_inner(), PushFrameErrorReason::Dropped))
     return this.manager.tryProcessAndSend(this.info.pubHandle, payload, options);

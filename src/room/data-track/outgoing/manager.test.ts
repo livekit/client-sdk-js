@@ -9,10 +9,9 @@ import DataTrackOutgoingManager, {
   DataTrackOutgoingManagerCallbacks,
   DataTrackPublishError,
   Descriptor,
-  InputEventQueryPublished,
-  OutputEventSfuPublishRequest,
 } from './manager';
-import DataTrackOutgoingPipeline from './pipeline';
+
+// FIXME: move this to some test utils file
 
 /** A test helper to listen to events received by an event emitter and allow them to be imperatively
  * queried after the fact. */
@@ -79,10 +78,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.handlePublishRequest({
-      type: 'publishRequest',
-      options: { name: 'test' },
-    });
+    const publishRequestPromise = manager.publishRequest({ name: 'test' });
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -91,17 +87,13 @@ describe('DataTrackOutgoingManager', () => {
     const handle = sfuPublishEvent.handle;
 
     // 3. Respond to the SFU publish request with an OK response
-    manager.handleSfuPublishResponse({
-      type: 'sfuPublishResponse',
-      handle,
-      result: {
-        type: 'ok',
-        data: {
-          sid: 'bogus-sid',
-          pubHandle: sfuPublishEvent.handle,
-          name: 'test',
-          usesE2ee: false,
-        },
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: false,
       },
     });
 
@@ -117,22 +109,15 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.handlePublishRequest({
-      type: 'publishRequest',
-      options: { name: 'test' },
-    });
+    const publishRequestPromise = manager.publishRequest({ name: 'test' });
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
 
     // 3. Respond to the SFU publish request with an ERROR response
-    manager.handleSfuPublishResponse({
-      type: 'sfuPublishResponse',
-      handle: sfuPublishEvent.handle,
-      result: {
-        type: 'error',
-        error: DataTrackPublishError.limitReached(),
-      },
+    manager.receivedSfuPublishResponse(sfuPublishEvent.handle, {
+      type: 'error',
+      error: DataTrackPublishError.limitReached(),
     });
 
     // Make sure that the rejection bubbles back to the caller
@@ -265,15 +250,12 @@ describe('DataTrackOutgoingManager', () => {
     expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
 
     // Unpublish data track
-    const unpublishRequestPromise = manager.handleUnpublishRequest({
-      type: 'unpublishRequest',
-      handle: 5,
-    });
+    const unpublishRequestPromise = manager.unpublishRequest(DataTrackHandle.fromNumber(5));
 
     const sfuUnpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
     expect(sfuUnpublishEvent.handle).toStrictEqual(5);
 
-    manager.handleSfuUnpublishResponse({ type: 'sfuUnpublishResponse', handle: 5 });
+    manager.receivedSfuUnpublishResponse(DataTrackHandle.fromNumber(5));
 
     await unpublishRequestPromise;
 
@@ -312,9 +294,7 @@ describe('DataTrackOutgoingManager', () => {
       ]),
     );
 
-    const event: InputEventQueryPublished = { type: 'queryPublished', future: new Future() };
-    manager.handleQueryPublished(event);
-    const result = await event.future.promise;
+    const result = await manager.queryPublished();
 
     expect(result).toStrictEqual([
       { sid: 'bogus-sid-2', pubHandle: 2, name: 'twotwotwo', usesE2ee: false },
@@ -341,7 +321,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // Shut down the manager
-    const shutdownPromise = manager.handleShutdown({ type: 'shutdown' });
+    const shutdownPromise = manager.shutdown();
 
     // The pending data track should be cancelled
     expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
@@ -351,8 +331,10 @@ describe('DataTrackOutgoingManager', () => {
     expect(unpublishEvent.handle).toStrictEqual(6);
 
     // Acknowledge that the unpublish has occurred
-    manager.handleSfuUnpublishResponse({ type: "sfuUnpublishResponse", handle: 6 });
+    manager.receivedSfuUnpublishResponse(DataTrackHandle.fromNumber(6));
 
     await shutdownPromise;
   });
+
+  // FIXME: add e2ee tests
 });
