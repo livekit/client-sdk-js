@@ -15,7 +15,8 @@ import {
   type SfuPublishResponseResult,
 } from './types';
 import DataTrackOutgoingPipeline from './pipeline';
-import { DataTrackPushFrameError, DataTrackPublishError, DataTrackPublishErrorReason } from './errors';
+import { DataTrackPushFrameError, DataTrackPublishError, DataTrackPublishErrorReason, DataTrackPushFrameErrorReason } from './errors';
+import type { Throws } from '../../../utils/throws';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -123,7 +124,11 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     handle: DataTrackHandle,
     payload: Uint8Array,
     options?: { signal?: AbortSignal },
-  ) {
+  ): Throws<
+    void,
+    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
+    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
+  > {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       throw DataTrackPushFrameError.trackUnpublished();

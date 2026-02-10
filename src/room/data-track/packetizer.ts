@@ -26,6 +26,10 @@ export class DataTrackPacketizerError<
     this.reasonName = DataTrackPacketizerReason[reason];
   }
 
+  isReason<R extends DataTrackPacketizerReason>(reason: R): this is DataTrackPacketizerError<R> {
+    return (this.reason as unknown as R) === reason;
+  }
+
   static mtuTooShort() {
     return new DataTrackPacketizerError(
       'MTU is too short to send frame',

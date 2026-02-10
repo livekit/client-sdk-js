@@ -143,7 +143,7 @@ export class DataTrackOutgoingPipelineError<
     this.reasonName = DataTrackOutgoingPipelineErrorReason[reason];
   }
 
-  static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason>) {
+  static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason.MtuTooShort>) {
     return new DataTrackOutgoingPipelineError(
       'Error packetizing frame',
       DataTrackOutgoingPipelineErrorReason.Packetizer,

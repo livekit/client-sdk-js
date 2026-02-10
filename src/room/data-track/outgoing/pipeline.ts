@@ -3,7 +3,7 @@ import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
-import DataTrackPacketizer, { DataTrackPacketizerError } from '../packetizer';
+import DataTrackPacketizer, { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
 import type { DataTrackInfo } from '../track';
 import { DataTrackOutgoingPipelineError, DataTrackOutgoingPipelineErrorReason } from './errors';
 
@@ -40,7 +40,7 @@ export default class DataTrackOutgoingPipeline {
     try {
       yield* this.packetizer.packetize(encryptedFrame);
     } catch (error) {
-      if (error instanceof DataTrackPacketizerError) {
+      if (error instanceof DataTrackPacketizerError && error.isReason(DataTrackPacketizerReason.MtuTooShort)) {
         throw DataTrackOutgoingPipelineError.packetizer(error);
       }
       throw error;
