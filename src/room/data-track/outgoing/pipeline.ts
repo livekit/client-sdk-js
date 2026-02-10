@@ -18,6 +18,7 @@ type Options = {
 /** Processes outgoing frames into final packets for distribution to the SFU. */
 export default class DataTrackOutgoingPipeline {
   private encryptionProvider: EncryptionProvider | null;
+
   private packetizer: DataTrackPacketizer;
 
   /** Maximum transmission unit (MTU) of the transport. */

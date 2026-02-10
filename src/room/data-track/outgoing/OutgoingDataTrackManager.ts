@@ -90,7 +90,9 @@ const PUBLISH_TIMEOUT_MILLISECONDS = 10_000;
 
 export default class OutgoingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
   private encryptionProvider: EncryptionProvider | null;
+
   private handleAllocator = new DataTrackHandleAllocator();
+
   // FIXME: key of this map is the same as the value Descriptor["info"]["pubHandle"]
   private descriptors = new Map<DataTrackHandle, Descriptor>();
 
