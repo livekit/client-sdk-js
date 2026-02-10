@@ -43,10 +43,7 @@ export default class DataTrackOutgoingPipeline {
     try {
       yield* this.packetizer.packetize(encryptedFrame);
     } catch (error) {
-      if (
-        error instanceof DataTrackPacketizerError &&
-        error.isReason(DataTrackPacketizerReason.MtuTooShort)
-      ) {
+      if (error instanceof DataTrackPacketizerError) {
         throw DataTrackOutgoingPipelineError.packetizer(error);
       }
       throw error;
