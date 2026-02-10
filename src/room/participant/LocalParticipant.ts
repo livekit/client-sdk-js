@@ -323,7 +323,7 @@ export default class LocalParticipant extends Participant {
         } else if (rpcResponse.value.case === 'error') {
           error = RpcError.fromProto(rpcResponse.value.value);
         }
-        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
+        this._handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
         break;
       case 'rpcAck':
         let rpcAck = packet.value.value as RpcAck;
@@ -1907,11 +1907,8 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private handleIncomingRpcResponse(
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
+  /** @internal */
+  _handleIncomingRpcResponse(requestId: string, payload: string | null, error: RpcError | null) {
     const handler = this.pendingResponses.get(requestId);
     if (handler) {
       handler.resolve(payload, error);
@@ -1939,7 +1936,7 @@ export default class LocalParticipant extends Participant {
           method,
           payload,
           responseTimeoutMs: responseTimeout,
-          version: 1,
+          version: 2,
         }),
       },
     });
