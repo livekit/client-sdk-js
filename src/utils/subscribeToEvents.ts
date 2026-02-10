@@ -1,5 +1,6 @@
 import { type EventMap } from 'typed-emitter';
 import type TypedEventEmitter from 'typed-emitter';
+import { Future } from '../room/utils';
 
 /** A test helper to listen to events received by an event emitter and allow them to be imperatively
  * queried after the fact. */
