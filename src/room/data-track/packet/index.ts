@@ -26,9 +26,7 @@ import {
 } from './constants';
 import {
   DataTrackDeserializeError,
-  type DataTrackDeserializeErrorAll,
   DataTrackSerializeError,
-  type DataTrackSerializeErrorAll,
   DataTrackSerializeErrorReason,
 } from './errors';
 import { DataTrackExtensions } from './extensions';
@@ -167,7 +165,7 @@ export class DataTrackPacketHeader extends Serializable {
 
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
-  ): Throws<[header: DataTrackPacketHeader, byteLength: number], DataTrackDeserializeErrorAll> {
+  ): Throws<[header: DataTrackPacketHeader, byteLength: number], DataTrackDeserializeError> {
     const dataView = coerceToDataView(input);
 
     if (dataView.byteLength < BASE_HEADER_LEN) {
@@ -314,7 +312,7 @@ export class DataTrackPacket extends Serializable {
     return this.header.toBinaryLengthBytes() + this.payload.byteLength;
   }
 
-  toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeErrorAll> {
+  toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeError> {
     let byteIndex = 0;
     const headerLengthBytes = this.header.toBinaryInto(dataView);
     byteIndex += headerLengthBytes;
@@ -341,7 +339,7 @@ export class DataTrackPacket extends Serializable {
 
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
-  ): Throws<[packet: DataTrackPacket, byteLength: number], DataTrackDeserializeErrorAll> {
+  ): Throws<[packet: DataTrackPacket, byteLength: number], DataTrackDeserializeError> {
     const dataView = coerceToDataView(input);
 
     const [header, headerByteLength] = DataTrackPacketHeader.fromBinary(dataView);

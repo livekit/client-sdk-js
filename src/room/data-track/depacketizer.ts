@@ -21,7 +21,7 @@ type PartialFrame = {
 
 /** An error indicating a frame was dropped. */
 export class DataTrackDepacketizerDropError<
-  Reason extends DataTrackDepacketizerDropReason,
+  Reason extends DataTrackDepacketizerDropReason = DataTrackDepacketizerDropReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackDepacketizerDropError';
 
@@ -99,13 +99,7 @@ export default class DataTrackDepacketizer {
   push(
     packet: DataTrackPacket,
     options?: PushOptions,
-  ): Throws<
-    DataTrackFrame | null,
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.BufferFull>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.UnknownFrame>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
-  > {
+  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
     switch (packet.header.marker) {
       case FrameMarker.Single:
         return this.frameFromSingle(packet, options);
@@ -191,13 +185,7 @@ export default class DataTrackDepacketizer {
   /** Push to the existing partial frame. */
   private pushToPartial(
     packet: DataTrackPacket,
-  ): Throws<
-    DataTrackFrame | null,
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.UnknownFrame>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.BufferFull>
-    | DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
-  > {
+  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
