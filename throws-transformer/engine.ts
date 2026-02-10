@@ -488,8 +488,82 @@ function isErrorTypeDeclared(
     if (baseTypes.some((base) => checker.typeToString(base) === declaredName)) {
       return true;
     }
+
+    // Check if types share the same base generic type with compatible type arguments
+    if (areGenericTypesCompatible(checker, thrownType, declared)) {
+      return true;
+    }
   }
 
+  return false;
+}
+
+function areGenericTypesCompatible(
+  checker: ts.TypeChecker,
+  source: ts.Type,
+  target: ts.Type,
+): boolean {
+  // Cast to TypeReference to access type arguments
+  const sourceRef = source as ts.TypeReference;
+  const targetRef = target as ts.TypeReference;
+  
+  // Both must be type references with type arguments
+  if (!sourceRef.typeArguments || !targetRef.typeArguments) {
+    return false;
+  }
+  
+  // Check if they have the same base symbol (e.g., both are TypedError<...>)
+  const sourceSymbol = source.getSymbol();
+  const targetSymbol = target.getSymbol();
+  
+  if (!sourceSymbol || !targetSymbol || sourceSymbol !== targetSymbol) {
+    return false;
+  }
+  
+  // Both have the same generic base, now check if type arguments are compatible
+  if (sourceRef.typeArguments.length !== targetRef.typeArguments.length) {
+    return false;
+  }
+  
+  for (let i = 0; i < sourceRef.typeArguments.length; i++) {
+    const sourceArg = sourceRef.typeArguments[i];
+    const targetArg = targetRef.typeArguments[i];
+    
+    if (!isTypeArgumentAssignable(checker, sourceArg, targetArg)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+function isTypeArgumentAssignable(
+  checker: ts.TypeChecker,
+  source: ts.Type,
+  target: ts.Type,
+): boolean {
+  const sourceName = checker.typeToString(source);
+  const targetName = checker.typeToString(target);
+  
+  // Exact match
+  if (sourceName === targetName) {
+    return true;
+  }
+  
+  // Check if target is a union and source is one of its members
+  if (target.isUnion() && target.types.length > 1) {
+    return target.types.some(t => {
+      const tName = checker.typeToString(t);
+      return tName === sourceName;
+    });
+  }
+  
+  // Check if source is an enum member and target is the enum
+  // e.g., source is "Types.Foo" and target is "Types"
+  if (sourceName.includes('.') && sourceName.startsWith(targetName + '.')) {
+    return true;
+  }
+  
   return false;
 }
 
