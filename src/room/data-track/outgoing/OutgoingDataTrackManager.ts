@@ -82,7 +82,7 @@ type DataTrackLocalManagerOptions = {
    *
    * If none, end-to-end encryption will be disabled for all published tracks.
    */
-  decryptionProvider?: EncryptionProvider;
+  encryptionProvider?: EncryptionProvider;
 };
 
 /** How long to wait when attempting to publish before timing out. */
@@ -98,7 +98,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   constructor(options?: DataTrackLocalManagerOptions) {
     super();
-    this.encryptionProvider = options?.decryptionProvider ?? null;
+    this.encryptionProvider = options?.encryptionProvider ?? null;
   }
 
   static withDescriptors(descriptors: Map<DataTrackHandle, Descriptor>) {

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
+import { EncryptionProvider } from '../e2ee';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
@@ -8,6 +9,23 @@ import OutgoingDataTrackManager, {
   Descriptor,
 } from './OutgoingDataTrackManager';
 import { DataTrackPublishError } from './errors';
+
+/** A fake "encryption" provider used for test purposes. Adds a prefix to the payload. */
+const PrefixingEncryptionProvider: EncryptionProvider = {
+  encrypt(payload: Uint8Array) {
+    const prefix = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+
+    const output = new Uint8Array(prefix.length + payload.length);
+    output.set(prefix, 0);
+    output.set(payload, prefix.length);
+
+    return {
+      payload: output,
+      iv: new Uint8Array(12), // Just leaving this empty, is this a bad idea?
+      keyIndex: 0,
+    };
+  },
+};
 
 describe('DataTrackOutgoingManager', () => {
   it('should test track publishing (ok case)', async () => {
@@ -162,6 +180,76 @@ describe('DataTrackOutgoingManager', () => {
       }
     },
   );
+
+  it('should send e2ee encrypted datatrack payload', async () => {
+    const manager = new OutgoingDataTrackManager({
+      encryptionProvider: PrefixingEncryptionProvider,
+    });
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'packetsAvailable',
+    ]);
+
+    // 1. Publish a data track
+    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+
+    // 2. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(true); // NOTE: this is true, e2ee is enabled!
+    const handle = sfuPublishEvent.handle;
+
+    // 3. Respond to the SFU publish request with an OK response
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: true, // NOTE: this is true, e2ee is enabled!
+      },
+    });
+
+    // Get the connected local data track
+    const localDataTrack = await publishRequestPromise;
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // Kick off sending the payload bytes
+    localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+
+    // Make sure the packet that was sent was encrypted with the PrefixingEncryptionProvider
+    const packetBytes = await managerEvents.waitFor('packetsAvailable');
+    const [packet] = DataTrackPacket.fromBinary(packetBytes.bytes);
+
+    const packetJson = packet.toJSON();
+    // (note: zero out the header timestamp because the date "now" isn't being mocked)
+    packetJson.header.timestamp = 0;
+
+    expect(packetJson).toStrictEqual({
+      header: {
+        extensions: {
+          e2ee: {
+            iv: new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            keyIndex: 0,
+            lengthBytes: 13,
+            tag: 1,
+          },
+          userTimestamp: null,
+        },
+        frameNumber: 0,
+        marker: 3,
+        sequence: 0,
+        timestamp: 0, // (zeroed out in the test, since this isn't mocked)
+        trackHandle: 1,
+      },
+      payload: new Uint8Array([
+        // Encryption added prefix
+        0xde, 0xad, 0xbe, 0xef,
+        // Actual payload
+        0x01, 0x02, 0x03, 0x04, 0x05,
+      ]),
+    });
+  });
 
   it('should test track unpublishing', async () => {
     // Create a manager prefilled with a descriptor

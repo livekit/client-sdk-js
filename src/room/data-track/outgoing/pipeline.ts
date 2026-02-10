@@ -3,10 +3,7 @@ import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
-import DataTrackPacketizer, {
-  DataTrackPacketizerError,
-  DataTrackPacketizerReason,
-} from '../packetizer';
+import DataTrackPacketizer, { DataTrackPacketizerError } from '../packetizer';
 import type { DataTrackInfo } from '../track';
 import { DataTrackOutgoingPipelineError, DataTrackOutgoingPipelineErrorReason } from './errors';
 
