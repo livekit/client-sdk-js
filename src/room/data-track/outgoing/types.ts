@@ -1,6 +1,6 @@
 import { type DataTrackHandle } from '../handle';
 import { type DataTrackInfo } from '../track';
-import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './manager';
+import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
 /** Options for publishing a data track. */
 export type DataTrackOptions = {

@@ -1,6 +1,6 @@
 import type { DataTrackFrame } from './frame';
 import { type DataTrackHandle } from './handle';
-import type DataTrackOutgoingManager from './outgoing/manager';
+import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
 
 export type DataTrackSid = string;
 
@@ -15,9 +15,9 @@ export type DataTrackInfo = {
 export class LocalDataTrack {
   info: DataTrackInfo;
 
-  protected manager: DataTrackOutgoingManager;
+  protected manager: OutgoingDataTrackManager;
 
-  constructor(info: DataTrackInfo, manager: DataTrackOutgoingManager) {
+  constructor(info: DataTrackInfo, manager: OutgoingDataTrackManager) {
     this.info = info;
     this.manager = manager;
   }

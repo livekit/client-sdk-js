@@ -2,16 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
-import DataTrackOutgoingManager, {
+import OutgoingDataTrackManager, {
   DataTrackOutgoingManagerCallbacks,
   Descriptor,
-} from './manager';
+} from './OutgoingDataTrackManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { DataTrackPublishError } from './errors';
 
 describe('DataTrackOutgoingManager', () => {
   it('should test track publishing (ok case)', async () => {
-    const manager = new DataTrackOutgoingManager();
+    const manager = new OutgoingDataTrackManager();
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',
     ]);
@@ -42,7 +42,7 @@ describe('DataTrackOutgoingManager', () => {
   });
 
   it('should test track publishing (error case)', async () => {
-    const manager = new DataTrackOutgoingManager();
+    const manager = new OutgoingDataTrackManager();
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',
     ]);
@@ -123,7 +123,7 @@ describe('DataTrackOutgoingManager', () => {
     'should test track payload sending',
     async (inputBytes: Uint8Array, outputPacketsJson: Array<unknown>) => {
       // Create a manager prefilled with a descriptor
-      const manager = DataTrackOutgoingManager.withDescriptors(
+      const manager = OutgoingDataTrackManager.withDescriptors(
         new Map([
           [
             DataTrackHandle.fromNumber(5),
@@ -165,7 +165,7 @@ describe('DataTrackOutgoingManager', () => {
 
   it('should test track unpublishing', async () => {
     // Create a manager prefilled with a descriptor
-    const manager = DataTrackOutgoingManager.withDescriptors(
+    const manager = OutgoingDataTrackManager.withDescriptors(
       new Map([
         [
           DataTrackHandle.fromNumber(5),
@@ -204,7 +204,7 @@ describe('DataTrackOutgoingManager', () => {
 
   it('should query currently active descriptors', async () => {
     // Create a manager prefilled with a descriptor
-    const manager = DataTrackOutgoingManager.withDescriptors(
+    const manager = OutgoingDataTrackManager.withDescriptors(
       new Map([
         [
           DataTrackHandle.fromNumber(2),
@@ -244,7 +244,7 @@ describe('DataTrackOutgoingManager', () => {
   it('should shutdown cleanly', async () => {
     // Create a manager prefilled with a descriptor
     const pendingDescriptor = Descriptor.pending();
-    const manager = DataTrackOutgoingManager.withDescriptors(
+    const manager = OutgoingDataTrackManager.withDescriptors(
       new Map<DataTrackHandle, Descriptor>([
         [DataTrackHandle.fromNumber(2), pendingDescriptor],
         [DataTrackHandle.fromNumber(6), Descriptor.active({

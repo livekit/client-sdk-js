@@ -82,7 +82,7 @@ type DataTrackLocalManagerOptions = {
 /** How long to wait when attempting to publish before timing out. */
 const PUBLISH_TIMEOUT_MILLISECONDS = 10_000;
 
-export default class DataTrackOutgoingManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
+export default class OutgoingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
   private encryptionProvider: EncryptionProvider | null;
   private handleAllocator = new DataTrackHandleAllocator();
   // FIXME: key of this map is the same as the value Descriptor["info"]["pubHandle"]
@@ -94,7 +94,7 @@ export default class DataTrackOutgoingManager extends (EventEmitter as new () =>
   }
 
   static withDescriptors(descriptors: Map<DataTrackHandle, Descriptor>) {
-    const manager = new DataTrackOutgoingManager();
+    const manager = new OutgoingDataTrackManager();
     manager.descriptors = descriptors;
     return manager;
   }
