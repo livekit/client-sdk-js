@@ -4,10 +4,10 @@ import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import DataTrackOutgoingManager, {
   DataTrackOutgoingManagerCallbacks,
-  DataTrackPublishError,
   Descriptor,
 } from './manager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
+import { DataTrackPublishError } from './errors';
 
 describe('DataTrackOutgoingManager', () => {
   it('should test track publishing (ok case)', async () => {

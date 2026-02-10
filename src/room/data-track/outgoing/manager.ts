@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
-import { LivekitReasonedError } from '../../errors';
 import { Future } from '../../utils';
 import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
@@ -16,6 +15,7 @@ import {
   type SfuPublishResponseResult,
 } from './types';
 import DataTrackOutgoingPipeline from './pipeline';
+import { DataTrackPushFrameError, DataTrackPublishError, DataTrackPublishErrorReason } from './errors';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -78,128 +78,6 @@ type DataTrackLocalManagerOptions = {
    */
   decryptionProvider?: EncryptionProvider;
 };
-
-export enum DataTrackPublishErrorReason {
-  /**
-   * Local participant does not have permission to publish data tracks.
-   *
-   * Ensure the participant's token contains the `canPublishData` grant.
-   */
-  NotAllowed = 0,
-
-  /** A track with the same name is already published by the local participant. */
-  DuplicateName = 1,
-
-  /** Request to publish the track took long to complete. */
-  Timeout = 2,
-
-  /** No additional data tracks can be published by the local participant. */
-  LimitReached = 3,
-
-  /** Cannot publish data track when the room is disconnected. */
-  Disconnected = 4,
-
-  // FIXME: get rid of internal error concept, this is just represented as bare throws in js
-  // Internal = 5,
-
-  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
-  // Upon further reflection though I think this should exist in rust.
-  Cancelled = 6,
-}
-
-export class DataTrackPublishError<
-  Reason extends DataTrackPublishErrorReason,
-> extends LivekitReasonedError<Reason> {
-  readonly name = 'DataTrackPublishError';
-
-  reason: Reason;
-
-  reasonName: string;
-
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
-    super(21, message, options);
-    this.reason = reason;
-    this.reasonName = DataTrackPublishErrorReason[reason];
-  }
-
-  static notAllowed() {
-    return new DataTrackPublishError(
-      'Data track publishing unauthorized',
-      DataTrackPublishErrorReason.NotAllowed,
-    );
-  }
-
-  static duplicateName() {
-    return new DataTrackPublishError(
-      'Track name already taken',
-      DataTrackPublishErrorReason.DuplicateName,
-    );
-  }
-
-  static timeout() {
-    return new DataTrackPublishError(
-      'Publish data track timed-out',
-      DataTrackPublishErrorReason.Timeout,
-    );
-  }
-
-  static limitReached() {
-    return new DataTrackPublishError(
-      'Data track publication limit reached',
-      DataTrackPublishErrorReason.LimitReached,
-    );
-  }
-
-  static disconnected() {
-    return new DataTrackPublishError('Room disconnected', DataTrackPublishErrorReason.Disconnected);
-  }
-
-  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
-  static cancelled() {
-    return new DataTrackPublishError(
-      'Publish data track cancelled by caller',
-      DataTrackPublishErrorReason.Cancelled,
-    );
-  }
-}
-
-export enum DataTrackPushFrameErrorReason {
-  /** Track is no longer published. */
-  TrackUnpublished = 0,
-  /** Frame was dropped. */
-  Dropped = 1,
-}
-
-export class DataTrackPushFrameError<
-  Reason extends DataTrackPushFrameErrorReason,
-> extends LivekitReasonedError<Reason> {
-  readonly name = 'DataTrackPushFrameError';
-
-  reason: Reason;
-
-  reasonName: string;
-
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
-    super(22, message, options);
-    this.reason = reason;
-    this.reasonName = DataTrackPushFrameErrorReason[reason];
-  }
-
-  static trackUnpublished() {
-    return new DataTrackPushFrameError(
-      'Track is no longer published',
-      DataTrackPushFrameErrorReason.TrackUnpublished,
-    );
-  }
-
-  static dropped(cause: unknown) {
-    return new DataTrackPushFrameError(
-      'Frame was dropped',
-      DataTrackPushFrameErrorReason.Dropped,
-      { cause }
-    );
-  }
-}
 
 /** How long to wait when attempting to publish before timing out. */
 const PUBLISH_TIMEOUT_MILLISECONDS = 10_000;

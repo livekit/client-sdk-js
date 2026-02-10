@@ -1,57 +1,18 @@
 import { type Throws } from '../../../utils/throws';
-import { LivekitReasonedError } from '../../errors';
 import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
-import DataTrackPacketizer, {
-  DataTrackPacketizerError,
-  DataTrackPacketizerReason,
-} from '../packetizer';
+import DataTrackPacketizer, { DataTrackPacketizerError } from '../packetizer';
 import type { DataTrackInfo } from '../track';
-
-enum DataTrackOutgoingPipelineErrorReason {
-  Packetizer = 0,
-  Encryption = 1,
-}
-
-class DataTrackOutgoingPipelineError<
-  Reason extends DataTrackOutgoingPipelineErrorReason,
-> extends LivekitReasonedError<Reason> {
-  readonly name = 'DataTrackOutgoingPipelineError';
-
-  reason: Reason;
-
-  reasonName: string;
-
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
-    super(21, message, options);
-    this.reason = reason;
-    this.reasonName = DataTrackOutgoingPipelineErrorReason[reason];
-  }
-
-  static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason>) {
-    return new DataTrackOutgoingPipelineError(
-      'Error packetizing frame',
-      DataTrackOutgoingPipelineErrorReason.Packetizer,
-      { cause },
-    );
-  }
-
-  static encryption(cause: unknown) {
-    return new DataTrackOutgoingPipelineError(
-      'Error encrypting frame',
-      DataTrackOutgoingPipelineErrorReason.Encryption,
-      { cause },
-    );
-  }
-}
+import { DataTrackOutgoingPipelineError, DataTrackOutgoingPipelineErrorReason } from './errors';
 
 type Options = {
   info: DataTrackInfo;
   encryptionProvider: EncryptionProvider | null;
 };
 
+/** Processes outgoing frames into final packets for distribution to the SFU. */
 export default class DataTrackOutgoingPipeline {
   private encryptionProvider: EncryptionProvider | null;
   private packetizer: DataTrackPacketizer;
@@ -74,7 +35,7 @@ export default class DataTrackOutgoingPipeline {
     | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Packetizer>
     | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
   > {
-    let encryptedFrame = this.encryptIfNeeded(frame);
+    const encryptedFrame = this.encryptIfNeeded(frame);
 
     try {
       yield* this.packetizer.packetize(encryptedFrame);
