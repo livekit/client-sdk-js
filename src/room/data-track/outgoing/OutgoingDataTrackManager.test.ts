@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
   DataTrackOutgoingManagerCallbacks,
   Descriptor,
 } from './OutgoingDataTrackManager';
-import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { DataTrackPublishError } from './errors';
 
 describe('DataTrackOutgoingManager', () => {
@@ -247,12 +247,18 @@ describe('DataTrackOutgoingManager', () => {
     const manager = OutgoingDataTrackManager.withDescriptors(
       new Map<DataTrackHandle, Descriptor>([
         [DataTrackHandle.fromNumber(2), pendingDescriptor],
-        [DataTrackHandle.fromNumber(6), Descriptor.active({
-          sid: 'bogus-sid-6',
-          pubHandle: 6,
-          name: 'sixsixsix',
-          usesE2ee: false,
-        }, null)],
+        [
+          DataTrackHandle.fromNumber(6),
+          Descriptor.active(
+            {
+              sid: 'bogus-sid-6',
+              pubHandle: 6,
+              name: 'sixsixsix',
+              usesE2ee: false,
+            },
+            null,
+          ),
+        ],
       ]),
     );
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
@@ -266,7 +272,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
 
     // And the active data track should be requested to be unpublished
-    const unpublishEvent = await managerEvents.waitFor("sfuUnpublishRequest");
+    const unpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
     expect(unpublishEvent.handle).toStrictEqual(6);
 
     // Acknowledge that the unpublish has occurred

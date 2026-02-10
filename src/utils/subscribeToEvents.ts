@@ -35,7 +35,7 @@ export function subscribeToEvents<
 
   return {
     /** Listen for the next occurrance of an event to be emitted, or return the last event that was
-      * buffered (but hasn't been processed yet). */
+     * buffered (but hasn't been processed yet). */
     async waitFor<
       EventPayload extends Parameters<Callbacks[EventName]>[0],
       EventName extends EventNames = EventNames,
@@ -61,4 +61,3 @@ export function subscribeToEvents<
     },
   };
 }
-

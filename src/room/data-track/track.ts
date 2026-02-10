@@ -1,8 +1,8 @@
 import type { Throws } from '../../utils/throws';
 import type { DataTrackFrame } from './frame';
 import { type DataTrackHandle } from './handle';
-import type { DataTrackPushFrameError, DataTrackPushFrameErrorReason } from './outgoing/errors';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import type { DataTrackPushFrameError, DataTrackPushFrameErrorReason } from './outgoing/errors';
 
 export type DataTrackSid = string;
 
@@ -41,7 +41,10 @@ export class LocalDataTrack {
    * - The room is no longer connected
    * - Frames are being pushed too fast (FIXME: this isn't the case in the js implementation?)
    */
-  tryPush(payload: DataTrackFrame['payload'], options?: { signal?: AbortSignal }): Throws<
+  tryPush(
+    payload: DataTrackFrame['payload'],
+    options?: { signal?: AbortSignal },
+  ): Throws<
     void,
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>

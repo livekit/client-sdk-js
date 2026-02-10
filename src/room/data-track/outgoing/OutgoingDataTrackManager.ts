@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
+import type { Throws } from '../../../utils/throws';
 import { Future } from '../../utils';
 import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
@@ -8,15 +9,19 @@ import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo, LocalDataTrack } from '../track';
 import {
+  DataTrackPublishError,
+  DataTrackPublishErrorReason,
+  DataTrackPushFrameError,
+  DataTrackPushFrameErrorReason,
+} from './errors';
+import DataTrackOutgoingPipeline from './pipeline';
+import {
   type DataTrackOptions,
   type OutputEventPacketsAvailable,
   type OutputEventSfuPublishRequest,
   type OutputEventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
-import DataTrackOutgoingPipeline from './pipeline';
-import { DataTrackPushFrameError, DataTrackPublishError, DataTrackPublishErrorReason, DataTrackPushFrameErrorReason } from './errors';
-import type { Throws } from '../../../utils/throws';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -155,7 +160,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-
   /** Client requested to publish a track. */
   async publishRequest(options: DataTrackOptions, signal?: AbortSignal) {
     const handle = this.handleAllocator.get();
@@ -164,9 +168,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
 
     const timeoutSignal = AbortSignal.timeout(PUBLISH_TIMEOUT_MILLISECONDS);
-    const combinedSignal = signal
-      ? AbortSignal.any([signal, timeoutSignal])
-      : timeoutSignal;
+    const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
     if (this.descriptors.has(handle)) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
