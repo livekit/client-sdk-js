@@ -457,7 +457,11 @@ export class E2EEManager
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, track.mediaStreamID, undefined);
+    const codec =
+      track.kind === 'video'
+        ? (this.room?.options?.publishDefaults?.videoCodec as VideoCodec)
+        : undefined;
+    this.handleSender(sender, track.mediaStreamID, codec);
   }
 
   /**
