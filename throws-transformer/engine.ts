@@ -354,7 +354,8 @@ function checkCallExpression(
     : new Set<string>();
 
   // If the catch clause contains no throws all errors are being silenced
-  // TODO: maybe log a warning here, this is probably bad?
+  // ie, something like `try { /* code here */ } catch (err) {}`
+  // TODO: maybe log a warning here, this is probably bad at least in some cases?
   if (handledErrors === "all") {
     return null;
   }
