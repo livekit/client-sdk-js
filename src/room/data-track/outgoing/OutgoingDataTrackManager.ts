@@ -293,6 +293,11 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
         case 'active':
           await this.unpublishRequest(descriptor.info.pubHandle);
           break;
+        case 'unpublishing':
+          // Abandon any unpublishing descriptors that were in flight and assume they will get
+          // cleaned up automatically with the connection shutdown.
+          descriptor.completionFuture.resolve?.();
+          break;
       }
     }
     this.descriptors.clear();
