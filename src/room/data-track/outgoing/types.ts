@@ -10,7 +10,13 @@ export type DataTrackOptions = {
 /** Encodes whether a data track publish request to the SFU has been successful or not. */
 export type SfuPublishResponseResult =
   | { type: 'ok'; data: DataTrackInfo }
-  | { type: 'error'; error: DataTrackPublishError<DataTrackPublishErrorReason.LimitReached> };
+  | {
+      type: 'error';
+      error:
+        | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
+        | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
+        | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>;
+    };
 
 /** Request sent to the SFU to publish a track. */
 export type OutputEventSfuPublishRequest = {
