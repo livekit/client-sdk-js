@@ -2,7 +2,7 @@ import type { Throws } from '../../utils/throws';
 import type { DataTrackFrame } from './frame';
 import { type DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
-import type { DataTrackPushFrameError, DataTrackPushFrameErrorReason } from './outgoing/errors';
+import type { DataTrackPushFrameError } from './outgoing/errors';
 
 export type DataTrackSid = string;
 
