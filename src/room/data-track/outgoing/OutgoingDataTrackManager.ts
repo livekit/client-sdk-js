@@ -191,6 +191,9 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       }
       this.descriptors.delete(handle);
 
+      // Let the SFU know that the publish has been cancelled
+      this.emit('sfuUnpublishRequest', { handle });
+
       if (existingDescriptor.type === 'pending') {
         existingDescriptor.completionFuture.reject?.(
           timeoutSignal.aborted

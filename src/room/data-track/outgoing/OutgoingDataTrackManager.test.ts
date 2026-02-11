@@ -81,6 +81,35 @@ describe('DataTrackOutgoingManager', () => {
     expect(publishRequestPromise).rejects.toThrowError('Data track publication limit reached');
   });
 
+  it('should test track publishing (cancellation half way through)', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'sfuUnpublishRequest',
+    ]);
+
+    // 1. Publish a data track
+    const controller = new AbortController();
+    const publishRequestPromise = manager.publishRequest({ name: 'test' }, controller.signal);
+
+    // 2. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(false);
+    const handle = sfuPublishEvent.handle;
+
+    // 3. Explictly cancel the publish
+    controller.abort();
+
+    // 4. Make sure an unpublish event is sent so that the SFU cleans up things properly
+    // on its end as well
+    const sfuUnpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
+    expect(sfuUnpublishEvent.handle).toStrictEqual(handle);
+
+    // 5. Make sure cancellation is bubbled up as an error to stop further execution
+    expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+  });
+
   it.each([
     // Single packet payload case
     [
