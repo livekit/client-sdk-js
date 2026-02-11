@@ -38,9 +38,7 @@ export class LocalDataTrack {
    * - The track has been unpublished by the local participant or SFU
    * - The room is no longer connected
    */
-  tryPush(
-    payload: DataTrackFrame['payload']
-  ) {
+  tryPush(payload: DataTrackFrame['payload']) {
     try {
       return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
     } catch (err) {
