@@ -33,5 +33,4 @@ export type OutputEventSfuUnpublishRequest = {
 /** Serialized packets are ready to be sent over the transport. */
 export type OutputEventPacketsAvailable = {
   bytes: Uint8Array;
-  signal?: AbortSignal;
 };

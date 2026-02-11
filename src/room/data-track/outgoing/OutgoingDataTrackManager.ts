@@ -128,7 +128,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   tryProcessAndSend(
     handle: DataTrackHandle,
     payload: Uint8Array,
-    options?: { signal?: AbortSignal },
   ): Throws<
     void,
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
@@ -146,7 +145,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     try {
       for (const packet of descriptor.pipeline.processFrame(frame)) {
-        this.emit('packetsAvailable', { bytes: packet.toBinary(), signal: options?.signal });
+        this.emit('packetsAvailable', { bytes: packet.toBinary() });
       }
     } catch (err) {
       // FIXME: catch and log errors instead of rethrowing? That is what the rust implementation

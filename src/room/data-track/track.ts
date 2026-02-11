@@ -43,14 +43,9 @@ export class LocalDataTrack {
    */
   tryPush(
     payload: DataTrackFrame['payload'],
-    options?: { signal?: AbortSignal },
-  ): Throws<
-    void,
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
-  > {
+  ): Throws<void, DataTrackPushFrameError> {
     // FIXME: rust implementation maps errors to dropped here?
     // .map_err(|err| PushFrameError::new(err.into_inner(), PushFrameErrorReason::Dropped))
-    return this.manager.tryProcessAndSend(this.info.pubHandle, payload, options);
+    return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
   }
 }
