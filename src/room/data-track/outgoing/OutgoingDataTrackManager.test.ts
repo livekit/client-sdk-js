@@ -95,7 +95,7 @@ describe('DataTrackOutgoingManager', () => {
             frameNumber: 0,
             marker: FrameMarker.Single,
             sequence: 0,
-            timestamp: 0, // (zeroed out in the test, since this isn't mocked)
+            timestamp: expect.anything(),
             trackHandle: 5,
           },
           payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]),
@@ -116,7 +116,7 @@ describe('DataTrackOutgoingManager', () => {
             frameNumber: 0,
             marker: FrameMarker.Start,
             sequence: 0,
-            timestamp: 0, // (zeroed out in the test, since this isn't mocked)
+            timestamp: expect.anything(),
             trackHandle: 5,
           },
           payload: new Uint8Array(15988 /* 16k mtu - 12 header bytes */).fill(0xbe),
@@ -130,7 +130,7 @@ describe('DataTrackOutgoingManager', () => {
             frameNumber: 0,
             marker: FrameMarker.Final,
             sequence: 1,
-            timestamp: 0, // (zeroed out in the test, since this isn't mocked)
+            timestamp: expect.anything(),
             trackHandle: 5,
           },
           payload: new Uint8Array(8012 /* 24k payload - (16k mtu - 12 header bytes) */).fill(0xbe),
@@ -172,11 +172,7 @@ describe('DataTrackOutgoingManager', () => {
         const packetBytes = await managerEvents.waitFor('packetsAvailable');
         const [packet] = DataTrackPacket.fromBinary(packetBytes.bytes);
 
-        const packetJson = packet.toJSON();
-        // (note: zero out the header timestamp because the date "now" isn't being mocked)
-        packetJson.header.timestamp = 0;
-
-        expect(packetJson).toStrictEqual(outputPacketJson);
+        expect(packet.toJSON()).toStrictEqual(outputPacketJson);
       }
     },
   );
@@ -221,11 +217,7 @@ describe('DataTrackOutgoingManager', () => {
     const packetBytes = await managerEvents.waitFor('packetsAvailable');
     const [packet] = DataTrackPacket.fromBinary(packetBytes.bytes);
 
-    const packetJson = packet.toJSON();
-    // (note: zero out the header timestamp because the date "now" isn't being mocked)
-    packetJson.header.timestamp = 0;
-
-    expect(packetJson).toStrictEqual({
+    expect(packet.toJSON()).toStrictEqual({
       header: {
         extensions: {
           e2ee: {
@@ -239,7 +231,7 @@ describe('DataTrackOutgoingManager', () => {
         frameNumber: 0,
         marker: 3,
         sequence: 0,
-        timestamp: 0, // (zeroed out in the test, since this isn't mocked)
+        timestamp: expect.anything(),
         trackHandle: 1,
       },
       payload: new Uint8Array([
