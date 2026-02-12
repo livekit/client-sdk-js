@@ -20,7 +20,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
   static lengthBytes = 8;
 
-  private timestamp: bigint;
+  timestamp: bigint;
 
   constructor(timestamp: bigint) {
     super();
@@ -74,9 +74,9 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   static lengthBytes = 13;
 
-  private keyIndex: number;
+  keyIndex: number;
 
-  private iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
+  iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
   constructor(keyIndex: number, iv: Uint8Array) {
     super();
