@@ -7,7 +7,8 @@ import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
-import { type DataTrackInfo, LocalDataTrack } from '../track';
+import { type DataTrackInfo } from '../types';
+import LocalDataTrack from '../LocalDataTrack';
 import {
   DataTrackPublishError,
   DataTrackPublishErrorReason,
@@ -74,7 +75,7 @@ export type DataTrackOutgoingManagerCallbacks = {
   packetsAvailable: (event: OutputEventPacketsAvailable) => void;
 };
 
-type DataTrackLocalManagerOptions = {
+type OutgoingDataTrackManagerOptions = {
   /**
    * Provider to use for encrypting outgoing frame payloads.
    *
@@ -93,7 +94,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   private descriptors = new Map<DataTrackHandle, Descriptor>();
 
-  constructor(options?: DataTrackLocalManagerOptions) {
+  constructor(options?: OutgoingDataTrackManagerOptions) {
     super();
     this.encryptionProvider = options?.encryptionProvider ?? null;
   }
