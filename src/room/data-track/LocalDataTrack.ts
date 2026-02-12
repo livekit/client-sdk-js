@@ -1,20 +1,10 @@
 import type { Throws } from '../../utils/throws';
 import type { DataTrackFrame } from './frame';
-import { type DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
 import type { DataTrackPushFrameError } from './outgoing/errors';
+import type { DataTrackInfo } from './types';
 
-export type DataTrackSid = string;
-
-/** Information about a published data track. */
-export type DataTrackInfo = {
-  sid: DataTrackSid;
-  pubHandle: DataTrackHandle;
-  name: String;
-  usesE2ee: boolean;
-};
-
-export class LocalDataTrack {
+export default class LocalDataTrack {
   info: DataTrackInfo;
 
   protected manager: OutgoingDataTrackManager;
