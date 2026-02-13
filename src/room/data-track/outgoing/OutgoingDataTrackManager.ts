@@ -300,12 +300,11 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
           descriptor.completionFuture.reject?.(DataTrackPublishError.disconnected());
           break;
         case 'active':
-          await this.unpublishRequest(descriptor.info.pubHandle);
-          break;
-        case 'unpublishing':
           // Abandon any unpublishing descriptors that were in flight and assume they will get
           // cleaned up automatically with the connection shutdown.
-          descriptor.completionFuture.resolve?.();
+          descriptor.unpublishingFuture.resolve?.();
+
+          await this.unpublishRequest(descriptor.info.pubHandle);
           break;
       }
     }
