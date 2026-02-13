@@ -11,6 +11,7 @@ import type { Throws } from '../../../utils/throws';
 import { DataTrackPacket } from '../packet';
 import type { DataTrackFrame } from '../frame';
 import DataTrackDepacketizer, { DataTrackDepacketizerDropError } from '../depacketizer';
+import RemoteDataTrack from '../RemoteDataTrack';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -228,44 +229,6 @@ class DataTrackStreamReader {
       chunks.add(chunk);
     }
     return Array.from(chunks);
-  }
-}
-
-class RemoteDataTrack {
-  info: DataTrackInfo;
-
-  publisherIdentity: Participant["identity"];
-
-  protected manager: IncomingDataTrackManager;
-
-  // FIXME: rethink this signature, it will be hard to make backwards compatible updates
-  constructor(info: DataTrackInfo, publisherIdentity: Participant["identity"], manager: IncomingDataTrackManager) {
-    this.info = info;
-    this.publisherIdentity = publisherIdentity;
-    this.manager = manager;
-  }
-
-  /** Subscribes to the data track to receive frames.
-  *
-  * # Returns
-  *
-  * A stream that yields {@link DataTrackFrame}s as they arrive.
-  *
-  * # Multiple Subscriptions
-  *
-  * An application may call `subscribe` more than once to process frames in
-  * multiple places. For example, one async task might plot values on a graph
-  * while another writes them to a file.
-  *
-  * Internally, only the first call to `subscribe` communicates with the SFU and
-  * allocates the resources required to receive frames. Additional subscriptions
-  * reuse the same underlying pipeline and do not trigger additional signaling.
-  *
-  * Note that newly created subscriptions only receive frames published after
-  * the initial subscription is established.
-  */
-  async subscribe(options?: { signal?: AbortSignal }): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
-    return this.manager.subscribeRequest(this.info.sid, options?.signal);
   }
 }
 
@@ -492,6 +455,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
+  /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
+    * SFU. */
   private createReadableStream(sid: DataTrackSid) {
     return new ReadableStream<DataTrackFrame>({
       // FIXME: explore setting "type" here:
@@ -696,9 +661,16 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    // FIXME: somehow feed packet into track pipeline
-    // await descriptor.subscription.pipeline.trySend(packet);
-    // .inspect_err(|err| log::debug!("Cannot send packet to track pipeline: {}", err));
+    const frame = descriptor.subscription.pipeline.processPacket(packet);
+    if (!frame) {
+      // Not all packets have been received yet to form a complete frame
+      return;
+    }
+    
+    // Broadcast to all downstream subscribers
+    for (const controller of descriptor.subscription.streamControllers) {
+      controller.enqueue(frame);
+    }
   }
 
   /** Resend all subscription updates.
