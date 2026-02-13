@@ -8,8 +8,6 @@
  */
 
 import * as ts from "typescript";
-import * as path from "path";
-import { sync as globSync } from "glob";
 
 // Symbol name for the Throws type brand
 const THROWS_BRAND = "__throws";
@@ -79,6 +77,26 @@ export function checkSourceFile(
   return results;
 }
 
+function preceededByIgnoreComment(node: ts.Node, sourceFile: ts.SourceFile) {
+  const foundComments = ts.getLeadingCommentRanges(sourceFile.text, node.pos);
+  if (foundComments) {
+    const foundCommentsText = foundComments.map((info) => {
+      return sourceFile
+        .text
+        .slice(info.pos, info.end)
+        .replace(/^(\/\/|\/\*)\s*/ /* Remove leading comment prefix */, '');
+    });
+
+    const isIgnoreComment = foundCommentsText.find((commentText) => {
+      return commentText.startsWith('@throws-transformer ignore');
+    });
+
+    return isIgnoreComment;
+  } else {
+    return false;
+  }
+}
+
 function checkThrowStatement(
   node: ts.ThrowStatement,
   sourceFile: ts.SourceFile,
@@ -106,22 +124,8 @@ function checkThrowStatement(
 
   // Check to see if there is a comment about the throw site starting with "@throws-transformer
   // ignore", and if so, disregard.
-  const foundComments = ts.getLeadingCommentRanges(sourceFile.text, node.pos);
-  if (foundComments) {
-    const foundCommentsText = foundComments.map((info) => {
-      return sourceFile
-        .text
-        .slice(info.pos, info.end)
-        .replace(/^(\/\/|\/\*)\s*/ /* Remove leading comment prefix */, '');
-    });
-
-    const isIgnoreComment = foundCommentsText.find((commentText) => {
-      return commentText.startsWith('@throws-transformer ignore');
-    });
-
-    if (isIgnoreComment) {
-      return null;
-    }
+  if (preceededByIgnoreComment(node, sourceFile)) {
+    return null;
   }
 
   const thrownType = checker.getTypeAtLocation(node.expression);
@@ -331,8 +335,12 @@ function checkCallExpression(
   // Get the return type of the call
   const callType = checker.getTypeAtLocation(node);
 
+  const tryCatch = getContainingTryCatch(node);
+
   // Extract error types
-  const errorTypes = extractThrowsErrorTypes(callType, checker);
+  const errorTypes = tryCatch ? (
+    getTryCatchThrownErrors(tryCatch, sourceFile, checker)
+  ) : extractThrowsErrorTypes(callType, checker);
 
   if (errorTypes.length === 0) {
     return null;
@@ -340,19 +348,20 @@ function checkCallExpression(
 
   // Check handling
   const containingFunction = getContainingFunction(node);
-  const tryCatch = getContainingTryCatch(node);
 
   const handledErrors = tryCatch
     ? getHandledErrorTypes(tryCatch, checker, node)
     : new Set<string>();
 
-  // If catch-all, everything is handled
+  // If the catch clause contains no throws all errors are being silenced
+  // ie, something like `try { /* code here */ } catch (err) {}`
+  // TODO: maybe log a warning here, this is probably bad at least in some cases?
   if (handledErrors === "all") {
     return null;
   }
 
   const propagatedErrors = containingFunction
-    ? getPropagatedErrorTypes(containingFunction, checker)
+    ? getPropagatedErrorTypes(node, containingFunction, sourceFile, checker)
     : new Set<string>();
 
   // Find unhandled
@@ -362,6 +371,10 @@ function checkCallExpression(
   });
 
   if (unhandledErrors.length === 0) {
+    return null;
+  }
+
+  if (preceededByIgnoreComment(node, sourceFile)) {
     return null;
   }
 
@@ -559,6 +572,39 @@ function getContainingTryCatch(node: ts.Node): ts.TryStatement | null {
   return null;
 }
 
+/** Get errors which the given try/catch passed itself throws within its catch block. */
+function getTryCatchThrownErrors(tryCatch: ts.TryStatement, sourceFile: ts.SourceFile, checker: ts.TypeChecker) {
+  const thrownErrorTypes: Array<ts.Type> = [];
+  
+  if (!tryCatch.catchClause) {
+    return thrownErrorTypes;
+  }
+
+  function visitThrowStatement(throwStmt: ts.ThrowStatement) {            
+    const thrownErrorType = checker.getTypeAtLocation(throwStmt.expression);                                                                            
+    if (!isAnyOrUnknownType(thrownErrorType)) {                           
+      if (thrownErrorType.isUnion()) {
+        for (const type of thrownErrorType.types.filter(t => !isAnyOrUnknownType(t))) {
+          thrownErrorTypes.push(type);
+        }
+      } else {
+        thrownErrorTypes.push(thrownErrorType);
+      }
+    }
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isThrowStatement(node) && checkThrowStatement(node, sourceFile, checker)) {
+      visitThrowStatement(node);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(tryCatch.catchClause);
+
+  return thrownErrorTypes;
+}
+
 function isInTryBlock(node: ts.Node, tryStatement: ts.TryStatement): boolean {
   let current: ts.Node | undefined = node;
 
@@ -661,7 +707,7 @@ function findNarrowedErrorTypes(
    * Analyze if-statements to find type narrowing branches that don't re-throw.
    * These represent error types that are handled.
    */
-  function visitIfStatement(ifStmt: ts.IfStatement): void {
+  function visitIfStatement(ifStmt: ts.IfStatement) {
     // Get the type of the error variable after the type guard in the if condition
     // const condition = ifStmt.expression;
     
@@ -817,12 +863,21 @@ function findInstanceofChecks(
 }
 
 function getPropagatedErrorTypes(
+  node: ts.Node,
   func: ts.FunctionLikeDeclaration,
+  sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
 ): Set<string> {
   const propagated = new Set<string>();
 
   if (!func.type) { return propagated; }
+
+  // If `node` is in a try/catch, then the errors propegated are the errors that the catch itself throws
+  const tryCatch = getContainingTryCatch(node);
+  if (tryCatch?.catchClause) {
+    const thrownErrorTypes = getTryCatchThrownErrors(tryCatch, sourceFile, checker);
+    return new Set(thrownErrorTypes.map(e => checker.typeToString(e)));
+  }
 
   const returnType = checker.getTypeFromTypeNode(func.type);
   const errorTypes = extractThrowsErrorTypes(returnType, checker);
