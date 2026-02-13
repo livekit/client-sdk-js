@@ -42,13 +42,11 @@ export type ActiveDescriptor = {
   info: DataTrackInfo;
 
   pipeline: DataTrackOutgoingPipeline;
+
+  /** Resolves when the descriptor is unpublished. */
+  unpublishingFuture: Future<void, never>;
 };
-// FIXME: rust doesn't have this unpublishing descriptor, is it a good idea?
-export type UnpublishingDescriptor = {
-  type: 'unpublishing';
-  completionFuture: Future<void, never>;
-};
-export type Descriptor = PendingDescriptor | ActiveDescriptor | UnpublishingDescriptor;
+export type Descriptor = PendingDescriptor | ActiveDescriptor;
 
 export const Descriptor = {
   pending(): PendingDescriptor {
@@ -62,10 +60,8 @@ export const Descriptor = {
       type: 'active',
       info,
       pipeline: new DataTrackOutgoingPipeline({ info, encryptionProvider }),
+      unpublishingFuture: new Future(),
     };
-  },
-  unpublishing(): UnpublishingDescriptor {
-    return { type: 'unpublishing', completionFuture: new Future() };
   },
 };
 
@@ -227,12 +223,20 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   /** Client request to unpublish a track. */
   async unpublishRequest(handle: DataTrackHandle) {
-    const descriptor = Descriptor.unpublishing();
-    this.descriptors.set(handle, descriptor);
+    const descriptor = this.descriptors.get(handle);
+    if (!descriptor) {
+      // FIXME: should this be an internal error?
+      log.warn(`No descriptor for ${handle}`);
+      return;
+    }
+    if (descriptor.type !== 'active') {
+      log.warn(`Track ${handle} not active`);
+      return;
+    }
 
     this.emit('sfuUnpublishRequest', { handle });
 
-    await descriptor.completionFuture.promise;
+    await descriptor.unpublishingFuture.promise;
   }
 
   /** SFU responded to a request to publish a data track. */
@@ -280,12 +284,12 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
     this.descriptors.delete(handle);
 
-    if (descriptor.type !== 'unpublishing') {
-      log.warn(`Track ${handle} hasn't been put into unpublishing status`);
+    if (descriptor.type !== 'active') {
+      log.warn(`Track ${handle} not active`);
       return;
     }
 
-    descriptor.completionFuture.resolve?.();
+    descriptor.unpublishingFuture.resolve?.();
   }
 
   /** Shuts down the manager and all associated tracks. */
