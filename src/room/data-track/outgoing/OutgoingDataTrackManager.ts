@@ -3,12 +3,12 @@ import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
 import { Future } from '../../utils';
+import LocalDataTrack from '../LocalDataTrack';
 import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo } from '../types';
-import LocalDataTrack from '../LocalDataTrack';
 import {
   DataTrackPublishError,
   DataTrackPublishErrorReason,
