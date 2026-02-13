@@ -52,7 +52,7 @@ export class IncomingDataTrackPipeline {
     this.depacketizer = depacketizer;
   }
 
-  processPacket(packet: DataTrackPacket): DataTrackFrame | null {
+  processPacket(packet: DataTrackPacket): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
     const frame = this.depacketize(packet);
     if (!frame) {
       return null;
@@ -634,7 +634,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Packet has been received over the transport. */
-  packetReceived(bytes: Uint8Array) {
+  packetReceived(bytes: Uint8Array): Throws<void, DataTrackDepacketizerDropError> {
     let packet: DataTrackPacket;
     try {
       [packet] = DataTrackPacket.fromBinary(bytes);
