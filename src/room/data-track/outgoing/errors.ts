@@ -1,5 +1,5 @@
 import { LivekitReasonedError } from '../../errors';
-import { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
+import { DataTrackPacketizerError } from '../packetizer';
 
 export enum DataTrackPublishErrorReason {
   /**
