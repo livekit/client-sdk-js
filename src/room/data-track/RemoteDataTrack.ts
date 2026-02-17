@@ -1,9 +1,13 @@
 import type Participant from '../participant/Participant';
 import type { DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
+import { DataTrackSymbol, RemoteTrackSymbol, type IDataTrack, type IRemoteTrack } from './track-interfaces';
 import { type DataTrackInfo } from './types';
 
-export default class RemoteDataTrack {
+export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
+  readonly localitySymbol = RemoteTrackSymbol;
+  readonly typeSymbol = DataTrackSymbol;
+
   info: DataTrackInfo;
 
   publisherIdentity: Participant['identity'];

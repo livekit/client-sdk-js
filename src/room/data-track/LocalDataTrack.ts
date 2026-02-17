@@ -1,8 +1,12 @@
 import type { DataTrackFrame } from './frame';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import { DataTrackSymbol, LocalTrackSymbol, type IDataTrack, type ILocalTrack } from './track-interfaces';
 import type { DataTrackInfo } from './types';
 
-export default class LocalDataTrack {
+export default class LocalDataTrack implements ILocalTrack, IDataTrack {
+  readonly localitySymbol = LocalTrackSymbol;
+  readonly typeSymbol = DataTrackSymbol;
+
   info: DataTrackInfo;
 
   protected manager: OutgoingDataTrackManager;
