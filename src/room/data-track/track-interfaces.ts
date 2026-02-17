@@ -1,10 +1,10 @@
-import type { DataTrackInfo } from "./types";
+import type { DataTrackInfo } from './types';
 
 function isObject(subject: unknown): subject is object {
   return subject !== null && typeof subject === 'object';
 }
 
-export const LocalTrackSymbol: symbol = Symbol.for("lk.local-track");
+export const LocalTrackSymbol: symbol = Symbol.for('lk.local-track');
 
 /** An interface representing a track (of any type) which is local and sending data to the SFU. */
 export interface ILocalTrack {
@@ -15,13 +15,11 @@ export interface ILocalTrack {
 
 export function isLocalTrack(subject: unknown): subject is ILocalTrack {
   return (
-    isObject(subject) &&
-    'localitySymbol' in subject &&
-    subject.localitySymbol === LocalTrackSymbol
+    isObject(subject) && 'localitySymbol' in subject && subject.localitySymbol === LocalTrackSymbol
   );
 }
 
-export const RemoteTrackSymbol: symbol = Symbol.for("lk.remote-track");
+export const RemoteTrackSymbol: symbol = Symbol.for('lk.remote-track');
 
 /** An interface representing a track (of any type) which is remote and receiving data from the SFU. */
 export interface IRemoteTrack {
@@ -30,13 +28,11 @@ export interface IRemoteTrack {
 
 export function isRemoteTrack(subject: unknown): subject is IRemoteTrack {
   return (
-    isObject(subject) &&
-    'localitySymbol' in subject &&
-    subject.localitySymbol === RemoteTrackSymbol
+    isObject(subject) && 'localitySymbol' in subject && subject.localitySymbol === RemoteTrackSymbol
   );
 }
 
-export const DataTrackSymbol: symbol = Symbol.for("lk.data-track");
+export const DataTrackSymbol: symbol = Symbol.for('lk.data-track');
 /** An interface representing a data track, either local or remote. */
 export interface IDataTrack {
   readonly typeSymbol: typeof DataTrackSymbol;
@@ -45,9 +41,5 @@ export interface IDataTrack {
 }
 
 export function isDataTrack(subject: unknown): subject is IDataTrack {
-  return (
-    isObject(subject) &&
-    'typeSymbol' in subject &&
-    subject.typeSymbol === DataTrackSymbol
-  );
+  return isObject(subject) && 'typeSymbol' in subject && subject.typeSymbol === DataTrackSymbol;
 }

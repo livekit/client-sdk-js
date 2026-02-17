@@ -381,7 +381,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   async subscribeRequest(
     sid: DataTrackSid,
     signal?: AbortSignal,
-  ): Promise<Throws<ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>, DataTrackSubscribeError>> {
+  ): Promise<
+    Throws<
+      ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>,
+      DataTrackSubscribeError
+    >
+  > {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // FIXME: maybe this should be a DataTrackSubscribeError.disconnected()? That's what happens
@@ -520,12 +525,21 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /**
-    * Get information about all currently subscribed tracks.
-    * @internal */
+   * Get information about all currently subscribed tracks.
+   * @internal */
   async querySubscribed() {
     const descriptorInfos = Array.from(this.descriptors.values())
-      .filter((descriptor): descriptor is Descriptor<SubscriptionStateActive> => descriptor.subscription.type === 'active')
-      .map((descriptor) => [descriptor.info, descriptor.publisherIdentity] as [info: DataTrackInfo, identity: Participant['identity']]);
+      .filter(
+        (descriptor): descriptor is Descriptor<SubscriptionStateActive> =>
+          descriptor.subscription.type === 'active',
+      )
+      .map(
+        (descriptor) =>
+          [descriptor.info, descriptor.publisherIdentity] as [
+            info: DataTrackInfo,
+            identity: Participant['identity'],
+          ],
+      );
 
     return descriptorInfos;
   }
@@ -588,15 +602,17 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     // Detect unpublished tracks
-    let unpublishedSids = Array.from(this.descriptors.keys()).filter((sid) => !sidsInUpdate.has(sid));
+    let unpublishedSids = Array.from(this.descriptors.keys()).filter(
+      (sid) => !sidsInUpdate.has(sid),
+    );
     for (const sid of unpublishedSids) {
       this.handleTrackUnpublished(sid);
     }
   }
 
   /**
-    * Get information about all currently remotely published tracks which could be subscribed to.
-    * @internal */
+   * Get information about all currently remotely published tracks which could be subscribed to.
+   * @internal */
   async queryPublications() {
     return Array.from(this.descriptors.values()).map((descriptor) => descriptor.info);
   }
