@@ -7,7 +7,7 @@ import IncomingDataTrackManager, {
 } from './IncomingDataTrackManager';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '../packet';
-import { DataTrackExtensions } from '../packet/extensions';
+import { DataTrackE2eeExtension, DataTrackExtensions } from '../packet/extensions';
 import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
 import { DataTrackFrame } from '../frame';
 
@@ -107,6 +107,65 @@ describe('DataTrackIncomingManager', () => {
           trackHandle: DataTrackHandle.fromNumber(5),
         }),
         new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]),
+      ).toBinary());
+
+      // 7. Make sure that packet comes out of the ReadableStream
+      const { value, done } = await reader.read();
+      expect(done).toStrictEqual(false);
+      expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    });
+
+    it('should test data track subscribing with end to end encryption (ok case)', async () => {
+      const manager = new IncomingDataTrackManager({ decryptionProvider: PrefixingDecryptionProvider });
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackAvailable',
+      ]);
+
+      const senderIdentity = "identity";
+      const sid = "data track sid";
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.sfuPublicationUpdates(new Map([
+        [senderIdentity, [{ sid, pubHandle: handle, name: "test", usesE2ee: true }]],
+      ]));
+      await managerEvents.waitFor('trackAvailable');
+
+      // 2. Subscribe to a data track
+      const subscribeRequestPromise = manager.subscribeRequest(sid);
+
+      // 3. This subscribe request should be sent along to the SFU
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
+
+      // 4. Once the SFU has acknowledged the subscription, a handle is sent back representing
+      // the subscription
+      manager.sfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 5. Make sure that the subscription promise resolves.
+      const readableStream = await subscribeRequestPromise;
+      const reader = readableStream.getReader();
+
+      // 6. Simulate receiving a (fake) encrypted packet
+      manager.packetReceived(new DataTrackPacket(
+        new DataTrackPacketHeader({
+          extensions: new DataTrackExtensions({
+            e2ee: new DataTrackE2eeExtension(0, new Uint8Array(12)),
+          }),
+          frameNumber: WrapAroundUnsignedInt.u16(0),
+          marker: FrameMarker.Single,
+          sequence: WrapAroundUnsignedInt.u16(0),
+          timestamp: DataTrackTimestamp.fromRtpTicks(0),
+          trackHandle: DataTrackHandle.fromNumber(5),
+        }),
+        new Uint8Array([
+          // Fake encryption bytes prefix
+          0xde, 0xad, 0xbe, 0xef,
+          // Actual payload
+          0x01, 0x02, 0x03, 0x04, 0x05
+        ]),
       ).toBinary());
 
       // 7. Make sure that packet comes out of the ReadableStream
