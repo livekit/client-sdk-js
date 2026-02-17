@@ -473,6 +473,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
    * SFU. */
   private createReadableStream(sid: DataTrackSid) {
+    let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     return new ReadableStream<DataTrackFrame>({
       // FIXME: explore setting "type" here:
       // https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/ReadableStream#type
@@ -480,6 +481,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       // This would require ReadableStream<Uint8Array> though.
 
       start: (controller) => {
+        streamController = controller;
         const descriptor = this.descriptors.get(sid);
         if (!descriptor) {
           log.error(`Unknown track ${sid}`);
@@ -492,7 +494,11 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
         descriptor.subscription.streamControllers.add(controller);
       },
-      cancel: (controller) => {
+      cancel: () => {
+        if (!streamController) {
+          log.warn(`ReadableStream subscribed to ${sid} was not started.`);
+          return;
+        }
         const descriptor = this.descriptors.get(sid);
         if (!descriptor) {
           log.warn(`Unknown track ${sid}, skipping cancel...`);
@@ -503,12 +509,19 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           return;
         }
 
-        descriptor.subscription.streamControllers.delete(controller);
+        descriptor.subscription.streamControllers.delete(streamController);
+
+        // If no active stream controllers are left, also unsubscribe on the SFU end.
+        if (descriptor.subscription.streamControllers.size === 0) {
+          this.unSubscribeRequest(descriptor.info.sid);
+        }
       },
     });
   }
 
-  /** Get information about all currently subscribed tracks. */
+  /**
+    * Get information about all currently subscribed tracks.
+    * @internal */
   async querySubscribed() {
     const descriptorInfos = Array.from(this.descriptors.values())
       .filter((descriptor): descriptor is Descriptor<SubscriptionStateActive> => descriptor.subscription.type === 'active')
@@ -530,6 +543,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       // FIXME: should this be an internal error?
       log.warn('Unexpected state');
       return;
+    }
+
+    for (const controller of descriptor.subscription.streamControllers) {
+      controller.close();
     }
 
     // FIXME: this might be wrong? Shouldn't this only occur if it is the last subscription to
@@ -577,7 +594,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Get information about all currently remotely published tracks which could be subscribed to. */
+  /**
+    * Get information about all currently remotely published tracks which could be subscribed to.
+    * @internal */
   async queryPublications() {
     return Array.from(this.descriptors.values()).map((descriptor) => descriptor.info);
   }
