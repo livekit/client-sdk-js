@@ -58,7 +58,7 @@ export function subscribeToEvents<
       return nextEvent as EventPayload;
     },
     /** Are there events of the given name which are waiting to be processed? Use this to assert
-      * that no unexpected events have been emitted. */
+     * that no unexpected events have been emitted. */
     areThereBufferedEvents<
       EventPayload extends Parameters<Callbacks[EventName]>[0],
       EventName extends EventNames = EventNames,

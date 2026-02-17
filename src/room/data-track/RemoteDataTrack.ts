@@ -1,7 +1,12 @@
 import type Participant from '../participant/Participant';
 import type { DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
-import { DataTrackSymbol, RemoteTrackSymbol, type IDataTrack, type IRemoteTrack } from './track-interfaces';
+import {
+  DataTrackSymbol,
+  type IDataTrack,
+  type IRemoteTrack,
+  RemoteTrackSymbol,
+} from './track-interfaces';
 import { type DataTrackInfo } from './types';
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
@@ -44,9 +49,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * Note that newly created subscriptions only receive frames published after
    * the initial subscription is established.
    */
-  async subscribe(options?: {
-    signal?: AbortSignal;
-  }): Promise<ReadableStream<DataTrackFrame>> {
+  async subscribe(options?: { signal?: AbortSignal }): Promise<ReadableStream<DataTrackFrame>> {
     try {
       return this.manager.subscribeRequest(this.info.sid, options?.signal);
     } catch (err) {
