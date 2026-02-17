@@ -1,8 +1,6 @@
-import type { Throws } from '../../utils/throws';
 import type Participant from '../participant/Participant';
 import type { DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
-import type { DataTrackSubscribeError } from './incoming/IncomingDataTrackManager';
 import { type DataTrackInfo } from './types';
 
 export default class RemoteDataTrack {
@@ -44,7 +42,11 @@ export default class RemoteDataTrack {
    */
   async subscribe(options?: {
     signal?: AbortSignal;
-  }): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
-    return this.manager.subscribeRequest(this.info.sid, options?.signal);
+  }): Promise<ReadableStream<DataTrackFrame>> {
+    try {
+      return this.manager.subscribeRequest(this.info.sid, options?.signal);
+    } catch (err) {
+      throw err;
+    }
   }
 }
