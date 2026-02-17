@@ -42,7 +42,11 @@ export function subscribeToEvents<
     >(eventName: EventName): Promise<EventPayload> {
       // If an event is already buffered which hasn't been processed yet, pull that off the buffer
       // and use it.
-      const earliestBufferedEvent = buffers.get(eventName)!.shift();
+      const buffer = buffers.get(eventName);
+      if (!buffer) {
+        throw new Error(`No events were buffered / received for event "${eventName.toString()}".`);
+      }
+      const earliestBufferedEvent = buffer.shift();
       if (earliestBufferedEvent) {
         return earliestBufferedEvent as EventPayload;
       }
@@ -52,6 +56,19 @@ export function subscribeToEvents<
       nextEventListeners.get(eventName)!.push(future);
       const nextEvent = await future.promise;
       return nextEvent as EventPayload;
+    },
+    /** Are there events of the given name which are waiting to be processed? Use this to assert
+      * that no unexpected events have been emitted. */
+    areThereBufferedEvents<
+      EventPayload extends Parameters<Callbacks[EventName]>[0],
+      EventName extends EventNames = EventNames,
+    >(eventName: EventName) {
+      const buffer = buffers.get(eventName);
+      if (buffer) {
+        return buffer.length > 0;
+      } else {
+        return false;
+      }
     },
     /** Cleanup any lingering subscriptions. */
     unsubscribe: () => {

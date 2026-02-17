@@ -1,0 +1,190 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { subscribeToEvents } from '../../../utils/subscribeToEvents';
+import { DecryptionProvider, EncryptedPayload } from '../e2ee';
+import IncomingDataTrackManager, {
+  DataTrackIncomingManagerCallbacks,
+} from './IncomingDataTrackManager';
+import { DataTrackHandle } from '../handle';
+import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '../packet';
+import { DataTrackExtensions } from '../packet/extensions';
+import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
+
+/** A fake "decryption" provider used for test purposes. Assumes the payload is prefixed with
+* 0xdeafbeef, which is stripped off. */
+const PrefixingDecryptionProvider: DecryptionProvider = {
+  decrypt(p: EncryptedPayload, _senderIdentity: string) {
+    if (p.payload[0] !== 0xde || p.payload[1] !== 0xad || p.payload[2] !== 0xbe || p.payload[3] !== 0xef) {
+      throw new Error(`PrefixingDecryptionProvider: first four bytes of payload were not 0xdeadbeef, found ${p.payload.slice(0, 4)}`);
+    }
+    return p.payload.slice(4);
+  },
+};
+
+describe('DataTrackIncomingManager', () => {
+  describe('Track publication', () => {
+    it('should test track publication additions / removals', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackAvailable',
+      ]);
+
+      // 1. Add a track, make sure the track available event was sent
+      await manager.sfuPublicationUpdates(new Map([
+        ["identity1", [
+          {
+            sid: "sid1",
+            pubHandle: DataTrackHandle.fromNumber(5),
+            name: "test",
+            usesE2ee: false,
+          },
+        ]],
+      ]));
+
+      const trackAvailableEvent = await managerEvents.waitFor('trackAvailable');
+      expect(trackAvailableEvent.track.info.sid).toStrictEqual("sid1");
+      expect(trackAvailableEvent.track.info.pubHandle).toStrictEqual(DataTrackHandle.fromNumber(5));
+      expect(trackAvailableEvent.track.info.name).toStrictEqual("test");
+      expect(trackAvailableEvent.track.info.usesE2ee).toStrictEqual(false);
+
+      // 2. Check to make sure the publication has been noted in internal state
+      expect((await manager.queryPublications()).map(p => p.pubHandle)).to.deep.equal([
+        DataTrackHandle.fromNumber(5),
+      ]);
+
+      // 3. Remove all tracks, and make sure the internal state is cleared
+      await manager.sfuPublicationUpdates(new Map([
+        ["identity1", []],
+      ]));
+      expect(await manager.queryPublications()).to.deep.equal([]);
+
+      // FIXME: there's a lot of edge cases in the diffing logic to test here
+    });
+  });
+
+  describe('Track subscription', () => {
+    it('should test data track subscribing (ok case)', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackAvailable',
+      ]);
+
+      const senderIdentity = "identity";
+      const sid = "data track sid";
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.sfuPublicationUpdates(new Map([
+        [senderIdentity, [{ sid, pubHandle: handle, name: "test", usesE2ee: false }]],
+      ]));
+      await managerEvents.waitFor('trackAvailable');
+
+      // 2. Subscribe to a data track
+      const subscribeRequestPromise = manager.subscribeRequest(sid);
+
+      // 3. This subscribe request should be sent along to the SFU
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
+
+      // 4. Once the SFU has acknowledged the subscription, a handle is sent back representing
+      // the subscription
+      manager.sfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 5. Make sure that the subscription promise resolves.
+      const readableStream = await subscribeRequestPromise;
+      const reader = readableStream.getReader();
+
+      // 6. Simulate receiving a packet
+      manager.packetReceived(new DataTrackPacket(
+        new DataTrackPacketHeader({
+          extensions: new DataTrackExtensions(),
+          frameNumber: WrapAroundUnsignedInt.u16(0),
+          marker: FrameMarker.Single,
+          sequence: WrapAroundUnsignedInt.u16(0),
+          timestamp: DataTrackTimestamp.fromRtpTicks(0),
+          trackHandle: DataTrackHandle.fromNumber(5),
+        }),
+        new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]),
+      ).toBinary());
+
+      // 7. Make sure that packet comes out of the ReadableStream
+      const { value, done } = await reader.read();
+      expect(done).toStrictEqual(false);
+      expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    });
+
+    it('should be unable to subscribe to a non existing data track', async () => {
+      const manager = new IncomingDataTrackManager();
+      await expect(manager.subscribeRequest("does not exist")).rejects.toThrowError("Cannot subscribe to data track when disconnected");
+    });
+
+    it('should be able to cancel a subscription which is no longer needed', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, ['sfuUpdateSubscription']);
+
+      const sid = "data track sid";
+
+      // 1. Make sure the data track publication is registered
+      await manager.sfuPublicationUpdates(new Map([
+        ["identity", [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: "test", usesE2ee: false }]],
+      ]));
+      // await managerEvents.waitFor('trackAvailable');
+
+      // 2. Subscribe to a data track
+      const controller = new AbortController();
+      const subscribeRequestPromise = manager.subscribeRequest(sid, controller.signal);
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // 3. Cancel the subscription
+      controller.abort();
+      await expect(subscribeRequestPromise).rejects.toThrowError("Subscription to data track cancelled by caller");
+
+      // 4. Make sure the underlying sfu subscription is also terminated, since nothing needs it
+      // anymore.
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
+    });
+
+    it('should only terminate the underlying sfu subscription for a handle once all listeners have unsubscribed', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, ['sfuUpdateSubscription']);
+
+      const sid = "data track sid";
+
+      // 1. Make sure the data track publication is registered
+      await manager.sfuPublicationUpdates(new Map([
+        ["identity", [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: "test", usesE2ee: false }]],
+      ]));
+      // await managerEvents.waitFor('trackAvailable');
+
+      // 2. Create subscription A
+      const controllerA = new AbortController();
+      const subscribeAPromise = manager.subscribeRequest(sid, controllerA.signal);
+      const startEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(startEvent.sid).toStrictEqual(sid);
+      expect(startEvent.subscribe).toStrictEqual(true);
+
+      // 2. Create subscription B
+      const controllerB = new AbortController();
+      const subscribeBPromise = manager.subscribeRequest(sid, controllerB.signal);
+      expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toStrictEqual(false);
+
+      // 3. Cancel the subscription A
+      controllerA.abort();
+      expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toStrictEqual(false);
+
+      // 4. Cancel the subscription B, make sure the underlying sfu subscription is disposed
+      controllerB.abort();
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(sid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+
+      await expect(subscribeAPromise).rejects.toThrow();
+      await expect(subscribeBPromise).rejects.toThrow();
+    });
+  });
+});

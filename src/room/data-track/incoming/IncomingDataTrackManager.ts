@@ -381,15 +381,18 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   async subscribeRequest(
     sid: DataTrackSid,
     signal?: AbortSignal,
-  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
+  ): Promise<Throws<ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // FIXME: maybe this should be a DataTrackSubscribeError.disconnected()? That's what happens
       // here (on the caller end in the rust implementation):
       // https://github.com/livekit/rust-sdks/blob/ccdc012e40f9b2cf6b677c07da7061216eb93a89/livekit-datatrack/src/remote/mod.rs#L81
+      throw DataTrackSubscribeError.disconnected();
+
+      // FIXME: DataTrackSubscribeError.unpublished is unused both here and in rust
 
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-      throw new Error('Cannot subscribe to unknown track');
+      // throw new Error('Cannot subscribe to unknown track');
     }
 
     const waitForCompletionFuture = async (
@@ -505,6 +508,15 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     });
   }
 
+  /** Get information about all currently subscribed tracks. */
+  async querySubscribed() {
+    const descriptorInfos = Array.from(this.descriptors.values())
+      .filter((descriptor): descriptor is Descriptor<SubscriptionStateActive> => descriptor.subscription.type === 'active')
+      .map((descriptor) => [descriptor.info, descriptor.publisherIdentity] as [info: DataTrackInfo, identity: Participant['identity']]);
+
+    return descriptorInfos;
+  }
+
   /** Client requested to unsubscribe from a data track. */
   unSubscribeRequest(sid: DataTrackSid) {
     const descriptor = this.descriptors.get(sid);
@@ -559,10 +571,15 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     // Detect unpublished tracks
-    let unpublishedSids = Object.keys(this.descriptors).filter((sid) => !sidsInUpdate.has(sid));
+    let unpublishedSids = Array.from(this.descriptors.keys()).filter((sid) => !sidsInUpdate.has(sid));
     for (const sid of unpublishedSids) {
       this.handleTrackUnpublished(sid);
     }
+  }
+
+  /** Get information about all currently remotely published tracks which could be subscribed to. */
+  async queryPublications() {
+    return Array.from(this.descriptors.values()).map((descriptor) => descriptor.info);
   }
 
   async handleTrackPublished(publisherIdentity: Participant['identity'], info: DataTrackInfo) {
@@ -587,9 +604,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       log.error(`Unknown track ${sid}`);
       return;
     }
+    this.descriptors.delete(sid);
+
     if (descriptor.subscription.type === 'active') {
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
+
     // FIXME: send a message of some sort to notify that the track was unpublished?
     // _ = descriptor.published_tx.send(false);
   }
