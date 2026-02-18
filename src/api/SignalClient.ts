@@ -778,6 +778,7 @@ export class SignalClient {
   }
 
   private handleSignalResponse(res: SignalResponse) {
+    console.log('SIGNAL MSG:', res.message);
     const msg = res.message;
     if (msg == undefined) {
       this.log.debug('received unsupported message', this.logContext);
