@@ -352,6 +352,11 @@ export enum RoomEvent {
    * fired when the client receives connection metrics from other participants
    */
   MetricsReceived = 'metricsReceived',
+
+  /**
+   * Emits when a new data track has been published by a downstream participant.
+   */
+  RemoteDataTrackPublished = 'remoteDataTrackPublished',
 }
 
 export enum ParticipantEvent {
@@ -606,6 +611,9 @@ export enum EngineEvent {
   SignalRequestResponse = 'signalRequestResponse',
   SignalConnected = 'signalConnected',
   RoomMoved = 'roomMoved',
+  PublishDataTrackResponse = 'publishDataTrackResponse',
+  UnPublishDataTrackResponse = 'unPublishDataTrackResponse',
+  DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
 }
 
 export enum TrackEvent {

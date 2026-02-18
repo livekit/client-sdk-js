@@ -8,6 +8,7 @@ import {
   DataChannelReceiveState,
   DataPacket,
   DataPacket_Kind,
+  DataTrackSubscriberHandles,
   DisconnectReason,
   EncryptedPacket,
   EncryptedPacketPayload,
@@ -17,6 +18,7 @@ import {
   LeaveRequest_Action,
   MediaSectionsRequirement,
   ParticipantInfo,
+  PublishDataTrackResponse,
   ReconnectReason,
   type ReconnectResponse,
   RequestResponse,
@@ -35,6 +37,7 @@ import {
   type TrackPublishedResponse,
   TrackUnpublishedResponse,
   Transcription,
+  UnpublishDataTrackResponse,
   UpdateSubscription,
   type UserPacket,
 } from '@livekit/protocol';
@@ -623,6 +626,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.negotiate();
+    };
+
+    this.client.onPublishDataTrackResponse = (event: PublishDataTrackResponse) => {
+      this.emit(EngineEvent.PublishDataTrackResponse, event);
+    };
+
+    this.client.onUnPublishDataTrackResponse = (event: UnpublishDataTrackResponse) => {
+      this.emit(EngineEvent.UnPublishDataTrackResponse, event);
+    };
+
+    this.client.onDataTrackSubscriberHandles = (event: DataTrackSubscriberHandles) => {
+      this.emit(EngineEvent.DataTrackSubscriberHandles, event);
     };
 
     this.client.onClose = () => {
@@ -1333,17 +1348,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
       } else {
         // lossy channel, drop messages to reduce latency
-        if (!this.isBufferStatusLow(kind)) {
-          this.lossyDataDropCount += 1;
-          if (this.lossyDataDropCount % 100 === 0) {
-            this.log.warn(
-              `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-              this.logContext,
-            );
-          }
+        if (this.shouldLossyMessageBeDropped(msg.byteLength)) {
           return;
         }
-        this.lossyDataStatCurrentBytes += msg.byteLength;
       }
 
       if (this.attemptingReconnect) {
@@ -1354,6 +1361,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     this.updateAndEmitDCBufferStatus(kind);
+  }
+
+  /* @internal */
+  sendLossyRawBytes(msg: Uint8Array) {
+    const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
+    if (dc) {
+      // lossy channel, drop messages to reduce latency
+      if (this.shouldLossyMessageBeDropped(msg.byteLength)) {
+        return;
+      }
+
+      if (this.attemptingReconnect) {
+        return;
+      }
+
+      dc.send(msg);
+    }
+
+    this.updateAndEmitDCBufferStatus(DataPacket_Kind.LOSSY);
+  }
+
+  private shouldLossyMessageBeDropped(msgByteLength: number): boolean {
+    // lossy channel, drop messages to reduce latency
+    if (!this.isBufferStatusLow(DataPacket_Kind.LOSSY)) {
+      this.lossyDataDropCount += 1;
+      if (this.lossyDataDropCount % 100 === 0) {
+        this.log.warn(
+          `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+          this.logContext,
+        );
+      }
+      return true;
+    }
+
+    this.lossyDataStatCurrentBytes += msgByteLength;
+    return false;
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
@@ -1806,6 +1849,9 @@ export type EngineEventCallbacks = {
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
   signalConnected: (joinResp: JoinResponse) => void;
+  publishDataTrackResponse: (event: PublishDataTrackResponse) => void;
+  unPublishDataTrackResponse: (event: UnpublishDataTrackResponse) => void;
+  dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

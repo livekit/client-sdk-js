@@ -55,6 +55,10 @@ import {
   type TextStreamHandler,
 } from './data-stream/incoming/StreamReader';
 import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
+import type RemoteDataTrack from './data-track/RemoteDataTrack';
+import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
+import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
+import { type DataTrackInfo } from './data-track/types';
 import {
   audioDefaults,
   publishDefaults,
@@ -70,7 +74,7 @@ import {
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
-import type Participant from './participant/Participant';
+import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
@@ -205,6 +209,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private outgoingDataStreamManager: OutgoingDataStreamManager;
 
+  private incomingDataTrackManager: IncomingDataTrackManager;
+
+  private outgoingDataTrackManager: OutgoingDataTrackManager;
+
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   get hasE2EESetup(): boolean {
@@ -243,6 +251,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
 
+    this.incomingDataTrackManager = new IncomingDataTrackManager(/* FIXME: add options */);
+    this.incomingDataTrackManager
+      .on('sfuUpdateSubscription', (event) => {
+        this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
+      })
+      .on('trackAvailable', (event) => {
+        this.emit(RoomEvent.RemoteDataTrackPublished, event.track);
+      });
+
+    this.outgoingDataTrackManager = new OutgoingDataTrackManager(/* FIXME: add options */);
+    this.outgoingDataTrackManager
+      .on('sfuPublishRequest', (event) => {
+        this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
+      })
+      .on('sfuUnpublishRequest', (event) => {
+        this.engine.client.sendUnPublishDataTrackRequest(event.handle);
+      })
+      .on('packetsAvailable', ({ bytes }) => {
+        this.engine.sendLossyRawBytes(bytes);
+      });
+
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant(
@@ -252,6 +281,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options,
       this.rpcHandlers,
       this.outgoingDataStreamManager,
+      this.outgoingDataTrackManager,
     );
 
     if (this.options.e2ee || this.options.encryption) {
@@ -560,6 +590,46 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         } else {
           this.handleParticipantUpdates(roomMoved.otherParticipants);
         }
+      })
+      .on(EngineEvent.PublishDataTrackResponse, (event) => {
+        if (!event.info) {
+          this.log.warn(
+            `received PublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
+            this.logContext,
+          );
+          return;
+        }
+
+        this.outgoingDataTrackManager.receivedSfuPublishResponse(event.info.pubHandle, {
+          // FIXME: how do I handle error cases here?
+          type: 'ok',
+          data: {
+            sid: event.info.sid,
+            pubHandle: event.info.pubHandle,
+            name: event.info.name,
+            usesE2ee: event.info.encryption !== Encryption_Type.NONE,
+          },
+        });
+      })
+      .on(EngineEvent.UnPublishDataTrackResponse, (event) => {
+        if (!event.info) {
+          this.log.warn(
+            `received UnPublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
+            this.logContext,
+          );
+          return;
+        }
+
+        this.outgoingDataTrackManager.receivedSfuUnpublishResponse(event.info.pubHandle);
+      })
+      .on(EngineEvent.DataTrackSubscriberHandles, (event) => {
+        const handleToSidMapping = new Map(
+          Object.entries(event.subHandles).map(([key, value]) => {
+            return [parseInt(key, 10), value.publisherSid];
+          }),
+        );
+
+        this.incomingDataTrackManager.receivedSfuSubscriberHandles(handleToSidMapping);
       });
 
     if (this.localParticipant) {
@@ -1634,10 +1704,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
-    participantInfos.forEach((info) => {
+    for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
-        return;
+        continue;
       }
 
       // LiveKit server doesn't send identity info prior to version 1.5.2 in disconnect updates
@@ -1655,7 +1725,26 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
       }
-    });
+    }
+
+    // Ingest data track publication updates into data tracks infrastructure
+    const mapped = new Map(
+      participantInfos.map((info) => {
+        return [
+          info.identity,
+          info.dataTracks.map(
+            (dataTrack) =>
+              ({
+                sid: dataTrack.sid,
+                pubHandle: dataTrack.pubHandle,
+                name: dataTrack.name,
+                usesE2ee: dataTrack.encryption !== Encryption_Type.NONE,
+              }) satisfies DataTrackInfo,
+          ),
+        ];
+      }),
+    );
+    this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
 
   private handleParticipantDisconnected(identity: string, participant?: RemoteParticipant) {
@@ -2732,4 +2821,5 @@ export type RoomEventCallbacks = {
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
   participantActive: (participant: Participant) => void;
+  remoteDataTrackPublished: (track: RemoteDataTrack) => void;
 };
