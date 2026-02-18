@@ -301,6 +301,28 @@
               Cancel current receive
             </button>
           </div>
+          <br />
+          <h3>Data Tracks</h3>
+
+          <div class="input-group input-group-sm">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="local-data-track-publish-name"
+              placeholder="Name (ie, test)"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="local-data-track-publish-button"
+                onclick="appActions.publishLocalDataTrack()"
+              >
+                Publish Local
+              </button>
+            </div>
+          </div>
+          <ul id="data-tracks-local-list"></ul>
         </div>
       </div>
 

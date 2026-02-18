@@ -601,7 +601,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
 
         this.outgoingDataTrackManager.receivedSfuPublishResponse(event.info.pubHandle, {
-          // FIXME: how do I handle error cases here?
           type: 'ok',
           data: {
             sid: event.info.sid,
