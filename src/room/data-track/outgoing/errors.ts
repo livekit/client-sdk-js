@@ -34,23 +34,29 @@ export class DataTrackPublishError<
 
   reasonName: string;
 
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
+  /** Underling message from the SFU, if one was provided */
+  rawMessage?: string;
+
+  constructor(message: string, reason: Reason, options?: { rawMessage?: string, cause?: unknown }) {
     super(21, message, options);
     this.reason = reason;
     this.reasonName = DataTrackPublishErrorReason[reason];
+    this.rawMessage = options?.rawMessage;
   }
 
-  static notAllowed() {
+  static notAllowed(rawMessage?: string) {
     return new DataTrackPublishError(
       'Data track publishing unauthorized',
       DataTrackPublishErrorReason.NotAllowed,
+      { rawMessage },
     );
   }
 
-  static duplicateName() {
+  static duplicateName(rawMessage?: string) {
     return new DataTrackPublishError(
       'Track name already taken',
       DataTrackPublishErrorReason.DuplicateName,
+      { rawMessage },
     );
   }
 
@@ -61,10 +67,11 @@ export class DataTrackPublishError<
     );
   }
 
-  static limitReached() {
+  static limitReached(rawMessage?: string) {
     return new DataTrackPublishError(
       'Data track publication limit reached',
       DataTrackPublishErrorReason.LimitReached,
+      { rawMessage },
     );
   }
 

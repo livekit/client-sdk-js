@@ -107,6 +107,7 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
+import { DataTrackPublishError } from '../data-track/outgoing/errors';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -317,6 +318,32 @@ export default class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
+    }
+
+    switch (response.request.case) {
+      case "publishDataTrack": {
+        let error;
+        switch (response.reason) {
+          case RequestResponse_Reason.NOT_ALLOWED:
+            error = DataTrackPublishError.notAllowed(response.message);
+            break;
+          case RequestResponse_Reason.DUPLICATE_NAME:
+            error = DataTrackPublishError.duplicateName(response.message);
+            break;
+          case RequestResponse_Reason.LIMIT_EXCEEDED:
+            error = DataTrackPublishError.limitReached(response.message);
+            break;
+          default:
+            this.log.error(`Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`, this.logContext);
+            return;
+        }
+
+        this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
+          response.request.value.pubHandle,
+          { type: 'error', error }
+        );
+        break;
+      }
     }
   };
 
@@ -2245,11 +2272,14 @@ export default class LocalParticipant extends Participant {
 
   /** FIXME: add docstring */
   async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
+    let track;
     try {
-      return this.roomOutgoingDataTrackManager.publishRequest(options);
+      track = await this.roomOutgoingDataTrackManager.publishRequest(options);
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
+
+    return track;
   }
 }
