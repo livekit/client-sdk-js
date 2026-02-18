@@ -74,7 +74,12 @@ import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
+import RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
+import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
+//@ts-ignore
+import UserTimestampWorker from '../user_timestamp/userTimestamp.worker?worker';
+import { isScriptTransformSupported } from '../e2ee/utils';
 import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
@@ -93,6 +98,7 @@ import {
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
+  isChromiumBased,
   isCloud,
   isLocalAudioTrack,
   isLocalParticipant,
@@ -2177,6 +2183,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
+          // When e2ee is NOT enabled, set up a standalone insertable-streams
+          // transform to extract LKTS user timestamp trailers from inbound
+          // video frames. When e2ee IS enabled, the FrameCryptor worker
+          // handles this before decryption.
+          if (!this.hasE2EESetup && track instanceof RemoteVideoTrack && track.receiver) {
+            this.setupUserTimestampTransform(track);
+          }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
@@ -2588,6 +2601,69 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       p.updateInfo(info);
+    }
+  }
+
+  /**
+   * Sets up an insertable-streams transform on a remote video track's receiver
+   * to strip LKTS user timestamp trailers. Used only when e2ee is NOT enabled
+   * (when e2ee is enabled, the FrameCryptor worker handles this).
+   *
+   * Uses RTCRtpScriptTransform on browsers that support it (non-Chromium),
+   * and falls back to createEncodedStreams (legacy insertable streams) on
+   * Chromium where encodedInsertableStreams is enabled on the PeerConnection.
+   */
+  private setupUserTimestampTransform(track: RemoteVideoTrack) {
+    const receiver = track.receiver;
+    if (!receiver) {
+      return;
+    }
+
+    try {
+      if (isScriptTransformSupported() && !isChromiumBased()) {
+        const worker = new UserTimestampWorker();
+        worker.onmessage = (ev: MessageEvent) => {
+          if (ev.data?.kind === 'userTimestamp' && typeof ev.data.timestampUs === 'number') {
+            track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp);
+          }
+        };
+        // @ts-ignore
+        receiver.transform = new RTCRtpScriptTransform(worker, { kind: 'decode' });
+        return;
+      }
+
+      // @ts-ignore
+      if (typeof receiver.createEncodedStreams === 'function') {
+        // @ts-ignore
+        const { readable, writable } = receiver.createEncodedStreams();
+
+        const transformStream = new TransformStream<RTCEncodedVideoFrame, RTCEncodedVideoFrame>({
+          transform: (encodedFrame, controller) => {
+            try {
+              const result = stripUserTimestampFromEncodedFrame(encodedFrame);
+              if (result !== undefined) {
+                track.setUserTimestamp(result.timestampUs, result.rtpTimestamp);
+              }
+            } catch {
+              // Best-effort: never break the media pipeline if parsing fails.
+            }
+            controller.enqueue(encodedFrame);
+          },
+        });
+
+        readable
+          .pipeThrough(transformStream)
+          .pipeTo(writable)
+          .catch(() => {});
+        return;
+      }
+
+      this.log.debug(
+        'user timestamp transform: no supported API available',
+        this.logContext,
+      );
+    } catch {
+      // If anything goes wrong (e.g., unsupported environment), just skip.
     }
   }
 

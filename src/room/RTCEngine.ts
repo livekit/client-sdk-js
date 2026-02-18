@@ -79,6 +79,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  isChromiumBased,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -655,9 +656,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled) {
-      this.log.debug('E2EE - setting up transports with insertable streams', this.logContext);
-      //  this makes sure that no data is sent before the transforms are ready
+    if (this.signalOpts?.e2eeEnabled || isChromiumBased()) {
+      this.log.debug('setting up transports with insertable streams', this.logContext);
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
     }

@@ -21,6 +21,7 @@ import {
   ParticipantEvent,
   RemoteParticipant,
   RemoteTrackPublication,
+  RemoteVideoTrack,
   Room,
   RoomEvent,
   ScreenSharePresets,
@@ -34,10 +35,12 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isVideoTrack,
   setLogLevel,
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -238,6 +241,43 @@ const appActions = {
         appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
         renderScreenShare(room);
+
+        // Display the user timestamp that matches the frame currently on screen.
+        // Publish & Subscribe timestamps update every frame; latency updates at ~2 Hz
+        // so it's readable (matching the Rust subscriber's approach).
+        if (track instanceof RemoteVideoTrack) {
+          let lastLatencyUpdate = 0;
+          let cachedUserTimestampUs: number | undefined;
+          let cachedLatencyStr = '';
+
+          track.on(TrackEvent.TimeSyncUpdate, ({ rtpTimestamp }) => {
+            const timestampUs = track.lookupUserTimestamp(rtpTimestamp);
+            if (timestampUs !== undefined) {
+              cachedUserTimestampUs = timestampUs;
+            }
+            if (cachedUserTimestampUs === undefined) return;
+
+            const now = Date.now();
+
+            if (now - lastLatencyUpdate >= 500) {
+              const nowUs = now * 1000;
+              const latencyMs = (nowUs - cachedUserTimestampUs) / 1000;
+              cachedLatencyStr = `${latencyMs.toFixed(1)}ms`;
+              lastLatencyUpdate = now;
+            }
+
+            const container = getParticipantsAreaElement();
+            const tsElm = container.querySelector(`#user-ts-${participant.identity}`);
+            if (tsElm) {
+              const pubStr = new Date(cachedUserTimestampUs / 1000).toISOString().substring(11, 23);
+              const subStr = new Date(now).toISOString().substring(11, 23);
+              tsElm.innerHTML =
+                `Publish:&nbsp;&nbsp;&nbsp;${pubStr}<br>` +
+                `Subscribe:&nbsp;${subStr}<br>` +
+                `Latency:&nbsp;&nbsp;&nbsp;${cachedLatencyStr}`;
+            }
+          });
+        }
       })
       .on(RoomEvent.TrackUnsubscribed, (_, pub, participant) => {
         appendLog('unsubscribed from track', pub.trackSid);
@@ -810,6 +850,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
           <span id="mic-${identity}" class="mic-on"></span>
           <span id="e2ee-${identity}" class="e2ee-on"></span>
         </div>
+      </div>
+      <div id="user-ts-${identity}" style="position: absolute; bottom: 28px; left: 0; z-index: 5; font-family: monospace; font-size: 0.65em; color: #eee; background: rgba(0,0,0,0.5); padding: 3px 6px; line-height: 1.4; border-radius: 0 3px 0 0;">
       </div>
       ${
         !isLocalParticipant(participant)

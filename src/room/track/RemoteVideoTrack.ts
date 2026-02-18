@@ -12,6 +12,8 @@ import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
 
+const MAX_USER_TIMESTAMP_MAP_ENTRIES = 300;
+
 export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private prevStats?: VideoReceiverStats;
 
@@ -22,6 +24,27 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private lastVisible?: boolean;
 
   private lastDimensions?: Track.Dimensions;
+
+  /**
+   * The most recently extracted user timestamp (microseconds since Unix epoch)
+   * from an inbound LKTS trailer, or `undefined` if none has been received yet.
+   *
+   * @experimental
+   */
+  lastUserTimestampUs?: number;
+
+  /**
+   * RTP timestamp -> user timestamp (microseconds) map.
+   * Mirrors the Rust SDK's `recv_map_`: populated when an LKTS trailer is
+   * stripped from an encoded frame, keyed by the frame's RTP timestamp so
+   * decoded frames can look up their user timestamp regardless of frame
+   * drops or reordering.
+   *
+   * @experimental
+   */
+  private userTimestampMap = new Map<number, number>();
+
+  private userTimestampMapOrder: number[] = [];
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -53,6 +76,56 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    */
   get mediaStreamTrack() {
     return this._mediaStreamTrack;
+  }
+
+  /**
+   * Called when a user timestamp (LKTS trailer) has been extracted from an
+   * inbound encoded video frame — either by the e2ee worker or by the
+   * standalone insertable-streams transform.
+   *
+   * @param timestampUs - user timestamp in microseconds since Unix epoch
+   * @param rtpTimestamp - RTP timestamp from the encoded frame (90 kHz clock).
+   *   When provided, the mapping is stored so decoded frames can look up their
+   *   user timestamp via {@link lookupUserTimestamp}.
+   *
+   * @internal
+   */
+  setUserTimestamp(timestampUs: number, rtpTimestamp?: number) {
+    this.lastUserTimestampUs = timestampUs;
+
+    if (rtpTimestamp !== undefined) {
+      while (this.userTimestampMap.size >= MAX_USER_TIMESTAMP_MAP_ENTRIES) {
+        const oldest = this.userTimestampMapOrder.shift();
+        if (oldest !== undefined) {
+          this.userTimestampMap.delete(oldest);
+        }
+      }
+      this.userTimestampMap.set(rtpTimestamp, timestampUs);
+      this.userTimestampMapOrder.push(rtpTimestamp);
+    }
+
+    this.emit(TrackEvent.UserTimestamp, timestampUs, rtpTimestamp);
+  }
+
+  /**
+   * Look up the user timestamp associated with a given RTP timestamp.
+   * The entry is consumed (removed) after lookup, matching the Rust SDK
+   * behaviour.
+   *
+   * @returns The user timestamp in microseconds, or `undefined` if not found.
+   * @experimental
+   */
+  lookupUserTimestamp(rtpTimestamp: number): number | undefined {
+    const ts = this.userTimestampMap.get(rtpTimestamp);
+    if (ts === undefined) {
+      return undefined;
+    }
+    this.userTimestampMap.delete(rtpTimestamp);
+    const idx = this.userTimestampMapOrder.indexOf(rtpTimestamp);
+    if (idx !== -1) {
+      this.userTimestampMapOrder.splice(idx, 1);
+    }
+    return ts;
   }
 
   /** @internal */
