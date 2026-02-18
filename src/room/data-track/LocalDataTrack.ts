@@ -50,4 +50,14 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
       throw err;
     }
   }
+
+  /** FIXME: add docstring */
+  async unpublish() {
+    try {
+      return this.manager.unpublishRequest(this.info.pubHandle);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
+      throw err;
+    }
+  }
 }

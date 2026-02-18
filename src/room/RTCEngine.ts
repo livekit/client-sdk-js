@@ -1365,6 +1365,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   sendLossyRawBytes(msg: Uint8Array) {
+    console.log('SEND LOSSY:', msg);
     const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
     if (dc) {
       // lossy channel, drop messages to reduce latency
