@@ -53,6 +53,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
     try {
       return this.manager.subscribeRequest(this.info.sid, options?.signal);
     } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
   }

@@ -584,7 +584,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
    * See [`event_from_join`](super::proto::event_from_join) and
    *     [`event_from_participant_update`](super::proto::event_from_participant_update).
    */
-  async sfuPublicationUpdates(updates: Map<Participant['identity'], Array<DataTrackInfo>>) {
+  async receiveSfuPublicationUpdates(updates: Map<Participant['identity'], Array<DataTrackInfo>>) {
     if (updates.size === 0) {
       return;
     }
@@ -653,7 +653,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
    *
    * Protocol equivalent: [`livekit_protocol::DataTrackSubscriberHandles`].
    */
-  sfuSubscriberHandles(
+  receivedSfuSubscriberHandles(
     /** Mapping between track handles attached to incoming packets to the
      * track SIDs they belong to. */
     mapping: Map<DataTrackHandle, DataTrackSid>,
