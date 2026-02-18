@@ -257,6 +257,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
       })
       .on('trackAvailable', (event) => {
+        if (event.track.publisherIdentity === this.localParticipant.identity) {
+          // Only advertize tracks from other participants
+          return;
+        }
         this.emit(RoomEvent.RemoteDataTrackPublished, event.track);
       });
 
@@ -624,7 +628,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.DataTrackSubscriberHandles, (event) => {
         const handleToSidMapping = new Map(
           Object.entries(event.subHandles).map(([key, value]) => {
-            return [parseInt(key, 10), value.publisherSid];
+            return [parseInt(key, 10), value.trackSid];
           }),
         );
 

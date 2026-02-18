@@ -40,6 +40,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -266,6 +267,10 @@ const appActions = {
       })
       .on(RoomEvent.EncryptionError, (error) => {
         appendLog(`Error encrypting track data: ${error.message}`);
+      })
+      .on(RoomEvent.RemoteDataTrackPublished, (track) => {
+        remoteDataTracks.push(track);
+        renderRemoteDataTracks();
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
@@ -697,6 +702,7 @@ const appActions = {
 
     try {
       const localDataTrack = await currentRoom.localParticipant.publishDataTrack({ name: input.value });
+      input.value = '';
       localDataTracks.push(localDataTrack);
       renderLocalDataTracks();
     } catch (err) {
@@ -708,7 +714,7 @@ const appActions = {
       button.innerText = "Publish Local";
       button.removeAttribute("disabled");
     }
-  }
+  },
 };
 
 declare global {
@@ -780,6 +786,9 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
     renderParticipant(p, true);
   });
   renderScreenShare(currentRoom);
+
+  localDataTracks = [];
+  renderLocalDataTracks();
 
   const container = $('participants-area');
   if (container) {
@@ -1051,45 +1060,48 @@ function renderBitrate() {
   }
 }
 
-function createLocalDataTrackElement(localDataTrack: LocalDataTrack): HTMLLIElement {
-  const { sid, pubHandle, name, usesE2ee } = localDataTrack.info;
+function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
+  const { sid, pubHandle, name } = localDataTrack.info;
   const published = localDataTrack.isPublished();
 
-  const li = document.createElement('li');
-  li.className = 'list-group-item local-data-track-item p-2';
-  li.dataset.sid = sid;
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
 
-  li.innerHTML = `
-    <div class="d-flex align-items-start justify-content-between mb-1">
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
       <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
-      <span class="badge ${published ? 'badge-warning' : 'badge-success'} text-nowrap">
-        ${published ? '✓ Live' : '⏳ Pending'}
-      </span>
+      <div class="d-flex align-items-center">
+        <span class="badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap mr-2">
+          ${published ? '✓ Live' : '⏳ Pending'}
+        </span>
+        <button class="btn btn-outline-danger btn-sm local-data-track-delete" type="button">✕</button>
+      </div>
     </div>
     <div class="local-data-track-meta text-monospace text-muted mb-2">
-      <span class="badge badge-secondary mr-1" title="SID">sid: ${sid}</span>
-      <span class="badge badge-secondary mr-1" title="Publication Handle">pub: ${pubHandle}</span>
-      ${usesE2ee ? '<span class="badge badge-info" title="End-to-end encrypted">🔒 E2EE</span>' : '<span class="badge badge-light border" title="Not end-to-end encrypted">E2EE off</span>'}
+      <span class="badge badge-secondary mr-1">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1">Handle: ${pubHandle}</span>
     </div>
     <div class="input-group input-group-sm">
       <input
         type="text"
         class="form-control local-data-track-input text-monospace"
-        placeholder="Payload (UTF-8)"
-        ${published ? 'disabled' : ''}
+        placeholder="Push a test message"
+        ${!published ? 'disabled' : ''}
       />
       <div class="input-group-append">
-        <button class="btn btn-outline-primary local-data-track-send" type="button" ${published ? 'disabled' : ''}>
+        <button class="btn btn-outline-primary local-data-track-send" type="button" ${!published ? 'disabled' : ''}>
           Send
         </button>
       </div>
     </div>
   `;
 
-  const input = li.querySelector<HTMLInputElement>('.local-data-track-input')!;
-  const button = li.querySelector<HTMLButtonElement>('.local-data-track-send')!;
+  const input = item.querySelector<HTMLInputElement>('.local-data-track-input')!;
+  const sendButton = item.querySelector<HTMLButtonElement>('.local-data-track-send')!;
+  const deleteButton = item.querySelector<HTMLButtonElement>('.local-data-track-delete')!;
 
-  button.addEventListener('click', () => {
+  sendButton.addEventListener('click', () => {
     const text = input.value;
     if (!text) {
       return;
@@ -1099,44 +1111,57 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack): HTMLLIElem
       input.value = '';
     } catch (err) {
       console.error(`Local data track ${sid}: tryPush failed:`, err);
-      // Briefly flash the input red to signal failure
       input.classList.add('is-invalid');
-      setTimeout(() => input.classList.remove('is-invalid'), 1500);
     }
   });
 
-  return li;
+  deleteButton.addEventListener('click', async () => {
+    deleteButton.disabled = true;
+    try {
+      await localDataTrack.unpublish();
+    } catch (err) {
+      console.error(`DataTrack:${sid} unpublish failed:`, err);
+      deleteButton.disabled = false;
+      return;
+    }
+    deleteButton.disabled = false;
+
+    localDataTracks.splice(localDataTracks.indexOf(localDataTrack), 1);
+    renderLocalDataTracks();
+  });
+
+  return item;
 }
 
-function updateLocalDataTrackElement(li: HTMLLIElement, localDataTrack: LocalDataTrack): void {
+function updateLocalDataTrackElement(element: HTMLDivElement, localDataTrack: LocalDataTrack): void {
   const published = localDataTrack.isPublished();
 
-  const badge = li.querySelector<HTMLSpanElement>('.badge:first-of-type');
+  const badge = element.querySelector<HTMLSpanElement>('.badge[data-status]');
   if (badge) {
-    badge.className = `badge ${published ? 'badge-warning' : 'badge-success'} text-nowrap`;
+    badge.className = `badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap`;
     badge.textContent = published ? '✓ Live' : '⏳ Pending';
   }
 
-  const input = li.querySelector<HTMLInputElement>('.local-data-track-input')!;
-  const button = li.querySelector<HTMLButtonElement>('.local-data-track-send')!;
+  const input = element.querySelector<HTMLInputElement>('.local-data-track-input')!;
+  const button = element.querySelector<HTMLButtonElement>('.local-data-track-send')!;
   input.disabled = published;
   button.disabled = published;
 }
 
 function renderLocalDataTracks() {
-  const wrapper = <HTMLUListElement>$('data-tracks-local-list');
+  const wrapper = $('data-tracks-local-list');
 
   const renderedLocalDataTrackSids = new Set<string>();
 
   // Update or remove existing children
   for (const child of Array.from(wrapper.children)) {
-    const li = child as HTMLLIElement;
-    const sid = li.dataset.sid!;
+    const element = child as HTMLDivElement;
+    const sid = element.dataset.sid!;
     const localDataTrack = localDataTracks.find(l => l.info.sid === sid);
     if (localDataTrack) {
-      updateLocalDataTrackElement(li, localDataTrack);
+      updateLocalDataTrackElement(element, localDataTrack);
     } else {
-      li.remove();
+      element.remove();
     }
     renderedLocalDataTrackSids.add(sid);
   }
@@ -1145,6 +1170,148 @@ function renderLocalDataTracks() {
   for (const localDataTrack of localDataTracks.filter(l => !renderedLocalDataTrackSids.has(l.info.sid))) {
     const child = createLocalDataTrackElement(localDataTrack);
     wrapper.appendChild(child);
+  }
+}
+
+function formatHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join(' ');
+}
+
+function formatString(bytes: Uint8Array): string {
+  return new TextDecoder().decode(bytes);
+}
+
+function formatSize(bytes: Uint8Array): string {
+  const kb = bytes.byteLength / 1024;
+  return kb < 0.01 ? '<0.01 KB' : `${kb.toFixed(2)} KB`;
+}
+
+function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
+  const { sid, pubHandle, name } = remoteDataTrack.info;
+
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
+      <div class="d-flex align-items-center">
+        <span class="badge badge-secondary text-nowrap mr-2 text-truncate" title="Publisher identity">
+          ${remoteDataTrack.publisherIdentity}
+        </span>
+        <button class="btn btn-sm btn-outline-success remote-data-track-play-stop mr-1" type="button" title="Subscribe"></button>
+        <button class="btn btn-sm btn-outline-secondary remote-data-track-clear" type="button">Clear</button>
+      </div>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
+    </div>
+    <div class="remote-data-track-well bg-dark rounded p-2 text-monospace" style="max-height: 180px; overflow-y: auto; font-size: 0.7rem;">
+      <span class="remote-data-track-placeholder text-muted">Waiting for frames...</span>
+    </div>
+  `;
+
+  const well = item.querySelector<HTMLDivElement>('.remote-data-track-well')!;
+  const placeholder = item.querySelector<HTMLSpanElement>('.remote-data-track-placeholder')!;
+  const playStopButton = item.querySelector<HTMLButtonElement>('.remote-data-track-play-stop')!;
+  const clearButton = item.querySelector<HTMLButtonElement>('.remote-data-track-clear')!;
+
+  let reader: ReadableStreamDefaultReader | null = null;
+
+  function appendFrame(payload: Uint8Array): void {
+    placeholder.remove();
+
+    const entry = document.createElement('div');
+    entry.className = 'remote-data-track-frame border-bottom border-secondary pb-1 mb-1';
+    entry.innerHTML = `
+      <div class="text-success">${formatHex(payload)}</div>
+      <div class="text-light text-truncate" title="${formatString(payload)}">${formatString(payload)}</div>
+      <div class="text-muted">${formatSize(payload)}</div>
+    `;
+    well.appendChild(entry);
+    well.scrollTop = well.scrollHeight;
+  }
+
+  async function startSubscription(): Promise<void> {
+    playStopButton.textContent = 'Stop';
+    playStopButton.classList.replace('btn-outline-success', 'btn-outline-danger');
+    playStopButton.title = 'Unsubscribe';
+
+    let stream: ReadableStream<DataTrackFrame>;
+    try {
+      stream = await remoteDataTrack.subscribe();
+    } catch (err) {
+      console.error(`Remote data track ${sid}: subscribe failed:`, err);
+      stopSubscription();
+      return;
+    }
+
+    reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        appendFrame(value.payload);
+      }
+    } catch (err) {
+      // AbortError is expected when the user clicks stop — don't log it
+      // if (err instanceof Error && err.name !== 'AbortError') {
+      console.error(`Remote data track ${sid}: stream read failed:`, err);
+      // }
+    } finally {
+      stopSubscription();
+    }
+  }
+
+  function stopSubscription(): void {
+    if (reader) {
+      reader.cancel();
+      reader = null;
+    }
+    playStopButton.textContent = 'Play';
+    playStopButton.classList.replace('btn-outline-danger', 'btn-outline-success');
+    playStopButton.title = 'Subscribe';
+  }
+
+  startSubscription();
+  playStopButton.addEventListener('click', () => {
+    if (reader) {
+      stopSubscription();
+    } else {
+      startSubscription();
+    }
+  });
+
+  clearButton.addEventListener('click', () => {
+    well.appendChild(placeholder);
+  });
+
+  return item;
+}
+
+function renderRemoteDataTracks() {
+  const wrapper = $('data-tracks-remote-list');
+
+  const renderedSids = new Set<string>();
+
+  for (const child of Array.from(wrapper.children)) {
+    const li = child as HTMLLIElement;
+    const sid = li.dataset.sid!;
+    const remoteDataTrack = remoteDataTracks.find(r => r.info.sid === sid);
+    if (!remoteDataTrack) {
+      li.remove();
+    }
+    renderedSids.add(sid);
+  }
+
+  for (const remoteDataTrack of remoteDataTracks.filter(r => !renderedSids.has(r.info.sid))) {
+    wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
   }
 }
 
