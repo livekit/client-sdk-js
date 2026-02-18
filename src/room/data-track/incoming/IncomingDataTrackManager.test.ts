@@ -39,7 +39,7 @@ describe('DataTrackIncomingManager', () => {
       ]);
 
       // 1. Add a track, make sure the track available event was sent
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([
           [
             'identity1',
@@ -67,7 +67,7 @@ describe('DataTrackIncomingManager', () => {
       ]);
 
       // 3. Remove all tracks, and make sure the internal state is cleared
-      await manager.sfuPublicationUpdates(new Map([['identity1', []]]));
+      await manager.receiveSfuPublicationUpdates(new Map([['identity1', []]]));
       expect(await manager.queryPublications()).to.deep.equal([]);
     });
   });
@@ -85,7 +85,7 @@ describe('DataTrackIncomingManager', () => {
       const handle = DataTrackHandle.fromNumber(5);
 
       // 1. Make sure the data track publication is registered
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
       await managerEvents.waitFor('trackAvailable');
@@ -100,7 +100,7 @@ describe('DataTrackIncomingManager', () => {
 
       // 4. Once the SFU has acknowledged the subscription, a handle is sent back representing
       // the subscription
-      manager.sfuSubscriberHandles(new Map([[handle, sid]]));
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
       const readableStream = await subscribeRequestPromise;
@@ -141,7 +141,7 @@ describe('DataTrackIncomingManager', () => {
       const handle = DataTrackHandle.fromNumber(5);
 
       // 1. Make sure the data track publication is registered
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: true }]]]),
       );
       await managerEvents.waitFor('trackAvailable');
@@ -156,7 +156,7 @@ describe('DataTrackIncomingManager', () => {
 
       // 4. Once the SFU has acknowledged the subscription, a handle is sent back representing
       // the subscription
-      manager.sfuSubscriberHandles(new Map([[handle, sid]]));
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
       const readableStream = await subscribeRequestPromise;
@@ -204,7 +204,7 @@ describe('DataTrackIncomingManager', () => {
 
       // 1. Make sure the data track publication is registered
       const pubHandle = handleAllocator.get()!;
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle, name: 'test', usesE2ee: false }]]]),
       );
       await managerEvents.waitFor('trackAvailable');
@@ -223,7 +223,7 @@ describe('DataTrackIncomingManager', () => {
           expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
 
           // Simulate the subscribe being acknowledged by the SFU
-          manager.sfuSubscriberHandles(
+          manager.receivedSfuSubscriberHandles(
             new Map([[DataTrackHandle.fromNumber(1 /* publish handle */ + index), sid]]),
           );
         }
@@ -273,7 +273,7 @@ describe('DataTrackIncomingManager', () => {
       const sid = 'data track sid';
 
       // 1. Make sure the data track publication is registered
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([
           [
             'identity',
@@ -310,7 +310,7 @@ describe('DataTrackIncomingManager', () => {
       const sid = 'data track sid';
 
       // 1. Make sure the data track publication is registered
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([
           [
             'identity',
@@ -358,7 +358,7 @@ describe('DataTrackIncomingManager', () => {
       const handle = DataTrackHandle.fromNumber(5);
 
       // 1. Make sure the data track publication is registered
-      await manager.sfuPublicationUpdates(
+      await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
       await managerEvents.waitFor('trackAvailable');
@@ -373,7 +373,7 @@ describe('DataTrackIncomingManager', () => {
 
       // 4. Once the SFU has acknowledged the subscription, a handle is sent back representing
       // the subscription
-      manager.sfuSubscriberHandles(new Map([[handle, sid]]));
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
       const readableStream = await subscribeRequestPromise;
