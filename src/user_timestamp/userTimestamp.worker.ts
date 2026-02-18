@@ -3,8 +3,8 @@
  * encoded video frames via RTCRtpScriptTransform.
  *
  * When a valid trailer is found, the timestamp is posted back to the main
- * thread so the SDK can emit TrackEvent.UserTimestamp on the corresponding
- * RemoteVideoTrack.
+ * thread so the SDK can store the RTP-to-user-timestamp mapping on the
+ * corresponding RemoteVideoTrack.
  */
 
 import {

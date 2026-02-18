@@ -689,16 +689,6 @@ export enum TrackEvent {
   TimeSyncUpdate = 'timeSyncUpdate',
 
   /**
-   * Fires when a user timestamp (LKTS trailer) has been extracted from an
-   * inbound encoded video frame.
-   *
-   * args: (timestampUs: number, rtpTimestamp?: number)
-   *
-   * @experimental
-   */
-  UserTimestamp = 'userTimestamp',
-
-  /**
    * @internal
    */
   PreConnectBufferFlushed = 'preConnectBufferFlushed',
