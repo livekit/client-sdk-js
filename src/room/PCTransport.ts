@@ -278,6 +278,7 @@ export default class PCTransport extends EventEmitter {
           await this._pc.setRemoteDescription(currentSD);
         } else {
           this.renegotiate = true;
+          this.log.debug('requesting renegotiation', { ...this.logContext });
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
