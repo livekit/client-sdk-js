@@ -229,28 +229,46 @@ export class PCTransportManager {
 
   async negotiate(abortController: AbortController) {
     return new TypedPromise<void, NegotiationError | Error>(async (resolve, reject) => {
-      const negotiationTimeout = setTimeout(() => {
+      let negotiationTimeout = setTimeout(() => {
         reject(new NegotiationError('negotiation timed out'));
       }, this.peerConnectionTimeout);
 
-      const abortHandler = () => {
+      const cleanup = () => {
         clearTimeout(negotiationTimeout);
+        this.publisher.off(PCEvents.NegotiationStarted, onNegotiationStarted);
+        abortController.signal.removeEventListener('abort', abortHandler);
+      };
+
+      const abortHandler = () => {
+        cleanup();
         reject(new NegotiationError('negotiation aborted'));
       };
 
-      abortController.signal.addEventListener('abort', abortHandler);
-      this.publisher.once(PCEvents.NegotiationStarted, () => {
+      // Reset the timeout each time a renegotiation cycle starts. This
+      // prevents premature timeouts when the negotiation machinery is
+      // actively renegotiating (offers going out, answers coming back) but
+      // NegotiationComplete hasn't fired yet because new requirements keep
+      // arriving between offer/answer round-trips.
+      const onNegotiationStarted = () => {
         if (abortController.signal.aborted) {
           return;
         }
-        this.publisher.once(PCEvents.NegotiationComplete, () => {
-          clearTimeout(negotiationTimeout);
-          resolve();
-        });
+        clearTimeout(negotiationTimeout);
+        negotiationTimeout = setTimeout(() => {
+          cleanup();
+          reject(new NegotiationError('negotiation timed out'));
+        }, this.peerConnectionTimeout);
+      };
+
+      abortController.signal.addEventListener('abort', abortHandler);
+      this.publisher.on(PCEvents.NegotiationStarted, onNegotiationStarted);
+      this.publisher.once(PCEvents.NegotiationComplete, () => {
+        cleanup();
+        resolve();
       });
 
       await this.publisher.negotiate((e) => {
-        clearTimeout(negotiationTimeout);
+        cleanup();
         if (e instanceof Error) {
           reject(e);
         } else {

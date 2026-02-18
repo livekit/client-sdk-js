@@ -1524,6 +1524,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         reject(new NegotiationError('cannot negotiate on closed engine'));
       }
       this.on(EngineEvent.Closing, handleClosed);
+      this.on(EngineEvent.Restarting, handleClosed);
 
       this.pcManager.publisher.once(
         PCEvents.RTPVideoPayloadTypes,
@@ -1543,6 +1544,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await this.pcManager.negotiate(abortController);
         resolve();
       } catch (e: unknown) {
+        if (abortController.signal.aborted) {
+          // negotiation was aborted due to engine close or restart, resolve
+          // cleanly to avoid triggering a cascading reconnect loop
+          resolve();
+          return;
+        }
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
@@ -1554,6 +1561,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
       } finally {
         this.off(EngineEvent.Closing, handleClosed);
+        this.off(EngineEvent.Restarting, handleClosed);
       }
     });
   }
