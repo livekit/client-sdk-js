@@ -29,6 +29,9 @@ import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
+import type LocalDataTrack from '../data-track/LocalDataTrack';
+import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
+import type { DataTrackOptions } from '../data-track/outgoing/types';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -150,6 +153,8 @@ export default class LocalParticipant extends Participant {
 
   private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
 
+  private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -179,6 +184,7 @@ export default class LocalParticipant extends Participant {
     options: InternalRoomOptions,
     roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
+    roomOutgoingDataTrackManager: OutgoingDataTrackManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -198,6 +204,7 @@ export default class LocalParticipant extends Participant {
     this.pendingSignalRequests = new Map();
     this.rpcHandlers = roomRpcHandlers;
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
+    this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -2233,6 +2240,16 @@ export default class LocalParticipant extends Participant {
         return publishPromiseEntry[1];
       }
       await sleep(20);
+    }
+  }
+
+  /** FIXME: add docstring */
+  async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
+    try {
+      return this.roomOutgoingDataTrackManager.publishRequest(options);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
+      throw err;
     }
   }
 }
