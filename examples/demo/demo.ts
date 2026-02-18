@@ -2,6 +2,8 @@
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
+  LocalDataTrack,
+  RemoteDataTrack,
   RoomConnectOptions,
   RoomOptions,
   ScalabilityMode,
@@ -58,6 +60,9 @@ let currentRoom: Room | undefined;
 let startTime: number;
 
 let streamReaderAbortController: AbortController | undefined;
+
+let localDataTracks: Array<LocalDataTrack> = [];
+let remoteDataTracks: Array<RemoteDataTrack> = [];
 
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
@@ -676,6 +681,34 @@ const appActions = {
       });
     }
   },
+
+  publishLocalDataTrack: async () => {
+    const button = $("local-data-track-publish-button")
+    const input = <HTMLInputElement>$("local-data-track-publish-name");
+
+    if (!currentRoom) {
+      console.error(`publishDataTrack failed: Room not connected.`);
+      return;
+    }
+
+    button.innerText = "Publishing...";
+    button.setAttribute("disabled", "true");
+    input.classList.remove('is-invalid');
+
+    try {
+      const localDataTrack = await currentRoom.localParticipant.publishDataTrack({ name: input.value });
+      localDataTracks.push(localDataTrack);
+      renderLocalDataTracks();
+    } catch (err) {
+      console.error(`publishDataTrack failed:`, err);
+
+      // Make the input red to signify failure
+      input.classList.add('is-invalid');
+    } finally {
+      button.innerText = "Publish Local";
+      button.removeAttribute("disabled");
+    }
+  }
 };
 
 declare global {
@@ -1015,6 +1048,103 @@ function renderBitrate() {
     if (elm) {
       elm.innerHTML = displayText;
     }
+  }
+}
+
+function createLocalDataTrackElement(localDataTrack: LocalDataTrack): HTMLLIElement {
+  const { sid, pubHandle, name, usesE2ee } = localDataTrack.info;
+  const published = localDataTrack.isPublished();
+
+  const li = document.createElement('li');
+  li.className = 'list-group-item local-data-track-item p-2';
+  li.dataset.sid = sid;
+
+  li.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mb-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
+      <span class="badge ${published ? 'badge-warning' : 'badge-success'} text-nowrap">
+        ${published ? '✓ Live' : '⏳ Pending'}
+      </span>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1" title="SID">sid: ${sid}</span>
+      <span class="badge badge-secondary mr-1" title="Publication Handle">pub: ${pubHandle}</span>
+      ${usesE2ee ? '<span class="badge badge-info" title="End-to-end encrypted">🔒 E2EE</span>' : '<span class="badge badge-light border" title="Not end-to-end encrypted">E2EE off</span>'}
+    </div>
+    <div class="input-group input-group-sm">
+      <input
+        type="text"
+        class="form-control local-data-track-input text-monospace"
+        placeholder="Payload (UTF-8)"
+        ${published ? 'disabled' : ''}
+      />
+      <div class="input-group-append">
+        <button class="btn btn-outline-primary local-data-track-send" type="button" ${published ? 'disabled' : ''}>
+          Send
+        </button>
+      </div>
+    </div>
+  `;
+
+  const input = li.querySelector<HTMLInputElement>('.local-data-track-input')!;
+  const button = li.querySelector<HTMLButtonElement>('.local-data-track-send')!;
+
+  button.addEventListener('click', () => {
+    const text = input.value;
+    if (!text) {
+      return;
+    }
+    try {
+      localDataTrack.tryPush(state.encoder.encode(text));
+      input.value = '';
+    } catch (err) {
+      console.error(`Local data track ${sid}: tryPush failed:`, err);
+      // Briefly flash the input red to signal failure
+      input.classList.add('is-invalid');
+      setTimeout(() => input.classList.remove('is-invalid'), 1500);
+    }
+  });
+
+  return li;
+}
+
+function updateLocalDataTrackElement(li: HTMLLIElement, localDataTrack: LocalDataTrack): void {
+  const published = localDataTrack.isPublished();
+
+  const badge = li.querySelector<HTMLSpanElement>('.badge:first-of-type');
+  if (badge) {
+    badge.className = `badge ${published ? 'badge-warning' : 'badge-success'} text-nowrap`;
+    badge.textContent = published ? '✓ Live' : '⏳ Pending';
+  }
+
+  const input = li.querySelector<HTMLInputElement>('.local-data-track-input')!;
+  const button = li.querySelector<HTMLButtonElement>('.local-data-track-send')!;
+  input.disabled = published;
+  button.disabled = published;
+}
+
+function renderLocalDataTracks() {
+  const wrapper = <HTMLUListElement>$('data-tracks-local-list');
+
+  const renderedLocalDataTrackSids = new Set<string>();
+
+  // Update or remove existing children
+  for (const child of Array.from(wrapper.children)) {
+    const li = child as HTMLLIElement;
+    const sid = li.dataset.sid!;
+    const localDataTrack = localDataTracks.find(l => l.info.sid === sid);
+    if (localDataTrack) {
+      updateLocalDataTrackElement(li, localDataTrack);
+    } else {
+      li.remove();
+    }
+    renderedLocalDataTrackSids.add(sid);
+  }
+
+  // Create elements for new tracks
+  for (const localDataTrack of localDataTracks.filter(l => !renderedLocalDataTrackSids.has(l.info.sid))) {
+    const child = createLocalDataTrackElement(localDataTrack);
+    wrapper.appendChild(child);
   }
 }
 
