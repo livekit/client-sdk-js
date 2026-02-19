@@ -15,6 +15,7 @@ export type SfuPublishResponseResult =
       error:
         | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
         | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
+        | DataTrackPublishError<DataTrackPublishErrorReason.InvalidName>
         | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>;
     };
 
