@@ -271,6 +271,13 @@ const appActions = {
       .on(RoomEvent.RemoteDataTrackPublished, (track) => {
         remoteDataTracks.push(track);
         renderRemoteDataTracks();
+      })
+      .on(RoomEvent.RemoteDataTrackUnpublished, (sid) => {
+        const index = remoteDataTracks.findIndex(t => t.info.sid === sid);
+        if (index >= 0) {
+          remoteDataTracks.splice(index, 1);
+          renderRemoteDataTracks();
+        }
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {

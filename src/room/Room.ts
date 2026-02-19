@@ -58,7 +58,7 @@ import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStream
 import type RemoteDataTrack from './data-track/RemoteDataTrack';
 import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
 import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
-import { type DataTrackInfo } from './data-track/types';
+import { type DataTrackInfo, type DataTrackSid } from './data-track/types';
 import {
   audioDefaults,
   publishDefaults,
@@ -262,6 +262,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           return;
         }
         this.emit(RoomEvent.RemoteDataTrackPublished, event.track);
+      })
+      .on('trackUnavailable', (event) => {
+        if (event.publisherIdentity === this.localParticipant.identity) {
+          // Only advertize tracks from other participants
+          return;
+        }
+        this.emit(RoomEvent.RemoteDataTrackUnpublished, event.sid);
       });
 
     this.outgoingDataTrackManager = new OutgoingDataTrackManager(/* FIXME: add options */);
@@ -2825,4 +2832,5 @@ export type RoomEventCallbacks = {
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
   participantActive: (participant: Participant) => void;
   remoteDataTrackPublished: (track: RemoteDataTrack) => void;
+  remoteDataTrackUnpublished: (sid: DataTrackSid) => void;
 };

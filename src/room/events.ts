@@ -357,6 +357,11 @@ export enum RoomEvent {
    * Emits when a new data track has been published by a downstream participant.
    */
   RemoteDataTrackPublished = 'remoteDataTrackPublished',
+
+  /**
+   * Emits when a new data track has been unpublished by a downstream participant.
+   */
+  RemoteDataTrackUnpublished = 'remoteDataTrackUnpublished',
 }
 
 export enum ParticipantEvent {
