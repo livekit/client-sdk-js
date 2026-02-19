@@ -1183,45 +1183,71 @@ function renderLocalDataTracks() {
   }
 }
 
-function formatHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join(' ');
-}
+function renderHexDump(payload: Uint8Array): HTMLElement {
+  const bytesPerLine = 8;
+  const table = document.createElement('table');
+  table.style.cssText = 'border-collapse: collapse; width: 100%; font-size: 0.68rem; line-height: 1.4;';
 
-function formatString(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
-}
+  for (let offset = 0; offset < payload.byteLength; offset += bytesPerLine) {
+    const chunk = payload.slice(offset, offset + bytesPerLine);
+    const row = document.createElement('tr');
 
-function formatSize(bytes: Uint8Array): string {
-  const kb = bytes.byteLength / 1024;
-  return kb < 0.01 ? '<0.01 KB' : `${kb.toFixed(2)} KB`;
+    // Address column
+    const addrCell = document.createElement('td');
+    addrCell.style.cssText = 'color: #6c757d; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top; user-select: none;';
+    addrCell.textContent = offset.toString(16).padStart(8, '0');
+    row.appendChild(addrCell);
+
+    // Hex column
+    const hexCell = document.createElement('td');
+    hexCell.style.cssText = 'color: #28a745; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top;';
+    const hexStr = Array.from(chunk)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join(' ')
+      .padEnd(bytesPerLine * 3 - 1, ' ');
+    hexCell.textContent = hexStr;
+    row.appendChild(hexCell);
+
+    // ASCII column
+    const asciiCell = document.createElement('td');
+    asciiCell.style.cssText = 'color: #e9ecef; padding: 0; white-space: pre; vertical-align: top; text-align: right;';
+    const ascii = Array.from(chunk)
+      .map(b => (b >= 0x20 && b <= 0x7e) ? String.fromCharCode(b) : '.')
+      .join('');
+    asciiCell.textContent = '|' + ascii.padEnd(bytesPerLine, ' ') + '|';
+    row.appendChild(asciiCell);
+
+    table.appendChild(row);
+  }
+
+  return table;
 }
 
 function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   const { sid, pubHandle, name } = remoteDataTrack.info;
+  const identity = remoteDataTrack.publisherIdentity;
 
   const item = document.createElement('div');
   item.className = 'list-group-item local-data-track-item p-2 mt-2';
   item.dataset.sid = sid;
 
   item.innerHTML = `
-    <div class="d-flex align-items-start justify-content-between mt-1">
-      <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
-      <div class="d-flex align-items-center">
-        <span class="badge badge-secondary text-nowrap mr-2 text-truncate" title="Publisher identity">
-          ${remoteDataTrack.publisherIdentity}
-        </span>
+    <div class="d-flex align-items-center justify-content-between mb-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${identity}" style="min-width: 0;">${identity}</span>
+      <div class="d-flex align-items-center flex-shrink-0">
         <button class="btn btn-sm btn-outline-success remote-data-track-play-stop mr-1" type="button" title="Subscribe"></button>
         <button class="btn btn-sm btn-outline-secondary remote-data-track-clear" type="button">Clear</button>
       </div>
+    </div>
+    <div class="d-flex align-items-center mb-1">
+      <span class="text-muted text-truncate mr-2" style="font-size: 0.8rem;" title="${name}">${name}</span>
     </div>
     <div class="local-data-track-meta text-monospace text-muted mb-2">
       <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
       <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
     </div>
     <div class="remote-data-track-well bg-dark rounded p-2 text-monospace" style="max-height: 180px; overflow-y: auto; font-size: 0.7rem;">
-      <span class="remote-data-track-placeholder text-muted">Waiting for frames...</span>
+      <span class="remote-data-track-placeholder text-muted">Subscription not started</span>
     </div>
   `;
 
@@ -1231,22 +1257,50 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   const clearButton = item.querySelector<HTMLButtonElement>('.remote-data-track-clear')!;
 
   let reader: ReadableStreamDefaultReader | null = null;
+  let frameCounter = 0;
+
+  function clearWell(): void {
+    well.querySelectorAll('.remote-data-track-frame').forEach(el => el.remove());
+    frameCounter = 0;
+  }
+
+  function showPlaceholder(text: string): void {
+    placeholder.textContent = text;
+    if (!well.contains(placeholder)) {
+      well.appendChild(placeholder);
+    }
+  }
+
+  function hasFrames(): boolean {
+    return well.querySelector('.remote-data-track-frame') !== null;
+  }
 
   function appendFrame(payload: Uint8Array): void {
-    placeholder.remove();
+    if (well.contains(placeholder)) {
+      placeholder.remove();
+    }
 
+    frameCounter++;
     const entry = document.createElement('div');
     entry.className = 'remote-data-track-frame border-bottom border-secondary pb-1 mb-1';
-    entry.innerHTML = `
-      <div class="text-success">${formatHex(payload)}</div>
-      <div class="text-light text-truncate" title="${formatString(payload)}">${formatString(payload)}</div>
-      <div class="text-muted">${formatSize(payload)}</div>
-    `;
+
+    const meta = document.createElement('div');
+    meta.className = 'text-muted';
+    meta.style.cssText = 'font-size: 0.65rem;';
+    const sizeString = payload.byteLength < 1024 ? `${payload.byteLength} bytes` : `${(payload.byteLength / 1024).toFixed(2)} KB`;
+    meta.textContent = `#${frameCounter} · ${sizeString} · ${new Date().toISOString()}`;
+    entry.appendChild(meta);
+
+    entry.appendChild(renderHexDump(payload));
+
     well.appendChild(entry);
     well.scrollTop = well.scrollHeight;
   }
 
   async function startSubscription(): Promise<void> {
+    clearWell();
+    showPlaceholder('Waiting for frames...');
+
     playStopButton.textContent = 'Stop';
     playStopButton.classList.replace('btn-outline-success', 'btn-outline-danger');
     playStopButton.title = 'Unsubscribe';
@@ -1270,10 +1324,7 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
         appendFrame(value.payload);
       }
     } catch (err) {
-      // AbortError is expected when the user clicks stop — don't log it
-      // if (err instanceof Error && err.name !== 'AbortError') {
       console.error(`Remote data track ${sid}: stream read failed:`, err);
-      // }
     } finally {
       stopSubscription();
     }
@@ -1287,6 +1338,9 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
     playStopButton.textContent = 'Play';
     playStopButton.classList.replace('btn-outline-danger', 'btn-outline-success');
     playStopButton.title = 'Subscribe';
+    if (!hasFrames()) {
+      showPlaceholder('Subscription not started');
+    }
   }
 
   startSubscription();
@@ -1299,7 +1353,12 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   });
 
   clearButton.addEventListener('click', () => {
-    well.appendChild(placeholder);
+    clearWell();
+    if (!reader) {
+      showPlaceholder('Subscription not started');
+    } else {
+      showPlaceholder('Waiting for frames...');
+    }
   });
 
   return item;
