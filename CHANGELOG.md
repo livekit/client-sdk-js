@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.17.2
+
+### Patch Changes
+
+- Ensure connection state mismatches aren't triggered for ongoing PC connection attempts - [#1807](https://github.com/livekit/client-sdk-js/pull/1807) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix unnecessary track restarts on unmute when using ideal device constraints - [#1794](https://github.com/livekit/client-sdk-js/pull/1794) ([@mfairley](https://github.com/mfairley))
+
+- Prevent ongoing renegotiations from declaring the negotiation as timed out - [#1813](https://github.com/livekit/client-sdk-js/pull/1813) ([@lukasIO](https://github.com/lukasIO))
+
+- Add data track packetizer and depacketizer implementations - [#1798](https://github.com/livekit/client-sdk-js/pull/1798) ([@1egoman](https://github.com/1egoman))
+
+- Add missing type exports required by `@livekit/components-core` - [#1815](https://github.com/livekit/client-sdk-js/pull/1815) ([@1egoman](https://github.com/1egoman))
+
 ## 2.17.1
 
 ### Patch Changes
