@@ -330,6 +330,9 @@ export default class LocalParticipant extends Participant {
           case RequestResponse_Reason.DUPLICATE_NAME:
             error = DataTrackPublishError.duplicateName(response.message);
             break;
+          case RequestResponse_Reason.INVALID_NAME:
+            error = DataTrackPublishError.invalidName(response.message);
+            break;
           case RequestResponse_Reason.LIMIT_EXCEEDED:
             error = DataTrackPublishError.limitReached(response.message);
             break;
