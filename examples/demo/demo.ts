@@ -1097,10 +1097,9 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
         type="text"
         class="form-control local-data-track-input text-monospace"
         placeholder="Push a test message"
-        ${!published ? 'disabled' : ''}
       />
       <div class="input-group-append">
-        <button class="btn btn-outline-primary local-data-track-send" type="button" ${!published ? 'disabled' : ''}>
+        <button class="btn btn-outline-primary local-data-track-send" type="button">
           Send
         </button>
       </div>
@@ -1151,11 +1150,6 @@ function updateLocalDataTrackElement(element: HTMLDivElement, localDataTrack: Lo
     badge.className = `badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap`;
     badge.textContent = published ? '✓ Live' : '⏳ Pending';
   }
-
-  const input = element.querySelector<HTMLInputElement>('.local-data-track-input')!;
-  const button = element.querySelector<HTMLButtonElement>('.local-data-track-send')!;
-  input.disabled = published;
-  button.disabled = published;
 }
 
 function renderLocalDataTracks() {
