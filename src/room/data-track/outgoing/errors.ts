@@ -23,6 +23,9 @@ export enum DataTrackPublishErrorReason {
 
   // NOTE: this was introduced by web / there isn't a corresponding case in the rust version.
   Cancelled = 5,
+
+  /** The name requested is not able to be used when creating the data track. */
+  InvalidName = 6,
 }
 
 export class DataTrackPublishError<
@@ -56,6 +59,14 @@ export class DataTrackPublishError<
     return new DataTrackPublishError(
       'Track name already taken',
       DataTrackPublishErrorReason.DuplicateName,
+      { rawMessage },
+    );
+  }
+
+  static invalidName(rawMessage?: string) {
+    return new DataTrackPublishError(
+      'Track name is invalid',
+      DataTrackPublishErrorReason.InvalidName,
       { rawMessage },
     );
   }
