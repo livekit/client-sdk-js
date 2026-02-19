@@ -280,7 +280,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.engine.client.sendUnPublishDataTrackRequest(event.handle);
       })
       .on('packetsAvailable', ({ bytes }) => {
-        this.engine.sendLossyRawBytes(bytes);
+        this.engine.sendDataTrackPacketBytes(bytes);
       });
 
     this.disconnectLock = new Mutex();
@@ -640,6 +640,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
 
         this.incomingDataTrackManager.receivedSfuSubscriberHandles(handleToSidMapping);
+      })
+      .on(EngineEvent.DataTrackPacketReceived, (packetBytes) => {
+        this.incomingDataTrackManager.packetReceived(packetBytes);
       });
 
     if (this.localParticipant) {
