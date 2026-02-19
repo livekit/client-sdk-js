@@ -265,6 +265,20 @@
               </select>
             </div>
           </div>
+
+          <div id="screenshare-area">
+            <div>
+              <span id="screenshare-info"> </span>
+              <span id="screenshare-resolution"> </span>
+            </div>
+            <video id="screenshare-video" autoplay playsinline></video>
+          </div>
+
+          <div id="participants-area"></div>
+
+          <div id="log-area">
+            <textarea id="log"></textarea>
+          </div>
         </div>
         <div class="col-md-4">
           <h3>Chat</h3>
@@ -330,20 +344,6 @@
             <!-- data track entries dynamically inserted in here -->
           </div>
         </div>
-      </div>
-
-      <div id="screenshare-area">
-        <div>
-          <span id="screenshare-info"> </span>
-          <span id="screenshare-resolution"> </span>
-        </div>
-        <video id="screenshare-video" autoplay playsinline></video>
-      </div>
-
-      <div id="participants-area"></div>
-
-      <div id="log-area">
-        <textarea id="log"></textarea>
       </div>
     </div>
     <script src="./demo.ts" type="module"></script>
