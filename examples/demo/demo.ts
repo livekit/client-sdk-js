@@ -797,6 +797,9 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
   localDataTracks = [];
   renderLocalDataTracks();
 
+  remoteDataTracks = [];
+  renderRemoteDataTracks();
+
   const container = $('participants-area');
   if (container) {
     container.innerHTML = '';
