@@ -9,15 +9,18 @@ import {
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
-import Room, { ConnectionState } from './room/Room';
-import type { RoomEventCallbacks } from './room/Room';
+import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
 // FIXME: remove this import in a follow up data track pull request.
 import './room/data-track/depacketizer';
 // FIXME: remove this import in a follow up data track pull request.
 import './room/data-track/packetizer';
 import LocalParticipant from './room/participant/LocalParticipant';
-import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
+import Participant, {
+  ConnectionQuality,
+  type ParticipantEventCallbacks,
+  ParticipantKind,
+} from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import type {
@@ -36,8 +39,8 @@ import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
-import { TrackPublication } from './room/track/TrackPublication';
-import type { LiveKitReactNativeInfo } from './room/types';
+import { type PublicationEventCallbacks, TrackPublication } from './room/track/TrackPublication';
+import type { LiveKitReactNativeInfo, TextStreamInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
   compareVersions,
@@ -144,6 +147,7 @@ export type {
   AudioAnalyserOptions,
   ElementInfo,
   LiveKitReactNativeInfo,
+  TextStreamInfo,
   ParticipantTrackPermission,
   AudioReceiverStats,
   AudioSenderStats,
@@ -152,6 +156,8 @@ export type {
   ReconnectContext,
   ReconnectPolicy,
   RoomEventCallbacks,
+  ParticipantEventCallbacks,
+  PublicationEventCallbacks,
 };
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {
