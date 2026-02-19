@@ -94,6 +94,7 @@ import {
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
+const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
@@ -147,6 +148,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private lossyDCSub?: RTCDataChannel;
 
   private reliableDC?: RTCDataChannel;
+
+  private dataTrackDC?: RTCDataChannel;
 
   private dcBufferStatus: Map<DataPacket_Kind, boolean>;
 
@@ -358,6 +361,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     dcCleanup(this.lossyDCSub);
     dcCleanup(this.reliableDC);
     dcCleanup(this.reliableDCSub);
+    dcCleanup(this.dataTrackDC);
 
     this.lossyDC = undefined;
     this.lossyDCSub = undefined;
@@ -728,6 +732,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDC.onmessage = null;
       this.reliableDC.onerror = null;
     }
+    if (this.dataTrackDC) {
+      this.dataTrackDC.onmessage = null;
+      this.dataTrackDC.onerror = null;
+    }
 
     // create data channels
     this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
@@ -737,22 +745,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
       ordered: true,
     });
+    this.dataTrackDC = this.pcManager.createPublisherDataChannel(dataTrackDataChannel, {
+      ordered: false,
+      maxRetransmits: 0,
+    });
 
     // also handle messages over the pub channel, for backwards compatibility
     this.lossyDC.onmessage = this.handleDataMessage;
     this.reliableDC.onmessage = this.handleDataMessage;
+    this.dataTrackDC.onmessage = this.handleDataTrackMessage;
 
     // handle datachannel errors
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
+    this.dataTrackDC.onerror = this.handleDataError;
 
     // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
     this.lossyDC.bufferedAmountLowThreshold = 65535;
     this.reliableDC.bufferedAmountLowThreshold = 65535;
+    this.dataTrackDC.bufferedAmountLowThreshold = 65535;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
+    // this.dataTrackDC.onbufferedamountlow = this.handleBufferedAmountLow; // FIXME: do I want this for data tracks?
 
     this.cleanupLossyDataStats();
     this.lossyDataStatInterval = setInterval(() => {
@@ -846,6 +862,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } finally {
       unlock();
     }
+  };
+
+  private handleDataTrackMessage = async (message: MessageEvent) => {
+    // Decode / normalize into a common format
+    let buffer: ArrayBuffer | undefined;
+    if (message.data instanceof ArrayBuffer) {
+      buffer = message.data;
+    } else if (message.data instanceof Blob) {
+      buffer = await message.data.arrayBuffer();
+    } else {
+      this.log.error('unsupported data type', { ...this.logContext, data: message.data });
+      return;
+    }
+
+    this.emit('dataTrackPacketReceived', new Uint8Array(buffer));
   };
 
   private handleDataError = (event: Event) => {
@@ -1348,9 +1379,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
       } else {
         // lossy channel, drop messages to reduce latency
-        if (this.shouldLossyMessageBeDropped(msg.byteLength)) {
+        if (!this.isBufferStatusLow(kind)) {
+          this.lossyDataDropCount += 1;
+          if (this.lossyDataDropCount % 100 === 0) {
+            this.log.warn(
+              `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+              this.logContext,
+            );
+          }
           return;
         }
+        this.lossyDataStatCurrentBytes += msg.byteLength;
       }
 
       if (this.attemptingReconnect) {
@@ -1364,41 +1403,45 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  sendLossyRawBytes(msg: Uint8Array) {
-    console.log('SEND LOSSY:', msg);
-    const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
-    if (dc) {
-      // lossy channel, drop messages to reduce latency
-      if (this.shouldLossyMessageBeDropped(msg.byteLength)) {
-        return;
-      }
+  sendDataTrackPacketBytes(bytes: Uint8Array) {
+    console.log('SEND LOSSY:', bytes);
+    this.dataTrackDC?.send(bytes);
+    // FIXME: make this more robust? It's going to require some larger reworking of how data
+    // channels are managed in this class.
 
-      if (this.attemptingReconnect) {
-        return;
-      }
+    // const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
+    // if (dc) {
+    //   // lossy channel, drop messages to reduce latency
+    //   if (this.shouldLossyMessageBeDropped(bytes.byteLength)) {
+    //     return;
+    //   }
 
-      dc.send(msg);
-    }
+    //   if (this.attemptingReconnect) {
+    //     return;
+    //   }
 
-    this.updateAndEmitDCBufferStatus(DataPacket_Kind.LOSSY);
+    //   dc.send(bytes);
+    // }
+
+    // this.updateAndEmitDCBufferStatus(DataPacket_Kind.LOSSY);
   }
 
-  private shouldLossyMessageBeDropped(msgByteLength: number): boolean {
-    // lossy channel, drop messages to reduce latency
-    if (!this.isBufferStatusLow(DataPacket_Kind.LOSSY)) {
-      this.lossyDataDropCount += 1;
-      if (this.lossyDataDropCount % 100 === 0) {
-        this.log.warn(
-          `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-          this.logContext,
-        );
-      }
-      return true;
-    }
+  // private shouldLossyMessageBeDropped(msgByteLength: number): boolean {
+  //   // lossy channel, drop messages to reduce latency
+  //   if (!this.isBufferStatusLow(DataPacket_Kind.LOSSY)) {
+  //     this.lossyDataDropCount += 1;
+  //     if (this.lossyDataDropCount % 100 === 0) {
+  //       this.log.warn(
+  //         `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+  //         this.logContext,
+  //       );
+  //     }
+  //     return true;
+  //   }
 
-    this.lossyDataStatCurrentBytes += msgByteLength;
-    return false;
-  }
+  //   this.lossyDataStatCurrentBytes += msgByteLength;
+  //   return false;
+  // }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
     await this.ensurePublisherConnected(DataPacket_Kind.RELIABLE);
@@ -1550,7 +1593,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (
         this.pcManager.publisher.getTransceivers().length == 0 &&
         !this.lossyDC &&
-        !this.reliableDC
+        !this.reliableDC &&
+        !this.dataTrackDC
       ) {
         this.createDataChannels();
       }
@@ -1853,6 +1897,7 @@ export type EngineEventCallbacks = {
   publishDataTrackResponse: (event: PublishDataTrackResponse) => void;
   unPublishDataTrackResponse: (event: UnpublishDataTrackResponse) => void;
   dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
+  dataTrackPacketReceived: (packet: Uint8Array) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

@@ -619,6 +619,7 @@ export enum EngineEvent {
   PublishDataTrackResponse = 'publishDataTrackResponse',
   UnPublishDataTrackResponse = 'unPublishDataTrackResponse',
   DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
+  DataTrackPacketReceived = 'dataTrackPacketReceived',
 }
 
 export enum TrackEvent {
