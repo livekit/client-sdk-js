@@ -1384,7 +1384,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const oldEngine = this.engine;
 
     if (sendLeave) {
-      if (oldEngine && oldEngine.client.isDisconnected) {
+      if (oldEngine && !oldEngine.client.isDisconnected) {
         oldEngine.client.sendLeave().finally(() => oldEngine.close());
       }
     } else {
