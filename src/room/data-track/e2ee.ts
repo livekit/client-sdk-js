@@ -10,5 +10,6 @@ export type EncryptionProvider = {
 };
 
 export type DecryptionProvider = {
-  decrypt(payload: Uint8Array, senderIdentity: string): Uint8Array;
+  // FIXME: add in explicit `Throws<..., DecryptionError>`?
+  decrypt(payload: EncryptedPayload, senderIdentity: string): Uint8Array;
 };

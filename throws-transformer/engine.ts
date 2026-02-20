@@ -44,6 +44,12 @@ export function checkSourceFile(
       if (rejectResult) {
         results.push(rejectResult);
       }
+      
+      // Check if this is a reject() call from Promise constructor
+      const rejectParamResult = checkRejectParameterCall(node, sourceFile, checker);
+      if (rejectParamResult) {
+        results.push(rejectParamResult);
+      }
     }
 
     // Check await expressions
@@ -219,6 +225,124 @@ function checkPromiseReject(
   return null;
 }
 
+function checkRejectParameterCall(
+  node: ts.CallExpression,
+  sourceFile: ts.SourceFile,
+  checker: ts.TypeChecker,
+): CheckResult | null {
+  // Check if this is a reject() call (not Promise.reject())
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'reject') {
+    return null;
+  }
+
+  // Check if reject is a parameter from a Promise constructor
+  const promiseConstructor = getPromiseConstructorForReject(node.expression, checker);
+  if (!promiseConstructor) {
+    return null;
+  }
+
+  // Get the function that contains the Promise constructor (not the executor function)
+  const containingFunction = getContainingFunction(promiseConstructor);
+  if (!containingFunction) {
+    return null;
+  }
+
+  // Check if handled by local catch
+  const tryCatch = getContainingTryCatch(promiseConstructor);
+  if (tryCatch) {
+    return null; // Handled by try-catch
+  }
+
+  // Get declared error types from the function's return type
+  const declaredErrors = getDeclaredErrorTypes(containingFunction, checker);
+  if (declaredErrors === null) {
+    return null; // Not using Throws<>
+  }
+
+  // Get the type of the rejected value
+  if (node.arguments.length === 0) {
+    return null; // reject() with no argument
+  }
+
+  const rejectedType = checker.getTypeAtLocation(node.arguments[0]);
+  const rejectedTypeName = checker.typeToString(rejectedType);
+
+  const isAllowed = isErrorTypeDeclared(checker, rejectedType, declaredErrors);
+
+  if (!isAllowed) {
+    const start = node.getStart();
+    const length = node.getWidth();
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(start);
+    const declaredNames = declaredErrors
+      .map((t) => checker.typeToString(t))
+      .join(" | ");
+
+    return {
+      sourceFile,
+      line: line + 1,
+      column: character + 1,
+      start,
+      length,
+
+      functionName: "reject",
+      unhandledErrors: [rejectedTypeName],
+      message: `reject('${rejectedTypeName}') in Promise constructor but it's not declared. Declared: ${declaredNames || "never"}. Add it to Throws<> in your return type.`,
+    };
+  }
+
+  return null;
+}
+
+function getPromiseConstructorForReject(
+  identifier: ts.Identifier,
+  checker: ts.TypeChecker,
+): ts.NewExpression | null {
+  // Get the symbol for the identifier
+  const symbol = checker.getSymbolAtLocation(identifier);
+  if (!symbol) {
+    return null;
+  }
+
+  // Check if it's a parameter
+  const declarations = symbol.getDeclarations();
+  if (!declarations || declarations.length === 0) {
+    return null;
+  }
+
+  const declaration = declarations[0];
+  if (!ts.isParameter(declaration)) {
+    return null;
+  }
+
+  // Check if the parameter is from a function that's passed to Promise constructor
+  const paramFunction = declaration.parent;
+  if (!ts.isFunctionExpression(paramFunction) && !ts.isArrowFunction(paramFunction)) {
+    return null;
+  }
+
+  // Check if this function is an argument to a Promise constructor
+  const parent = paramFunction.parent;
+  
+  // Handle both direct argument and parenthesized expressions
+  let newExpr: ts.Node | undefined = parent;
+  while (newExpr && ts.isParenthesizedExpression(newExpr)) {
+    newExpr = newExpr.parent;
+  }
+
+  if (!newExpr || !ts.isNewExpression(newExpr)) {
+    return null;
+  }
+
+  // Check if it's a new Promise(...) call
+  const type = checker.getTypeAtLocation(newExpr.expression);
+  const typeSymbol = type.getSymbol();
+  if (typeSymbol?.getName() === 'Promise' || typeSymbol?.getName() === 'PromiseConstructor') {
+    return newExpr as ts.NewExpression;
+  }
+
+  return null;
+}
+
 function checkReturnStatement(
   node: ts.ReturnStatement,
   sourceFile: ts.SourceFile,
@@ -233,11 +357,33 @@ function checkReturnStatement(
     return null;
   }
 
-  // Get the type of the returned expression
-  const returnedType = checker.getTypeAtLocation(node.expression);
+  // Check if this is a .catch() or .then() call on a promise
+  let returnedErrors: ts.Type[] = [];
   
-  // Extract error types from the returned value
-  const returnedErrors = extractThrowsErrorTypes(returnedType, checker);
+  if (ts.isCallExpression(node.expression) && 
+      ts.isPropertyAccessExpression(node.expression.expression)) {
+    const methodName = node.expression.expression.name.text;
+    
+    if (methodName === 'catch') {
+      // For .catch(), check if it handles all errors or rethrows some
+      returnedErrors = extractErrorsFromPromiseCatch(node.expression, checker);
+    } else if (methodName === 'then') {
+      // For .then(), errors propagate from the original promise
+      const promiseExpr = node.expression.expression.expression;
+      const promiseType = checker.getTypeAtLocation(promiseExpr);
+      returnedErrors = extractThrowsErrorTypes(promiseType, checker);
+    } else {
+      // Regular method call, extract errors normally
+      const returnedType = checker.getTypeAtLocation(node.expression);
+      returnedErrors = extractThrowsErrorTypes(returnedType, checker);
+    }
+  } else {
+    // Get the type of the returned expression
+    const returnedType = checker.getTypeAtLocation(node.expression);
+    
+    // Extract error types from the returned value
+    returnedErrors = extractThrowsErrorTypes(returnedType, checker);
+  }
   
   if (returnedErrors.length === 0) {
     return null; // No errors in returned value
@@ -277,6 +423,66 @@ function checkReturnStatement(
     unhandledErrors: errorNames,
     message: `Returning value with errors [${errorNames.join(" | ")}] but only [${declaredNames || "never"}] declared. Add missing errors to your function's Throws<> return type.`,
   };
+}
+
+function extractErrorsFromPromiseCatch(
+  catchCall: ts.CallExpression,
+  checker: ts.TypeChecker,
+): ts.Type[] {
+  // Get errors from the original promise (before .catch())
+  const promiseExpr = (catchCall.expression as ts.PropertyAccessExpression).expression;
+  const promiseType = checker.getTypeAtLocation(promiseExpr);
+  const originalErrors = extractThrowsErrorTypes(promiseType, checker);
+  
+  if (originalErrors.length === 0) {
+    return [];
+  }
+
+  // Check the catch handler
+  if (catchCall.arguments.length === 0) {
+    return originalErrors; // No handler, errors propagate
+  }
+
+  const handler = catchCall.arguments[0];
+  
+  // If it's a function, check if it rethrows
+  if (ts.isFunctionExpression(handler) || ts.isArrowFunction(handler)) {
+    if (!handler.body) {
+      return []; // No body means it silences errors
+    }
+
+    // Check if the body contains a throw statement
+    if (ts.isBlock(handler.body)) {
+      if (containsThrowStatement(handler.body)) {
+        // Handler rethrows - find what it throws
+        const thrownErrors: ts.Type[] = [];
+        
+        function visitThrow(node: ts.Node): void {
+          if (ts.isThrowStatement(node) && node.expression) {
+            const thrownType = checker.getTypeAtLocation(node.expression);
+            if (!isAnyOrUnknownType(thrownType)) {
+              thrownErrors.push(thrownType);
+            }
+          }
+          ts.forEachChild(node, visitThrow);
+        }
+        
+        visitThrow(handler.body);
+        
+        // Return the new errors thrown by the handler
+        return thrownErrors.length > 0 ? thrownErrors : originalErrors;
+      } else {
+        // Handler doesn't rethrow, errors are silenced
+        return [];
+      }
+    } else {
+      // Expression body (arrow function), doesn't throw
+      return [];
+    }
+  }
+
+  // If it's not a function expression, be conservative and assume errors propagate
+  return originalErrors;
 }
 
 function isHandledByLocalCatch(
@@ -332,6 +538,17 @@ function checkCallExpression(
   sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
 ): CheckResult | null {
+  // Check if this IS a .catch() call with a handler that silences errors
+  if (isCatchCallThatSilencesErrors(node)) {
+    return null;
+  }
+
+  // Check if this is a promise-returning call that's being chained or not immediately consumed
+  // In these cases, the error is contained in the promise and will be handled later
+  if (isPromiseCallNotImmediatelyConsumed(node, checker)) {
+    return null;
+  }
+
   // Get the return type of the call
   const callType = checker.getTypeAtLocation(node);
 
@@ -360,14 +577,25 @@ function checkCallExpression(
     return null;
   }
 
-  const propagatedErrors = containingFunction
+  const propagatedErrorTypes = containingFunction
     ? getPropagatedErrorTypes(node, containingFunction, sourceFile, checker)
-    : new Set<string>();
+    : [];
 
-  // Find unhandled
+  // Find unhandled - use type compatibility checking for propagated errors
   const unhandledErrors = errorTypes.filter((errorType) => {
     const errorName = checker.typeToString(errorType);
-    return !handledErrors.has(errorName) && !propagatedErrors.has(errorName);
+    
+    // Check if handled by catch
+    if (handledErrors.has(errorName)) {
+      return false;
+    }
+    
+    // Check if propagated using generic type compatibility
+    if (isErrorTypeDeclared(checker, errorType, propagatedErrorTypes)) {
+      return false;
+    }
+    
+    return true;
   });
 
   if (unhandledErrors.length === 0) {
@@ -397,6 +625,81 @@ function checkCallExpression(
       `Unhandled errors from '${functionName}': ${errorNames.join(" | ")}. ` +
       `Catch these errors or add 'Throws<..., ${errorNames.join(" | ")}>' to your return type.`,
   };
+}
+
+function isPromiseCallNotImmediatelyConsumed(node: ts.CallExpression, checker: ts.TypeChecker): boolean {
+  // Check if this call returns a Promise
+  const returnType = checker.getTypeAtLocation(node);
+  const promiseType = extractPromiseType(returnType, checker);
+  
+  // If it doesn't return a promise, we should check it
+  if (!promiseType) {
+    return false;
+  }
+
+  // Check the parent context
+  const parent = node.parent;
+  
+  // If it's being chained (e.g., someCall().then(...))
+  if (ts.isPropertyAccessExpression(parent)) {
+    const methodName = parent.name.text;
+    const promiseMethods = ['then', 'catch', 'finally'];
+    if (promiseMethods.includes(methodName)) {
+      return true;
+    }
+  }
+
+  // If it's in a variable declaration (e.g., const x = someCall())
+  if (ts.isVariableDeclaration(parent)) {
+    return true;
+  }
+
+  // If it's in a return statement, we SHOULD check it (it's being consumed)
+  if (ts.isReturnStatement(parent)) {
+    return false;
+  }
+
+  // If it's being awaited, we SHOULD check it (it's being consumed)
+  if (ts.isAwaitExpression(parent)) {
+    return false;
+  }
+
+  // Default: if returning a promise and not explicitly consumed, skip checking
+  // This handles cases like assignment, being passed as an argument, etc.
+  return true;
+}
+
+function isCatchCallThatSilencesErrors(node: ts.CallExpression): boolean {
+  // Check if this is a .catch() method call
+  if (!ts.isPropertyAccessExpression(node.expression)) {
+    return false;
+  }
+
+  if (node.expression.name.text !== 'catch') {
+    return false;
+  }
+
+  // Check if the catch handler silences errors
+  if (node.arguments.length === 0) {
+    return false; // No handler
+  }
+
+  const handler = node.arguments[0];
+  if (ts.isFunctionExpression(handler) || ts.isArrowFunction(handler)) {
+    if (!handler.body) {
+      return true; // No body means it silences
+    }
+
+    if (ts.isBlock(handler.body)) {
+      // Check if it contains a throw statement
+      return !containsThrowStatement(handler.body);
+    } else {
+      // Expression body doesn't throw
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function extractThrowsErrorTypes(
@@ -488,8 +791,82 @@ function isErrorTypeDeclared(
     if (baseTypes.some((base) => checker.typeToString(base) === declaredName)) {
       return true;
     }
+
+    // Check if types share the same base generic type with compatible type arguments
+    if (areGenericTypesCompatible(checker, thrownType, declared)) {
+      return true;
+    }
   }
 
+  return false;
+}
+
+function areGenericTypesCompatible(
+  checker: ts.TypeChecker,
+  source: ts.Type,
+  target: ts.Type,
+): boolean {
+  // Cast to TypeReference to access type arguments
+  const sourceRef = source as ts.TypeReference;
+  const targetRef = target as ts.TypeReference;
+  
+  // Both must be type references with type arguments
+  if (!sourceRef.typeArguments || !targetRef.typeArguments) {
+    return false;
+  }
+  
+  // Check if they have the same base symbol (e.g., both are TypedError<...>)
+  const sourceSymbol = source.getSymbol();
+  const targetSymbol = target.getSymbol();
+  
+  if (!sourceSymbol || !targetSymbol || sourceSymbol !== targetSymbol) {
+    return false;
+  }
+  
+  // Both have the same generic base, now check if type arguments are compatible
+  if (sourceRef.typeArguments.length !== targetRef.typeArguments.length) {
+    return false;
+  }
+  
+  for (let i = 0; i < sourceRef.typeArguments.length; i++) {
+    const sourceArg = sourceRef.typeArguments[i];
+    const targetArg = targetRef.typeArguments[i];
+    
+    if (!isTypeArgumentAssignable(checker, sourceArg, targetArg)) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+function isTypeArgumentAssignable(
+  checker: ts.TypeChecker,
+  source: ts.Type,
+  target: ts.Type,
+): boolean {
+  const sourceName = checker.typeToString(source);
+  const targetName = checker.typeToString(target);
+  
+  // Exact match
+  if (sourceName === targetName) {
+    return true;
+  }
+  
+  // Check if target is a union and source is one of its members
+  if (target.isUnion() && target.types.length > 1) {
+    return target.types.some(t => {
+      const tName = checker.typeToString(t);
+      return tName === sourceName;
+    });
+  }
+  
+  // Check if source is an enum member and target is the enum
+  // e.g., source is "Types.Foo" and target is "Types"
+  if (sourceName.includes('.') && sourceName.startsWith(targetName + '.')) {
+    return true;
+  }
+  
   return false;
 }
 
@@ -867,26 +1244,17 @@ function getPropagatedErrorTypes(
   func: ts.FunctionLikeDeclaration,
   sourceFile: ts.SourceFile,
   checker: ts.TypeChecker,
-): Set<string> {
-  const propagated = new Set<string>();
-
-  if (!func.type) { return propagated; }
+): ts.Type[] {
+  if (!func.type) { return []; }
 
   // If `node` is in a try/catch, then the errors propegated are the errors that the catch itself throws
   const tryCatch = getContainingTryCatch(node);
   if (tryCatch?.catchClause) {
-    const thrownErrorTypes = getTryCatchThrownErrors(tryCatch, sourceFile, checker);
-    return new Set(thrownErrorTypes.map(e => checker.typeToString(e)));
+    return getTryCatchThrownErrors(tryCatch, sourceFile, checker);
   }
 
   const returnType = checker.getTypeFromTypeNode(func.type);
-  const errorTypes = extractThrowsErrorTypes(returnType, checker);
-
-  for (const errorType of errorTypes) {
-    propagated.add(checker.typeToString(errorType));
-  }
-
-  return propagated;
+  return extractThrowsErrorTypes(returnType, checker);
 }
 
 function getFunctionName(node: ts.CallExpression): string {
