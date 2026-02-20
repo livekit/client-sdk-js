@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { type JoinResponse, type ParticipantUpdate } from '@livekit/protocol';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
 import type { Throws } from '../../../utils/throws';
@@ -24,18 +25,11 @@ type SfuUpdateSubscription = {
 };
 
 export type DataTrackIncomingManagerCallbacks = {
-  /** Request sent to the SFU to update the subscription for a data track.
-   *
-   * Protocol equivalent: [`livekit_protocol::UpdateDataSubscription`].
-   */
+  /** Request sent to the SFU to update the subscription for a data track. */
   sfuUpdateSubscription: (event: SfuUpdateSubscription) => void;
 
   /** A track has been published by a remote participant and is available to be
-   * subscribed to.
-   *
-   * Emit a public event to deliver the track to the user, allowing them to subscribe
-   * with [`RemoteDataTrack::subscribe`] if desired.
-   */
+   * subscribed to. */
   trackAvailable: (event: { track: RemoteDataTrack }) => void;
 };
 
@@ -64,7 +58,6 @@ type SubscriptionState = SubscriptionStateNone | SubscriptionStatePending | Subs
 type Descriptor<S extends SubscriptionState> = {
   info: DataTrackInfo;
   publisherIdentity: Participant['identity'];
-  // published_tx: watch::Sender<bool>,
   subscription: S;
 };
 
@@ -88,7 +81,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   /** Mapping between subscriber handle and track SID.
    *
    * This is an index that allows track descriptors to be looked up
-   * by subscriber handle in O(1) time—necessary for routing incoming packets.
+   * by subscriber handle in O(1) time, to make routing incoming packets
+   * a (hot code path) faster.
    */
   private subscriptionHandles = new Map<DataTrackHandle, DataTrackSid>();
 
@@ -173,7 +167,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
               previousDescriptorSubscription.completionFuture.reject?.(
                 timeoutSignal.aborted
                   ? DataTrackSubscribeError.timeout()
-                  : // FIXME: the below cancelled case was introduced by web / there isn't a corresponding case in the rust version.
+                  : // NOTE: the below cancelled case was introduced by web / there isn't a corresponding case in the rust version.
                     DataTrackSubscribeError.cancelled(),
               );
             }
@@ -281,8 +275,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     if (descriptor.subscription.type !== 'active') {
-      // FIXME: should this be an internal error?
-      log.warn('Unexpected state');
+      log.warn(`Unexpected descriptor state in unSubscribeRequest, expected active, found ${descriptor.subscription?.type}`);
       return;
     }
 
@@ -301,15 +294,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
   /** SFU notification that track publications have changed.
    *
-   * This event is produced from both [`livekit_protocol::JoinResponse`] and [`livekit_protocol::ParticipantUpdate`]
+   * This event is produced from both {@link JoinResponse} and {@link ParticipantUpdate}
    * to provide a complete view of remote participants' track publications:
    *
    * - From a `JoinResponse`, it captures the initial set of tracks published when a participant joins.
    * - From a `ParticipantUpdate`, it captures subsequent changes (i.e., new tracks being
    *   published and existing tracks unpublished).
-   *
-   * See [`event_from_join`](super::proto::event_from_join) and
-   *     [`event_from_participant_update`](super::proto::event_from_participant_update).
    */
   async receiveSfuPublicationUpdates(updates: Map<Participant['identity'], Array<DataTrackInfo>>) {
     if (updates.size === 0) {
@@ -376,10 +366,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     // _ = descriptor.published_tx.send(false);
   }
 
-  /** SFU notification that handles have been assigned for requested subscriptions.
-   *
-   * Protocol equivalent: [`livekit_protocol::DataTrackSubscriberHandles`].
-   */
+  /** SFU notification that handles have been assigned for requested subscriptions. */
   receivedSfuSubscriberHandles(
     /** Mapping between track handles attached to incoming packets to the
      * track SIDs they belong to. */
@@ -452,8 +439,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     if (descriptor.subscription.type !== 'active') {
-      // FIXME: "without active subscription"?
-      log.warn(`Received packet for track ${sid} without subscription`);
+      log.warn(`Received packet for track ${sid} without active subscription`);
       return;
     }
 
