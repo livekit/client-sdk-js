@@ -31,6 +31,9 @@ export type DataTrackIncomingManagerCallbacks = {
   /** A track has been published by a remote participant and is available to be
    * subscribed to. */
   trackAvailable: (event: { track: RemoteDataTrack }) => void;
+
+  /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
+  trackUnavailable: (event: { sid: DataTrackSid, publisherIdentity: Participant["identity"] }) => void;
 };
 
 /** Track is not subscribed to. */
@@ -362,8 +365,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
-    // FIXME: send a message of some sort to notify that the track was unpublished?
-    // _ = descriptor.published_tx.send(false);
+    this.emit('trackUnavailable', { sid, publisherIdentity: descriptor.publisherIdentity  });
   }
 
   /** SFU notification that handles have been assigned for requested subscriptions. */
@@ -472,8 +474,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   /** Shutdown the manager, ending any subscriptions. */
   shutdown() {
     for (const descriptor of this.descriptors.values()) {
-      // FIXME: send a message of some sort to notify that the track was unpublished?
-      // _ = descriptor.published_tx.send(false);
+      this.emit('trackUnavailable', {
+        sid: descriptor.info.sid,
+        publisherIdentity: descriptor.publisherIdentity
+      });
 
       if (descriptor.subscription.type === 'pending') {
         descriptor.subscription.completionFuture.reject?.(DataTrackSubscribeError.disconnected());
