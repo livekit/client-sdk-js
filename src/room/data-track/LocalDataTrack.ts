@@ -10,6 +10,7 @@ import type { DataTrackInfo } from './types';
 
 export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   readonly localitySymbol = LocalTrackSymbol;
+
   readonly typeSymbol = DataTrackSymbol;
 
   info: DataTrackInfo;

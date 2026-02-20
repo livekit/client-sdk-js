@@ -15,6 +15,7 @@ type RemoteDataTrackOptions = {
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
   readonly localitySymbol = RemoteTrackSymbol;
+
   readonly typeSymbol = DataTrackSymbol;
 
   info: DataTrackInfo;
@@ -55,7 +56,8 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    */
   async subscribe(options?: { signal?: AbortSignal }): Promise<ReadableStream<DataTrackFrame>> {
     try {
-      return this.manager.subscribeRequest(this.info.sid, options?.signal);
+      const stream = await this.manager.subscribeRequest(this.info.sid, options?.signal);
+      return stream;
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;

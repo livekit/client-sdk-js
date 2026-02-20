@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events';
 import { type JoinResponse, type ParticipantUpdate } from '@livekit/protocol';
+import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
 import type { Throws } from '../../../utils/throws';
@@ -12,8 +12,8 @@ import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
-import IncomingDataTrackPipeline from './pipeline';
 import { DataTrackSubscribeError } from './errors';
+import IncomingDataTrackPipeline from './pipeline';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -33,7 +33,10 @@ export type DataTrackIncomingManagerCallbacks = {
   trackAvailable: (event: { track: RemoteDataTrack }) => void;
 
   /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
-  trackUnavailable: (event: { sid: DataTrackSid, publisherIdentity: Participant["identity"] }) => void;
+  trackUnavailable: (event: {
+    sid: DataTrackSid;
+    publisherIdentity: Participant['identity'];
+  }) => void;
 };
 
 /** Track is not subscribed to. */
@@ -278,7 +281,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     if (descriptor.subscription.type !== 'active') {
-      log.warn(`Unexpected descriptor state in unSubscribeRequest, expected active, found ${descriptor.subscription?.type}`);
+      log.warn(
+        `Unexpected descriptor state in unSubscribeRequest, expected active, found ${descriptor.subscription?.type}`,
+      );
       return;
     }
 
@@ -365,7 +370,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
-    this.emit('trackUnavailable', { sid, publisherIdentity: descriptor.publisherIdentity  });
+    this.emit('trackUnavailable', { sid, publisherIdentity: descriptor.publisherIdentity });
   }
 
   /** SFU notification that handles have been assigned for requested subscriptions. */
@@ -476,7 +481,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     for (const descriptor of this.descriptors.values()) {
       this.emit('trackUnavailable', {
         sid: descriptor.info.sid,
-        publisherIdentity: descriptor.publisherIdentity
+        publisherIdentity: descriptor.publisherIdentity,
       });
 
       if (descriptor.subscription.type === 'pending') {
