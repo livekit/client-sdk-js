@@ -740,7 +740,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
               this.logContext,
             );
-            this.recreateEngine();
+            this.recreateEngine(true);
             await connectFn(resolve, reject, nextUrl);
           } else {
             this.handleDisconnect(
@@ -866,7 +866,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ) {
       this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
-      this.recreateEngine();
+      this.recreateEngine(true);
     } else {
       // create engine if previously disconnected
       this.maybeCreateEngine();
@@ -1380,8 +1380,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
   }
 
-  private recreateEngine() {
-    this.engine?.close();
+  private recreateEngine(sendLeave?: boolean) {
+    const oldEngine = this.engine;
+
+    if (sendLeave) {
+      if (oldEngine && oldEngine.client.isDisconnected) {
+        oldEngine.client.sendLeave().finally(() => oldEngine.close());
+      }
+    } else {
+      oldEngine?.close();
+    }
     /* @ts-ignore */
     this.engine = undefined;
     this.isResuming = false;
