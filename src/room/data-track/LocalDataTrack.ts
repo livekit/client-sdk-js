@@ -4,12 +4,14 @@ import {
   DataTrackSymbol,
   type IDataTrack,
   type ILocalTrack,
-  LocalTrackSymbol,
+  TrackSymbol,
 } from './track-interfaces';
 import type { DataTrackInfo } from './types';
 
 export default class LocalDataTrack implements ILocalTrack, IDataTrack {
-  readonly localitySymbol = LocalTrackSymbol;
+  readonly trackSymbol = TrackSymbol;
+
+  readonly isLocal = true;
 
   readonly typeSymbol = DataTrackSymbol;
 

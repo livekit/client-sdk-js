@@ -5,7 +5,7 @@ import {
   DataTrackSymbol,
   type IDataTrack,
   type IRemoteTrack,
-  RemoteTrackSymbol,
+  TrackSymbol,
 } from './track-interfaces';
 import { type DataTrackInfo } from './types';
 
@@ -14,7 +14,9 @@ type RemoteDataTrackOptions = {
 };
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
-  readonly localitySymbol = RemoteTrackSymbol;
+  readonly trackSymbol = TrackSymbol;
+
+  readonly isLocal = false;
 
   readonly typeSymbol = DataTrackSymbol;
 
