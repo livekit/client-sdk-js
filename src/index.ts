@@ -14,7 +14,7 @@ import * as attributes from './room/attribute-typings';
 // FIXME: remove this import in a follow up data track pull request.
 import './room/data-track/depacketizer';
 // FIXME: remove this import in a follow up data track pull request.
-import './room/data-track/packetizer';
+import './room/data-track/outgoing/OutgoingDataTrackManager';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, {
   ConnectionQuality,

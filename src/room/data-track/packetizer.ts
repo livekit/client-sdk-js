@@ -40,7 +40,7 @@ export enum DataTrackPacketizerReason {
 
 /** A packetizer takes a {@link DataTrackFrame} as input and generates a series
  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
-export class DataTrackPacketizer {
+export default class DataTrackPacketizer {
   private handle: DataTrackHandle;
 
   private mtuSizeBytes: number;
@@ -120,7 +120,11 @@ export class DataTrackPacketizer {
         // ... and the last packet will be as long as it needs to be to finish out the buffer.
         frame.payload.byteLength - indexBytes,
       );
-      const packetPayload = new Uint8Array(frame.payload, indexBytes, packetPayloadLengthBytes);
+      const packetPayload = new Uint8Array(
+        frame.payload.buffer,
+        frame.payload.byteOffset + indexBytes,
+        packetPayloadLengthBytes,
+      );
 
       yield new DataTrackPacket(packetHeader, packetPayload);
     }
