@@ -2,7 +2,6 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
 import type { Throws } from '../../../utils/throws';
-import { LivekitReasonedError } from '../../errors';
 import type Participant from '../../participant/Participant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
@@ -13,6 +12,7 @@ import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
 import IncomingDataTrackPipeline from './pipeline';
+import { DataTrackSubscribeError } from './errors';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -38,59 +38,6 @@ export type DataTrackIncomingManagerCallbacks = {
    */
   trackAvailable: (event: { track: RemoteDataTrack }) => void;
 };
-
-export enum DataTrackSubscribeErrorReason {
-  Unpublished = 0,
-  Timeout = 1,
-  Disconnected = 2,
-  // Internal = 3,
-  Cancelled = 4,
-}
-
-export class DataTrackSubscribeError<
-  Reason extends DataTrackSubscribeErrorReason = DataTrackSubscribeErrorReason,
-> extends LivekitReasonedError<Reason> {
-  readonly name = 'DataTrackSubscribeError';
-
-  reason: Reason;
-
-  reasonName: string;
-
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
-    super(22, message, options);
-    this.reason = reason;
-    this.reasonName = DataTrackSubscribeErrorReason[reason];
-  }
-
-  static unpublished() {
-    return new DataTrackSubscribeError(
-      'The track has been unpublished and is no longer available',
-      DataTrackSubscribeErrorReason.Unpublished,
-    );
-  }
-
-  static timeout() {
-    return new DataTrackSubscribeError(
-      'Request to subscribe to data track timed-out',
-      DataTrackSubscribeErrorReason.Timeout,
-    );
-  }
-
-  static disconnected() {
-    return new DataTrackSubscribeError(
-      'Cannot subscribe to data track when disconnected',
-      DataTrackSubscribeErrorReason.Disconnected,
-    );
-  }
-
-  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
-  static cancelled() {
-    return new DataTrackSubscribeError(
-      'Subscription to data track cancelled by caller',
-      DataTrackSubscribeErrorReason.Cancelled,
-    );
-  }
-}
 
 /** Track is not subscribed to. */
 type SubscriptionStateNone = { type: 'none' };
