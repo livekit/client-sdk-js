@@ -12,7 +12,7 @@ import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
 // FIXME: remove this import in a follow up data track pull request.
-import './room/data-track/depacketizer';
+import './room/data-track/incoming/IncomingDataTrackManager';
 // FIXME: remove this import in a follow up data track pull request.
 import './room/data-track/outgoing/OutgoingDataTrackManager';
 import LocalParticipant from './room/participant/LocalParticipant';
