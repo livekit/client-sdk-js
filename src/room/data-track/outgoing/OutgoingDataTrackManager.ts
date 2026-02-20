@@ -91,7 +91,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   private handleAllocator = new DataTrackHandleAllocator();
 
-  // FIXME: key of this map is the same as the value Descriptor["info"]["pubHandle"]
   private descriptors = new Map<DataTrackHandle, Descriptor>();
 
   constructor(options?: DataTrackLocalManagerOptions) {
@@ -149,12 +148,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
         this.emit('packetsAvailable', { bytes: packet.toBinary(), signal: options?.signal });
       }
     } catch (err) {
-      // FIXME: catch and log errors instead of rethrowing? That is what the rust implementation
-      // is doing instead.
-      // process_frame(...).inspect_err(|err| log::debug!("Process failed: {}", err))
-      // event_out_tx.try_send(...).inspect_err(|err| log::debug!("Cannot send packet to transport: {}", err));
-      //
-      // In the rust implementation this "dropped" error means something different (not enough room
+      // NOTE: In the rust implementation this "dropped" error means something different (not enough room
       // in the track mpsc channel)
       throw DataTrackPushFrameError.dropped(err);
     }
@@ -181,7 +175,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     const onAbort = () => {
       const existingDescriptor = this.descriptors.get(handle);
       if (!existingDescriptor) {
-        // FIXME: should this be an internal error?
         log.warn(`No descriptor for ${handle}`);
         return;
       }
@@ -194,7 +187,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
         existingDescriptor.completionFuture.reject?.(
           timeoutSignal.aborted
             ? DataTrackPublishError.timeout()
-            : // FIXME: the below cancelled case was introduced by web / there isn't a corresponding case in the rust version.
+            : // NOTE: the below cancelled case was introduced by web / there isn't a corresponding case in the rust version.
               DataTrackPublishError.cancelled(),
         );
       }
@@ -225,7 +218,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   async unpublishRequest(handle: DataTrackHandle) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
-      // FIXME: should this be an internal error?
       log.warn(`No descriptor for ${handle}`);
       return;
     }
@@ -243,7 +235,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   receivedSfuPublishResponse(handle: DataTrackHandle, result: SfuPublishResponseResult) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
-      // FIXME: should this be an internal error?
       log.warn(`No descriptor for ${handle}`);
       return;
     }
@@ -278,7 +269,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   receivedSfuUnpublishResponse(handle: DataTrackHandle) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
-      // FIXME: should this be an internal error?
       log.warn(`No descriptor for ${handle}`);
       return;
     }

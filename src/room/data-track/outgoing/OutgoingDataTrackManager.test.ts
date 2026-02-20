@@ -389,6 +389,4 @@ describe('DataTrackOutgoingManager', () => {
 
     await shutdownPromise;
   });
-
-  // FIXME: add e2ee tests
 });

@@ -21,12 +21,8 @@ export enum DataTrackPublishErrorReason {
   /** Cannot publish data track when the room is disconnected. */
   Disconnected = 4,
 
-  // FIXME: get rid of internal error concept, this is just represented as bare throws in js
-  // Internal = 5,
-
-  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
-  // Upon further reflection though I think this should exist in rust.
-  Cancelled = 6,
+  // NOTE: this was introduced by web / there isn't a corresponding case in the rust version.
+  Cancelled = 5,
 }
 
 export class DataTrackPublishError<
@@ -76,7 +72,7 @@ export class DataTrackPublishError<
     return new DataTrackPublishError('Room disconnected', DataTrackPublishErrorReason.Disconnected);
   }
 
-  // FIXME: this was introduced by web / there isn't a corresponding case in the rust version.
+  // NOTE: this was introduced by web / there isn't a corresponding case in the rust version.
   static cancelled() {
     return new DataTrackPublishError(
       'Publish data track cancelled by caller',
@@ -89,6 +85,8 @@ export enum DataTrackPushFrameErrorReason {
   /** Track is no longer published. */
   TrackUnpublished = 0,
   /** Frame was dropped. */
+  // NOTE: this should become a web specific error, the rust version of this "dropped" error means
+  // something different and will be renamed to "QueueFull".
   Dropped = 1,
 }
 
