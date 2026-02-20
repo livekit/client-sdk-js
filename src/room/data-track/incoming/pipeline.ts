@@ -31,7 +31,6 @@ export default class IncomingDataTrackPipeline {
    * Creates a new pipeline with the given options.
    */
   constructor(options: Options) {
-    // Equivalent to debug_assert_eq!
     const hasProvider = options.decryptionProvider !== null;
     if (options.info.usesE2ee !== hasProvider) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
