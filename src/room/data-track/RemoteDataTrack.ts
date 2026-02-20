@@ -9,6 +9,10 @@ import {
 } from './track-interfaces';
 import { type DataTrackInfo } from './types';
 
+type RemoteDataTrackOptions = {
+  publisherIdentity: Participant['identity'];
+};
+
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
   readonly localitySymbol = RemoteTrackSymbol;
   readonly typeSymbol = DataTrackSymbol;
@@ -19,15 +23,15 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
 
   protected manager: IncomingDataTrackManager;
 
-  // FIXME: rethink this signature, it will be hard to make backwards compatible updates
+  /** @internal */
   constructor(
     info: DataTrackInfo,
-    publisherIdentity: Participant['identity'],
     manager: IncomingDataTrackManager,
+    options: RemoteDataTrackOptions,
   ) {
     this.info = info;
-    this.publisherIdentity = publisherIdentity;
     this.manager = manager;
+    this.publisherIdentity = options.publisherIdentity;
   }
 
   /** Subscribes to the data track to receive frames.
