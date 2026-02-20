@@ -176,7 +176,11 @@ export class PCTransportManager {
     }
   }
 
-  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit, offerId: number) {
+  async createSubscriberAnswerFromOffer(
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    onLockAcquired?: () => void,
+  ) {
     this.log.debug('received server offer', {
       ...this.logContext,
       RTCSdpType: sd.type,
@@ -185,6 +189,7 @@ export class PCTransportManager {
     });
     const unlock = await this.remoteOfferLock.lock();
     try {
+      onLockAcquired?.();
       const success = await this.subscriber?.setRemoteDescription(sd, offerId);
       if (!success) {
         return undefined;

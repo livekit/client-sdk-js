@@ -540,7 +540,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         sdp: sd.sdp,
         midToTrackId,
       });
-      this.midToTrackId = midToTrackId;
+      Object.assign(this.midToTrackId, midToTrackId);
       await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
@@ -559,8 +559,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      this.midToTrackId = midToTrackId;
-      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd, offerId);
+      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd, offerId, () => {
+        this.midToTrackId = midToTrackId;
+      });
       if (answer) {
         this.client.sendAnswer(answer, offerId);
       }
