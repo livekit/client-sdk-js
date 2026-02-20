@@ -1,5 +1,5 @@
 import { type DataTrackHandle } from '../handle';
-import { type DataTrackInfo } from '../track';
+import { type DataTrackInfo } from '../types';
 import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
 /** Options for publishing a data track. */
@@ -15,6 +15,7 @@ export type SfuPublishResponseResult =
       error:
         | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
         | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
+        | DataTrackPublishError<DataTrackPublishErrorReason.InvalidName>
         | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>;
     };
 
@@ -33,5 +34,4 @@ export type OutputEventSfuUnpublishRequest = {
 /** Serialized packets are ready to be sent over the transport. */
 export type OutputEventPacketsAvailable = {
   bytes: Uint8Array;
-  signal?: AbortSignal;
 };

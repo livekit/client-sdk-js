@@ -1,4 +1,4 @@
-type Primitives = null | undefined | string | number | bigint | boolean | symbol;
+type Primitives = void | null | undefined | string | number | bigint | boolean | symbol;
 
 /**
  * Branded type that encodes possible thrown errors in the return type.

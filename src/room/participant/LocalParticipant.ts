@@ -29,6 +29,9 @@ import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
+import type LocalDataTrack from '../data-track/LocalDataTrack';
+import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
+import type { DataTrackOptions } from '../data-track/outgoing/types';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -104,6 +107,7 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
+import { DataTrackPublishError } from '../data-track/outgoing/errors';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -150,6 +154,8 @@ export default class LocalParticipant extends Participant {
 
   private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
 
+  private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -179,6 +185,7 @@ export default class LocalParticipant extends Participant {
     options: InternalRoomOptions,
     roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
+    roomOutgoingDataTrackManager: OutgoingDataTrackManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -198,6 +205,7 @@ export default class LocalParticipant extends Participant {
     this.pendingSignalRequests = new Map();
     this.rpcHandlers = roomRpcHandlers;
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
+    this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -310,6 +318,35 @@ export default class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
+    }
+
+    switch (response.request.case) {
+      case "publishDataTrack": {
+        let error;
+        switch (response.reason) {
+          case RequestResponse_Reason.NOT_ALLOWED:
+            error = DataTrackPublishError.notAllowed(response.message);
+            break;
+          case RequestResponse_Reason.DUPLICATE_NAME:
+            error = DataTrackPublishError.duplicateName(response.message);
+            break;
+          case RequestResponse_Reason.INVALID_NAME:
+            error = DataTrackPublishError.invalidName(response.message);
+            break;
+          case RequestResponse_Reason.LIMIT_EXCEEDED:
+            error = DataTrackPublishError.limitReached(response.message);
+            break;
+          default:
+            this.log.error(`Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`, this.logContext);
+            return;
+        }
+
+        this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
+          response.request.value.pubHandle,
+          { type: 'error', error }
+        );
+        break;
+      }
     }
   };
 
@@ -2234,5 +2271,18 @@ export default class LocalParticipant extends Participant {
       }
       await sleep(20);
     }
+  }
+
+  /** FIXME: add docstring */
+  async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
+    let track;
+    try {
+      track = await this.roomOutgoingDataTrackManager.publishRequest(options);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
+      throw err;
+    }
+
+    return track;
   }
 }
