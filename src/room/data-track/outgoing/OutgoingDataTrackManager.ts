@@ -127,7 +127,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   tryProcessAndSend(
     handle: DataTrackHandle,
     payload: Uint8Array,
-    options?: { signal?: AbortSignal },
   ): Throws<
     void,
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
@@ -145,7 +144,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     try {
       for (const packet of descriptor.pipeline.processFrame(frame)) {
-        this.emit('packetsAvailable', { bytes: packet.toBinary(), signal: options?.signal });
+        this.emit('packetsAvailable', { bytes: packet.toBinary() });
       }
     } catch (err) {
       // NOTE: In the rust implementation this "dropped" error means something different (not enough room
