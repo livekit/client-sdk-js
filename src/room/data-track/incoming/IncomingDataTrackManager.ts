@@ -346,7 +346,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     };
     this.descriptors.set(descriptor.info.sid, descriptor);
 
-    const track = new RemoteDataTrack(descriptor.info, publisherIdentity, this);
+    const track = new RemoteDataTrack(descriptor.info, this, { publisherIdentity });
     this.emit('trackAvailable', { track });
   }
 

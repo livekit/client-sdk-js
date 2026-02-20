@@ -16,6 +16,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   protected manager: OutgoingDataTrackManager;
 
+  /** @internal */
   constructor(info: DataTrackInfo, manager: OutgoingDataTrackManager) {
     this.info = info;
     this.manager = manager;
