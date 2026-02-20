@@ -1,8 +1,6 @@
-import type { Throws } from '../../utils/throws';
 import type { DataTrackFrame } from './frame';
 import { type DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
-import type { DataTrackPushFrameError, DataTrackPushFrameErrorReason } from './outgoing/errors';
 
 export type DataTrackSid = string;
 
@@ -39,18 +37,14 @@ export class LocalDataTrack {
    *
    * - The track has been unpublished by the local participant or SFU
    * - The room is no longer connected
-   * - Frames are being pushed too fast (FIXME: this isn't the case in the js implementation?)
    */
-  tryPush(
-    payload: DataTrackFrame['payload'],
-    options?: { signal?: AbortSignal },
-  ): Throws<
-    void,
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
-  > {
-    // FIXME: rust implementation maps errors to dropped here?
-    // .map_err(|err| PushFrameError::new(err.into_inner(), PushFrameErrorReason::Dropped))
-    return this.manager.tryProcessAndSend(this.info.pubHandle, payload, options);
+  tryPush(payload: DataTrackFrame['payload']) {
+    try {
+      return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
+    } catch (err) {
+      // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
+      // propegate upwards into the public interface.
+      throw err;
+    }
   }
 }
