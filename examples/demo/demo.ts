@@ -851,7 +851,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
           <span id="e2ee-${identity}" class="e2ee-on"></span>
         </div>
       </div>
-      <div id="user-ts-${identity}" style="position: absolute; bottom: 28px; left: 0; z-index: 5; font-family: monospace; font-size: 0.65em; color: #eee; background: rgba(0,0,0,0.5); padding: 3px 6px; line-height: 1.4; border-radius: 0 3px 0 0;">
+      <div id="user-ts-${identity}" class="user-ts-overlay">
       </div>
       ${
         !isLocalParticipant(participant)
