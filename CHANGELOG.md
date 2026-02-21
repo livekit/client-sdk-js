@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.17.3
+
+### Patch Changes
+
+- Adds new OutgoingDataTrackManager to manage sending data track payloads - [#1810](https://github.com/livekit/client-sdk-js/pull/1810) ([@1egoman](https://github.com/1egoman))
+
 ## 2.17.2
 
 ### Patch Changes
