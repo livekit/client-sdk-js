@@ -149,6 +149,16 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   };
 }
 
+export interface UserTimestampMessage extends BaseMessage {
+  kind: 'userTimestamp';
+  data: {
+    trackId: string;
+    participantIdentity: string;
+    timestampUs: number;
+    rtpTimestamp?: number;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -165,7 +175,8 @@ export type E2EEWorkerMessage =
   | DecryptDataRequestMessage
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
-  | EncryptDataResponseMessage;
+  | EncryptDataResponseMessage
+  | UserTimestampMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

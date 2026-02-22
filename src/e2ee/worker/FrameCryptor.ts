@@ -4,10 +4,17 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
+import { stripUserTimestampFromEncodedFrame } from '../../user_timestamp/UserTimestampTransformer';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
+import type {
+  DecodeRatchetOptions,
+  KeyProviderOptions,
+  KeySet,
+  RatchetResult,
+  UserTimestampMessage,
+} from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
@@ -454,6 +461,31 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    // Always attempt to strip LKTS user timestamp trailer before any e2ee
+    // processing. On the send side, the trailer is appended *after* encryption,
+    // so it must be removed *before* decryption.
+    if (isVideoFrame(encodedFrame) && encodedFrame.data.byteLength > 0) {
+      try {
+        const userTsResult = stripUserTimestampFromEncodedFrame(
+          encodedFrame as RTCEncodedVideoFrame,
+        );
+        if (userTsResult !== undefined && this.trackId && this.participantIdentity) {
+          const msg: UserTimestampMessage = {
+            kind: 'userTimestamp',
+            data: {
+              trackId: this.trackId,
+              participantIdentity: this.participantIdentity,
+              timestampUs: userTsResult.timestampUs,
+              rtpTimestamp: userTsResult.rtpTimestamp,
+            },
+          };
+          postMessage(msg);
+        }
+      } catch {
+        // Best-effort: never break media pipeline if timestamp parsing fails.
+      }
+    }
+
     if (
       !this.isEnabled() ||
       // skip for decryption for empty dtx frames

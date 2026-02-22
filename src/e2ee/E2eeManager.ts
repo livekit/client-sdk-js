@@ -8,6 +8,7 @@ import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
+import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
@@ -221,6 +222,14 @@ export class E2EEManager
           encryptFuture.resolve(data as EncryptDataResponseMessage['data']);
         }
         break;
+      case 'userTimestamp':
+        this.handleUserTimestamp(
+          data.trackId,
+          data.participantIdentity,
+          data.timestampUs,
+          data.rtpTimestamp,
+        );
+        break;
       default:
         break;
     }
@@ -230,6 +239,31 @@ export class E2EEManager
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
+
+  private handleUserTimestamp(
+    trackId: string,
+    participantIdentity: string,
+    timestampUs: number,
+    rtpTimestamp?: number,
+  ) {
+    if (!this.room) {
+      return;
+    }
+    const participant = this.room.getParticipantByIdentity(participantIdentity);
+    if (!participant) {
+      return;
+    }
+    for (const pub of participant.trackPublications.values()) {
+      if (
+        pub.track &&
+        pub.track.mediaStreamID === trackId &&
+        pub.track instanceof RemoteVideoTrack
+      ) {
+        pub.track.setUserTimestamp(timestampUs, rtpTimestamp);
+        return;
+      }
+    }
+  }
 
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
