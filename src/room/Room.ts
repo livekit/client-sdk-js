@@ -44,9 +44,6 @@ import type {
   RoomOptions,
 } from '../options';
 import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
-//@ts-ignore
-// eslint-disable-next-line import-x/no-unresolved
-import UserTimestampWorker from '../user_timestamp/userTimestamp.worker?worker';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
@@ -121,6 +118,10 @@ export enum ConnectionState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
   SignalReconnecting = 'signalReconnecting',
+}
+
+function createUserTimestampWorker(): Worker {
+  return new Worker(new URL('./livekit-client.user-timestamp.worker.js', import.meta.url));
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
@@ -2622,7 +2623,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       if (isScriptTransformSupported() && !isChromiumBased()) {
-        const worker = new UserTimestampWorker();
+        const worker = createUserTimestampWorker();
         worker.onmessage = (ev: MessageEvent) => {
           if (ev.data?.kind === 'userTimestamp' && typeof ev.data.timestampUs === 'number') {
             track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp);
