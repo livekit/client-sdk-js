@@ -93,7 +93,6 @@ export default class OutgoingDataStreamManager {
 
   /**
    * @internal
-   * @experimental CAUTION, might get removed in a minor release
    */
   async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
     const streamId = options?.streamId ?? crypto.randomUUID();
@@ -108,6 +107,7 @@ export default class OutgoingDataStreamManager {
       encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
         ? Encryption_Type.GCM
         : Encryption_Type.NONE,
+      attachedStreamIds: options?.attachedStreamIds,
     };
     const header = new DataStream_Header({
       streamId,
@@ -120,7 +120,7 @@ export default class OutgoingDataStreamManager {
         case: 'textHeader',
         value: new DataStream_TextHeader({
           version: options?.version,
-          attachedStreamIds: options?.attachedStreamIds,
+          attachedStreamIds: info.attachedStreamIds,
           replyToStreamId: options?.replyToStreamId,
           operationType:
             options?.type === 'update'

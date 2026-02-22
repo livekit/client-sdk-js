@@ -9,7 +9,8 @@
       "DOM.AsyncIterable",
       "ES2017",
       "ES2018.Promise",
-      "ES2021.WeakRef"
+      "ES2021.WeakRef",
+      "ES2022.Error"
     ],
     "rootDir": "./",
     "outDir": "dist",
@@ -24,7 +25,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
-    "ignoreDeprecations": "5.0"
+    "ignoreDeprecations": "5.0",
+    "plugins": [{ "name": "./throws-transformer/plugin.ts" }],
   },
   "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],

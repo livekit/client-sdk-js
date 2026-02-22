@@ -134,7 +134,6 @@ const appActions = {
       encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
-      singlePeerConnection: true,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||

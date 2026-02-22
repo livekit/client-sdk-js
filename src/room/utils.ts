@@ -5,8 +5,10 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
+import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
+import { type Throws } from '../utils/throws';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
@@ -39,8 +41,8 @@ export function unpackStreamId(packed: string): string[] {
   return [packed, ''];
 }
 
-export async function sleep(duration: number): Promise<void> {
-  return new Promise((resolve) => CriticalTimers.setTimeout(resolve, duration));
+export function sleep(duration: number): TypedPromise<void, never> {
+  return new TypedPromise<void, never>((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 /** @internal */
@@ -456,8 +458,12 @@ export function getStereoAudioStreamTrack() {
   return stereoTrack;
 }
 
+/** An object that represents a serialized version of a `new Promise((resolve, reject) => {})`
+ * constructor. Wait for a promise resolution with `await future.promise` and explicitly resolve or
+ * reject the inner promise with `future.resolve(...)` or `future.reject(...)`.
+ */
 export class Future<T, E extends Error> {
-  promise: Promise<T>;
+  promise: Promise<Throws<T, E>>;
 
   resolve?: (arg: T) => void;
 
@@ -485,7 +491,7 @@ export class Future<T, E extends Error> {
     }).finally(() => {
       this._isResolved = true;
       this.onFinally?.();
-    });
+    }) as Promise<Throws<T, E>>;
   }
 }
 

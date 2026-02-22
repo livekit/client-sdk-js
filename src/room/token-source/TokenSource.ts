@@ -245,9 +245,13 @@ class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
 }
 
 export {
+  /** The return type of {@link TokenSource.literal} */
   type TokenSourceLiteral,
+  /** The return type of {@link TokenSource.custom} */
   type TokenSourceCustom,
+  /** The return type of {@link TokenSource.endpoint} */
   type TokenSourceEndpoint,
+  /** The return type of {@link TokenSource.sandboxTokenServer} */
   type TokenSourceSandboxTokenServer,
   decodeTokenPayload,
   areTokenSourceFetchOptionsEqual,
@@ -273,7 +277,7 @@ export const TokenSource = {
   /**
    * TokenSource.endpoint creates a token source that fetches credentials from a given URL using
    * the standard endpoint format:
-   * FIXME: add docs link here in the future!
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
    */
   endpoint(url: string, options: EndpointOptions = {}) {
     return new TokenSourceEndpoint(url, options);

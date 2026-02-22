@@ -30,7 +30,8 @@ export interface TransformerInfo {
   readable: ReadableStream;
   writable: WritableStream;
   transformer: TransformStream;
-  abortController: AbortController;
+  trackId: string;
+  symbol: symbol;
 }
 
 export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
@@ -75,7 +76,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private detectedCodec?: VideoCodec;
 
-  private isTransformActive: boolean = false;
+  private currentTransform?: TransformerInfo;
 
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
@@ -122,22 +123,31 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     workerLogger.debug('setting new participant on cryptor', {
       ...this.logContext,
-      participant: id,
+      newParticipant: id,
+      hadPreviousParticipant: !!this.participantIdentity,
     });
-    if (this.participantIdentity) {
-      workerLogger.error(
-        'cryptor has already a participant set, participant should have been unset before',
-        {
-          ...this.logContext,
-        },
-      );
+
+    if (this.participantIdentity && this.participantIdentity !== id) {
+      workerLogger.warn('cryptor has already a participant set, cleaning up before switching', {
+        oldParticipant: this.participantIdentity,
+        newParticipant: id,
+        trackId: this.trackId,
+      });
+      // Clean up state from previous participant
+      this.unsetParticipant();
     }
+
     this.participantIdentity = id;
     this.keys = keys;
   }
 
   unsetParticipant() {
     workerLogger.debug('unsetting participant', this.logContext);
+
+    if (this.currentTransform) {
+      this.currentTransform = undefined;
+    }
+
     this.participantIdentity = undefined;
     this.lastErrorTimestamp = new Map();
     this.errorCounts = new Map();
@@ -192,39 +202,71 @@ export class FrameCryptor extends BaseFrameCryptor {
       operation,
       passedTrackId: trackId,
       codec,
+      isReuse,
+      hasCurrentTransform: !!this.currentTransform,
       ...this.logContext,
     });
 
-    if (isReuse && this.isTransformActive) {
-      workerLogger.debug('reuse transform', {
+    // Always update trackId, even on reuse
+    this.trackId = trackId;
+
+    // If we're reusing and have an active transform skip setup
+    if (
+      isReuse &&
+      this.currentTransform &&
+      readable === this.currentTransform.readable &&
+      writable === this.currentTransform.writable
+    ) {
+      workerLogger.debug('reusing existing transform', {
         ...this.logContext,
+        trackId,
       });
       return;
     }
+
+    const symbol = Symbol('transform');
 
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
     });
 
-    this.isTransformActive = true;
+    // Store transform info before starting the pipe
+    this.currentTransform = {
+      readable,
+      writable,
+      transformer: transformStream,
+      trackId,
+      symbol,
+    };
 
     readable
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        workerLogger.warn(e);
-        this.emit(
-          CryptorEvent.Error,
-          e instanceof CryptorError
-            ? e
-            : new CryptorError(e.message, undefined, this.participantIdentity),
-        );
+        if (e instanceof TypeError && e.message === 'Destination stream closed') {
+          // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
+          workerLogger.debug('destination stream closed');
+        } else {
+          workerLogger.warn('transform error', { error: e, ...this.logContext });
+          this.emit(
+            CryptorEvent.Error,
+            e instanceof CryptorError
+              ? e
+              : new CryptorError(e.message, undefined, this.participantIdentity),
+          );
+        }
       })
       .finally(() => {
-        this.isTransformActive = false;
+        // Only clear currentTransform if it's still the same one we started
+        if (this.currentTransform?.symbol === symbol) {
+          workerLogger.debug('transform completed', {
+            ...this.logContext,
+            trackId,
+          });
+          this.currentTransform = undefined;
+        }
       });
-    this.trackId = trackId;
   }
 
   setSifTrailer(trailer: Uint8Array) {

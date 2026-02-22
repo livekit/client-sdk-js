@@ -65,6 +65,8 @@ export default abstract class LocalTrack<
 
   protected trackChangeLock: Mutex;
 
+  protected pendingDeviceChange: boolean = false;
+
   /**
    *
    * @param mediaTrack
@@ -246,6 +248,7 @@ export default abstract class LocalTrack<
     // when track is muted, underlying media stream track is stopped and
     // will be restarted later
     if (this.isMuted) {
+      this.pendingDeviceChange = true;
       return true;
     }
 
@@ -365,6 +368,7 @@ export default abstract class LocalTrack<
 
       await this.setMediaStreamTrack(newTrack);
       this._constraints = constraints;
+      this.pendingDeviceChange = false;
       this.emit(TrackEvent.Restarted, this);
       if (this.manuallyStopped) {
         this.log.warn(
@@ -518,8 +522,6 @@ export default abstract class LocalTrack<
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   *
    * @param processor
    * @param showProcessedStreamLocally
    * @returns
@@ -592,8 +594,6 @@ export default abstract class LocalTrack<
    * Stops the track processor
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   * @returns
    */
   async stopProcessor(keepElement = true) {
     const unlock = await this.trackChangeLock.lock();

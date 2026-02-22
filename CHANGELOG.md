@@ -1,5 +1,59 @@
 # Change Log
 
+## 2.17.2
+
+### Patch Changes
+
+- Ensure connection state mismatches aren't triggered for ongoing PC connection attempts - [#1807](https://github.com/livekit/client-sdk-js/pull/1807) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix unnecessary track restarts on unmute when using ideal device constraints - [#1794](https://github.com/livekit/client-sdk-js/pull/1794) ([@mfairley](https://github.com/mfairley))
+
+- Prevent ongoing renegotiations from declaring the negotiation as timed out - [#1813](https://github.com/livekit/client-sdk-js/pull/1813) ([@lukasIO](https://github.com/lukasIO))
+
+- Add data track packetizer and depacketizer implementations - [#1798](https://github.com/livekit/client-sdk-js/pull/1798) ([@1egoman](https://github.com/1egoman))
+
+- Add missing type exports required by `@livekit/components-core` - [#1815](https://github.com/livekit/client-sdk-js/pull/1815) ([@1egoman](https://github.com/1egoman))
+
+## 2.17.1
+
+### Patch Changes
+
+- Add data track packet serialization + deserialization logic - [#1792](https://github.com/livekit/client-sdk-js/pull/1792) ([@1egoman](https://github.com/1egoman))
+
+- Update docs to clarify other client HKDF support - [#1796](https://github.com/livekit/client-sdk-js/pull/1796) ([@1egoman](https://github.com/1egoman))
+
+- Add attachedStreamIds as text stream metadata - [#1805](https://github.com/livekit/client-sdk-js/pull/1805) ([@1egoman](https://github.com/1egoman))
+
+## 2.17.0
+
+### Minor Changes
+
+- Add new rtc path that defaults to single peer connection mode and falls back to legacy dual pc - [#1785](https://github.com/livekit/client-sdk-js/pull/1785) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Use TypedPromise for typesafe errors - [#1770](https://github.com/livekit/client-sdk-js/pull/1770) ([@lukasIO](https://github.com/lukasIO))
+
+- e2ee: ensure frame cryptor transform setup works for rapid subscription changes - [#1789](https://github.com/livekit/client-sdk-js/pull/1789) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.16.1
+
+### Patch Changes
+
+- export type RoomEventCallbacks - [#1599](https://github.com/livekit/client-sdk-js/pull/1599) ([@shincurry](https://github.com/shincurry))
+
+- Remove experimental tag on some stabilized features - [#1777](https://github.com/livekit/client-sdk-js/pull/1777) ([@lukasIO](https://github.com/lukasIO))
+
+- Tag errors by name - [#1764](https://github.com/livekit/client-sdk-js/pull/1764) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix connection check issues with pinned regions - [#1775](https://github.com/livekit/client-sdk-js/pull/1775) ([@lukasIO](https://github.com/lukasIO))
+
+- Control latency of lossy data channel - [#1754](https://github.com/livekit/client-sdk-js/pull/1754) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Add docs comments making it clear TokenSource-prefixed exported types shouldn't be used for TokenSource construction - [#1776](https://github.com/livekit/client-sdk-js/pull/1776) ([@1egoman](https://github.com/1egoman))
+
+- Fix leaking memory by removing event listener from correct scope - [#1768](https://github.com/livekit/client-sdk-js/pull/1768) ([@wuhkuh](https://github.com/wuhkuh))
+
 ## 2.16.0
 
 ### Minor Changes
