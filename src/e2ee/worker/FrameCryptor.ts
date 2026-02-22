@@ -4,13 +4,18 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
+import { stripUserTimestampFromEncodedFrame } from '../../user_timestamp/UserTimestampTransformer';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
+import type {
+  DecodeRatchetOptions,
+  KeyProviderOptions,
+  KeySet,
+  RatchetResult,
+  UserTimestampMessage,
+} from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
-import { stripUserTimestampFromEncodedFrame } from '../../user_timestamp/UserTimestampTransformer';
-import type { UserTimestampMessage } from '../types';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
 import { identifySifPayload } from './sifPayload';

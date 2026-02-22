@@ -35,6 +35,7 @@ import 'webrtc-adapter';
 import type TypedEmitter from 'typed-emitter';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
+import { isScriptTransformSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -42,6 +43,10 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
+//@ts-ignore
+// eslint-disable-next-line import-x/no-unresolved
+import UserTimestampWorker from '../user_timestamp/userTimestamp.worker?worker';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
@@ -76,10 +81,6 @@ import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
-import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
-//@ts-ignore
-import UserTimestampWorker from '../user_timestamp/userTimestamp.worker?worker';
-import { isScriptTransformSupported } from '../e2ee/utils';
 import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
@@ -2658,10 +2659,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
 
-      this.log.debug(
-        'user timestamp transform: no supported API available',
-        this.logContext,
-      );
+      this.log.debug('user timestamp transform: no supported API available', this.logContext);
     } catch {
       // If anything goes wrong (e.g., unsupported environment), just skip.
     }

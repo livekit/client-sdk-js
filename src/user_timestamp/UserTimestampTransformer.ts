@@ -32,9 +32,7 @@ export const USER_TS_TRAILER_SIZE = 8 + USER_TS_MAGIC.length; // 12
  * Returns the payload without the trailer and the parsed timestamp,
  * or `undefined` if no valid trailer is found.
  */
-export function extractUserTimestampTrailer(
-  frameData: ArrayBuffer,
-): UserTimestampInfo | undefined {
+export function extractUserTimestampTrailer(frameData: ArrayBuffer): UserTimestampInfo | undefined {
   const bytes = new Uint8Array(frameData);
   if (bytes.byteLength < USER_TS_TRAILER_SIZE) {
     return undefined;

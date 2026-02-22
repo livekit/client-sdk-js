@@ -223,7 +223,12 @@ export class E2EEManager
         }
         break;
       case 'userTimestamp':
-        this.handleUserTimestamp(data.trackId, data.participantIdentity, data.timestampUs, data.rtpTimestamp);
+        this.handleUserTimestamp(
+          data.trackId,
+          data.participantIdentity,
+          data.timestampUs,
+          data.rtpTimestamp,
+        );
         break;
       default:
         break;
@@ -235,7 +240,12 @@ export class E2EEManager
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
-  private handleUserTimestamp(trackId: string, participantIdentity: string, timestampUs: number, rtpTimestamp?: number) {
+  private handleUserTimestamp(
+    trackId: string,
+    participantIdentity: string,
+    timestampUs: number,
+    rtpTimestamp?: number,
+  ) {
     if (!this.room) {
       return;
     }
@@ -244,7 +254,11 @@ export class E2EEManager
       return;
     }
     for (const pub of participant.trackPublications.values()) {
-      if (pub.track && pub.track.mediaStreamID === trackId && pub.track instanceof RemoteVideoTrack) {
+      if (
+        pub.track &&
+        pub.track.mediaStreamID === trackId &&
+        pub.track instanceof RemoteVideoTrack
+      ) {
         pub.track.setUserTimestamp(timestampUs, rtpTimestamp);
         return;
       }

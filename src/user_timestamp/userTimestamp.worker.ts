@@ -6,11 +6,7 @@
  * thread so the SDK can store the RTP-to-user-timestamp mapping on the
  * corresponding RemoteVideoTrack.
  */
-
-import {
-  USER_TS_MAGIC,
-  USER_TS_TRAILER_SIZE,
-} from './UserTimestampTransformer';
+import { USER_TS_MAGIC, USER_TS_TRAILER_SIZE } from './UserTimestampTransformer';
 
 function stripAndForward(
   readable: ReadableStream<RTCEncodedVideoFrame>,
@@ -49,7 +45,10 @@ function stripAndForward(
     },
   });
 
-  readable.pipeThrough(transformStream).pipeTo(writable).catch(() => {});
+  readable
+    .pipeThrough(transformStream)
+    .pipeTo(writable)
+    .catch(() => {});
 }
 
 // RTCRtpScriptTransform path
