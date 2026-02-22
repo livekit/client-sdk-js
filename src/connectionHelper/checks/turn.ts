@@ -1,4 +1,6 @@
 import { SignalClient } from '../../api/SignalClient';
+import { RegionUrlProvider } from '../../room/RegionUrlProvider';
+import { isCloud } from '../../room/utils';
 import { Checker } from './Checker';
 
 export class TURNCheck extends Checker {
@@ -7,14 +9,24 @@ export class TURNCheck extends Checker {
   }
 
   async perform(): Promise<void> {
+    if (isCloud(new URL(this.url))) {
+      this.appendMessage('Using region specific url');
+      this.url =
+        (await new RegionUrlProvider(this.url, this.token).getNextBestRegionUrl()) ?? this.url;
+    }
     const signalClient = new SignalClient();
-    const joinRes = await signalClient.join(this.url, this.token, {
-      autoSubscribe: true,
-      maxRetries: 0,
-      e2eeEnabled: false,
-      websocketTimeout: 15_000,
-      singlePeerConnection: false,
-    });
+    const joinRes = await signalClient.join(
+      this.url,
+      this.token,
+      {
+        autoSubscribe: true,
+        maxRetries: 0,
+        e2eeEnabled: false,
+        websocketTimeout: 15_000,
+      },
+      undefined,
+      true,
+    );
 
     let hasTLS = false;
     let hasTURN = false;

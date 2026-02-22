@@ -142,4 +142,6 @@ export interface ByteStreamInfo extends BaseStreamInfo {
   name: string;
 }
 
-export interface TextStreamInfo extends BaseStreamInfo {}
+export interface TextStreamInfo extends BaseStreamInfo {
+  attachedStreamIds?: Array<string>;
+}

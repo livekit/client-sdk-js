@@ -1,13 +1,31 @@
 import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 
+/** Base error that all LiveKit specific custom errors inherit from. */
 export class LivekitError extends Error {
   code: number;
 
-  constructor(code: number, message?: string) {
-    super(message || 'an error has occured');
+  // More info: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
+  cause?: unknown;
+
+  constructor(code: number, message?: string, options?: { cause?: unknown }) {
+    super(message || 'an error has occurred');
     this.name = 'LiveKitError';
     this.code = code;
+
+    if (typeof options?.cause !== 'undefined') {
+      this.cause = options?.cause;
+    }
   }
+}
+
+/**
+ * LiveKit specific error type representing an error with an associated set of reasons.
+ * Use this to represent an error with multiple different but contextually related variants.
+ * */
+export abstract class LivekitReasonedError<Reason> extends LivekitError {
+  abstract reason: Reason;
+
+  abstract reasonName: string;
 }
 
 export class SimulatedError extends LivekitError {
@@ -26,6 +44,7 @@ export enum ConnectionErrorReason {
   LeaveRequest,
   Timeout,
   WebSocket,
+  ServiceNotFound,
 }
 
 type NotAllowed = {
@@ -70,6 +89,12 @@ type WebSocket = {
   context?: string;
 };
 
+type ServiceNotFound = {
+  reason: ConnectionErrorReason.ServiceNotFound;
+  status: never;
+  context: string;
+};
+
 type ConnectionErrorVariants =
   | NotAllowed
   | ConnectionTimeout
@@ -77,11 +102,12 @@ type ConnectionErrorVariants =
   | InternalError
   | Cancelled
   | ServerUnreachable
-  | WebSocket;
+  | WebSocket
+  | ServiceNotFound;
 
 export class ConnectionError<
   Variant extends ConnectionErrorVariants = ConnectionErrorVariants,
-> extends LivekitError {
+> extends LivekitReasonedError<Variant['reason']> {
   status?: Variant['status'];
 
   context: Variant['context'];
@@ -151,6 +177,15 @@ export class ConnectionError<
   static websocket(message: string, status?: number, reason?: string) {
     return new ConnectionError<WebSocket>(message, ConnectionErrorReason.WebSocket, status, reason);
   }
+
+  static serviceNotFound(message: string, serviceName: 'v0-rtc') {
+    return new ConnectionError<ServiceNotFound>(
+      message,
+      ConnectionErrorReason.ServiceNotFound,
+      undefined,
+      serviceName,
+    );
+  }
 }
 
 export class DeviceUnsupportedError extends LivekitError {
@@ -216,7 +251,7 @@ export type RequestErrorReason =
   | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
   | 'TimeoutError';
 
-export class SignalRequestError extends LivekitError {
+export class SignalRequestError extends LivekitReasonedError<RequestErrorReason> {
   readonly name = 'SignalRequestError';
 
   reason: RequestErrorReason;
@@ -254,7 +289,7 @@ export enum DataStreamErrorReason {
   EncryptionTypeMismatch = 8,
 }
 
-export class DataStreamError extends LivekitError {
+export class DataStreamError extends LivekitReasonedError<DataStreamErrorReason> {
   readonly name = 'DataStreamError';
 
   reason: DataStreamErrorReason;

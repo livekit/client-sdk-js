@@ -3,7 +3,7 @@ import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isReactNative, isWeb, unwrapConstraint } from '../utils';
+import { isReactNative, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
@@ -74,14 +74,11 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         return this;
       }
 
-      const deviceHasChanged =
-        this._constraints.deviceId &&
-        this._mediaStreamTrack.getSettings().deviceId !==
-          unwrapConstraint(this._constraints.deviceId);
-
       if (
         this.source === Track.Source.Microphone &&
-        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended' || deviceHasChanged) &&
+        (this.stopOnMute ||
+          this._mediaStreamTrack.readyState === 'ended' ||
+          this.pendingDeviceChange) &&
         !this.isUserProvided
       ) {
         this.log.debug('reacquiring mic track', this.logContext);

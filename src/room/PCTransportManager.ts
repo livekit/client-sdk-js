@@ -1,9 +1,10 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
+import TypedPromise from '../utils/TypedPromise';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
-import { ConnectionError } from './errors';
+import { ConnectionError, NegotiationError } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
 import { sleep } from './utils';
@@ -65,6 +66,12 @@ export class PCTransportManager {
 
   private loggerOptions: LoggerOptions;
 
+  private _mode: PCMode;
+
+  get mode(): PCMode {
+    return this._mode;
+  }
+
   constructor(rtcConfig: RTCConfiguration, mode: PCMode, loggerOptions: LoggerOptions) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
@@ -72,6 +79,7 @@ export class PCTransportManager {
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
     this.publisher = new PCTransport(rtcConfig, loggerOptions);
+    this._mode = mode;
     if (mode !== 'publisher-only') {
       this.subscriber = new PCTransport(rtcConfig, loggerOptions);
       this.subscriber.onConnectionStateChange = this.updateState;
@@ -220,30 +228,52 @@ export class PCTransportManager {
   }
 
   async negotiate(abortController: AbortController) {
-    return new Promise<void>(async (resolve, reject) => {
-      const negotiationTimeout = setTimeout(() => {
-        reject('negotiation timed out');
+    return new TypedPromise<void, NegotiationError | Error>(async (resolve, reject) => {
+      let negotiationTimeout = setTimeout(() => {
+        reject(new NegotiationError('negotiation timed out'));
       }, this.peerConnectionTimeout);
 
-      const abortHandler = () => {
+      const cleanup = () => {
         clearTimeout(negotiationTimeout);
-        reject('negotiation aborted');
+        this.publisher.off(PCEvents.NegotiationStarted, onNegotiationStarted);
+        abortController.signal.removeEventListener('abort', abortHandler);
       };
 
-      abortController.signal.addEventListener('abort', abortHandler);
-      this.publisher.once(PCEvents.NegotiationStarted, () => {
+      const abortHandler = () => {
+        cleanup();
+        reject(new NegotiationError('negotiation aborted'));
+      };
+
+      // Reset the timeout each time a renegotiation cycle starts. This
+      // prevents premature timeouts when the negotiation machinery is
+      // actively renegotiating (offers going out, answers coming back) but
+      // NegotiationComplete hasn't fired yet because new requirements keep
+      // arriving between offer/answer round-trips.
+      const onNegotiationStarted = () => {
         if (abortController.signal.aborted) {
           return;
         }
-        this.publisher.once(PCEvents.NegotiationComplete, () => {
-          clearTimeout(negotiationTimeout);
-          resolve();
-        });
+        clearTimeout(negotiationTimeout);
+        negotiationTimeout = setTimeout(() => {
+          cleanup();
+          reject(new NegotiationError('negotiation timed out'));
+        }, this.peerConnectionTimeout);
+      };
+
+      abortController.signal.addEventListener('abort', abortHandler);
+      this.publisher.on(PCEvents.NegotiationStarted, onNegotiationStarted);
+      this.publisher.once(PCEvents.NegotiationComplete, () => {
+        cleanup();
+        resolve();
       });
 
       await this.publisher.negotiate((e) => {
-        clearTimeout(negotiationTimeout);
-        reject(e);
+        cleanup();
+        if (e instanceof Error) {
+          reject(e);
+        } else {
+          reject(new Error(String(e)));
+        }
       });
     });
   }
