@@ -47,7 +47,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import RTCEngine from './RTCEngine';
+import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
@@ -280,7 +280,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.engine.client.sendUnPublishDataTrackRequest(event.handle);
       })
       .on('packetsAvailable', ({ bytes }) => {
-        this.engine.sendDataTrackPacketBytes(bytes);
+        this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY);
       });
 
     this.disconnectLock = new Mutex();
@@ -2828,7 +2828,7 @@ export type RoomEventCallbacks = {
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
   encryptionError: (error: Error, participant?: Participant) => void;
-  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataChannelKind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
