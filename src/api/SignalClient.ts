@@ -54,7 +54,7 @@ import {
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
-import type { DataTrackSid } from '../room/data-track/types';
+import { type DataTrackSid, DataTrackInfo } from '../room/data-track/types';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
@@ -189,6 +189,8 @@ export class SignalClient {
   onUnPublishDataTrackResponse?: (event: UnpublishDataTrackResponse) => void;
 
   onDataTrackSubscriberHandles?: (event: DataTrackSubscriberHandles) => void;
+
+  onJoined?: (event: JoinResponse) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -453,8 +455,9 @@ export class SignalClient {
             return;
           }
 
-          // Handle join response - set up ping configuration
+          // Handle join response
           if (firstSignalResponse.message?.case === 'join') {
+            // Set up ping configuration
             this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
             this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
 
@@ -464,6 +467,10 @@ export class SignalClient {
                 timeout: this.pingTimeoutDuration,
                 interval: this.pingIntervalDuration,
               });
+            }
+
+            if (this.onJoined) {
+              this.onJoined(firstSignalResponse.message.value);
             }
           }
 

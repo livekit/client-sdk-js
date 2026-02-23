@@ -262,6 +262,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
     this.client.onRequestResponse = (response) =>
       this.emit(EngineEvent.SignalRequestResponse, response);
+    this.client.onParticipantUpdate = (updates) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates);
+    this.client.onJoined = (joinResponse) =>
+      this.emit(EngineEvent.Joined, joinResponse);
   }
 
   /** @internal */
@@ -1891,6 +1895,7 @@ export type EngineEventCallbacks = {
   unPublishDataTrackResponse: (event: UnpublishDataTrackResponse) => void;
   dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
   dataTrackPacketReceived: (packet: Uint8Array) => void;
+  joined: (joinResponse: JoinResponse) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

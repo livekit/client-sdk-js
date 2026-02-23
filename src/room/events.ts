@@ -620,6 +620,7 @@ export enum EngineEvent {
   UnPublishDataTrackResponse = 'unPublishDataTrackResponse',
   DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
   DataTrackPacketReceived = 'dataTrackPacketReceived',
+  Joined = 'joined',
 }
 
 export enum TrackEvent {

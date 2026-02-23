@@ -58,7 +58,7 @@ import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStream
 import type RemoteDataTrack from './data-track/RemoteDataTrack';
 import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
 import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
-import { type DataTrackInfo, type DataTrackSid } from './data-track/types';
+import { DataTrackInfo, type DataTrackSid } from './data-track/types';
 import {
   audioDefaults,
   publishDefaults,
@@ -649,6 +649,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // propagate upwards into the public interface.
           throw err;
         }
+      })
+      .on(EngineEvent.Joined, (joinResponse) => {
+        // Ingest data track publication updates into data tracks infrastructure
+        const mapped = new Map(
+          joinResponse.otherParticipants.map((participant) => {
+            return [
+              participant.identity,
+              participant.dataTracks.map((info) => DataTrackInfo.from(info)),
+            ];
+          }),
+        );
+        this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
       });
 
     if (this.localParticipant) {
@@ -1748,20 +1760,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     // Ingest data track publication updates into data tracks infrastructure
     const mapped = new Map(
-      participantInfos.map((info) => {
-        return [
-          info.identity,
-          info.dataTracks.map(
-            (dataTrack) =>
-              ({
-                sid: dataTrack.sid,
-                pubHandle: dataTrack.pubHandle,
-                name: dataTrack.name,
-                usesE2ee: dataTrack.encryption !== Encryption_Type.NONE,
-              }) satisfies DataTrackInfo,
-          ),
-        ];
-      }),
+      participantInfos
+        .filter(p => p.identity !== this.localParticipant.identity)
+        .map((info) => {
+          return [
+            info.identity,
+            info.dataTracks.map((dataTrack) => DataTrackInfo.from(dataTrack)),
+          ];
+        }),
     );
     this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
