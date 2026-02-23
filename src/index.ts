@@ -165,5 +165,6 @@ export {
   type DataTrackUserTimestampExtension,
   type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
+export { type DataChannelKind } from './room/RTCEngine';
 
 export { LocalTrackRecorder } from './room/track/record';
