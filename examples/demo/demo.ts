@@ -273,7 +273,7 @@ const appActions = {
         renderRemoteDataTracks();
       })
       .on(RoomEvent.RemoteDataTrackUnpublished, (sid) => {
-        const index = remoteDataTracks.findIndex(t => t.info.sid === sid);
+        const index = remoteDataTracks.findIndex((t) => t.info.sid === sid);
         if (index >= 0) {
           remoteDataTracks.splice(index, 1);
           renderRemoteDataTracks();
@@ -695,20 +695,22 @@ const appActions = {
   },
 
   publishLocalDataTrack: async () => {
-    const button = $("local-data-track-publish-button")
-    const input = <HTMLInputElement>$("local-data-track-publish-name");
+    const button = $('local-data-track-publish-button');
+    const input = <HTMLInputElement>$('local-data-track-publish-name');
 
     if (!currentRoom) {
       console.error(`publishDataTrack failed: Room not connected.`);
       return;
     }
 
-    button.innerText = "Publishing...";
-    button.setAttribute("disabled", "true");
+    button.innerText = 'Publishing...';
+    button.setAttribute('disabled', 'true');
     input.classList.remove('is-invalid');
 
     try {
-      const localDataTrack = await currentRoom.localParticipant.publishDataTrack({ name: input.value });
+      const localDataTrack = await currentRoom.localParticipant.publishDataTrack({
+        name: input.value,
+      });
       input.value = '';
       localDataTracks.push(localDataTrack);
       renderLocalDataTracks();
@@ -718,8 +720,8 @@ const appActions = {
       // Make the input red to signify failure
       input.classList.add('is-invalid');
     } finally {
-      button.innerText = "Publish Local";
-      button.removeAttribute("disabled");
+      button.innerText = 'Publish Local';
+      button.removeAttribute('disabled');
     }
   },
 };
@@ -1137,7 +1139,10 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
   return item;
 }
 
-function updateLocalDataTrackElement(element: HTMLDivElement, localDataTrack: LocalDataTrack): void {
+function updateLocalDataTrackElement(
+  element: HTMLDivElement,
+  localDataTrack: LocalDataTrack,
+): void {
   const published = localDataTrack.isPublished();
 
   const badge = element.querySelector<HTMLSpanElement>('.badge[data-status]');
@@ -1156,7 +1161,7 @@ function renderLocalDataTracks() {
   for (const child of Array.from(wrapper.children)) {
     const element = child as HTMLDivElement;
     const sid = element.dataset.sid!;
-    const localDataTrack = localDataTracks.find(l => l.info.sid === sid);
+    const localDataTrack = localDataTracks.find((l) => l.info.sid === sid);
     if (localDataTrack) {
       updateLocalDataTrackElement(element, localDataTrack);
     } else {
@@ -1166,7 +1171,9 @@ function renderLocalDataTracks() {
   }
 
   // Create elements for new tracks
-  for (const localDataTrack of localDataTracks.filter(l => !renderedLocalDataTrackSids.has(l.info.sid))) {
+  for (const localDataTrack of localDataTracks.filter(
+    (l) => !renderedLocalDataTrackSids.has(l.info.sid),
+  )) {
     const child = createLocalDataTrackElement(localDataTrack);
     wrapper.appendChild(child);
   }
@@ -1175,7 +1182,8 @@ function renderLocalDataTracks() {
 function renderHexDump(payload: Uint8Array): HTMLElement {
   const bytesPerLine = 8;
   const table = document.createElement('table');
-  table.style.cssText = 'border-collapse: collapse; width: 100%; font-size: 0.68rem; line-height: 1.4;';
+  table.style.cssText =
+    'border-collapse: collapse; width: 100%; font-size: 0.68rem; line-height: 1.4;';
 
   for (let offset = 0; offset < payload.byteLength; offset += bytesPerLine) {
     const chunk = payload.slice(offset, offset + bytesPerLine);
@@ -1183,15 +1191,17 @@ function renderHexDump(payload: Uint8Array): HTMLElement {
 
     // Address column
     const addrCell = document.createElement('td');
-    addrCell.style.cssText = 'color: #6c757d; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top; user-select: none;';
+    addrCell.style.cssText =
+      'color: #6c757d; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top; user-select: none;';
     addrCell.textContent = offset.toString(16).padStart(8, '0');
     row.appendChild(addrCell);
 
     // Hex column
     const hexCell = document.createElement('td');
-    hexCell.style.cssText = 'color: #28a745; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top;';
+    hexCell.style.cssText =
+      'color: #28a745; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top;';
     const hexStr = Array.from(chunk)
-      .map(b => b.toString(16).padStart(2, '0'))
+      .map((b) => b.toString(16).padStart(2, '0'))
       .join(' ')
       .padEnd(bytesPerLine * 3 - 1, ' ');
     hexCell.textContent = hexStr;
@@ -1199,9 +1209,10 @@ function renderHexDump(payload: Uint8Array): HTMLElement {
 
     // ASCII column
     const asciiCell = document.createElement('td');
-    asciiCell.style.cssText = 'color: #e9ecef; padding: 0; white-space: pre; vertical-align: top; text-align: right;';
+    asciiCell.style.cssText =
+      'color: #e9ecef; padding: 0; white-space: pre; vertical-align: top; text-align: right;';
     const ascii = Array.from(chunk)
-      .map(b => (b >= 0x20 && b <= 0x7e) ? String.fromCharCode(b) : '.')
+      .map((b) => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.'))
       .join('');
     asciiCell.textContent = '|' + ascii.padEnd(bytesPerLine, ' ') + '|';
     row.appendChild(asciiCell);
@@ -1255,7 +1266,9 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
 
   const pathEl = item.querySelector<SVGPathElement>(`#remote-data-track-path-${sid}`)!;
   const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
-  const playStopButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-play-stop-${sid}`)!;
+  const playStopButton = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-play-stop-${sid}`,
+  )!;
   const clearButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-clear-${sid}`)!;
 
   let reader: ReadableStreamDefaultReader | null = null;
@@ -1401,14 +1414,14 @@ function renderRemoteDataTracks() {
   for (const child of Array.from(wrapper.children)) {
     const li = child as HTMLLIElement;
     const sid = li.dataset.sid!;
-    const remoteDataTrack = remoteDataTracks.find(r => r.info.sid === sid);
+    const remoteDataTrack = remoteDataTracks.find((r) => r.info.sid === sid);
     if (!remoteDataTrack) {
       li.remove();
     }
     renderedSids.add(sid);
   }
 
-  for (const remoteDataTrack of remoteDataTracks.filter(r => !renderedSids.has(r.info.sid))) {
+  for (const remoteDataTrack of remoteDataTracks.filter((r) => !renderedSids.has(r.info.sid))) {
     wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
   }
 }
