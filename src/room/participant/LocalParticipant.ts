@@ -27,10 +27,12 @@ import type { InternalRoomOptions } from '../../options';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
+import { DataChannelKind } from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import type LocalDataTrack from '../data-track/LocalDataTrack';
 import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
+import { DataTrackPublishError } from '../data-track/outgoing/errors';
 import type { DataTrackOptions } from '../data-track/outgoing/types';
 import { defaultVideoCodec } from '../defaults';
 import {
@@ -107,8 +109,6 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
-import { DataTrackPublishError } from '../data-track/outgoing/errors';
-import { DataChannelKind } from '../RTCEngine';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -322,7 +322,7 @@ export default class LocalParticipant extends Participant {
     }
 
     switch (response.request.case) {
-      case "publishDataTrack": {
+      case 'publishDataTrack': {
         let error;
         switch (response.reason) {
           case RequestResponse_Reason.NOT_ALLOWED:
@@ -338,13 +338,16 @@ export default class LocalParticipant extends Participant {
             error = DataTrackPublishError.limitReached(response.message);
             break;
           default:
-            this.log.error(`Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`, this.logContext);
+            this.log.error(
+              `Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`,
+              this.logContext,
+            );
             return;
         }
 
         this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
           response.request.value.pubHandle,
-          { type: 'error', error }
+          { type: 'error', error },
         );
         break;
       }

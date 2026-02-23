@@ -11,6 +11,8 @@ import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
+import LocalDataTrack from './room/data-track/LocalDataTrack';
+import RemoteDataTrack from './room/data-track/RemoteDataTrack';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, {
   ConnectionQuality,
@@ -59,8 +61,6 @@ import {
   supportsVP9,
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
-import LocalDataTrack from './room/data-track/LocalDataTrack';
-import RemoteDataTrack from './room/data-track/RemoteDataTrack';
 
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
 

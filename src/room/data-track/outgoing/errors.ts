@@ -40,7 +40,7 @@ export class DataTrackPublishError<
   /** Underling message from the SFU, if one was provided */
   rawMessage?: string;
 
-  constructor(message: string, reason: Reason, options?: { rawMessage?: string, cause?: unknown }) {
+  constructor(message: string, reason: Reason, options?: { rawMessage?: string; cause?: unknown }) {
     super(21, message, options);
     this.reason = reason;
     this.reasonName = DataTrackPublishErrorReason[reason];
