@@ -46,7 +46,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
       return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
     } catch (err) {
       // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
-      // propegate upwards into the public interface.
+      // propagate upwards into the public interface.
       throw err;
     }
   }

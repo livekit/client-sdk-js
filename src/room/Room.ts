@@ -642,7 +642,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.incomingDataTrackManager.receivedSfuSubscriberHandles(handleToSidMapping);
       })
       .on(EngineEvent.DataTrackPacketReceived, (packetBytes) => {
-        this.incomingDataTrackManager.packetReceived(packetBytes);
+        try {
+          this.incomingDataTrackManager.packetReceived(packetBytes);
+        } catch (err) {
+          // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
+          // propagate upwards into the public interface.
+          throw err;
+        }
       });
 
     if (this.localParticipant) {
