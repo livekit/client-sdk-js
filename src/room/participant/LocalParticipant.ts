@@ -108,6 +108,7 @@ import {
   getDefaultDegradationPreference,
 } from './publishUtils';
 import { DataTrackPublishError } from '../data-track/outgoing/errors';
+import { DataChannelKind } from '../RTCEngine';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -1685,7 +1686,8 @@ export default class LocalParticipant extends Participant {
    * @param options optionally specify a `reliable`, `topic` and `destination`
    */
   async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
-    const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
+    const kind = options.reliable ? DataChannelKind.RELIABLE : DataChannelKind.LOSSY;
+    const dataPacketKind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
     const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
 
@@ -1697,7 +1699,7 @@ export default class LocalParticipant extends Participant {
     });
 
     const packet = new DataPacket({
-      kind: kind,
+      kind: dataPacketKind,
       value: {
         case: 'user',
         value: userPacket,
@@ -1725,7 +1727,7 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @deprecated Consider migrating to {@link sendText} */
@@ -1745,7 +1747,7 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
@@ -1768,7 +1770,7 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
   }
@@ -1983,7 +1985,7 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @internal */
