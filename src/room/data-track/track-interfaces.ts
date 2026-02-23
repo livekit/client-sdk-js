@@ -10,7 +10,7 @@ export interface ITrack {
   readonly trackSymbol: typeof TrackSymbol;
 }
 
-export function isTrack(subject: unknown): subject is ITrack {
+function isTrack(subject: unknown): subject is ITrack {
   return isObject(subject) && 'trackSymbol' in subject && subject.trackSymbol === TrackSymbol;
 }
 
@@ -21,7 +21,8 @@ export interface ILocalTrack extends ITrack {
   isPublished(): boolean;
 }
 
-export function isLocalTrack(subject: unknown): subject is ILocalTrack {
+// @ts-ignore - Export this in the future when cutting over to new track interfaces more widely
+function isLocalTrack(subject: unknown): subject is ILocalTrack {
   return isTrack(subject) && 'isLocal' in subject && subject.isLocal === true;
 }
 
@@ -32,7 +33,8 @@ export interface IRemoteTrack extends ITrack {
   readonly isLocal: false;
 }
 
-export function isRemoteTrack(subject: unknown): subject is IRemoteTrack {
+// @ts-ignore - Export this in the future when cutting over to new track interfaces more widely
+function isRemoteTrack(subject: unknown): subject is IRemoteTrack {
   return (
     isTrack(subject) && 'localitySymbol' in subject && subject.localitySymbol === RemoteTrackSymbol
   );
