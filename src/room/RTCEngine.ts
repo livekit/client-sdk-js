@@ -779,7 +779,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
-    // this.dataTrackDC.onbufferedamountlow = this.handleBufferedAmountLow; // FIXME: do I want this for data tracks?
+    this.dataTrackDC.onbufferedamountlow = this.handleBufferedAmountLow;
 
     this.cleanupLossyDataStats();
     this.lossyDataStatInterval = setInterval(() => {
