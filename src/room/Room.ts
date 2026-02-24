@@ -1761,12 +1761,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // Ingest data track publication updates into data tracks infrastructure
     const mapped = new Map(
       participantInfos
-        .filter(p => p.identity !== this.localParticipant.identity)
+        .filter((p) => p.identity !== this.localParticipant.identity)
         .map((info) => {
-          return [
-            info.identity,
-            info.dataTracks.map((dataTrack) => DataTrackInfo.from(dataTrack)),
-          ];
+          return [info.identity, info.dataTracks.map((dataTrack) => DataTrackInfo.from(dataTrack))];
         }),
     );
     this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);

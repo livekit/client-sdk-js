@@ -264,8 +264,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRequestResponse, response);
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
-    this.client.onJoined = (joinResponse) =>
-      this.emit(EngineEvent.Joined, joinResponse);
+    this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
   }
 
   /** @internal */
