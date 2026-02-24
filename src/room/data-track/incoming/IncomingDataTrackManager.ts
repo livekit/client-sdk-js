@@ -123,15 +123,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   > {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
-      // FIXME: maybe this should be a DataTrackSubscribeError.disconnected()? That's what happens
-      // here (on the caller end in the rust implementation):
-      // https://github.com/livekit/rust-sdks/blob/ccdc012e40f9b2cf6b677c07da7061216eb93a89/livekit-datatrack/src/remote/mod.rs#L81
       throw DataTrackSubscribeError.disconnected();
-
-      // FIXME: DataTrackSubscribeError.unpublished is unused both here and in rust
-
-      // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-      // throw new Error('Cannot subscribe to unknown track');
     }
 
     const waitForCompletionFuture = async (
