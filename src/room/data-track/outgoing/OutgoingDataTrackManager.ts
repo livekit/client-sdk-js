@@ -97,6 +97,18 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     return manager;
   }
 
+  /** @internal */
+  updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
+    this.e2eeManager = e2eeManager;
+
+    // Propegate downwards to all pre-existing pipelines
+    for (const [_key, descriptor] of this.descriptors) {
+      if (descriptor.type === "active") {
+        descriptor.pipeline.updateE2eeManager(e2eeManager);
+      }
+    }
+  }
+
   /**
    * Used by attached {@link LocalDataTrack} instances to query their associated descriptor info.
    * @internal

@@ -103,6 +103,18 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.e2eeManager = options?.e2eeManager ?? null;
   }
 
+  /** @internal */
+  updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
+    this.e2eeManager = e2eeManager;
+
+    // Propegate downwards to all pre-existing pipelines
+    for (const [_key, descriptor] of this.descriptors) {
+      if (descriptor.subscription.type === "active") {
+        descriptor.subscription.pipeline.updateE2eeManager(e2eeManager);
+      }
+    }
+  }
+
   /** Client requested to subscribe to a data track.
    *
    * This is sent when the user calls {@link RemoteDataTrack.subscribe}.

@@ -29,6 +29,10 @@ export default class DataTrackOutgoingPipeline {
     );
   }
 
+  updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
+    this.e2eeManager = e2eeManager;
+  }
+
   async *processFrame(
     frame: DataTrackFrame,
   ): Throws<AsyncGenerator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
