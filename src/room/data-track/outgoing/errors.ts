@@ -29,7 +29,7 @@ export enum DataTrackPublishErrorReason {
 }
 
 export class DataTrackPublishError<
-  Reason extends DataTrackPublishErrorReason,
+  Reason extends DataTrackPublishErrorReason = DataTrackPublishErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPublishError';
 
