@@ -9,7 +9,6 @@ import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
 import { DataTrackDepacketizerDropError } from '../depacketizer';
-import type { DecryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
@@ -21,6 +20,7 @@ import {
   type EventTrackAvailable,
   type EventTrackUnavailable,
 } from './types';
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -69,7 +69,7 @@ type IncomingDataTrackManagerOptions = {
    * If none, remote tracks using end-to-end encryption will not be available
    * for subscription.
    */
-  decryptionProvider: DecryptionProvider | null;
+  e2eeManager?: BaseE2EEManager;
 };
 
 /** How long to wait when attempting to subscribe before timing out. */
@@ -80,7 +80,7 @@ const SUBSCRIBE_TIMEOUT_MILLISECONDS = 10_000;
 const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 16;
 
 export default class IncomingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
-  private decryptionProvider: DecryptionProvider | null;
+  private e2eeManager: BaseE2EEManager | null;
 
   /** Mapping between track SID and descriptor. */
   private descriptors = new Map<DataTrackSid, Descriptor<SubscriptionState>>();
@@ -95,7 +95,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
   constructor(options?: IncomingDataTrackManagerOptions) {
     super();
-    this.decryptionProvider = options?.decryptionProvider ?? null;
+    this.e2eeManager = options?.e2eeManager ?? null;
   }
 
   /** Client requested to subscribe to a data track.
@@ -424,7 +424,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         const pipeline = new IncomingDataTrackPipeline({
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,
-          decryptionProvider: this.decryptionProvider,
+          e2eeManager: this.e2eeManager,
         });
 
         const previousDescriptorSubscription = descriptor.subscription;
@@ -442,7 +442,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Packet has been received over the transport. */
-  packetReceived(bytes: Uint8Array): Throws<void, DataTrackDepacketizerDropError> {
+  async packetReceived(bytes: Uint8Array): Promise<Throws<void, DataTrackDepacketizerDropError>> {
     let packet: DataTrackPacket;
     try {
       [packet] = DataTrackPacket.fromBinary(bytes);
@@ -468,7 +468,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    const frame = descriptor.subscription.pipeline.processPacket(packet);
+    const frame = await descriptor.subscription.pipeline.processPacket(packet);
     if (!frame) {
       // Not all packets have been received yet to form a complete frame
       return;
