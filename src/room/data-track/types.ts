@@ -1,5 +1,5 @@
-import { type DataTrackHandle } from './handle';
 import { Encryption_Type, DataTrackInfo as ProtocolDataTrackInfo } from '@livekit/protocol';
+import { type DataTrackHandle } from './handle';
 
 export type DataTrackSid = string;
 
