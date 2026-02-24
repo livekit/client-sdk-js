@@ -12,7 +12,6 @@ import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
-  DataTrackPublishErrorReason,
   DataTrackPushFrameError,
   DataTrackPushFrameErrorReason,
 } from './errors';
@@ -29,15 +28,7 @@ const log = getLogger(LoggerNames.DataTracks);
 
 export type PendingDescriptor = {
   type: 'pending';
-  completionFuture: Future<
-    LocalDataTrack,
-    | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
-    | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
-    | DataTrackPublishError<DataTrackPublishErrorReason.Timeout>
-    | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>
-    | DataTrackPublishError<DataTrackPublishErrorReason.Disconnected>
-    | DataTrackPublishError<DataTrackPublishErrorReason.Cancelled>
-  >;
+  completionFuture: Future<LocalDataTrack, DataTrackPublishError>;
 };
 export type ActiveDescriptor = {
   type: 'active';
