@@ -5,7 +5,6 @@ import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-
 import type { Throws } from '../../../utils/throws';
 import { Future } from '../../utils';
 import LocalDataTrack from '../LocalDataTrack';
-import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
@@ -23,6 +22,7 @@ import {
   type OutputEventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -48,11 +48,11 @@ export const Descriptor = {
       completionFuture: new Future(),
     };
   },
-  active(info: DataTrackInfo, encryptionProvider: EncryptionProvider | null): ActiveDescriptor {
+  active(info: DataTrackInfo, e2eeManager: BaseE2EEManager | null): ActiveDescriptor {
     return {
       type: 'active',
       info,
-      pipeline: new DataTrackOutgoingPipeline({ info, encryptionProvider }),
+      pipeline: new DataTrackOutgoingPipeline({ info, e2eeManager }),
       unpublishingFuture: new Future(),
     };
   },
@@ -71,16 +71,16 @@ type OutgoingDataTrackManagerOptions = {
   /**
    * Provider to use for encrypting outgoing frame payloads.
    *
-   * If none, end-to-end encryption will be disabled for all published tracks.
+   * If null, end-to-end encryption will be disabled for all published tracks.
    */
-  encryptionProvider?: EncryptionProvider;
+  e2eeManager?: BaseE2EEManager;
 };
 
 /** How long to wait when attempting to publish before timing out. */
 const PUBLISH_TIMEOUT_MILLISECONDS = 10_000;
 
 export default class OutgoingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackOutgoingManagerCallbacks>) {
-  private encryptionProvider: EncryptionProvider | null;
+  private e2eeManager: BaseE2EEManager | null;
 
   private handleAllocator = new DataTrackHandleAllocator();
 
@@ -88,7 +88,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   constructor(options?: OutgoingDataTrackManagerOptions) {
     super();
-    this.encryptionProvider = options?.encryptionProvider ?? null;
+    this.e2eeManager = options?.e2eeManager ?? null;
   }
 
   static withDescriptors(descriptors: Map<DataTrackHandle, Descriptor>) {
@@ -117,14 +117,14 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
    * subscribers.
    * @internal
    */
-  tryProcessAndSend(
+  async tryProcessAndSend(
     handle: DataTrackHandle,
     payload: Uint8Array,
-  ): Throws<
+  ): Promise<Throws<
     void,
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
     | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
-  > {
+  >> {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       throw DataTrackPushFrameError.trackUnpublished();
@@ -136,7 +136,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     };
 
     try {
-      for (const packet of descriptor.pipeline.processFrame(frame)) {
+      for await (const packet of descriptor.pipeline.processFrame(frame)) {
         this.emit('packetsAvailable', { bytes: packet.toBinary() });
       }
     } catch (err) {
@@ -193,7 +193,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     this.emit('sfuPublishRequest', {
       handle,
       name: options.name,
-      usesE2ee: this.encryptionProvider !== null,
+      usesE2ee: this.e2eeManager !== null,
     });
 
     const localDataTrack = await descriptor.completionFuture.promise;
@@ -244,8 +244,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     if (result.type === 'ok') {
       const info = result.data;
 
-      const encryptionProvider = info.usesE2ee ? this.encryptionProvider : null;
-      this.descriptors.set(info.pubHandle, Descriptor.active(info, encryptionProvider));
+      const e2eeManager = info.usesE2ee ? this.e2eeManager : null;
+      this.descriptors.set(info.pubHandle, Descriptor.active(info, e2eeManager));
 
       const localDataTrack = this.createLocalDataTrack(info.pubHandle);
       if (!localDataTrack) {

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
-import { DecryptionProvider, EncryptedPayload } from '../e2ee';
 import { DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '../packet';
@@ -11,24 +10,7 @@ import IncomingDataTrackManager, {
   DataTrackIncomingManagerCallbacks,
 } from './IncomingDataTrackManager';
 import { DataTrackSubscribeError } from './errors';
-
-/** A fake "decryption" provider used for test purposes. Assumes the payload is prefixed with
- * 0xdeafbeef, which is stripped off. */
-const PrefixingDecryptionProvider: DecryptionProvider = {
-  decrypt(p: EncryptedPayload, _senderIdentity: string) {
-    if (
-      p.payload[0] !== 0xde ||
-      p.payload[1] !== 0xad ||
-      p.payload[2] !== 0xbe ||
-      p.payload[3] !== 0xef
-    ) {
-      throw new Error(
-        `PrefixingDecryptionProvider: first four bytes of payload were not 0xdeadbeef, found ${p.payload.slice(0, 4)}`,
-      );
-    }
-    return p.payload.slice(4);
-  },
-};
+import { PrefixingEncryptionProvider } from '../outgoing/OutgoingDataTrackManager.test';
 
 describe('DataTrackIncomingManager', () => {
   describe('Track publication', () => {
@@ -130,7 +112,7 @@ describe('DataTrackIncomingManager', () => {
 
     it('should test data track subscribing with end to end encryption (ok case)', async () => {
       const manager = new IncomingDataTrackManager({
-        decryptionProvider: PrefixingDecryptionProvider,
+        e2eeManager: new PrefixingEncryptionProvider(),
       });
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',

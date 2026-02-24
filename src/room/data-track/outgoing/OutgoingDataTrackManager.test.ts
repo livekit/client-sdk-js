@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
-import { EncryptionProvider } from '../e2ee';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
@@ -9,22 +8,62 @@ import OutgoingDataTrackManager, {
   Descriptor,
 } from './OutgoingDataTrackManager';
 import { DataTrackPublishError } from './errors';
+import { BaseE2EEManager } from '../../../e2ee/E2eeManager';
+import RTCEngine from '../../RTCEngine';
+import Room from '../../Room';
+import { DecryptDataResponseMessage, EncryptDataResponseMessage } from '../../..';
 
-/** A fake "encryption" provider used for test purposes. Adds a prefix to the payload. */
-const PrefixingEncryptionProvider: EncryptionProvider = {
-  encrypt(payload: Uint8Array) {
+/** Fake encryption provider for testing e2ee data track features. */
+export class PrefixingEncryptionProvider implements BaseE2EEManager {
+  isEnabled: true;
+  isDataChannelEncryptionEnabled: true;
+
+  setup(_room: Room) {}
+  setupEngine(_engine: RTCEngine) {}
+  setParticipantCryptorEnabled(_enabled: boolean, _participantIdentity: string) {}
+  setSifTrailer(_trailer: Uint8Array) {}
+  on(_event: any, _listener: any): this { return this; }
+
+  /** A fake "encryption" provider used for test purposes. Adds a prefix to the payload. */
+  async encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']> {
     const prefix = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
 
-    const output = new Uint8Array(prefix.length + payload.length);
+    const output = new Uint8Array(prefix.length + data.length);
     output.set(prefix, 0);
-    output.set(payload, prefix.length);
+    output.set(data, prefix.length);
 
     return {
+      uuid: crypto.randomUUID(),
       payload: output,
       iv: new Uint8Array(12), // Just leaving this empty, is this a bad idea?
       keyIndex: 0,
     };
-  },
+  }
+
+  /** A fake "decryption" provider used for test purposes. Assumes the payload is prefixed with
+   * 0xdeafbeef, which is stripped off. */
+  async handleEncryptedData(
+    payload: Uint8Array,
+    _iv: Uint8Array,
+    _participantIdentity: string,
+    _keyIndex: number,
+  ): Promise<DecryptDataResponseMessage['data']> {
+    if (
+      payload[0] !== 0xde ||
+      payload[1] !== 0xad ||
+      payload[2] !== 0xbe ||
+      payload[3] !== 0xef
+    ) {
+      throw new Error(
+        `PrefixingEncryptionProvider: first four bytes of payload were not 0xdeadbeef, found ${payload.slice(0, 4)}`,
+      );
+    }
+
+    return {
+      uuid: crypto.randomUUID(),
+      payload: payload.slice(4),
+    };
+  }
 };
 
 describe('DataTrackOutgoingManager', () => {
@@ -228,7 +267,7 @@ describe('DataTrackOutgoingManager', () => {
 
   it('should send e2ee encrypted datatrack payload', async () => {
     const manager = new OutgoingDataTrackManager({
-      encryptionProvider: PrefixingEncryptionProvider,
+      e2eeManager: new PrefixingEncryptionProvider(),
     });
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',

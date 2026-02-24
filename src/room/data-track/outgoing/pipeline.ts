@@ -1,5 +1,5 @@
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { type Throws } from '../../../utils/throws';
-import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
@@ -9,12 +9,12 @@ import { DataTrackOutgoingPipelineError, DataTrackOutgoingPipelineErrorReason } 
 
 type Options = {
   info: DataTrackInfo;
-  encryptionProvider: EncryptionProvider | null;
+  e2eeManager: BaseE2EEManager | null;
 };
 
 /** Processes outgoing frames into final packets for distribution to the SFU. */
 export default class DataTrackOutgoingPipeline {
-  private encryptionProvider: EncryptionProvider | null;
+  private e2eeManager: BaseE2EEManager | null;
 
   private packetizer: DataTrackPacketizer;
 
@@ -22,17 +22,17 @@ export default class DataTrackOutgoingPipeline {
   private static TRANSPORT_MTU_BYTES = 16_000;
 
   constructor(options: Options) {
-    this.encryptionProvider = options.encryptionProvider;
+    this.e2eeManager = options.e2eeManager;
     this.packetizer = new DataTrackPacketizer(
       options.info.pubHandle,
       DataTrackOutgoingPipeline.TRANSPORT_MTU_BYTES,
     );
   }
 
-  *processFrame(
+  async *processFrame(
     frame: DataTrackFrame,
-  ): Throws<Generator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
-    const encryptedFrame = this.encryptIfNeeded(frame);
+  ): Throws<AsyncGenerator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
+    const encryptedFrame = await this.encryptIfNeeded(frame);
 
     try {
       yield* this.packetizer.packetize(encryptedFrame);
@@ -44,19 +44,19 @@ export default class DataTrackOutgoingPipeline {
     }
   }
 
-  encryptIfNeeded(
+  async encryptIfNeeded(
     frame: DataTrackFrame,
-  ): Throws<
+  ): Promise<Throws<
     DataTrackFrame,
     DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
-  > {
-    if (!this.encryptionProvider) {
+  >> {
+    if (!this.e2eeManager) {
       return frame;
     }
 
-    let encryptedResult: EncryptedPayload;
+    let encryptedResult;
     try {
-      encryptedResult = this.encryptionProvider.encrypt(frame.payload);
+      encryptedResult = await this.e2eeManager.encryptData(frame.payload);
     } catch (err) {
       throw DataTrackOutgoingPipelineError.encryption(err);
     }

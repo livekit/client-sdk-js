@@ -1,7 +1,7 @@
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import type { Throws } from '../../../utils/throws';
 import DataTrackDepacketizer, { DataTrackDepacketizerDropError } from '../depacketizer';
-import type { DecryptionProvider, EncryptedPayload } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo } from '../types';
@@ -14,7 +14,7 @@ const log = getLogger(LoggerNames.DataTracks);
 type Options = {
   info: DataTrackInfo;
   publisherIdentity: string;
-  decryptionProvider: DecryptionProvider | null;
+  e2eeManager: BaseE2EEManager | null;
 };
 
 /**
@@ -23,7 +23,7 @@ type Options = {
 export default class IncomingDataTrackPipeline {
   private publisherIdentity: string;
 
-  private e2eeProvider: DecryptionProvider | null;
+  private e2eeManager: BaseE2EEManager | null;
 
   private depacketizer: DataTrackDepacketizer;
 
@@ -31,7 +31,7 @@ export default class IncomingDataTrackPipeline {
    * Creates a new pipeline with the given options.
    */
   constructor(options: Options) {
-    const hasProvider = options.decryptionProvider !== null;
+    const hasProvider = options.e2eeManager !== null;
     if (options.info.usesE2ee !== hasProvider) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
@@ -42,19 +42,19 @@ export default class IncomingDataTrackPipeline {
     const depacketizer = new DataTrackDepacketizer();
 
     this.publisherIdentity = options.publisherIdentity;
-    this.e2eeProvider = options.decryptionProvider ?? null;
+    this.e2eeManager = options.e2eeManager ?? null;
     this.depacketizer = depacketizer;
   }
 
-  processPacket(
+  async processPacket(
     packet: DataTrackPacket,
-  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
+  ): Promise<Throws<DataTrackFrame | null, DataTrackDepacketizerDropError>> {
     const frame = this.depacketize(packet);
     if (!frame) {
       return null;
     }
 
-    const decrypted = this.decryptIfNeeded(frame);
+    const decrypted = await this.decryptIfNeeded(frame);
     if (!decrypted) {
       return null;
     }
@@ -83,10 +83,10 @@ export default class IncomingDataTrackPipeline {
   /**
    * Decrypt the frame's payload if E2EE is enabled for this track.
    */
-  private decryptIfNeeded(frame: DataTrackFrame): DataTrackFrame | null {
-    const decryption = this.e2eeProvider;
+  private async decryptIfNeeded(frame: DataTrackFrame): Promise<DataTrackFrame | null> {
+    const e2eeManager = this.e2eeManager;
 
-    if (!decryption) {
+    if (!e2eeManager) {
       return frame;
     }
 
@@ -96,21 +96,15 @@ export default class IncomingDataTrackPipeline {
       return null;
     }
 
-    const encrypted: EncryptedPayload = {
-      payload: frame.payload,
-      iv: e2ee.iv,
-      keyIndex: e2ee.keyIndex,
-    };
-
-    let result: Uint8Array;
+    let result;
     try {
-      result = decryption.decrypt(encrypted, this.publisherIdentity);
+      result = await e2eeManager.handleEncryptedData(frame.payload, e2ee.iv, this.publisherIdentity, e2ee.keyIndex);
     } catch (err) {
       log.error(`Error decrypting packet: ${err}`);
       return null;
     }
 
-    frame.payload = result;
+    frame.payload = result.payload;
     return frame;
   }
 }

@@ -251,7 +251,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
 
-    this.incomingDataTrackManager = new IncomingDataTrackManager(/* FIXME: add options */);
+    this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager
       .on('sfuUpdateSubscription', (event) => {
         this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
@@ -271,7 +271,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.RemoteDataTrackUnpublished, event.sid);
       });
 
-    this.outgoingDataTrackManager = new OutgoingDataTrackManager(/* FIXME: add options */);
+    this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.outgoingDataTrackManager
       .on('sfuPublishRequest', (event) => {
         this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
