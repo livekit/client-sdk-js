@@ -46,6 +46,10 @@ export default class IncomingDataTrackPipeline {
     this.depacketizer = depacketizer;
   }
 
+  updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
+    this.e2eeManager = e2eeManager;
+  }
+
   async processPacket(
     packet: DataTrackPacket,
   ): Promise<Throws<DataTrackFrame | null, DataTrackDepacketizerDropError>> {

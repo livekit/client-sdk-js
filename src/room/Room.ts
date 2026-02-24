@@ -300,6 +300,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine.e2eeManager = this.e2eeManager;
+    this.incomingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
+    this.outgoingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
