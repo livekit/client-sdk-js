@@ -5,6 +5,7 @@ import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type { Throws } from '../../../utils/throws';
 import type Participant from '../../participant/Participant';
+import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
 import { DataTrackDepacketizerDropError } from '../depacketizer';
@@ -15,7 +16,6 @@ import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
-import type RemoteParticipant from '../../participant/RemoteParticipant';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -506,8 +506,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Called when a remote participant is disconnected so that any pending data tracks can be
-    * cancelled. */
-  handleRemoteParticipantDisconnected(remoteParticipantIdentity: RemoteParticipant["identity"]) {
+   * cancelled. */
+  handleRemoteParticipantDisconnected(remoteParticipantIdentity: RemoteParticipant['identity']) {
     for (const descriptor of this.descriptors.values()) {
       if (descriptor.publisherIdentity !== remoteParticipantIdentity) {
         continue;
@@ -516,9 +516,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         case 'none':
           break;
         case 'pending':
-          descriptor.subscription.completionFuture.reject?.(
-            DataTrackSubscribeError.disconnected()
-          );
+          descriptor.subscription.completionFuture.reject?.(DataTrackSubscribeError.disconnected());
           break;
         case 'active':
           this.unSubscribeRequest(descriptor.info.sid);
