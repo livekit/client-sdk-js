@@ -14,6 +14,7 @@ import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
+import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -182,8 +183,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
         this.emit('sfuUpdateSubscription', { sid, subscribe: true });
 
-        const timeoutSignal = AbortSignal.timeout(SUBSCRIBE_TIMEOUT_MILLISECONDS);
-        const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+        const timeoutSignal = abortSignalTimeout(SUBSCRIBE_TIMEOUT_MILLISECONDS);
+        const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
 
         // Wait for the subscription to complete, or time out if it takes too long
         const reader = await waitForCompletionFuture(descriptor, combinedSignal);
