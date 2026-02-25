@@ -269,6 +269,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
+        'trackAvailable',
       ]);
 
       const sid = 'data track sid';
@@ -282,7 +283,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      // await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackAvailable');
 
       // 2. Subscribe to a data track
       const controller = new AbortController();
@@ -306,6 +307,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
+        'trackAvailable',
       ]);
 
       const sid = 'data track sid';
@@ -319,7 +321,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      // await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackAvailable');
 
       // 2. Subscribe to a data track twice
       const controllerOne = new AbortController();
@@ -378,6 +380,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
+        'trackAvailable',
       ]);
 
       const sid = 'data track sid';
@@ -391,7 +394,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      // await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackAvailable');
 
       // 2. Create subscription A
       const controllerA = new AbortController();
