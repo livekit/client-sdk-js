@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
+import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import { Future } from '../../utils';
 import LocalDataTrack from '../LocalDataTrack';
 import { type EncryptionProvider } from '../e2ee';
@@ -23,7 +24,6 @@ import {
   type OutputEventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
-import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 
 const log = getLogger(LoggerNames.DataTracks);
 

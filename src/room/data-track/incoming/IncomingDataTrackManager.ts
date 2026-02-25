@@ -2,6 +2,7 @@ import { type JoinResponse, type ParticipantUpdate } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
+import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type { Throws } from '../../../utils/throws';
 import type Participant from '../../participant/Participant';
 import { Future } from '../../utils';
@@ -12,9 +13,8 @@ import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
-import { DataTrackSubscribeError, DataTrackSubscribeErrorReason } from './errors';
+import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
-import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -140,10 +140,11 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         );
       }
 
-      const combinedSignal = abortSignalAny([
-        userProvidedSignal,
-        timeoutSignal,
-      ].filter((s): s is AbortSignal => typeof s !== 'undefined'));
+      const combinedSignal = abortSignalAny(
+        [userProvidedSignal, timeoutSignal].filter(
+          (s): s is AbortSignal => typeof s !== 'undefined',
+        ),
+      );
 
       const proxiedCompletionFuture = new Future<void, DataTrackSubscribeError>();
       currentDescriptor.subscription.completionFuture.promise
