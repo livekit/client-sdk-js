@@ -1781,6 +1781,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.incomingDataStreamManager.validateParticipantHasNoActiveDataStreams(identity);
+    this.incomingDataTrackManager.handleRemoteParticipantDisconnected(identity);
 
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
