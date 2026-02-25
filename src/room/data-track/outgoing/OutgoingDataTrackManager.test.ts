@@ -120,7 +120,7 @@ describe('DataTrackOutgoingManager', () => {
     // Publish a data track
     const publishRequestPromise = manager.publishRequest(
       { name: 'test' },
-      AbortSignal.abort(/* already aborted */)
+      AbortSignal.abort(/* already aborted */),
     );
 
     // Make sure cancellation is immediately bubbled up

@@ -359,7 +359,10 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(sid, AbortSignal.abort(/* already aborted */));
+      const subscribeRequestPromise = manager.subscribeRequest(
+        sid,
+        AbortSignal.abort(/* already aborted */),
+      );
       const start = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(start.subscribe).toBe(true);
 
