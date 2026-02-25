@@ -10,6 +10,7 @@ import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
 import IncomingDataTrackManager, {
   DataTrackIncomingManagerCallbacks,
 } from './IncomingDataTrackManager';
+import { DataTrackSubscribeError } from './errors';
 
 /** A fake "decryption" provider used for test purposes. Assumes the payload is prefixed with
  * 0xdeafbeef, which is stripped off. */
@@ -299,6 +300,75 @@ describe('DataTrackIncomingManager', () => {
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
+    });
+
+    it('should NOT terminate the sfu subscription if the abortsignal is triggered on one of two active subscriptions', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+      ]);
+
+      const sid = 'data track sid';
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([
+          [
+            'identity',
+            [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: 'test', usesE2ee: false }],
+          ],
+        ]),
+      );
+      // await managerEvents.waitFor('trackAvailable');
+
+      // 2. Subscribe to a data track twice
+      const controllerOne = new AbortController();
+      const subscribeRequestOnePromise = manager.subscribeRequest(sid, controllerOne.signal);
+      await managerEvents.waitFor('sfuUpdateSubscription'); // Subscription started
+
+      const controllerTwo = new AbortController();
+      manager.subscribeRequest(sid, controllerTwo.signal);
+
+      // 3. Cancel the first subscription
+      controllerOne.abort();
+      await expect(subscribeRequestOnePromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 4. Make sure the underlying sfu subscription has not been also cancelled, there still is
+      // one data track subscription active
+      expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toBe(false);
+    });
+
+    it('should terminate the sfu subscription if the abortsignal is already aborted', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+      ]);
+
+      const sid = 'data track sid';
+
+      // Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([
+          [
+            'identity',
+            [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: 'test', usesE2ee: false }],
+          ],
+        ]),
+      );
+
+      // Subscribe to a data track
+      const subscribeRequestPromise = manager.subscribeRequest(sid, AbortSignal.abort(/* already aborted */));
+      const start = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(start.subscribe).toBe(true);
+
+      // Make sure cancellation is immediately bubbled up
+      expect(subscribeRequestPromise).rejects.toStrictEqual(DataTrackSubscribeError.cancelled());
+
+      // Make sure that there is immediately another "unsubscribe" sent
+      const end = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(end.subscribe).toBe(false);
     });
 
     it('should terminate the sfu subscription once all listeners have unsubscribed', async () => {
