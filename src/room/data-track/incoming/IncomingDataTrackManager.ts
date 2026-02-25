@@ -12,7 +12,7 @@ import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
-import { DataTrackSubscribeError } from './errors';
+import { DataTrackSubscribeError, DataTrackSubscribeErrorReason } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 
@@ -130,7 +130,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
     const waitForCompletionFuture = async (
       currentDescriptor: Descriptor<SubscriptionState>,
-      abortSignal?: AbortSignal,
+      userProvidedSignal?: AbortSignal,
+      timeoutSignal?: AbortSignal,
     ) => {
       if (currentDescriptor.subscription.type !== 'pending') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -139,20 +140,46 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         );
       }
 
+      const combinedSignal = abortSignalAny([
+        userProvidedSignal,
+        timeoutSignal,
+      ].filter((s): s is AbortSignal => typeof s !== 'undefined'));
+
+      const proxiedCompletionFuture = new Future<void, DataTrackSubscribeError>();
+      currentDescriptor.subscription.completionFuture.promise
+        .then(() => proxiedCompletionFuture.resolve?.())
+        .catch((err) => proxiedCompletionFuture.reject?.(err));
+
       const onAbort = () => {
         if (currentDescriptor.subscription.type !== 'pending') {
           return;
         }
         currentDescriptor.subscription.pendingRequestCount -= 1;
-        if (currentDescriptor.subscription.pendingRequestCount <= 0) {
-          // No requests are still pending, so cancel the underlying pending `sfuUpdateSubscription`
+
+        if (timeoutSignal?.aborted) {
+          // A timeout should apply to the underlying SFU subscription and cancel all user
+          // subscriptions.
           currentDescriptor.subscription.cancel();
+          return;
         }
+
+        if (currentDescriptor.subscription.pendingRequestCount <= 0) {
+          // No user subscriptions are still pending, so cancel the underlying pending `sfuUpdateSubscription`
+          currentDescriptor.subscription.cancel();
+          return;
+        }
+
+        // Other subscriptions are still pending for this data track, so just cancel this one
+        // active user subscription, and leave the rest of the user subscriptions alone.
+        proxiedCompletionFuture.reject?.(DataTrackSubscribeError.cancelled());
       };
 
-      abortSignal?.addEventListener('abort', onAbort);
-      await currentDescriptor.subscription.completionFuture.promise;
-      abortSignal?.removeEventListener('abort', onAbort);
+      if (combinedSignal.aborted) {
+        onAbort();
+      }
+      combinedSignal.addEventListener('abort', onAbort);
+      await proxiedCompletionFuture.promise;
+      combinedSignal.removeEventListener('abort', onAbort);
 
       return this.createReadableStream(sid);
     };
@@ -184,10 +211,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         this.emit('sfuUpdateSubscription', { sid, subscribe: true });
 
         const timeoutSignal = abortSignalTimeout(SUBSCRIBE_TIMEOUT_MILLISECONDS);
-        const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
 
         // Wait for the subscription to complete, or time out if it takes too long
-        const reader = await waitForCompletionFuture(descriptor, combinedSignal);
+        const reader = await waitForCompletionFuture(descriptor, signal, timeoutSignal);
         return reader;
       }
       case 'pending': {
