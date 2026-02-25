@@ -37,6 +37,7 @@ describe('DataTrackIncomingManager', () => {
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
         'trackAvailable',
+        'trackUnavailable',
       ]);
 
       // 1. Add a track, make sure the track available event was sent
@@ -70,6 +71,38 @@ describe('DataTrackIncomingManager', () => {
       // 3. Remove all tracks, and make sure the internal state is cleared
       await manager.receiveSfuPublicationUpdates(new Map([['identity1', []]]));
       expect(await manager.queryPublications()).to.deep.equal([]);
+
+      const trackUnavailableEvent = await managerEvents.waitFor('trackUnavailable');
+      expect(trackUnavailableEvent.sid).toStrictEqual('sid1');
+      expect(trackUnavailableEvent.publisherIdentity).toStrictEqual('identity1');
+    });
+
+    it('should process sfu publication updates idempotently', async () => {
+      const manager = new IncomingDataTrackManager();
+
+      // 1. Simulate three identical track publications being received
+      for (let i = 0; i < 3; i += 1) {
+        await manager.receiveSfuPublicationUpdates(
+          new Map([
+            [
+              'identity1',
+              [
+                {
+                  sid: 'sid1',
+                  pubHandle: DataTrackHandle.fromNumber(5),
+                  name: 'test',
+                  usesE2ee: false,
+                },
+              ],
+            ],
+          ]),
+        );
+      }
+
+      // 2. Check to make sure the publication has been noted in internal state only once
+      expect((await manager.queryPublications()).map((p) => p.pubHandle)).to.deep.equal([
+        DataTrackHandle.fromNumber(5),
+      ]);
     });
   });
 
