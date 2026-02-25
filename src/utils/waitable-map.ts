@@ -25,7 +25,7 @@ export class WaitableMapAbortError extends DOMException {
 export class WaitableMap<K, V> implements Iterable<[K, V]> {
   private inner: Map<K, V>;
 
-  private pending: Map<K, Array<Future<V, Error>>> = new Map();
+  private pending: Map<K, Array<Future<V, WaitableMapAbortError>>> = new Map();
 
   constructor(entries?: Array<[K, V]> | null) {
     this.inner = new Map(entries);
@@ -97,7 +97,7 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
    * promise that resolves once `set(key, value)` is called.
    *
    * If an `AbortSignal` is provided and it is aborted before the key appears,
-   * the returned promise rejects with an AbortError.
+   * the returned promise rejects with an {@link WaitableMapAbortError}.
    */
   waitUntilExists(key: K): Promise<V>;
   waitUntilExists(key: K, signal: AbortSignal): Promise<Throws<V, WaitableMapAbortError>>;
@@ -112,7 +112,7 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
       throw new WaitableMapAbortError('The operation was aborted.', signal.reason);
     }
 
-    const future = new Future<V, Error>(undefined, () => {
+    const future = new Future<V, WaitableMapAbortError>(undefined, () => {
       // Clean up the pending list when the future settles.
       const futures = this.pending.get(key);
       if (!futures) {
