@@ -5,6 +5,7 @@ import { type Throws } from './throws';
  * through. */
 export class WaitableMapAbortError extends DOMException {
   reason: unknown;
+
   constructor(message: string, reason?: unknown) {
     super(message, 'AbortError');
     this.reason = reason;
@@ -23,6 +24,7 @@ export class WaitableMapAbortError extends DOMException {
  */
 export class WaitableMap<K, V> implements Iterable<[K, V]> {
   private inner: Map<K, V>;
+
   private pending: Map<K, Array<Future<V, Error>>> = new Map();
 
   constructor(entries?: Array<[K, V]> | null) {
