@@ -2,6 +2,7 @@ import { type JoinResponse, type ParticipantUpdate } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type Participant from '../../participant/Participant';
@@ -20,7 +21,6 @@ import {
   type EventTrackAvailable,
   type EventTrackUnavailable,
 } from './types';
-import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -104,7 +104,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
     // Propegate downwards to all pre-existing pipelines
     for (const [_key, descriptor] of this.descriptors) {
-      if (descriptor.subscription.type === "active") {
+      if (descriptor.subscription.type === 'active') {
         descriptor.subscription.pipeline.updateE2eeManager(e2eeManager);
       }
     }

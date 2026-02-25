@@ -1,12 +1,12 @@
-import { Future } from "../room/utils";
-import { type Throws } from "./throws";
+import { Future } from '../room/utils';
+import { type Throws } from './throws';
 
 /** An error which is thrown if a {@link WaitableMap#waitUntilExists} call is aborted midway
  * through. */
 export class WaitableMapAbortError extends DOMException {
   reason: unknown;
   constructor(message: string, reason?: unknown) {
-    super(message, "AbortError");
+    super(message, 'AbortError');
     this.reason = reason;
   }
 }
@@ -87,7 +87,7 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
   }
 
   get [Symbol.toStringTag](): string {
-    return "WaitableMap";
+    return 'WaitableMap';
   }
 
   /**
@@ -107,7 +107,7 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
 
     // Bail out immediately if the signal is already aborted.
     if (signal?.aborted) {
-      throw new WaitableMapAbortError("The operation was aborted.", signal.reason);
+      throw new WaitableMapAbortError('The operation was aborted.', signal.reason);
     }
 
     const future = new Future<V, Error>(undefined, () => {
@@ -137,16 +137,14 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
     if (signal) {
       const onAbort = () => {
         if (!future.isResolved) {
-          future.reject?.(
-            new WaitableMapAbortError("The operation was aborted.", signal.reason)
-          );
+          future.reject?.(new WaitableMapAbortError('The operation was aborted.', signal.reason));
         }
       };
-      signal.addEventListener("abort", onAbort, { once: true });
+      signal.addEventListener('abort', onAbort, { once: true });
 
       // Clean up the listener once the future settles (resolved or rejected).
       future.promise.finally(() => {
-        signal.removeEventListener("abort", onAbort);
+        signal.removeEventListener('abort', onAbort);
       });
     }
 
