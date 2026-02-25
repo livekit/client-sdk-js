@@ -1,9 +1,9 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
 import { parse, write } from 'sdp-transform';
-import { debounce } from 'ts-debounce';
 import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import log, { LoggerNames, getLogger } from '../logger';
+import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
 import { ddExtensionURI, isSVCCodec, isSafari } from './utils';

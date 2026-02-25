@@ -29,9 +29,6 @@ importers:
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
-      ts-debounce:
-        specifier: ^4.0.0
-        version: 4.0.0
       tslib:
         specifier: 2.8.1
         version: 2.8.1
@@ -3024,8 +3021,8 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lru-cache@11.2.4:
-    resolution: {integrity: sha512-B5Y16Jr9LB9dHVkh6ZevG+vAbOsNOYCX+sXvFWFu7B3Iz5mijW3zdbMyhsh8ANd2mSWBYdJgnqi+mL7/LrOPYg==}
+  lru-cache@11.2.5:
+    resolution: {integrity: sha512-vFrFJkWtJvJnD5hg+hJvVE8Lh/TcMzKnTgCWmtBipwI5yLX/iX+5UB2tfuyODF5E7k9xEzMdYgGqaSb1c0c5Yw==}
     engines: {node: 20 || >=22}
 
   lru-cache@5.1.1:
@@ -3731,9 +3728,6 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4'
 
-  ts-debounce@4.0.0:
-    resolution: {integrity: sha512-+1iDGY6NmOGidq7i7xZGA4cm8DAa6fqdYcvO5Z6yBevH++Bdo9Qt/mN0TzHUgcCcKv1gmh9+W5dHqz8pMWbCbg==}
-
   ts-declaration-location@1.0.7:
     resolution: {integrity: sha512-EDyGAwH1gO0Ausm9gV6T2nUvBgXT5kGoCMJPllOaooZ+4VvJiKBdZE7wK18N1deEowhcUptS+5GXZK8U/fvpwA==}
     peerDependencies:
@@ -3797,8 +3791,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20260201:
-    resolution: {integrity: sha512-J+TSa+T2xtF9W3vxgQUZOQ+ZcHr6yONimIL2TY9/UTACBzQZAECBkfSBLRxKlUPjnsbIvJBVebZx9eMWz4BkFA==}
+  typescript@6.0.0-dev.20260203:
+    resolution: {integrity: sha512-uurwjqOjUaUI30dLNR/ujGLEVI5Q1sY1RSmvmWf4lQXZMzqMnrcOK7uoFsRC2G4skJYSxkctGlSa9ZY6+ur2cQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -6333,7 +6327,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20260201
+      typescript: 6.0.0-dev.20260203
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7348,7 +7342,7 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lru-cache@11.2.4: {}
+  lru-cache@11.2.5: {}
 
   lru-cache@5.1.1:
     dependencies:
@@ -7553,7 +7547,7 @@ snapshots:
 
   path-scurry@2.0.1:
     dependencies:
-      lru-cache: 11.2.4
+      lru-cache: 11.2.5
       minipass: 7.1.2
 
   path-type@4.0.0: {}
@@ -7616,7 +7610,7 @@ snapshots:
 
   rechoir@0.6.2:
     dependencies:
-      resolve: 1.22.11
+      resolve: 1.22.10
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -8080,8 +8074,6 @@ snapshots:
     dependencies:
       typescript: 5.8.3
 
-  ts-debounce@4.0.0: {}
-
   ts-declaration-location@1.0.7(typescript@5.8.3):
     dependencies:
       picomatch: 4.0.3
@@ -8171,7 +8163,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20260201: {}
+  typescript@6.0.0-dev.20260203: {}
 
   uc.micro@2.1.0: {}
 
