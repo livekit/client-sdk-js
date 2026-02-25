@@ -1,17 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
-import { DataTrackFrame } from '../frame';
+import { type DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { PrefixingEncryptionProvider } from '../outgoing/OutgoingDataTrackManager.test';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '../packet';
 import { DataTrackE2eeExtension, DataTrackExtensions } from '../packet/extensions';
 import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
 import IncomingDataTrackManager, {
-  DataTrackIncomingManagerCallbacks,
+  type DataTrackIncomingManagerCallbacks,
 } from './IncomingDataTrackManager';
 import { DataTrackSubscribeError } from './errors';
-import { PrefixingEncryptionProvider } from '../outgoing/OutgoingDataTrackManager.test';
 
 describe('DataTrackIncomingManager', () => {
   describe('Track publication', () => {
