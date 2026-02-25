@@ -507,7 +507,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
   /** Called when a remote participant is disconnected so that any pending data tracks can be
     * cancelled. */
-  remoteParticipantDisconnected(remoteParticipantIdentity: RemoteParticipant["identity"]) {
+  handleRemoteParticipantDisconnected(remoteParticipantIdentity: RemoteParticipant["identity"]) {
     for (const descriptor of this.descriptors.values()) {
       if (descriptor.publisherIdentity !== remoteParticipantIdentity) {
         continue;

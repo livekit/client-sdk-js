@@ -422,6 +422,74 @@ describe('DataTrackIncomingManager', () => {
       await expect(subscribeBPromise).rejects.toThrow();
     });
 
+    it('should terminate PENDING sfu subscriptions if the participant disconnects', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackAvailable',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackAvailable');
+
+      // 2. Begin subscribing to a data track
+      const promise = manager.subscribeRequest(sid);
+
+      // 3. Simulate the remote participant disconnecting
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+
+      // 4. Make sure the pending subscribe was terminated
+      await expect(promise).rejects.toThrowError(
+        'Cannot subscribe to data track when disconnected',
+      );
+    });
+
+    it('should terminate ACTIVE sfu subscriptions if the participant disconnects', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackAvailable',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackAvailable');
+
+      // 2. Subscribe to a data track, and send the handle back as if hte SFU acknowledged it
+      const subscribeRequestPromise = manager.subscribeRequest(sid);
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 3. Start an active stream read for later
+      const reader = (await subscribeRequestPromise).getReader();
+
+      // 4. Simulate the remote participant disconnecting
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+
+      // 5. Make sure the sfu unsubscribes
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(sid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+
+      // 6. Make sure the in flight stream read was closed
+      await reader.closed;
+    });
+
     it('should terminate the sfu subscription once all downstream ReadableStreams are cancelled', async () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
