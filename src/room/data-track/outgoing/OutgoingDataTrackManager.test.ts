@@ -16,12 +16,17 @@ import { DataTrackPublishError } from './errors';
 /** Fake encryption provider for testing e2ee data track features. */
 export class PrefixingEncryptionProvider implements BaseE2EEManager {
   isEnabled: true;
+
   isDataChannelEncryptionEnabled: true;
 
   setup(_room: Room) {}
+
   setupEngine(_engine: RTCEngine) {}
+
   setParticipantCryptorEnabled(_enabled: boolean, _participantIdentity: string) {}
+
   setSifTrailer(_trailer: Uint8Array) {}
+
   on(_event: any, _listener: any): this {
     return this;
   }

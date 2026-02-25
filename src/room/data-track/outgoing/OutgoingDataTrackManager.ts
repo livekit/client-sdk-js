@@ -102,7 +102,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     this.e2eeManager = e2eeManager;
 
     // Propegate downwards to all pre-existing pipelines
-    for (const [_key, descriptor] of this.descriptors) {
+    for (const descriptor of this.descriptors.values()) {
       if (descriptor.type === 'active') {
         descriptor.pipeline.updateE2eeManager(e2eeManager);
       }
