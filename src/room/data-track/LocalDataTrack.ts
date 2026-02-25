@@ -52,9 +52,9 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   }
 
   /**
-    * Unpublish the track from the SFU. Once this is called, any further calls to {@link tryPush}
-    * will fail.
-    * */
+   * Unpublish the track from the SFU. Once this is called, any further calls to {@link tryPush}
+   * will fail.
+   * */
   async unpublish() {
     try {
       await this.manager.unpublishRequest(this.info.pubHandle);

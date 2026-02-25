@@ -5,6 +5,8 @@ import type {
   UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
+import { WaitableMap } from '../../utils/waitable-map';
+import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -19,8 +21,6 @@ import type { LoggerOptions } from '../types';
 import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
-import { WaitableMap } from '../../utils/waitable-map';
-import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
@@ -30,12 +30,12 @@ export default class RemoteParticipant extends Participant {
   trackPublications: Map<string, RemoteTrackPublication>;
 
   /** A map of data track name to the corresponding {@link RemoteDataTrack}.
-    * @example
-    * // An already existing data track:
-    * const track = remoteParticipant.dataTracks.get("data track name");
-    * // Wait for a data track which will be published soon:
-    * const track = await remoteParticipant.dataTracks.waitUntilExists("data track name"); */
-  dataTracks: WaitableMap<RemoteDataTrack["info"]["name"], RemoteDataTrack>;
+   * @example
+   * // An already existing data track:
+   * const track = remoteParticipant.dataTracks.get("data track name");
+   * // Wait for a data track which will be published soon:
+   * const track = await remoteParticipant.dataTracks.waitUntilExists("data track name"); */
+  dataTracks: WaitableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
 
   signalClient: SignalClient;
 
@@ -393,7 +393,7 @@ export default class RemoteParticipant extends Participant {
   }
 
   /** @internal */
-  removeRemoteDataTrack(remoteDataTrackSid: RemoteDataTrack["info"]["sid"]) {
+  removeRemoteDataTrack(remoteDataTrackSid: RemoteDataTrack['info']['sid']) {
     for (const [name, dataTrack] of this.dataTracks.entries()) {
       if (remoteDataTrackSid === dataTrack.info.sid) {
         this.dataTracks.delete(name);

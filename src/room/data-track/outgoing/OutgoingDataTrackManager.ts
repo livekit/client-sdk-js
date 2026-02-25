@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type { Throws } from '../../../utils/throws';
@@ -22,7 +23,6 @@ import {
   type OutputEventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
-import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 
 const log = getLogger(LoggerNames.DataTracks);
 
@@ -103,7 +103,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     // Propegate downwards to all pre-existing pipelines
     for (const [_key, descriptor] of this.descriptors) {
-      if (descriptor.type === "active") {
+      if (descriptor.type === 'active') {
         descriptor.pipeline.updateE2eeManager(e2eeManager);
       }
     }
@@ -132,11 +132,13 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   async tryProcessAndSend(
     handle: DataTrackHandle,
     payload: Uint8Array,
-  ): Promise<Throws<
-    void,
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
-    | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
-  >> {
+  ): Promise<
+    Throws<
+      void,
+      | DataTrackPushFrameError<DataTrackPushFrameErrorReason.Dropped>
+      | DataTrackPushFrameError<DataTrackPushFrameErrorReason.TrackUnpublished>
+    >
+  > {
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       throw DataTrackPushFrameError.trackUnpublished();
