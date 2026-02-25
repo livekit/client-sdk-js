@@ -468,7 +468,7 @@ describe('DataTrackIncomingManager', () => {
       );
       await managerEvents.waitFor('trackAvailable');
 
-      // 2. Subscribe to a data track, and send the handle back as if hte SFU acknowledged it
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const subscribeRequestPromise = manager.subscribeRequest(sid);
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
