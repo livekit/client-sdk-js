@@ -13,6 +13,14 @@ type RemoteDataTrackOptions = {
   publisherIdentity: Participant['identity'];
 };
 
+export type RemoteDataTrackSubscribeOptions = {
+  signal?: AbortSignal;
+
+  /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
+   * frames. Defaults to 4, but this may not be good enough for especially high frequency data. */
+  highWaterMark?: number;
+};
+
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
   readonly trackSymbol = TrackSymbol;
 
@@ -56,9 +64,15 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * Note that newly created subscriptions only receive frames published after
    * the initial subscription is established.
    */
-  async subscribe(options?: { signal?: AbortSignal }): Promise<ReadableStream<DataTrackFrame>> {
+  async subscribe(
+    options?: RemoteDataTrackSubscribeOptions,
+  ): Promise<ReadableStream<DataTrackFrame>> {
     try {
-      const stream = await this.manager.subscribeRequest(this.info.sid, options?.signal);
+      const stream = await this.manager.subscribeRequest(
+        this.info.sid,
+        options?.signal,
+        options?.highWaterMark,
+      );
       return stream;
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
