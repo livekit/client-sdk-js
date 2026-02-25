@@ -102,7 +102,12 @@ export default class IncomingDataTrackPipeline {
 
     let result;
     try {
-      result = await e2eeManager.handleEncryptedData(frame.payload, e2ee.iv, this.publisherIdentity, e2ee.keyIndex);
+      result = await e2eeManager.handleEncryptedData(
+        frame.payload,
+        e2ee.iv,
+        this.publisherIdentity,
+        e2ee.keyIndex,
+      );
     } catch (err) {
       log.error(`Error decrypting packet: ${err}`);
       return null;

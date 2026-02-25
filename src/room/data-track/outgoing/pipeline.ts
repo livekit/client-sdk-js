@@ -50,10 +50,12 @@ export default class DataTrackOutgoingPipeline {
 
   async encryptIfNeeded(
     frame: DataTrackFrame,
-  ): Promise<Throws<
-    DataTrackFrame,
-    DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
-  >> {
+  ): Promise<
+    Throws<
+      DataTrackFrame,
+      DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
+    >
+  > {
     if (!this.e2eeManager) {
       return frame;
     }
