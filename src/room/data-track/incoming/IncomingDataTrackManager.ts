@@ -80,6 +80,10 @@ type IncomingDataTrackManagerOptions = {
 /** How long to wait when attempting to subscribe before timing out. */
 const SUBSCRIBE_TIMEOUT_MILLISECONDS = 10_000;
 
+/** Maximum number of {@link DataTrackFrame}s that are cached for each ReadableStream subscription.
+ * If data comes in too fast and saturates this threshold, backpressure will be applied. */
+const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 4;
+
 export default class IncomingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
   private decryptionProvider: DecryptionProvider | null;
 
@@ -110,6 +114,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   async subscribeRequest(
     sid: DataTrackSid,
     signal?: AbortSignal,
+    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
   ): Promise<
     Throws<
       ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>,
@@ -233,51 +238,52 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
   /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
    * SFU. */
-  private createReadableStream(sid: DataTrackSid) {
+  private createReadableStream(
+    sid: DataTrackSid,
+    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
+  ) {
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
-    return new ReadableStream<DataTrackFrame>({
-      // FIXME: explore setting "type" here:
-      // https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/ReadableStream#type
-      //
-      // This would require ReadableStream<Uint8Array> though.
+    return new ReadableStream<DataTrackFrame>(
+      {
+        start: (controller) => {
+          streamController = controller;
+          const descriptor = this.descriptors.get(sid);
+          if (!descriptor) {
+            log.error(`Unknown track ${sid}`);
+            return;
+          }
+          if (descriptor.subscription.type !== 'active') {
+            log.error(`Subscription for track ${sid} is not active`);
+            return;
+          }
 
-      start: (controller) => {
-        streamController = controller;
-        const descriptor = this.descriptors.get(sid);
-        if (!descriptor) {
-          log.error(`Unknown track ${sid}`);
-          return;
-        }
-        if (descriptor.subscription.type !== 'active') {
-          log.error(`Subscription for track ${sid} is not active`);
-          return;
-        }
+          descriptor.subscription.streamControllers.add(controller);
+        },
+        cancel: () => {
+          if (!streamController) {
+            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
+            return;
+          }
+          const descriptor = this.descriptors.get(sid);
+          if (!descriptor) {
+            log.warn(`Unknown track ${sid}, skipping cancel...`);
+            return;
+          }
+          if (descriptor.subscription.type !== 'active') {
+            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
+            return;
+          }
 
-        descriptor.subscription.streamControllers.add(controller);
+          descriptor.subscription.streamControllers.delete(streamController);
+
+          // If no active stream controllers are left, also unsubscribe on the SFU end.
+          if (descriptor.subscription.streamControllers.size === 0) {
+            this.unSubscribeRequest(descriptor.info.sid);
+          }
+        },
       },
-      cancel: () => {
-        if (!streamController) {
-          log.warn(`ReadableStream subscribed to ${sid} was not started.`);
-          return;
-        }
-        const descriptor = this.descriptors.get(sid);
-        if (!descriptor) {
-          log.warn(`Unknown track ${sid}, skipping cancel...`);
-          return;
-        }
-        if (descriptor.subscription.type !== 'active') {
-          log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
-          return;
-        }
-
-        descriptor.subscription.streamControllers.delete(streamController);
-
-        // If no active stream controllers are left, also unsubscribe on the SFU end.
-        if (descriptor.subscription.streamControllers.size === 0) {
-          this.unSubscribeRequest(descriptor.info.sid);
-        }
-      },
-    });
+      new CountQueuingStrategy({ highWaterMark }),
+    );
   }
 
   /**
@@ -487,6 +493,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
     // Broadcast to all downstream subscribers
     for (const controller of descriptor.subscription.streamControllers) {
+      if (controller.desiredSize !== null && controller.desiredSize <= 0) {
+        log.warn(
+          `Cannot send frame to subscribers: readable stream is full (desiredSize is ${controller.desiredSize}). To increase this threshold, set a higher 'options.highWaterMark' when calling .subscribe().`,
+        );
+        continue;
+      }
       controller.enqueue(frame);
     }
   }
