@@ -537,5 +537,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         descriptor.subscription.completionFuture.reject?.(DataTrackSubscribeError.disconnected());
       }
     }
+    this.descriptors.clear();
   }
 }
