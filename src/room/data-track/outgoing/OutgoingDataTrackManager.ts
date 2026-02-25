@@ -193,6 +193,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
         );
       }
     };
+    if (combinedSignal.aborted) {
+      onAbort(); // NOTE: this rejects `completionFuture`; the next line just returns the rejection
+      return descriptor.completionFuture.promise;
+    }
     combinedSignal.addEventListener('abort', onAbort);
 
     this.emit('sfuPublishRequest', {
