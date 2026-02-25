@@ -262,6 +262,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           return;
         }
         this.emit(RoomEvent.RemoteDataTrackPublished, event.track);
+        this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
       })
       .on('trackUnavailable', (event) => {
         if (event.publisherIdentity === this.localParticipant.identity) {
@@ -269,6 +270,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           return;
         }
         this.emit(RoomEvent.RemoteDataTrackUnpublished, event.sid);
+        this.remoteParticipants.get(event.publisherIdentity)?.removeRemoteDataTrack(event.sid);
       });
 
     this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
