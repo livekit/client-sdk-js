@@ -99,7 +99,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "gh-pages": "6.3.0",
     "glob": "^13.0.0",
-    "happy-dom": "^17.2.0",
+    "happy-dom": "^20.0.2",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
     "rollup": "4.57.1",
