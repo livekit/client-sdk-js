@@ -36,6 +36,7 @@ import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
+import { isScriptTransformSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -43,6 +44,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
@@ -81,6 +83,7 @@ import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
+import RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
@@ -100,6 +103,7 @@ import {
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
+  isChromiumBased,
   isCloud,
   isLocalAudioTrack,
   isLocalParticipant,
@@ -121,6 +125,10 @@ export enum ConnectionState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
   SignalReconnecting = 'signalReconnecting',
+}
+
+function createUserTimestampWorker(): Worker {
+  return new Worker(new URL('./livekit-client.user-timestamp.worker.js', import.meta.url));
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
@@ -2192,6 +2200,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
+          // When e2ee is NOT enabled, set up a standalone insertable-streams
+          // transform to extract LKTS user timestamp trailers from inbound
+          // video frames. When e2ee IS enabled, the FrameCryptor worker
+          // handles this before decryption.
+          if (!this.hasE2EESetup && track instanceof RemoteVideoTrack && track.receiver) {
+            this.setupUserTimestampTransform(track);
+          }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
@@ -2603,6 +2618,66 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       p.updateInfo(info);
+    }
+  }
+
+  /**
+   * Sets up an insertable-streams transform on a remote video track's receiver
+   * to strip LKTS user timestamp trailers. Used only when e2ee is NOT enabled
+   * (when e2ee is enabled, the FrameCryptor worker handles this).
+   *
+   * Uses RTCRtpScriptTransform on browsers that support it (non-Chromium),
+   * and falls back to createEncodedStreams (legacy insertable streams) on
+   * Chromium where encodedInsertableStreams is enabled on the PeerConnection.
+   */
+  private setupUserTimestampTransform(track: RemoteVideoTrack) {
+    const receiver = track.receiver;
+    if (!receiver) {
+      return;
+    }
+
+    try {
+      if (isScriptTransformSupported() && !isChromiumBased()) {
+        const worker = createUserTimestampWorker();
+        worker.onmessage = (ev: MessageEvent) => {
+          if (ev.data?.kind === 'userTimestamp' && typeof ev.data.timestampUs === 'number') {
+            track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp);
+          }
+        };
+        // @ts-ignore
+        receiver.transform = new RTCRtpScriptTransform(worker, { kind: 'decode' });
+        return;
+      }
+
+      // @ts-ignore
+      if (typeof receiver.createEncodedStreams === 'function') {
+        // @ts-ignore
+        const { readable, writable } = receiver.createEncodedStreams();
+
+        const transformStream = new TransformStream<RTCEncodedVideoFrame, RTCEncodedVideoFrame>({
+          transform: (encodedFrame, controller) => {
+            try {
+              const result = stripUserTimestampFromEncodedFrame(encodedFrame);
+              if (result !== undefined) {
+                track.setUserTimestamp(result.timestampUs, result.rtpTimestamp);
+              }
+            } catch {
+              // Best-effort: never break the media pipeline if parsing fails.
+            }
+            controller.enqueue(encodedFrame);
+          },
+        });
+
+        readable
+          .pipeThrough(transformStream)
+          .pipeTo(writable)
+          .catch(() => {});
+        return;
+      }
+
+      this.log.debug('user timestamp transform: no supported API available', this.logContext);
+    } catch {
+      // If anything goes wrong (e.g., unsupported environment), just skip.
     }
   }
 
