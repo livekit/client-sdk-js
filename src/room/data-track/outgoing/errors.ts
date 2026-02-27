@@ -1,5 +1,5 @@
 import { LivekitReasonedError } from '../../errors';
-import { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
+import { DataTrackPacketizerError } from '../packetizer';
 
 export enum DataTrackPublishErrorReason {
   /**
@@ -91,7 +91,7 @@ export enum DataTrackPushFrameErrorReason {
 }
 
 export class DataTrackPushFrameError<
-  Reason extends DataTrackPushFrameErrorReason,
+  Reason extends DataTrackPushFrameErrorReason = DataTrackPushFrameErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPushFrameError';
 
@@ -125,7 +125,7 @@ export enum DataTrackOutgoingPipelineErrorReason {
 }
 
 export class DataTrackOutgoingPipelineError<
-  Reason extends DataTrackOutgoingPipelineErrorReason,
+  Reason extends DataTrackOutgoingPipelineErrorReason = DataTrackOutgoingPipelineErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackOutgoingPipelineError';
 
@@ -139,7 +139,7 @@ export class DataTrackOutgoingPipelineError<
     this.reasonName = DataTrackOutgoingPipelineErrorReason[reason];
   }
 
-  static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason.MtuTooShort>) {
+  static packetizer(cause: DataTrackPacketizerError) {
     return new DataTrackOutgoingPipelineError(
       'Error packetizing frame',
       DataTrackOutgoingPipelineErrorReason.Packetizer,
