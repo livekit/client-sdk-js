@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.17.3
+
+### Patch Changes
+
+- Update happy-dom dependency version - [#1821](https://github.com/livekit/client-sdk-js/pull/1821) ([@renovate](https://github.com/apps/renovate))
+
+- Signal leave on failed connection attempts if signalling is connected - [#1817](https://github.com/livekit/client-sdk-js/pull/1817) ([@lukasIO](https://github.com/lukasIO))
+
+- Vendored ts-debounce and added critical timers to debounce function - [#1800](https://github.com/livekit/client-sdk-js/pull/1800) ([@mfairley](https://github.com/mfairley))
+
+- Adds new OutgoingDataTrackManager to manage sending data track payloads - [#1810](https://github.com/livekit/client-sdk-js/pull/1810) ([@1egoman](https://github.com/1egoman))
+
 ## 2.17.2
 
 ### Patch Changes
