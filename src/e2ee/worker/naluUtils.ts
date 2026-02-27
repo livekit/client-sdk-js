@@ -251,6 +251,7 @@ function findNALUIndices(stream: Uint8Array): number[] {
   let start = 0,
     pos = 0,
     searchLength = stream.length - 3; // Changed to -3 to handle 4-byte start codes
+  let isFirstNALU = true;
 
   while (pos < searchLength) {
     // skip until end of current NALU - check for both 3-byte and 4-byte start codes
@@ -279,8 +280,17 @@ function findNALUIndices(stream: Uint8Array): number[] {
     while (end > start && stream[end - 1] === 0) end--;
 
     // save current NALU
-    if (start === 0) {
-      if (end !== start) throw TypeError('byte stream contains leading data');
+    if (isFirstNALU) {
+      // For the first NALU, check if there's leading data
+      if (start === 0 && end !== start) {
+        // Leading data detected - skip it and don't add to results
+        // This handles cases where the byte stream contains metadata or padding
+        // before the actual NALU data
+      } else if (start > 0) {
+        // First NALU starts after position 0 (normal case)
+        result.push(start);
+      }
+      isFirstNALU = false;
     } else {
       result.push(start);
     }
