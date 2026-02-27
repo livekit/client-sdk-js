@@ -1,5 +1,5 @@
 import { LivekitReasonedError } from '../../errors';
-import { DataTrackPacketizerError, DataTrackPacketizerReason } from '../packetizer';
+import { DataTrackPacketizerError } from '../packetizer';
 
 export enum DataTrackPublishErrorReason {
   /**
@@ -23,10 +23,13 @@ export enum DataTrackPublishErrorReason {
 
   // NOTE: this was introduced by web / there isn't a corresponding case in the rust version.
   Cancelled = 5,
+
+  /** The name requested is not able to be used when creating the data track. */
+  InvalidName = 6,
 }
 
 export class DataTrackPublishError<
-  Reason extends DataTrackPublishErrorReason,
+  Reason extends DataTrackPublishErrorReason = DataTrackPublishErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPublishError';
 
@@ -34,23 +37,37 @@ export class DataTrackPublishError<
 
   reasonName: string;
 
-  constructor(message: string, reason: Reason, options?: { cause?: unknown }) {
+  /** Underling message from the SFU, if one was provided */
+  rawMessage?: string;
+
+  constructor(message: string, reason: Reason, options?: { rawMessage?: string; cause?: unknown }) {
     super(21, message, options);
     this.reason = reason;
     this.reasonName = DataTrackPublishErrorReason[reason];
+    this.rawMessage = options?.rawMessage;
   }
 
-  static notAllowed() {
+  static notAllowed(rawMessage?: string) {
     return new DataTrackPublishError(
       'Data track publishing unauthorized',
       DataTrackPublishErrorReason.NotAllowed,
+      { rawMessage },
     );
   }
 
-  static duplicateName() {
+  static duplicateName(rawMessage?: string) {
     return new DataTrackPublishError(
       'Track name already taken',
       DataTrackPublishErrorReason.DuplicateName,
+      { rawMessage },
+    );
+  }
+
+  static invalidName(rawMessage?: string) {
+    return new DataTrackPublishError(
+      'Track name is invalid',
+      DataTrackPublishErrorReason.InvalidName,
+      { rawMessage },
     );
   }
 
@@ -61,10 +78,11 @@ export class DataTrackPublishError<
     );
   }
 
-  static limitReached() {
+  static limitReached(rawMessage?: string) {
     return new DataTrackPublishError(
       'Data track publication limit reached',
       DataTrackPublishErrorReason.LimitReached,
+      { rawMessage },
     );
   }
 
@@ -91,7 +109,7 @@ export enum DataTrackPushFrameErrorReason {
 }
 
 export class DataTrackPushFrameError<
-  Reason extends DataTrackPushFrameErrorReason,
+  Reason extends DataTrackPushFrameErrorReason = DataTrackPushFrameErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPushFrameError';
 
@@ -125,7 +143,7 @@ export enum DataTrackOutgoingPipelineErrorReason {
 }
 
 export class DataTrackOutgoingPipelineError<
-  Reason extends DataTrackOutgoingPipelineErrorReason,
+  Reason extends DataTrackOutgoingPipelineErrorReason = DataTrackOutgoingPipelineErrorReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackOutgoingPipelineError';
 
@@ -139,7 +157,7 @@ export class DataTrackOutgoingPipelineError<
     this.reasonName = DataTrackOutgoingPipelineErrorReason[reason];
   }
 
-  static packetizer(cause: DataTrackPacketizerError<DataTrackPacketizerReason.MtuTooShort>) {
+  static packetizer(cause: DataTrackPacketizerError) {
     return new DataTrackOutgoingPipelineError(
       'Error packetizing frame',
       DataTrackOutgoingPipelineErrorReason.Packetizer,

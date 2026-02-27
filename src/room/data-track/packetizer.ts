@@ -12,7 +12,7 @@ type PacketizeOptions = {
 };
 
 export class DataTrackPacketizerError<
-  Reason extends DataTrackPacketizerReason,
+  Reason extends DataTrackPacketizerReason = DataTrackPacketizerReason,
 > extends LivekitReasonedError<Reason> {
   readonly name = 'DataTrackPacketizerError';
 
@@ -78,10 +78,7 @@ export default class DataTrackPacketizer {
   *packetize(
     frame: DataTrackFrame,
     options?: PacketizeOptions,
-  ): Throws<
-    Generator<DataTrackPacket>,
-    DataTrackPacketizerError<DataTrackPacketizerReason.MtuTooShort>
-  > {
+  ): Throws<Generator<DataTrackPacket>, DataTrackPacketizerError> {
     const frameNumber = this.frameNumber.getThenIncrement();
     const headerParams = {
       marker: FrameMarker.Inter,

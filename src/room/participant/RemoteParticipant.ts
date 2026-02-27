@@ -5,6 +5,8 @@ import type {
   UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
+import { WaitableMap } from '../../utils/waitable-map';
+import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -26,6 +28,14 @@ export default class RemoteParticipant extends Participant {
   videoTrackPublications: Map<string, RemoteTrackPublication>;
 
   trackPublications: Map<string, RemoteTrackPublication>;
+
+  /** A map of data track name to the corresponding {@link RemoteDataTrack}.
+   * @example
+   * // An already existing data track:
+   * const track = remoteParticipant.dataTracks.get("data track name");
+   * // Wait for a data track which will be published soon:
+   * const track = await remoteParticipant.dataTracks.waitUntilExists("data track name"); */
+  dataTracks: WaitableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
 
   signalClient: SignalClient;
 
@@ -75,6 +85,7 @@ export default class RemoteParticipant extends Participant {
     this.trackPublications = new Map();
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
+    this.dataTracks = new WaitableMap();
     this.volumeMap = new Map();
   }
 
@@ -374,6 +385,20 @@ export default class RemoteParticipant extends Participant {
       }
     });
     await Promise.all(promises);
+  }
+
+  /** @internal */
+  addRemoteDataTrack(remoteDataTrack: RemoteDataTrack) {
+    this.dataTracks.set(remoteDataTrack.info.name, remoteDataTrack);
+  }
+
+  /** @internal */
+  removeRemoteDataTrack(remoteDataTrackSid: RemoteDataTrack['info']['sid']) {
+    for (const [name, dataTrack] of this.dataTracks.entries()) {
+      if (remoteDataTrackSid === dataTrack.info.sid) {
+        this.dataTracks.delete(name);
+      }
+    }
   }
 
   /** @internal */

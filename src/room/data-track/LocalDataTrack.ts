@@ -1,22 +1,25 @@
 import type { DataTrackFrame } from './frame';
-import { type DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import {
+  DataTrackSymbol,
+  type IDataTrack,
+  type ILocalTrack,
+  TrackSymbol,
+} from './track-interfaces';
+import type { DataTrackInfo } from './types';
 
-export type DataTrackSid = string;
+export default class LocalDataTrack implements ILocalTrack, IDataTrack {
+  readonly trackSymbol = TrackSymbol;
 
-/** Information about a published data track. */
-export type DataTrackInfo = {
-  sid: DataTrackSid;
-  pubHandle: DataTrackHandle;
-  name: String;
-  usesE2ee: boolean;
-};
+  readonly isLocal = true;
 
-export class LocalDataTrack {
+  readonly typeSymbol = DataTrackSymbol;
+
   info: DataTrackInfo;
 
   protected manager: OutgoingDataTrackManager;
 
+  /** @internal */
   constructor(info: DataTrackInfo, manager: OutgoingDataTrackManager) {
     this.info = info;
     this.manager = manager;
@@ -43,7 +46,20 @@ export class LocalDataTrack {
       return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
     } catch (err) {
       // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
-      // propegate upwards into the public interface.
+      // propagate upwards into the public interface.
+      throw err;
+    }
+  }
+
+  /**
+   * Unpublish the track from the SFU. Once this is called, any further calls to {@link tryPush}
+   * will fail.
+   * */
+  async unpublish() {
+    try {
+      await this.manager.unpublishRequest(this.info.pubHandle);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
   }

@@ -27,8 +27,13 @@ import type { InternalRoomOptions } from '../../options';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
+import { DataChannelKind } from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
+import type LocalDataTrack from '../data-track/LocalDataTrack';
+import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
+import { DataTrackPublishError } from '../data-track/outgoing/errors';
+import type { DataTrackOptions } from '../data-track/outgoing/types';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -150,6 +155,8 @@ export default class LocalParticipant extends Participant {
 
   private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
 
+  private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -179,6 +186,7 @@ export default class LocalParticipant extends Participant {
     options: InternalRoomOptions,
     roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
+    roomOutgoingDataTrackManager: OutgoingDataTrackManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -198,6 +206,7 @@ export default class LocalParticipant extends Participant {
     this.pendingSignalRequests = new Map();
     this.rpcHandlers = roomRpcHandlers;
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
+    this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -310,6 +319,38 @@ export default class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
+    }
+
+    switch (response.request.case) {
+      case 'publishDataTrack': {
+        let error;
+        switch (response.reason) {
+          case RequestResponse_Reason.NOT_ALLOWED:
+            error = DataTrackPublishError.notAllowed(response.message);
+            break;
+          case RequestResponse_Reason.DUPLICATE_NAME:
+            error = DataTrackPublishError.duplicateName(response.message);
+            break;
+          case RequestResponse_Reason.INVALID_NAME:
+            error = DataTrackPublishError.invalidName(response.message);
+            break;
+          case RequestResponse_Reason.LIMIT_EXCEEDED:
+            error = DataTrackPublishError.limitReached(response.message);
+            break;
+          default:
+            this.log.error(
+              `Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`,
+              this.logContext,
+            );
+            return;
+        }
+
+        this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
+          response.request.value.pubHandle,
+          { type: 'error', error },
+        );
+        break;
+      }
     }
   };
 
@@ -1648,7 +1689,8 @@ export default class LocalParticipant extends Participant {
    * @param options optionally specify a `reliable`, `topic` and `destination`
    */
   async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
-    const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
+    const kind = options.reliable ? DataChannelKind.RELIABLE : DataChannelKind.LOSSY;
+    const dataPacketKind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
     const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
 
@@ -1660,7 +1702,7 @@ export default class LocalParticipant extends Participant {
     });
 
     const packet = new DataPacket({
-      kind: kind,
+      kind: dataPacketKind,
       value: {
         case: 'user',
         value: userPacket,
@@ -1688,7 +1730,7 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @deprecated Consider migrating to {@link sendText} */
@@ -1708,7 +1750,7 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
@@ -1731,7 +1773,7 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
   }
@@ -1946,7 +1988,7 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @internal */
@@ -2234,5 +2276,18 @@ export default class LocalParticipant extends Participant {
       }
       await sleep(20);
     }
+  }
+
+  /** FIXME: add docstring */
+  async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
+    let track;
+    try {
+      track = await this.roomOutgoingDataTrackManager.publishRequest(options);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
+      throw err;
+    }
+
+    return track;
   }
 }
