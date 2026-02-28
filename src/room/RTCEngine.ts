@@ -910,6 +910,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       track.codec = opts.videoCodec;
     }
 
+    const reusedSender = await this.reuseInactivePublisherSender(track.mediaStreamTrack, streams);
+    if (reusedSender) {
+      return reusedSender;
+    }
+
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
@@ -932,6 +937,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
+    const reusedSender = await this.reuseInactivePublisherSender(simulcastTrack.mediaStreamTrack);
+    if (reusedSender) {
+      if (!opts.videoCodec) {
+        return;
+      }
+      track.setSimulcastTrackSender(opts.videoCodec, reusedSender);
+      return reusedSender;
+    }
+
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
@@ -945,6 +959,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
     track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+    return transceiver.sender;
+  }
+
+  private async reuseInactivePublisherSender(track: MediaStreamTrack, streams: MediaStream[] = []) {
+    if (!this.pcManager) {
+      return;
+    }
+
+    const transceiver = this.pcManager.publisher
+      .getTransceivers()
+      .find(
+        (candidate) =>
+          candidate.direction === 'inactive' &&
+          candidate.mid !== null &&
+          candidate.sender.track === null &&
+          candidate.receiver.track?.kind === track.kind &&
+          candidate.sender.transport?.state !== 'closed',
+      );
+
+    if (!transceiver) {
+      return;
+    }
+
+    transceiver.direction = 'sendonly';
+    if ('setStreams' in transceiver.sender && streams.length > 0) {
+      transceiver.sender.setStreams(...streams);
+    }
+    await transceiver.sender.replaceTrack(track);
     return transceiver.sender;
   }
 
