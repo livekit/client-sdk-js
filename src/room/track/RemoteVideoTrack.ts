@@ -1,4 +1,4 @@
-import { debounce } from 'ts-debounce';
+import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';

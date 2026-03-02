@@ -275,6 +275,8 @@ export default class LocalParticipant extends Participant {
 
   private handleClosing = () => {
     if (this.reconnectFuture) {
+      // @throws-transformer ignore - introduced due to adding Throws into Future, investigate this
+      // further
       this.reconnectFuture.promise.catch((e) => this.log.warn(e.message, this.logContext));
       this.reconnectFuture?.reject?.(new Error('Got disconnected during reconnection attempt'));
       this.reconnectFuture = undefined;

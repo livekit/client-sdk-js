@@ -126,7 +126,7 @@ export class DataTrackPacketHeader extends Serializable {
     dataView.setUint8(byteIndex, 0); // Reserved
     byteIndex += U8_LENGTH_BYTES;
 
-    dataView.setUint16(byteIndex, this.trackHandle.value);
+    dataView.setUint16(byteIndex, this.trackHandle);
     byteIndex += U16_LENGTH_BYTES;
     dataView.setUint16(byteIndex, this.sequence.value);
     byteIndex += U16_LENGTH_BYTES;
@@ -277,7 +277,7 @@ export class DataTrackPacketHeader extends Serializable {
   toJSON() {
     return {
       marker: this.marker,
-      trackHandle: this.trackHandle.value,
+      trackHandle: this.trackHandle,
       sequence: this.sequence.value,
       frameNumber: this.frameNumber.value,
       timestamp: this.timestamp.asTicks(),
