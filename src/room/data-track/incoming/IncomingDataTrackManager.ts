@@ -82,7 +82,7 @@ const SUBSCRIBE_TIMEOUT_MILLISECONDS = 10_000;
 
 /** Maximum number of {@link DataTrackFrame}s that are cached for each ReadableStream subscription.
  * If data comes in too fast and saturates this threshold, backpressure will be applied. */
-const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 4;
+const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 16;
 
 export default class IncomingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
   private decryptionProvider: DecryptionProvider | null;
