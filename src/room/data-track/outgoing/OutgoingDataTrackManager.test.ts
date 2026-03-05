@@ -409,7 +409,9 @@ describe('DataTrackOutgoingManager', () => {
     expect(localDataTrack.isPublished()).toStrictEqual(true);
 
     // But, even though `isPublished` is true, pushing data should drop (no sfu to send them to!)
-    await expect(() => localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]))).rejects.toThrowError('Frame was dropped');
+    await expect(() =>
+      localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05])),
+    ).rejects.toThrowError('Frame was dropped');
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');

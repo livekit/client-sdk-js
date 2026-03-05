@@ -318,12 +318,12 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Republish all tracks.
-    *
-    * This must be sent after a full reconnect in order for existing publications
-    * to be recognized by the SFU. Each republished track will be assigned a new SID.
-    */
+   *
+   * This must be sent after a full reconnect in order for existing publications
+   * to be recognized by the SFU. Each republished track will be assigned a new SID.
+   */
   sfuWillRepublishTracks() {
-    for (const [ handle, descriptor ] of this.descriptors.entries()) {
+    for (const [handle, descriptor] of this.descriptors.entries()) {
       switch (descriptor.type) {
         case 'pending':
           // TODO: support republish for pending publications

@@ -33,7 +33,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   isPublished() {
     // NOTE: a track which is internally in the "resubscribing" state is still considered
     // published from the public API perspective.
-    return this.descriptor?.type === 'active' && this.descriptor.publishState !== 'unpublished'
+    return this.descriptor?.type === 'active' && this.descriptor.publishState !== 'unpublished';
   }
 
   /** Try pushing a frame to subscribers of the track.
