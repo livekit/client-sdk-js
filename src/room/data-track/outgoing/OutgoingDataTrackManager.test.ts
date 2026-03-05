@@ -372,6 +372,74 @@ describe('DataTrackOutgoingManager', () => {
     expect(manager.getDescriptor(5)).toStrictEqual(null);
   });
 
+  it('should test a full reconnect', async () => {
+    const pubHandle = 5;
+    // Create a manager prefilled with a descriptor
+    const manager = OutgoingDataTrackManager.withDescriptors(
+      new Map([
+        [
+          DataTrackHandle.fromNumber(5),
+          Descriptor.active(
+            {
+              sid: 'bogus-sid',
+              pubHandle,
+              name: 'test',
+              usesE2ee: false,
+            },
+            null,
+          ),
+        ],
+      ]),
+    );
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'packetsAvailable',
+      'sfuUnpublishRequest',
+    ]);
+    const localDataTrack = manager.createLocalDataTrack(5)!;
+
+    // Make sure the descriptor is in there
+    expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
+
+    // Simulate a full reconnect, which means that any published tracks will need to be republished.
+    manager.receiveRepublishTracks();
+
+    // Even though behind the scenes the SFU publications are not active, the user should still see
+    // it as "published", sfu reconnects are an implementation detail
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // But, even though `isPublished` is true, pushing data should drop (no sfu to send them to!)
+    await expect(() => localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]))).rejects.toThrowError('Frame was dropped');
+
+    // 2. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(false);
+    const handle = sfuPublishEvent.handle;
+    expect(handle).toStrictEqual(pubHandle);
+
+    // 3. Respond to the SFU publish request with an OK response
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid-REPUBLISHED',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+
+    // After all this, the local data track should still be published
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // And the sid should be the new value
+    expect(localDataTrack.info.sid).toStrictEqual('bogus-sid-REPUBLISHED');
+
+    // And now that the tracks are backed by the SFU again, pushes should function!
+    await localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    await managerEvents.waitFor('packetsAvailable');
+  });
+
   it('should query currently active descriptors', async () => {
     // Create a manager prefilled with a descriptor
     const manager = OutgoingDataTrackManager.withDescriptors(
