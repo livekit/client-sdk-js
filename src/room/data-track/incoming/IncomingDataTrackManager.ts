@@ -127,12 +127,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     sid: DataTrackSid,
     signal?: AbortSignal,
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): Promise<
-    Throws<
-      ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>,
-      DataTrackSubscribeError
-    >
-  > {
+  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       throw DataTrackSubscribeError.disconnected();
