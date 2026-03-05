@@ -1635,6 +1635,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarted = () => {
     this.outgoingDataTrackManager.sfuWillRepublishTracks();
+    this.incomingDataTrackManager.resendSubscriptionUpdates();
   };
 
   private handleSignalRestarted = async (joinResponse: JoinResponse) => {
