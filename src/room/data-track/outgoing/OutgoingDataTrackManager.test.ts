@@ -1,23 +1,23 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DecryptDataResponseMessage, EncryptDataResponseMessage } from '../../..';
-import { BaseE2EEManager } from '../../../e2ee/E2eeManager';
+import { type DecryptDataResponseMessage, type EncryptDataResponseMessage } from '../../..';
+import { type BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import RTCEngine from '../../RTCEngine';
 import Room from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
-  DataTrackOutgoingManagerCallbacks,
+  type DataTrackOutgoingManagerCallbacks,
   Descriptor,
 } from './OutgoingDataTrackManager';
 import { DataTrackPublishError } from './errors';
 
 /** Fake encryption provider for testing e2ee data track features. */
 export class PrefixingEncryptionProvider implements BaseE2EEManager {
-  isEnabled: true;
+  isEnabled = true;
 
-  isDataChannelEncryptionEnabled: true;
+  isDataChannelEncryptionEnabled = true;
 
   setup(_room: Room) {}
 
