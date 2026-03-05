@@ -560,6 +560,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
+      .on(EngineEvent.Restarted, this.handleRestarted)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.Offline, () => {
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
@@ -1630,6 +1631,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
+  };
+
+  private handleRestarted = () => {
+    this.outgoingDataTrackManager.sfuWillRepublishTracks();
   };
 
   private handleSignalRestarted = async (joinResponse: JoinResponse) => {
