@@ -130,7 +130,7 @@ export class DataTrackPushFrameError<
     );
   }
 
-  static dropped(cause: unknown) {
+  static dropped(cause?: unknown) {
     return new DataTrackPushFrameError('Frame was dropped', DataTrackPushFrameErrorReason.Dropped, {
       cause,
     });

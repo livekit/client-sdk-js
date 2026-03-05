@@ -34,6 +34,8 @@ export type ActiveDescriptor = {
   type: 'active';
   info: DataTrackInfo;
 
+  publishState: 'published' | 'republishing' | 'unpublished';
+
   pipeline: DataTrackOutgoingPipeline;
 
   /** Resolves when the descriptor is unpublished. */
@@ -52,6 +54,7 @@ export const Descriptor = {
     return {
       type: 'active',
       info,
+      publishState: 'published',
       pipeline: new DataTrackOutgoingPipeline({ info, e2eeManager }),
       unpublishingFuture: new Future(),
     };
@@ -142,6 +145,13 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     const descriptor = this.getDescriptor(handle);
     if (descriptor?.type !== 'active') {
       throw DataTrackPushFrameError.trackUnpublished();
+    }
+
+    if (descriptor.publishState === 'unpublished') {
+      throw DataTrackPushFrameError.trackUnpublished();
+    }
+    if (descriptor.publishState === 'republishing') {
+      throw DataTrackPushFrameError.dropped('Data track republishing');
     }
 
     const frame: DataTrackFrame = {
@@ -250,28 +260,42 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
     this.descriptors.delete(handle);
 
-    if (descriptor.type !== 'pending') {
-      log.warn(`Track ${handle} already active`);
-      return;
-    }
+    switch (descriptor.type) {
+      case 'pending': {
+        if (result.type === 'ok') {
+          const info = result.data;
+          const e2eeManager = info.usesE2ee ? this.e2eeManager : null;
+          this.descriptors.set(info.pubHandle, Descriptor.active(info, e2eeManager));
 
-    if (result.type === 'ok') {
-      const info = result.data;
+          const localDataTrack = this.createLocalDataTrack(info.pubHandle);
+          if (!localDataTrack) {
+            // @throws-transformer ignore - this should be treated as a "panic" and not be caught
+            throw new Error(
+              'DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.',
+            );
+          }
 
-      const e2eeManager = info.usesE2ee ? this.e2eeManager : null;
-      this.descriptors.set(info.pubHandle, Descriptor.active(info, e2eeManager));
-
-      const localDataTrack = this.createLocalDataTrack(info.pubHandle);
-      if (!localDataTrack) {
-        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-        throw new Error(
-          'DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.',
-        );
+          descriptor.completionFuture.resolve?.(localDataTrack);
+        } else {
+          descriptor.completionFuture.reject?.(result.error);
+        }
+        return;
       }
+      case 'active': {
+        if (descriptor.publishState !== 'republishing') {
+          log.warn(`Track ${handle} already active`);
+          return;
+        }
+        if (result.type === 'error') {
+          log.warn(`Republish failed for track ${handle}`);
+          return;
+        }
 
-      descriptor.completionFuture.resolve?.(localDataTrack);
-    } else {
-      descriptor.completionFuture.reject?.(result.error);
+        log.debug(`Track ${handle} republished`);
+        descriptor.info.sid = result.data.sid;
+        descriptor.publishState = 'published';
+        this.descriptors.set(descriptor.info.pubHandle, descriptor);
+      }
     }
   }
 
@@ -289,7 +313,33 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
+    descriptor.publishState = 'unpublished';
     descriptor.unpublishingFuture.resolve?.();
+  }
+
+  /** Republish all tracks.
+    *
+    * This must be sent after a full reconnect in order for existing publications
+    * to be recognized by the SFU. Each republished track will be assigned a new SID.
+    */
+  receiveRepublishTracks() {
+    for (const [ handle, descriptor ] of this.descriptors.entries()) {
+      switch (descriptor.type) {
+        case 'pending':
+          // TODO: support republish for pending publications
+          this.descriptors.delete(handle);
+          descriptor.completionFuture.reject?.(DataTrackPublishError.disconnected());
+          break;
+        case 'active':
+          descriptor.publishState = 'republishing';
+
+          this.emit('sfuPublishRequest', {
+            handle: descriptor.info.pubHandle,
+            name: descriptor.info.name,
+            usesE2ee: descriptor.info.usesE2ee,
+          });
+      }
+    }
   }
 
   /** Shuts down the manager and all associated tracks. */
