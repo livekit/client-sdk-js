@@ -402,7 +402,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
 
     // Simulate a full reconnect, which means that any published tracks will need to be republished.
-    manager.receiveRepublishTracks();
+    manager.sfuWillRepublishTracks();
 
     // Even though behind the scenes the SFU publications are not active, the user should still see
     // it as "published", sfu reconnects are an implementation detail

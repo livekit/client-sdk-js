@@ -7,7 +7,7 @@ export type DataTrackSid = string;
 export type DataTrackInfo = {
   sid: DataTrackSid;
   pubHandle: DataTrackHandle;
-  name: String;
+  name: string;
   usesE2ee: boolean;
 };
 
