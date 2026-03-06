@@ -20,4 +20,12 @@ export const DataTrackInfo = {
       usesE2ee: protocolInfo.encryption !== Encryption_Type.NONE,
     };
   },
+  toProtobuf(info: DataTrackInfo): ProtocolDataTrackInfo {
+    return new ProtocolDataTrackInfo({
+      sid: info.sid,
+      pubHandle: info.pubHandle,
+      name: info.name,
+      encryption: info.usesE2ee ? Encryption_Type.GCM : Encryption_Type.NONE,
+    });
+  },
 };
