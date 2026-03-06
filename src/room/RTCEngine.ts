@@ -91,6 +91,7 @@ import {
   supportsTransceiver,
   toHttpUrl,
 } from './utils';
+import { DataTrackInfo } from './data-track/types';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -1676,7 +1677,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
-  sendSyncState(remoteTracks: RemoteTrackPublication[], localTracks: LocalTrackPublication[]) {
+  sendSyncState(
+    remoteTracks: RemoteTrackPublication[],
+    localTracks: LocalTrackPublication[],
+    localDataTrackInfos: Array<DataTrackInfo>,
+  ) {
     if (!this.pcManager) {
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
@@ -1747,6 +1752,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             publisherSid: sid,
             lastSeq: seq,
           });
+        }),
+        publishDataTracks: localDataTrackInfos.map((info) => {
+          return new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) });
         }),
       }),
     );

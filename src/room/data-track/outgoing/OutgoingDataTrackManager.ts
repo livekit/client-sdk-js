@@ -226,7 +226,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Get information about all currently published tracks. */
-  async queryPublished() {
+  queryPublished() {
     const descriptorInfos = Array.from(this.descriptors.values())
       .filter((descriptor): descriptor is ActiveDescriptor => descriptor.type === 'active')
       .map((descriptor) => descriptor.info);

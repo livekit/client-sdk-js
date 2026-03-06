@@ -2392,7 +2392,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return acc;
     }, [] as RemoteTrackPublication[]);
     const localTracks = this.localParticipant.getTrackPublications() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
-    this.engine.sendSyncState(remoteTracks, localTracks);
+    const localDataTrackInfos = this.outgoingDataTrackManager.queryPublished();
+    this.engine.sendSyncState(remoteTracks, localTracks, localDataTrackInfos);
   }
 
   /**
