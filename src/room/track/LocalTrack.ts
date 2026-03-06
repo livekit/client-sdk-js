@@ -150,7 +150,7 @@ export default abstract class LocalTrack<
   private async setMediaStreamTrack(
     newTrack: MediaStreamTrack,
     force?: boolean,
-    targetEnabled?: boolean,
+    isUnmuting?: boolean,
   ) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
@@ -208,8 +208,8 @@ export default abstract class LocalTrack<
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
       // sync muted state with the enabled state of the newly provided track
-      // use targetEnabled if provided (e.g. during unmute restart) to avoid mute cycling
-      this._mediaStreamTrack.enabled = targetEnabled ?? !this.isMuted;
+      // if restarting as part of an unmute, set enabled to true directly to avoid mute cycling
+      this._mediaStreamTrack.enabled = isUnmuting ? true : !this.isMuted;
       // when a valid track is replace, we'd want to start producing
       await this.resumeUpstream();
       this.attachedElements.forEach((el) => {
@@ -328,7 +328,7 @@ export default abstract class LocalTrack<
     }
   }
 
-  protected async restart(constraints?: MediaTrackConstraints, targetEnabled?: boolean) {
+  protected async restart(constraints?: MediaTrackConstraints, isUnmuting?: boolean) {
     this.manuallyStopped = false;
     const unlock = await this.trackChangeLock.lock();
 
@@ -371,7 +371,7 @@ export default abstract class LocalTrack<
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
-      await this.setMediaStreamTrack(newTrack, false, targetEnabled);
+      await this.setMediaStreamTrack(newTrack, false, isUnmuting);
       this._constraints = constraints;
       this.pendingDeviceChange = false;
       this.emit(TrackEvent.Restarted, this);
