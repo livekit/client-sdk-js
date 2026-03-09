@@ -24,6 +24,8 @@ import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 
+export const DEFAULT_CLIENT_PROTOCOL = 0;
+
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
 
@@ -40,6 +42,11 @@ export default class RemoteParticipant extends Participant {
   dataTracks: DeferrableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
 
   signalClient: SignalClient;
+
+  /** A version number indicating the set of features that the report participant's client supports.
+   * @internal
+   **/
+  clientProtocol: number;
 
   private volumeMap: Map<Track.Source, number>;
 
@@ -65,6 +72,7 @@ export default class RemoteParticipant extends Participant {
         const info = DataTrackInfo.from(dti);
         return new RemoteDataTrack(info, manager, { publisherIdentity: pi.identity });
       }),
+      pi.clientProtocol,
     );
   }
 
@@ -87,6 +95,7 @@ export default class RemoteParticipant extends Participant {
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
     remoteDataTracks: Array<RemoteDataTrack> = [],
+    clientProtocol: number = DEFAULT_CLIENT_PROTOCOL,
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
@@ -99,6 +108,7 @@ export default class RemoteParticipant extends Participant {
       }),
     );
     this.volumeMap = new Map();
+    this.clientProtocol = clientProtocol;
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {
