@@ -88,6 +88,7 @@ import {
   type RpcInvocationData,
   byteLength,
   gzipCompress,
+  gzipCompressToWriter,
   gzipDecompress,
 } from './rpc';
 import CriticalTimers from './timers';
@@ -130,7 +131,7 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { CLIENT_PROTOCOL_DEFAULT } from '../version';
+import { CLIENT_PROTOCOL_DEFAULT, CLIENT_PROTOCOL_GZIP_RPC } from '../version';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -2071,7 +2072,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           callerIdentity,
           requestId,
           null,
-          RpcError.builtIn('APPLICATION_ERROR'),
+          RpcError.builtIn('APPLICATION_ERROR'), // FIXME: what should this error be? Discuss in review.
         );
         return;
       }
@@ -2103,18 +2104,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
+    let response: string | null = null;
     try {
-      const response = await handler({
+      response = await handler({
         requestId,
         callerIdentity,
         payload: resolvedPayload,
         responseTimeout,
       });
-      responsePayload = response;
     } catch (error) {
+      let responseError;
       if (error instanceof RpcError) {
         responseError = error;
       } else {
@@ -2124,32 +2123,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
+
+      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      return;
     }
 
     // Determine how to send the response based on the caller's client protocol
     const callerClientProtocol = this.getRemoteParticipantClientProtocol(callerIdentity);
 
-    if (responseError) {
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
-      return;
-    }
+    const responseBytes = byteLength(response ?? '');
 
-    const responseBytes = byteLength(responsePayload ?? '');
-
-    if (callerClientProtocol >= 1 && responseBytes >= DATA_STREAM_MIN_BYTES) {
-      // Large response: send via data stream
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= DATA_STREAM_MIN_BYTES) {
+      // Large response: create the data stream, send the RPC response referencing it,
+      // then stream compressed chunks for lower TTFB
       const streamId = crypto.randomUUID();
-      const compressed = await gzipCompress(responsePayload!);
 
       const writer = await this.outgoingDataStreamManager.streamBytes({
         streamId,
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [callerIdentity],
         mimeType: 'application/octet-stream',
-        totalSize: compressed.byteLength,
       });
-      await writer.write(compressed);
-      await writer.close();
 
       await this.engine.publishRpcResponse(
         callerIdentity,
@@ -2157,18 +2151,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         `${DATA_STREAM_PREFIX}${streamId}`,
         null,
       );
-    } else if (callerClientProtocol >= 1 && responseBytes >= COMPRESS_MIN_BYTES) {
+
+      await gzipCompressToWriter(response, writer);
+      await writer.close();
+
+    } else if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= COMPRESS_MIN_BYTES) {
       // Medium response: compress inline
-      const compressed = await gzipCompress(responsePayload!);
+      const compressed = await gzipCompress(response);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
+
     } else if (responseBytes > MAX_PAYLOAD_BYTES) {
       // Legacy client can't handle large payloads
-      responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
+      const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
       await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+
     } else {
       // Small response or legacy client: send uncompressed
-      await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, null);
+      await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
     }
   }
 

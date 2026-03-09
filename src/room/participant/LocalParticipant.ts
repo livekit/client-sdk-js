@@ -56,6 +56,7 @@ import {
   type RpcInvocationData,
   byteLength,
   gzipCompress,
+  gzipCompressToWriter,
   gzipDecompress,
 } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -2042,37 +2043,70 @@ export default class LocalParticipant extends Participant {
       mode = 'compressed-data-stream';
     }
 
-    let requestPayload = payload;
-    let requestCompressedPayload: Uint8Array | undefined;
-
+    let requestPayload;
+    let requestCompressedPayload;
     switch (mode) {
-      case 'compressed-data-stream':
-        // Large payload: send via data stream
+      case 'compressed-data-stream': {
+        // Large payload: create the data stream, send the RPC request referencing it,
+        // then stream compressed chunks for lower TTFB
         const streamId = crypto.randomUUID();
-        const compressed = await gzipCompress(payload);
 
-        // Create and send the data stream before the RPC request
-        const writer = await this.streamBytes({
+        const writer = await this.roomOutgoingDataStreamManager.streamBytes({
           streamId,
           topic: RPC_DATA_STREAM_TOPIC,
           destinationIdentities: [destinationIdentity],
           mimeType: 'application/octet-stream',
-          totalSize: compressed.byteLength,
         });
-        await writer.write(compressed);
-        await writer.close();
 
         requestPayload = `${DATA_STREAM_PREFIX}${streamId}`;
         requestCompressedPayload = undefined;
-        break;
+
+        // Send the RPC request now so the receiver knows to expect this stream,
+        // then stream the compressed payload chunks
+        await this.sendRpcRequestPacket(
+          destinationIdentity,
+          requestId,
+          method,
+          requestPayload,
+          undefined,
+          responseTimeout,
+        );
+        await gzipCompressToWriter(payload, writer);
+        await writer.close();
+        return;
+      }
 
       case 'compressed':
         // Medium payload: compress inline
         requestCompressedPayload = await gzipCompress(payload);
         requestPayload = '';
         break;
+
+      case 'regular':
+      default:
+        // Small payload: just include the payload directly, uncompressed
+        requestPayload = payload;
+        break;
     }
 
+    await this.sendRpcRequestPacket(
+      destinationIdentity,
+      requestId,
+      method,
+      requestPayload,
+      requestCompressedPayload,
+      responseTimeout,
+    );
+  }
+
+  private async sendRpcRequestPacket(
+    destinationIdentity: string,
+    requestId: string,
+    method: string,
+    payload: string | undefined,
+    compressedPayload: Uint8Array | undefined,
+    responseTimeout: number,
+  ) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
       kind: DataPacket_Kind.RELIABLE,
@@ -2081,8 +2115,8 @@ export default class LocalParticipant extends Participant {
         value: new RpcRequest({
           id: requestId,
           method,
-          payload: requestPayload,
-          compressedPayload: requestCompressedPayload ?? new Uint8Array(),
+          payload: payload ?? "",
+          compressedPayload: compressedPayload ?? new Uint8Array(),
           responseTimeoutMs: responseTimeout,
           version: 1,
         }),

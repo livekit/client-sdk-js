@@ -167,7 +167,7 @@ export const DATA_STREAM_PREFIX = 'data_stream:';
  * Topic used for RPC payload data streams.
  * @internal
  */
-export const RPC_DATA_STREAM_TOPIC = '_lk_rpc';
+export const RPC_DATA_STREAM_TOPIC = 'lk.rpc_response';
 
 /**
  * Compress a string payload using gzip.
@@ -198,6 +198,30 @@ export async function gzipCompress(data: string): Promise<Uint8Array> {
     offset += chunk.length;
   }
   return result;
+}
+
+/**
+ * Compress a string payload using gzip, streaming each compressed chunk to the provided writer.
+ * @internal
+ */
+export async function gzipCompressToWriter(
+  data: string,
+  writer: { write(chunk: Uint8Array): Promise<void> },
+): Promise<void> {
+  const input = new TextEncoder().encode(data);
+  const cs = new CompressionStream('gzip');
+  const csWriter = cs.writable.getWriter();
+  csWriter.write(input);
+  csWriter.close();
+
+  const reader = cs.readable.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    await writer.write(value);
+  }
 }
 
 /**
