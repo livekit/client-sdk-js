@@ -19,8 +19,7 @@ import type { LoggerOptions } from '../types';
 import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
-
-export const DEFAULT_CLIENT_PROTOCOL = 0;
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
@@ -77,7 +76,7 @@ export default class RemoteParticipant extends Participant {
     attributes?: Record<string, string>,
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
-    clientProtocol: number = DEFAULT_CLIENT_PROTOCOL,
+    clientProtocol: number = CLIENT_PROTOCOL_DEFAULT,
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;

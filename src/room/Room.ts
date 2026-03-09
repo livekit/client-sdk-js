@@ -72,7 +72,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
-import RemoteParticipant, { DEFAULT_CLIENT_PROTOCOL } from './participant/RemoteParticipant';
+import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -114,6 +114,7 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
+import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -2296,7 +2297,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private getRemoteParticipantClientProtocol(identity: Participant["identity"]) {
-    return this.remoteParticipants.get(identity)?.clientProtocol ?? DEFAULT_CLIENT_PROTOCOL;
+    return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
   }
 
   private registerConnectionReconcile() {
