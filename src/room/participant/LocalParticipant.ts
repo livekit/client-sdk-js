@@ -46,11 +46,17 @@ import {
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import {
+  COMPRESS_MIN_BYTES,
+  DATA_STREAM_MIN_BYTES,
+  DATA_STREAM_PREFIX,
   MAX_PAYLOAD_BYTES,
+  RPC_DATA_STREAM_TOPIC,
   type PerformRpcParams,
   RpcError,
   type RpcInvocationData,
   byteLength,
+  gzipCompress,
+  gzipDecompress,
 } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -183,6 +189,8 @@ export default class LocalParticipant extends Participant {
 
   private getRemoteParticipantClientProtocol: (identity: Participant["identity"]) => number;
 
+  private waitForRpcDataStream: (streamId: string) => Promise<string>;
+
   /** @internal */
   constructor(
     sid: string,
@@ -193,6 +201,7 @@ export default class LocalParticipant extends Participant {
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
     roomOutgoingDataTrackManager: OutgoingDataTrackManager,
     getRemoteParticipantClientProtocol: (identity: Participant["identity"]) => number,
+    waitForRpcDataStream: (streamId: string) => Promise<string>,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -214,6 +223,7 @@ export default class LocalParticipant extends Participant {
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
     this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
+    this.waitForRpcDataStream = waitForRpcDataStream;
   }
 
   get lastCameraError(): Error | undefined {
@@ -358,7 +368,7 @@ export default class LocalParticipant extends Participant {
     }
   };
 
-  private handleDataPacket = (packet: DataPacket) => {
+  private handleDataPacket = async (packet: DataPacket) => {
     switch (packet.value.case) {
       case 'rpcResponse':
         let rpcResponse = packet.value.value as RpcResponse;
@@ -369,7 +379,27 @@ export default class LocalParticipant extends Participant {
           payload = rpcResponse.value.value;
         } else if (rpcResponse.value.case === 'error') {
           error = RpcError.fromProto(rpcResponse.value.value);
+        } else if (rpcResponse.value.case === 'compressedPayload') {
+          try {
+            payload = await gzipDecompress(rpcResponse.value.value);
+          } catch (e) {
+            this.log.error('Failed to decompress RPC response', e);
+            error = RpcError.builtIn('APPLICATION_ERROR');
+          }
         }
+
+        // Handle data stream payload
+        if (payload && payload.startsWith(DATA_STREAM_PREFIX)) {
+          const streamId = payload.slice(DATA_STREAM_PREFIX.length);
+          try {
+            payload = await this.waitForRpcDataStream(streamId);
+          } catch (e) {
+            this.log.error('Failed to receive RPC data stream response', e);
+            error = RpcError.builtIn('APPLICATION_ERROR');
+            payload = null;
+          }
+        }
+
         this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
         break;
       case 'rpcAck':
@@ -1853,7 +1883,11 @@ export default class LocalParticipant extends Participant {
     const minEffectiveTimeout = maxRoundTripLatency + 1000;
 
     return new TypedPromise<string, RpcError>(async (resolve, reject) => {
-      if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
+      const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
+      const payloadBytes = byteLength(payload);
+
+      // Only enforce the legacy size limit when compression is not available
+      if (payloadBytes > MAX_PAYLOAD_BYTES && remoteClientProtocol < 1) {
         reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
         return;
       }
@@ -1869,9 +1903,14 @@ export default class LocalParticipant extends Participant {
       const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
       const id = crypto.randomUUID();
 
-      const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
-      // FIXME: use remoteClientProtocol
-      await this.publishRpcRequest(destinationIdentity, id, method, payload, effectiveTimeout);
+      await this.publishRpcRequest(
+        destinationIdentity,
+        id,
+        method,
+        payload,
+        effectiveTimeout,
+        remoteClientProtocol,
+      );
 
       const ackTimeoutId = setTimeout(() => {
         this.pendingAcks.delete(id);
@@ -1991,7 +2030,49 @@ export default class LocalParticipant extends Participant {
     method: string,
     payload: string,
     responseTimeout: number,
+    remoteClientProtocol: number,
   ) {
+    const payloadBytes = byteLength(payload);
+
+    let mode: 'regular' | 'compressed' | 'compressed-data-stream' = 'regular';
+    if (remoteClientProtocol >= 1 && payloadBytes >= COMPRESS_MIN_BYTES) {
+      mode = 'compressed';
+    }
+    if (mode === 'compressed' && payloadBytes >= DATA_STREAM_MIN_BYTES) {
+      mode = 'compressed-data-stream';
+    }
+
+    let requestPayload = payload;
+    let requestCompressedPayload: Uint8Array | undefined;
+
+    switch (mode) {
+      case 'compressed-data-stream':
+        // Large payload: send via data stream
+        const streamId = crypto.randomUUID();
+        const compressed = await gzipCompress(payload);
+
+        // Create and send the data stream before the RPC request
+        const writer = await this.streamBytes({
+          streamId,
+          topic: RPC_DATA_STREAM_TOPIC,
+          destinationIdentities: [destinationIdentity],
+          mimeType: 'application/octet-stream',
+          totalSize: compressed.byteLength,
+        });
+        await writer.write(compressed);
+        await writer.close();
+
+        requestPayload = `${DATA_STREAM_PREFIX}${streamId}`;
+        requestCompressedPayload = undefined;
+        break;
+
+      case 'compressed':
+        // Medium payload: compress inline
+        requestCompressedPayload = await gzipCompress(payload);
+        requestPayload = '';
+        break;
+    }
+
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
       kind: DataPacket_Kind.RELIABLE,
@@ -2000,7 +2081,8 @@ export default class LocalParticipant extends Participant {
         value: new RpcRequest({
           id: requestId,
           method,
-          payload,
+          payload: requestPayload,
+          compressedPayload: requestCompressedPayload ?? new Uint8Array(),
           responseTimeoutMs: responseTimeout,
           version: 1,
         }),
