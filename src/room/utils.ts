@@ -10,7 +10,8 @@ import { type Throws } from '@livekit/throws-transformer/throws';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
-import { protocolVersion, version } from '../version';
+import { type Throws } from '../utils/throws';
+import { clientProtocol, protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -382,6 +383,7 @@ export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInf
     capabilities,
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
+    clientProtocol,
     version,
   });
 
