@@ -181,6 +181,8 @@ export default class LocalParticipant extends Participant {
     }
   >();
 
+  private getRemoteParticipantClientProtocol: (identity: Participant["identity"]) => number;
+
   /** @internal */
   constructor(
     sid: string,
@@ -190,6 +192,7 @@ export default class LocalParticipant extends Participant {
     roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
     roomOutgoingDataTrackManager: OutgoingDataTrackManager,
+    getRemoteParticipantClientProtocol: (identity: Participant["identity"]) => number,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -210,6 +213,7 @@ export default class LocalParticipant extends Participant {
     this.rpcHandlers = roomRpcHandlers;
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
+    this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
   }
 
   get lastCameraError(): Error | undefined {
@@ -1864,6 +1868,9 @@ export default class LocalParticipant extends Participant {
 
       const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
       const id = crypto.randomUUID();
+
+      const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
+      // FIXME: use remoteClientProtocol
       await this.publishRpcRequest(destinationIdentity, id, method, payload, effectiveTimeout);
 
       const ackTimeoutId = setTimeout(() => {

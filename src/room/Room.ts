@@ -77,7 +77,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
-import RemoteParticipant from './participant/RemoteParticipant';
+import RemoteParticipant, { DEFAULT_CLIENT_PROTOCOL } from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -303,6 +303,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.rpcHandlers,
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
+      this.getRemoteParticipantClientProtocol,
     );
 
     if (this.options.e2ee || this.options.encryption) {
@@ -2425,6 +2426,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (identity) {
       return this.remoteParticipants.get(identity);
     }
+  }
+
+  private getRemoteParticipantClientProtocol(identity: Participant["identity"]) {
+    return this.remoteParticipants.get(identity)?.clientProtocol ?? DEFAULT_CLIENT_PROTOCOL;
   }
 
   private registerConnectionReconcile() {
