@@ -158,16 +158,22 @@ export const COMPRESS_MIN_BYTES = 1024; // 1 KB
 export const DATA_STREAM_MIN_BYTES = 15360; // 15 KB
 
 /**
- * Prefix used in the payload field to indicate data is arriving via a data stream.
+ * Attribute key set on a data stream to associate it with an RPC request.
  * @internal
  */
-export const DATA_STREAM_PREFIX = 'data_stream:';
+export const RPC_REQUEST_ID_ATTR = 'lk.rpc_request_id';
+
+/**
+ * Attribute key set on a data stream to associate it with an RPC response.
+ * @internal
+ */
+export const RPC_RESPONSE_ID_ATTR = 'lk.rpc_response_id';
 
 /**
  * Topic used for RPC payload data streams.
  * @internal
  */
-export const RPC_DATA_STREAM_TOPIC = 'lk.rpc_response';
+export const RPC_DATA_STREAM_TOPIC = 'lk.rpc_payload';
 
 /**
  * Compress a string payload using gzip.
@@ -235,17 +241,53 @@ export async function gzipDecompress(data: Uint8Array): Promise<string> {
   writer.close();
 
   const reader = ds.readable.getReader();
-  const chunks: Uint8Array[] = [];
+  const decoder = new TextDecoder();
+  let result = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
       break;
     }
-    chunks.push(value);
+    result += decoder.decode(value, { stream: true });
   }
+  result += decoder.decode();
+  return result;
+}
 
+/**
+ * Decompress a gzip-compressed stream of chunks back to a string, feeding each chunk
+ * into the decompression stream as it arrives rather than buffering first.
+ * @internal
+ */
+export async function gzipDecompressFromReader(
+  reader: AsyncIterable<Uint8Array>,
+): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const dsWriter = ds.writable.getWriter();
+
+  // Feed compressed chunks into the decompression stream as they arrive
+  const pipePromise = (async () => {
+    for await (const chunk of reader) {
+      await dsWriter.write(chunk);
+    }
+    await dsWriter.close();
+  })();
+
+  // Read decompressed output concurrently
+  const dsReader = ds.readable.getReader();
   const decoder = new TextDecoder();
-  return chunks.map((c) => decoder.decode(c, { stream: true })).join('') + decoder.decode();
+  let result = '';
+  while (true) {
+    const { done, value } = await dsReader.read();
+    if (done) {
+      break;
+    }
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+
+  await pipePromise;
+  return result;
 }
 
 /**
