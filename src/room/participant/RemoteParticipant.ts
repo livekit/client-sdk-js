@@ -20,6 +20,8 @@ import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 
+export const DEFAULT_CLIENT_PROTOCOL = 0;
+
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
 
@@ -28,6 +30,11 @@ export default class RemoteParticipant extends Participant {
   trackPublications: Map<string, RemoteTrackPublication>;
 
   signalClient: SignalClient;
+
+  /** A version number indicating the set of features that the report participant's client supports.
+   * @internal
+   **/
+  clientProtocol: number;
 
   private volumeMap: Map<Track.Source, number>;
 
@@ -48,6 +55,7 @@ export default class RemoteParticipant extends Participant {
       pi.attributes,
       loggerOptions,
       pi.kind,
+      pi.clientProtocol,
     );
   }
 
@@ -69,6 +77,7 @@ export default class RemoteParticipant extends Participant {
     attributes?: Record<string, string>,
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
+    clientProtocol: number = DEFAULT_CLIENT_PROTOCOL,
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
@@ -76,6 +85,7 @@ export default class RemoteParticipant extends Participant {
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
     this.volumeMap = new Map();
+    this.clientProtocol = clientProtocol;
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {
