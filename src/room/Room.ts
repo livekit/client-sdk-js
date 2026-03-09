@@ -76,15 +76,17 @@ import RemoteParticipant from './participant/RemoteParticipant';
 import {
   COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
-  DATA_STREAM_PREFIX,
   MAX_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
+  RPC_REQUEST_ID_ATTR,
+  RPC_RESPONSE_ID_ATTR,
   RpcError,
   type RpcInvocationData,
   byteLength,
   gzipCompress,
   gzipCompressToWriter,
   gzipDecompress,
+  gzipDecompressFromReader,
 } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -269,7 +271,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options,
       this.rpcHandlers,
       this.outgoingDataStreamManager,
-      this.getRemoteParticipantClientProtocol,
+      this.getRemoteParticipantClientProtocol.bind(this),
       this.waitForRpcDataStream,
     );
 
@@ -1945,14 +1947,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           callerIdentity,
           requestId,
           null,
-          RpcError.builtIn('APPLICATION_ERROR'), // FIXME: what should this error be? Discuss in review.
+          RpcError.builtIn('APPLICATION_ERROR'),
         );
         return;
       }
-    } else if (payload.startsWith(DATA_STREAM_PREFIX)) {
-      const streamId = payload.slice(DATA_STREAM_PREFIX.length);
+
+    } else if (payload === '') {
+      // Empty payload with empty compressedPayload means the request payload
+      // is arriving via a data stream tagged with lk.rpc_request_id
       try {
-        resolvedPayload = await this.waitForRpcDataStream(streamId);
+        resolvedPayload = await this.waitForRpcDataStream(requestId);
       } catch (e) {
         this.log.error('Failed to receive RPC data stream payload', e);
         await this.engine.publishRpcResponse(
@@ -2007,25 +2011,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const responseBytes = byteLength(response ?? '');
 
     if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= DATA_STREAM_MIN_BYTES) {
-      // Large response: create the data stream, send the RPC response referencing it,
-      // then stream compressed chunks for lower TTFB
-      const streamId = crypto.randomUUID();
-
+      // Large response: create the data stream tagged with the request ID,
+      // send the RPC response with empty payload, then stream compressed chunks
+      // for lower TTFB.
       const writer = await this.outgoingDataStreamManager.streamBytes({
-        streamId,
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [callerIdentity],
         mimeType: 'application/octet-stream',
+        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
       });
 
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        `${DATA_STREAM_PREFIX}${streamId}`,
-        null,
-      );
+      await this.engine.publishRpcResponse(callerIdentity, requestId, '', null);
 
-      await gzipCompressToWriter(response, writer);
+      await gzipCompressToWriter(response!, writer);
       await writer.close();
 
     } else if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= COMPRESS_MIN_BYTES) {
@@ -2392,53 +2390,52 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager.registerByteStreamHandler(
       RPC_DATA_STREAM_TOPIC,
       async (reader, _participantInfo) => {
-        const streamId = reader.info.id;
-        const chunks = await reader.readAll();
-
-        // Concatenate all chunks into a single Uint8Array
-        const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-        const combined = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const chunk of chunks) {
-          combined.set(chunk, offset);
-          offset += chunk.length;
+        const attrs = reader.info.attributes ?? {};
+        const rpcId = attrs[RPC_REQUEST_ID_ATTR] ?? attrs[RPC_RESPONSE_ID_ATTR];
+        if (!rpcId) {
+          this.log.warn('Received RPC DataStream without a request/response ID attribute');
+          return;
         }
 
-        // Decompress the data
+        // Stream compressed chunks directly into the decompressor
         let decompressed: string;
         try {
-          decompressed = await gzipDecompress(combined);
+          decompressed = await gzipDecompressFromReader(reader);
         } catch (e) {
-          const future = this.pendingRpcDataStreams.get(streamId);
+          const future = this.pendingRpcDataStreams.get(rpcId);
           if (future) {
             future.reject?.(e instanceof Error ? e : new Error(String(e)));
-            this.pendingRpcDataStreams.delete(streamId);
+            this.pendingRpcDataStreams.delete(rpcId);
           }
           return;
         }
 
         // Resolve the pending future, or create one that's pre-resolved
-        const existing = this.pendingRpcDataStreams.get(streamId);
+        const existing = this.pendingRpcDataStreams.get(rpcId);
         if (existing) {
           existing.resolve?.(decompressed);
-          this.pendingRpcDataStreams.delete(streamId);
+          this.pendingRpcDataStreams.delete(rpcId);
         } else {
           const future = new Future<string, Error>();
           future.resolve?.(decompressed);
-          this.pendingRpcDataStreams.set(streamId, future);
+          this.pendingRpcDataStreams.set(rpcId, future);
         }
       },
     );
   }
 
-  private waitForRpcDataStream = (streamId: string): Promise<string> => {
-    const existing = this.pendingRpcDataStreams.get(streamId);
+  /**
+   * Wait for an RPC data stream to arrive and return its decompressed payload.
+   * Keyed by the RPC request ID (used as the attribute value on the data stream).
+   */
+  private waitForRpcDataStream = (requestId: string): Promise<string> => {
+    const existing = this.pendingRpcDataStreams.get(requestId);
     if (existing) {
       return existing.promise;
     }
 
     const future = new Future<string, Error>();
-    this.pendingRpcDataStreams.set(streamId, future);
+    this.pendingRpcDataStreams.set(requestId, future);
     return future.promise;
   };
 
