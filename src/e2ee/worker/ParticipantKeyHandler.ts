@@ -154,9 +154,11 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * together with the material
    * also resets the valid key property and updates the currentKeyIndex
    */
-  async setKey(material: CryptoKey, keyIndex = 0) {
-    await this.setKeyFromMaterial(material, keyIndex);
-    this.resetKeyStatus(keyIndex);
+  async setKey(material: CryptoKey, keyIndex = 0, updateCurrentKeyIndex = true) {
+    await this.setKeyFromMaterial(material, keyIndex, null, updateCurrentKeyIndex);
+    if (updateCurrentKeyIndex) {
+      this.resetKeyStatus(keyIndex);
+    }
   }
 
   /**
@@ -169,6 +171,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     material: CryptoKey,
     keyIndex: number,
     ratchetedResult: RatchetResult | null = null,
+    updateCurrentKeyIndex = true,
   ) {
     const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
     const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : this.currentKeyIndex;
@@ -178,7 +181,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
       ratchetSalt: this.keyProviderOptions.ratchetSalt,
     });
     this.setKeySet(keySet, newIndex, ratchetedResult);
-    if (newIndex >= 0) this.currentKeyIndex = newIndex;
+    if (newIndex >= 0 && updateCurrentKeyIndex) this.currentKeyIndex = newIndex;
   }
 
   setKeySet(keySet: KeySet, keyIndex: number, ratchetedResult: RatchetResult | null = null) {
