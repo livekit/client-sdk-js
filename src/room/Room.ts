@@ -79,19 +79,12 @@ import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import {
-  COMPRESS_MIN_BYTES,
-  DATA_STREAM_MIN_BYTES,
-  MAX_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_RESPONSE_ID_ATTR,
-  RpcError,
+  RpcClientManager,
   type RpcInvocationData,
-  byteLength,
-  gzipCompress,
-  gzipCompressToWriter,
-  gzipDecompress,
-  gzipDecompressFromReader,
+  RpcServerManager,
 } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -133,7 +126,7 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { CLIENT_PROTOCOL_DEFAULT, CLIENT_PROTOCOL_GZIP_RPC } from '../version';
+import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -233,7 +226,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
-  private pendingRpcDataStreams: Map<string, Future<string, Error>> = new Map();
+  private rpcClientManager: RpcClientManager;
+
+  private rpcServerManager: RpcServerManager;
 
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
@@ -313,17 +308,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.registerRpcDataStreamHandler();
 
+    this.rpcClientManager = new RpcClientManager(
+      this.engine,
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+    );
+    this.rpcServerManager = new RpcServerManager(
+      this.engine,
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+    );
+
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant(
       '',
       '',
       this.engine,
       this.options,
-      this.rpcHandlers,
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
       this.getRemoteParticipantClientProtocol.bind(this),
       this.waitForRpcDataStream,
+      this.rpcClientManager,
+      this.rpcServerManager,
     );
 
     if (this.options.e2ee || this.options.encryption) {
@@ -412,12 +421,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    if (this.rpcHandlers.has(method)) {
-      throw Error(
-        `RPC handler already registered for method ${method}, unregisterRpcMethod before trying to register again`,
-      );
-    }
-    this.rpcHandlers.set(method, handler);
+    this.rpcServerManager.registerRpcMethod(method, handler);
   }
 
   /**
@@ -426,7 +430,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param method - The name of the RPC method to unregister
    */
   unregisterRpcMethod(method: string) {
-    this.rpcHandlers.delete(method);
+    this.rpcServerManager.unregisterRpcMethod(method);
   }
 
   /**
@@ -714,6 +718,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.outgoingDataStreamManager) {
       this.outgoingDataStreamManager.setupEngine(this.engine);
+    }
+    if (this.rpcClientManager) {
+      this.rpcClientManager.setupEngine(this.engine);
+    }
+    if (this.rpcServerManager) {
+      this.rpcServerManager.setupEngine(this.engine);
     }
   }
 
@@ -1970,7 +1980,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
-      this.handleIncomingRpcRequest(
+      this.rpcServerManager.handleIncomingRpcRequest(
         packet.participantIdentity,
         rpc.id,
         rpc.method,
@@ -2041,134 +2051,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
     this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
-
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    compressedPayload: Uint8Array,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    // Resolve the actual payload from compressed or data stream sources
-    let resolvedPayload = payload;
-    if (compressedPayload && compressedPayload.length > 0) {
-      try {
-        resolvedPayload = await gzipDecompress(compressedPayload);
-      } catch (e) {
-        this.log.error('Failed to decompress RPC request payload', e);
-        await this.engine.publishRpcResponse(
-          callerIdentity,
-          requestId,
-          null,
-          RpcError.builtIn('APPLICATION_ERROR'),
-        );
-        return;
-      }
-
-    } else if (payload === '') {
-      // Empty payload with empty compressedPayload means the request payload
-      // is arriving via a data stream tagged with lk.rpc_request_id
-      try {
-        resolvedPayload = await this.waitForRpcDataStream(requestId);
-      } catch (e) {
-        this.log.error('Failed to receive RPC data stream payload', e);
-        await this.engine.publishRpcResponse(
-          callerIdentity,
-          requestId,
-          null,
-          RpcError.builtIn('APPLICATION_ERROR'),
-        );
-        return;
-      }
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let response: string | null = null;
-    try {
-      response = await handler({
-        requestId,
-        callerIdentity,
-        payload: resolvedPayload,
-        responseTimeout,
-      });
-    } catch (error) {
-      let responseError;
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        this.log.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
-      return;
-    }
-
-    // Determine how to send the response based on the caller's client protocol
-    const callerClientProtocol = this.getRemoteParticipantClientProtocol(callerIdentity);
-
-    const responseBytes = byteLength(response ?? '');
-
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= DATA_STREAM_MIN_BYTES) {
-      // Large response: create the data stream tagged with the request ID,
-      // send the RPC response with empty payload, then stream compressed chunks
-      // for lower TTFB.
-      const writer = await this.outgoingDataStreamManager.streamBytes({
-        topic: RPC_DATA_STREAM_TOPIC,
-        destinationIdentities: [callerIdentity],
-        mimeType: 'application/octet-stream',
-        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
-      });
-
-      await this.engine.publishRpcResponse(callerIdentity, requestId, '', null);
-
-      await gzipCompressToWriter(response!, writer);
-      await writer.close();
-
-    } else if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes >= COMPRESS_MIN_BYTES) {
-      // Medium response: compress inline
-      const compressed = await gzipCompress(response);
-      await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
-
-    } else if (responseBytes > MAX_PAYLOAD_BYTES) {
-      // Legacy client can't handle large payloads
-      const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-      this.log.warn(`RPC Response payload too large for ${method}`);
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
-
-    } else {
-      // Small response or legacy client: send uncompressed
-      await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
-    }
-  }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
@@ -2516,6 +2398,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private getRemoteParticipantClientProtocol(identity: Participant["identity"]) {
+    console.info('REMOTE', identity, this.remoteParticipants);
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
   }
 
@@ -2524,53 +2407,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       RPC_DATA_STREAM_TOPIC,
       async (reader, _participantInfo) => {
         const attrs = reader.info.attributes ?? {};
-        const rpcId = attrs[RPC_REQUEST_ID_ATTR] ?? attrs[RPC_RESPONSE_ID_ATTR];
-        if (!rpcId) {
-          this.log.warn('Received RPC DataStream without a request/response ID attribute');
-          return;
-        }
+        const requestId = attrs[RPC_REQUEST_ID_ATTR];
+        const responseId = attrs[RPC_RESPONSE_ID_ATTR];
 
-        // Stream compressed chunks directly into the decompressor
-        let decompressed: string;
-        try {
-          decompressed = await gzipDecompressFromReader(reader);
-        } catch (e) {
-          const future = this.pendingRpcDataStreams.get(rpcId);
-          if (future) {
-            future.reject?.(e instanceof Error ? e : new Error(String(e)));
-            this.pendingRpcDataStreams.delete(rpcId);
-          }
-          return;
-        }
-
-        // Resolve the pending future, or create one that's pre-resolved
-        const existing = this.pendingRpcDataStreams.get(rpcId);
-        if (existing) {
-          existing.resolve?.(decompressed);
-          this.pendingRpcDataStreams.delete(rpcId);
+        if (requestId) {
+          await this.rpcServerManager.handleIncomingDataStream(reader, requestId);
+        } else if (responseId) {
+          await this.rpcClientManager.handleIncomingDataStream(reader, responseId);
         } else {
-          const future = new Future<string, Error>();
-          future.resolve?.(decompressed);
-          this.pendingRpcDataStreams.set(rpcId, future);
+          this.log.warn('Received RPC DataStream without a request/response ID attribute');
         }
       },
     );
   }
-
-  /**
-   * Wait for an RPC data stream to arrive and return its decompressed payload.
-   * Keyed by the RPC request ID (used as the attribute value on the data stream).
-   */
-  private waitForRpcDataStream = (requestId: string): Promise<string> => {
-    const existing = this.pendingRpcDataStreams.get(requestId);
-    if (existing) {
-      return existing.promise;
-    }
-
-    const future = new Future<string, Error>();
-    this.pendingRpcDataStreams.set(requestId, future);
-    return future.promise;
-  };
 
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
