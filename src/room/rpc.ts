@@ -139,10 +139,90 @@ export class RpcError extends Error {
 }
 
 /*
- * Maximum payload size for RPC requests and responses. If a payload exceeds this size,
+ * Maximum payload size for RPC requests and responses when using the legacy (uncompressed) path.
+ * If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
 export const MAX_PAYLOAD_BYTES = 15360; // 15 KB
+
+/**
+ * Payloads smaller than this are sent uncompressed (legacy path).
+ * @internal
+ */
+export const COMPRESS_MIN_BYTES = 1024; // 1 KB
+
+/**
+ * Payloads at or above this size are sent via a data stream instead of inline.
+ * @internal
+ */
+export const DATA_STREAM_MIN_BYTES = 15360; // 15 KB
+
+/**
+ * Prefix used in the payload field to indicate data is arriving via a data stream.
+ * @internal
+ */
+export const DATA_STREAM_PREFIX = 'data_stream:';
+
+/**
+ * Topic used for RPC payload data streams.
+ * @internal
+ */
+export const RPC_DATA_STREAM_TOPIC = '_lk_rpc';
+
+/**
+ * Compress a string payload using gzip.
+ * @internal
+ */
+export async function gzipCompress(data: string): Promise<Uint8Array> {
+  const input = new TextEncoder().encode(data);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(input);
+  writer.close();
+
+  const reader = cs.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+  }
+
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+/**
+ * Decompress a gzip-compressed payload back to a string.
+ * @internal
+ */
+export async function gzipDecompress(data: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(data);
+  writer.close();
+
+  const reader = ds.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+  }
+
+  const decoder = new TextDecoder();
+  return chunks.map((c) => decoder.decode(c, { stream: true })).join('') + decoder.decode();
+}
 
 /**
  * @internal

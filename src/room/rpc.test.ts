@@ -49,6 +49,7 @@ describe('LocalParticipant', () => {
         'test-request-id',
         methodName,
         'test payload',
+        new Uint8Array(),
         5000,
         1,
       );
@@ -95,6 +96,7 @@ describe('LocalParticipant', () => {
         'test-error-request-id',
         methodName,
         'test payload',
+        new Uint8Array(),
         5000,
         1,
       );
@@ -138,6 +140,7 @@ describe('LocalParticipant', () => {
         'test-rpc-error-request-id',
         methodName,
         'test payload',
+        new Uint8Array(),
         5000,
         1,
       );
@@ -183,6 +186,10 @@ describe('LocalParticipant', () => {
         'local-identity',
         mockEngine,
         mockRoomOptions,
+        new Map(),
+        {} as any,
+        () => 0,
+        () => Promise.resolve(''),
       );
 
       mockRemoteParticipant = new RemoteParticipant(
