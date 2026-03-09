@@ -106,9 +106,7 @@ export interface EnableMessage extends BaseMessage {
 
 export interface InitAck extends BaseMessage {
   kind: 'initAck';
-  data: {
-    enabled: boolean;
-  };
+  data: {};
 }
 
 export interface DecryptDataRequestMessage extends BaseMessage {

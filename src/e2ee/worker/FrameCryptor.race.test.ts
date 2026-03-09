@@ -495,6 +495,64 @@ describe('FrameCryptor Race Conditions', () => {
     });
   });
 
+  describe('RC fix: stale transform pipe drops frames after participant reassignment', () => {
+    it('should drop frames in an old pipe after setParticipant reassigns the cryptor', async () => {
+      const { cryptor, keys: keys1 } = createCryptor('participant1');
+      await keys1.setKey(await createKeyMaterialFromString('key1'), 0);
+
+      const input1 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
+      const output1 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
+
+      cryptor.setupTransform(
+        'encode',
+        new ReadableStream(input1),
+        new WritableStream(output1),
+        'track1',
+        false,
+        undefined,
+      );
+
+      // Reassign the cryptor to a new participant (transceiver reuse)
+      const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
+      await keys2.setKey(await createKeyMaterialFromString('key2'), 0);
+      encryptionEnabledMap.set('participant2', true);
+
+      cryptor.setParticipant('participant2', keys2);
+
+      // Set up new transform for participant2
+      const input2 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
+      const output2 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
+
+      cryptor.setupTransform(
+        'encode',
+        new ReadableStream(input2),
+        new WritableStream(output2),
+        'track2',
+        false,
+        undefined,
+      );
+
+      // Write a frame to the OLD pipe (participant1's input) after reassignment.
+      // The symbol guard should drop it before encodeFunction runs, so size doesn't matter.
+      const staleFrame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+      input1.write(staleFrame);
+
+      // Write a frame to the new pipe (>= 10 bytes so VP8 key-frame header fits)
+      const newFrame = mockRTCEncodedVideoFrame(
+        new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
+      );
+      input2.write(newFrame);
+
+      await vitest.waitFor(() => expect(output2.chunks).toHaveLength(1));
+
+      // The stale frame must have been dropped by the symbol guard — it must not appear in
+      // participant1's old output sink (since the old pipe won't enqueue a dropped frame).
+      expect(output1.chunks).toHaveLength(0);
+      // The new frame was processed correctly by participant2's transform.
+      expect(output2.chunks).toHaveLength(1);
+    });
+  });
+
   describe('Integration: Simulating rapid participant switches', () => {
     it('should handle rapid subscribe/unsubscribe/resubscribe scenario', async () => {
       const { cryptor, keys: keys1 } = createCryptor('participant1');

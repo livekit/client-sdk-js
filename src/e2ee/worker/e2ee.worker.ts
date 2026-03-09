@@ -25,8 +25,6 @@ const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
 let sharedKeyHandler: ParticipantKeyHandler | undefined;
 let messageQueue = new AsyncQueue();
 
-let isEncryptionEnabled: boolean = false;
-
 let useSharedKey: boolean = false;
 
 let sifTrailer: Uint8Array | undefined;
@@ -35,7 +33,7 @@ let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 let rtpMap: Map<number, VideoCodec> = new Map();
 
-workerLogger.setDefaultLevel('info');
+workerLogger.setLevel('debug');
 
 onmessage = (ev) => {
   messageQueue.run(async () => {
@@ -50,7 +48,7 @@ onmessage = (ev) => {
         // acknowledge init successful
         const ackMsg: InitAck = {
           kind: 'initAck',
-          data: { enabled: isEncryptionEnabled },
+          data: {},
         };
         postMessage(ackMsg);
         break;
@@ -63,6 +61,9 @@ onmessage = (ev) => {
         postMessage(ev.data);
         break;
       case 'decode':
+        workerLogger.debug(
+          `decode requested for participant ${data.participantIdentity} and track id ${data.trackId}. isReuse: ${data.isReuse}`,
+        );
         let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
         cryptor.setupTransform(
           kind,
@@ -124,11 +125,9 @@ onmessage = (ev) => {
           } satisfies DecryptDataResponseMessage);
         } catch (error) {
           // Send error back to main thread with uuid so it can reject the corresponding promise
-          workerLogger.error('DataCryptor decryption failed', {
-            error,
-            participantIdentity: data.participantIdentity,
-            uuid: data.uuid,
-          });
+          workerLogger.error(
+            `DataCryptor decryption failed for participant ${data.participantIdentity} (uuid: ${data.uuid}): ${error}`,
+          );
           postMessage({
             kind: 'error',
             data: {
@@ -152,15 +151,16 @@ onmessage = (ev) => {
         }
         break;
       case 'removeTransform':
+        workerLogger.info(
+          `removeTransform: unsetting ${data.participantIdentity} from track ${data.trackId}`,
+        );
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
         getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
-        workerLogger.info('updated codec', {
-          participantIdentity: data.participantIdentity,
-          trackId: data.trackId,
-          codec: data.codec,
-        });
+        workerLogger.info(
+          `updated codec for participant ${data.participantIdentity} trackId ${data.trackId}: ${data.codec}`,
+        );
         break;
       case 'setRTPMap':
         // this is only used for the local participant
@@ -202,19 +202,16 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
 function getTrackCryptor(participantIdentity: string, trackId: string) {
   let cryptors = participantCryptors.filter((c) => c.getTrackId() === trackId);
   if (cryptors.length > 1) {
-    const debugInfo = cryptors
-      .map((c) => {
-        return { participant: c.getParticipantIdentity() };
-      })
-      .join(',');
+    const debugInfo = cryptors.map((c) => c.getParticipantIdentity()).join(', ');
     workerLogger.error(
-      `Found multiple cryptors for the same trackID ${trackId}. target participant: ${participantIdentity} `,
-      { participants: debugInfo },
+      `Found multiple cryptors for trackId ${trackId}. target: ${participantIdentity}, all: [${debugInfo}]`,
     );
   }
   let cryptor = cryptors[0];
   if (!cryptor) {
-    workerLogger.info('creating new cryptor for', { participantIdentity, trackId });
+    workerLogger.info(
+      `creating new cryptor for participant ${participantIdentity} trackId ${trackId}`,
+    );
     if (!keyProviderOptions) {
       throw Error('Missing keyProvider options');
     }
@@ -257,32 +254,35 @@ function getSharedKeyHandler() {
 }
 
 function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
-  const cryptors = participantCryptors.filter(
-    (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
-  );
-  if (cryptors.length > 1) {
-    workerLogger.error('Found multiple cryptors for the same participant and trackID combination', {
-      trackId,
-      participantIdentity,
-    });
-  }
-  const cryptor = cryptors[0];
+  const cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
   if (!cryptor) {
-    workerLogger.warn('Could not unset participant on cryptor', { trackId, participantIdentity });
-  } else {
-    cryptor.unsetParticipant();
+    workerLogger.warn(
+      `Could not find cryptor for removeTransform trackId ${trackId} participant ${participantIdentity}`,
+    );
+    return;
   }
+  const currentParticipant = cryptor.getParticipantIdentity();
+  if (currentParticipant !== participantIdentity) {
+    // A decode message for a new participant already reassigned this cryptor before this
+    // removeTransform arrived. This is expected in transceiver reuse scenarios where the
+    // ordering is not guaranteed. Safely ignore.
+    workerLogger.info(
+      `removeTransform superseded by participant reassignment, ignoring: trackId ${trackId}, requested ${participantIdentity}, current ${currentParticipant}`,
+    );
+    return;
+  }
+  cryptor.unsetParticipant();
 }
 
 function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
-  workerLogger.debug(`setting encryption enabled for all tracks of ${participantIdentity}`, {
-    enable,
-  });
+  workerLogger.debug(
+    `setting encryption enabled for all tracks of ${participantIdentity} to ${enable}`,
+  );
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 
 async function setSharedKey(key: CryptoKey, index?: number) {
-  workerLogger.info('set shared key', { index });
+  workerLogger.info(`set shared key at index ${index}`);
   await getSharedKeyHandler().setKey(key, index);
 }
 
@@ -330,12 +330,23 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    workerLogger.debug('transformer', transformer);
-
     const { kind, participantIdentity, trackId, codec } =
       transformer.options as ScriptTransformOptions;
-    const cryptor = getTrackCryptor(participantIdentity, trackId);
-    workerLogger.debug('transform', { codec });
-    cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, false, codec);
+    // Serialize with the message queue so that onrtctransform events don't race with
+    // removeTransform / setKey / init messages that may be in-flight.
+    messageQueue.run(async () => {
+      const cryptor = getTrackCryptor(participantIdentity, trackId);
+      workerLogger.info(
+        `setup transform for participant ${participantIdentity} trackId ${trackId} codec ${codec}`,
+      );
+      cryptor.setupTransform(
+        kind,
+        transformer.readable,
+        transformer.writable,
+        trackId,
+        false,
+        codec,
+      );
+    });
   };
 }

@@ -114,11 +114,14 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param keys
    */
   setParticipant(id: string, keys: ParticipantKeyHandler) {
-    workerLogger.debug('setting new participant on cryptor', {
-      ...this.logContext,
-      newParticipant: id,
-      hadPreviousParticipant: !!this.participantIdentity,
-    });
+    workerLogger.info(
+      `setting new participant ${id} on cryptor (track: ${this.trackId}, hadPrevious: ${!!this.participantIdentity})`,
+      {
+        ...this.logContext,
+        newParticipant: id,
+        hadPreviousParticipant: !!this.participantIdentity,
+      },
+    );
 
     if (this.participantIdentity && this.participantIdentity !== id) {
       workerLogger.warn('cryptor has already a participant set, cleaning up before switching', {
@@ -135,7 +138,10 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   unsetParticipant() {
-    workerLogger.debug('unsetting participant', this.logContext);
+    workerLogger.debug(
+      `unsetting participant ${this.participantIdentity} from track ${this.trackId}`,
+      this.logContext,
+    );
 
     if (this.currentTransform) {
       this.currentTransform = undefined;
@@ -187,18 +193,21 @@ export class FrameCryptor extends BaseFrameCryptor {
     codec?: VideoCodec,
   ) {
     if (codec) {
-      workerLogger.info('setting codec on cryptor to', { codec });
+      workerLogger.info(`setting codec on cryptor to ${codec}`);
       this.videoCodec = codec;
     }
 
-    workerLogger.debug('Setting up frame cryptor transform', {
-      operation,
-      passedTrackId: trackId,
-      codec,
-      isReuse,
-      hasCurrentTransform: !!this.currentTransform,
-      ...this.logContext,
-    });
+    workerLogger.debug(
+      `Setting up ${operation} transform for participant ${this.participantIdentity} track ${trackId} (codec: ${codec})}`,
+      {
+        operation,
+        passedTrackId: trackId,
+        codec,
+        isReuse,
+        hasCurrentTransform: !!this.currentTransform,
+        ...this.logContext,
+      },
+    );
 
     // Always update trackId, even on reuse
     this.trackId = trackId;
@@ -210,18 +219,30 @@ export class FrameCryptor extends BaseFrameCryptor {
       readable === this.currentTransform.readable &&
       writable === this.currentTransform.writable
     ) {
-      workerLogger.debug('reusing existing transform', {
-        ...this.logContext,
-        trackId,
-      });
+      workerLogger.info(
+        `reusing existing transform for participant ${this.participantIdentity} track ${trackId}`,
+        this.logContext,
+      );
       return;
     }
 
     const symbol = Symbol('transform');
 
-    const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
+    const rawTransformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
+    // Guard against stale transform pipes: if this cryptor has been reassigned to a new
+    // participant (or unset) while the old pipe is still draining, the symbol will no longer
+    // match and we drop the frame rather than processing it with the wrong participant's keys.
+    const guardedTransformFn = async (
+      frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+      controller: TransformStreamDefaultController,
+    ) => {
+      if (this.currentTransform?.symbol !== symbol) {
+        return;
+      }
+      return rawTransformFn.call(this, frame, controller);
+    };
     const transformStream = new TransformStream({
-      transform: transformFn.bind(this),
+      transform: guardedTransformFn,
     });
 
     // Store transform info before starting the pipe
@@ -253,11 +274,18 @@ export class FrameCryptor extends BaseFrameCryptor {
       .finally(() => {
         // Only clear currentTransform if it's still the same one we started
         if (this.currentTransform?.symbol === symbol) {
-          workerLogger.debug('transform completed', {
-            ...this.logContext,
-            trackId,
-          });
+          workerLogger.info(
+            `transform completed for track ${trackId}, participant ${this.participantIdentity}`,
+            {
+              ...this.logContext,
+              trackId,
+            },
+          );
           this.currentTransform = undefined;
+        } else {
+          workerLogger.info(
+            `transform finished but symbol changed in the meantime for track ${trackId}, participant ${this.participantIdentity} `,
+          );
         }
       });
   }
@@ -454,8 +482,12 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    if (!this.isEnabled()) {
+      workerLogger.debug(
+        `passing frame through WITHOUT decryption, cryptor is not enabled. trackid: ${this.trackId}, participant: ${this.participantIdentity}`,
+      );
+    }
     if (
-      !this.isEnabled() ||
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
@@ -699,11 +731,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     // Detect and track codec changes
     const detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
     if (detectedCodec !== this.detectedCodec) {
-      workerLogger.debug('detected different codec', {
-        detectedCodec,
-        oldCodec: this.detectedCodec,
-        ...this.logContext,
-      });
+      workerLogger.warn(
+        `detected different codec on track ${this.trackId} (participant: ${this.participantIdentity}): ${this.detectedCodec} → ${detectedCodec}`,
+        { detectedCodec, oldCodec: this.detectedCodec },
+      );
       this.detectedCodec = detectedCodec;
     }
 

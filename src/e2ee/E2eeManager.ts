@@ -167,11 +167,9 @@ export class E2EEManager
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
-        if (data.enabled) {
-          this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
-          });
-        }
+        this.keyProvider.getKeys().forEach((keyInfo) => {
+          this.postKey(keyInfo);
+        });
         break;
 
       case 'enable':
@@ -444,6 +442,9 @@ export class E2EEManager
     if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new TypeError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
+    log.warn(
+      `Got receiver setup request for ${track.sid} with mediaStreamId ${track.mediaStreamID} for ${remoteId}`,
+    );
     this.handleReceiver(
       track.receiver,
       track.mediaStreamID,
@@ -475,12 +476,7 @@ export class E2EEManager
       return;
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupported() && !isChromiumBased()) {
       const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
@@ -551,12 +547,7 @@ export class E2EEManager
       throw TypeError('local identity needs to be known in order to set up encrypted sender');
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupported()) {
       log.info('initialize script transform');
       const options = {
         kind: 'encode',
