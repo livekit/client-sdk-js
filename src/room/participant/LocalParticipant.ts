@@ -47,9 +47,9 @@ import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import {
   COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
-  DATA_STREAM_PREFIX,
   MAX_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
+  RPC_REQUEST_ID_ATTR,
   type PerformRpcParams,
   RpcError,
   type RpcInvocationData,
@@ -386,11 +386,11 @@ export default class LocalParticipant extends Participant {
           }
         }
 
-        // Handle data stream payload
-        if (payload && payload.startsWith(DATA_STREAM_PREFIX)) {
-          const streamId = payload.slice(DATA_STREAM_PREFIX.length);
+        // Empty payload with no error and no compressedPayload means the response
+        // payload is arriving via a data stream tagged with lk.rpc_response_id
+        if (!error && payload === '') {
           try {
-            payload = await this.waitForRpcDataStream(streamId);
+            payload = await this.waitForRpcDataStream(rpcResponse.requestId);
           } catch (e) {
             this.log.error('Failed to receive RPC data stream response', e);
             error = RpcError.builtIn('APPLICATION_ERROR');
@@ -2032,27 +2032,22 @@ export default class LocalParticipant extends Participant {
     let requestCompressedPayload;
     switch (mode) {
       case 'compressed-data-stream': {
-        // Large payload: create the data stream, send the RPC request referencing it,
-        // then stream compressed chunks for lower TTFB
-        const streamId = crypto.randomUUID();
-
+        // Large payload: create the data stream tagged with the request ID,
+        // send the RPC request with empty payload/compressedPayload, then
+        // stream compressed chunks for lower TTFB
         const writer = await this.roomOutgoingDataStreamManager.streamBytes({
-          streamId,
           topic: RPC_DATA_STREAM_TOPIC,
           destinationIdentities: [destinationIdentity],
           mimeType: 'application/octet-stream',
+          attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
         });
 
-        requestPayload = `${DATA_STREAM_PREFIX}${streamId}`;
-        requestCompressedPayload = undefined;
-
-        // Send the RPC request now so the receiver knows to expect this stream,
-        // then stream the compressed payload chunks
+        // Send the RPC request now so the receiver knows to expect a data stream
         await this.sendRpcRequestPacket(
           destinationIdentity,
           requestId,
           method,
-          requestPayload,
+          '',
           undefined,
           responseTimeout,
         );
