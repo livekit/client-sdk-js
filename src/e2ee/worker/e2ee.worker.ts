@@ -141,12 +141,16 @@ onmessage = (ev) => {
 
       case 'setKey':
         if (useSharedKey) {
-          await setSharedKey(data.key, data.updateCurrentKeyIndex, data.keyIndex);
+          await setSharedKey(data.key, data.keyIndex, data.updateCurrentKeyIndex);
         } else if (data.participantIdentity) {
           workerLogger.info(
             `set participant sender key ${data.participantIdentity} index ${data.keyIndex}`,
           );
-          await getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
+          await getParticipantKeyHandler(data.participantIdentity).setKey(
+            data.key,
+            data.keyIndex,
+            data.updateCurrentKeyIndex,
+          );
         } else {
           workerLogger.error('no participant Id was provided and shared key usage is disabled');
         }
@@ -281,7 +285,7 @@ function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 
-async function setSharedKey(key: CryptoKey, updateCurrentKeyIndex: boolean, index?: number) {
+async function setSharedKey(key: CryptoKey, index?: number, updateCurrentKeyIndex?: boolean) {
   workerLogger.info('set shared key', { index });
   await getSharedKeyHandler().setKey(key, index, updateCurrentKeyIndex);
 }
