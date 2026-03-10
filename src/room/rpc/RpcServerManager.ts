@@ -216,7 +216,7 @@ export default class RpcServerManager {
     const method = dataStreamAttrs[RPC_REQUEST_METHOD_ATTR];
     const responseTimeout = parseInt(dataStreamAttrs[RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR], 10);
 
-    if (!requestId || !method || !isNaN(responseTimeout)) {
+    if (!requestId || !method || Number.isNaN(responseTimeout)) {
       this.log.warn(`RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`);
       await this.engine.publishRpcResponse(
         callerIdentity,
