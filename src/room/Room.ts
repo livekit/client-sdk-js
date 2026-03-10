@@ -2381,7 +2381,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private getRemoteParticipantClientProtocol(identity: Participant["identity"]) {
+  private getRemoteParticipantClientProtocol = (identity: Participant["identity"]) => {
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
   }
 
