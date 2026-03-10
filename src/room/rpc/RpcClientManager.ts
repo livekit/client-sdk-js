@@ -4,12 +4,9 @@
 import {
   DataPacket,
   DataPacket_Kind,
-  RpcAck,
   RpcRequest,
-  RpcResponse,
 } from '@livekit/protocol';
 import { type StructuredLogger } from '../../logger';
-import TypedPromise from '../../utils/TypedPromise';
 import type RTCEngine from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../participant/Participant';
@@ -22,6 +19,8 @@ import {
   type PerformRpcParams,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
+  RPC_REQUEST_METHOD_ATTR,
+  RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RpcError,
   byteLength,
   gzipCompress,
@@ -29,6 +28,8 @@ import {
   gzipDecompress,
   gzipDecompressFromReader,
 } from './utils';
+import { CLIENT_PROTOCOL_GZIP_RPC } from '../../version';
+import { EngineEvent } from '../events';
 
 /**
  * Manages the client (caller) side of RPC: sending requests, tracking pending
@@ -47,14 +48,12 @@ export default class RpcClientManager {
   private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
 
   private pendingResponses = new Map<
-    string,
+    string /* request id */,
     {
-      resolve: (payload: string | null, error: RpcError | null) => void;
+      completionFuture: Future<string, RpcError>,
       participantIdentity: string;
     }
   >();
-
-  private pendingDataStreams = new Map<string, Future<string, Error>>();
 
   constructor(
     engine: RTCEngine,
@@ -70,172 +69,81 @@ export default class RpcClientManager {
 
   setupEngine(engine: RTCEngine) {
     this.engine = engine;
+
+    this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
   }
 
-  performRpc({
+  async performRpc({
     destinationIdentity,
     method,
     payload,
-    responseTimeout = 15000,
-  }: PerformRpcParams): TypedPromise<string, RpcError> {
-    const maxRoundTripLatency = 7000;
-    const minEffectiveTimeout = maxRoundTripLatency + 1000;
+    responseTimeout: responseTimeoutMs = 15000,
+  }: PerformRpcParams): Promise<string> {
+    const maxRoundTripLatencyMs = 7000;
+    const minEffectiveTimeoutMs = maxRoundTripLatencyMs + 1000;
 
-    return new TypedPromise<string, RpcError>(async (resolve, reject) => {
-      const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
-      const payloadBytes = byteLength(payload);
+    const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
+    const payloadBytes = byteLength(payload);
 
-      // Only enforce the legacy size limit when compression is not available
-      if (payloadBytes > MAX_PAYLOAD_BYTES && remoteClientProtocol < 1) {
-        reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
-        return;
-      }
+    // Only enforce the legacy size limit when compression is not available
+    if (payloadBytes > MAX_PAYLOAD_BYTES && remoteClientProtocol < 1) {
+      throw RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE');
+    }
 
-      if (
-        this.engine.latestJoinResponse?.serverInfo?.version &&
-        compareVersions(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0') < 0
-      ) {
-        reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
-        return;
-      }
+    if (
+      this.engine.latestJoinResponse?.serverInfo?.version &&
+      compareVersions(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0') < 0
+    ) {
+      throw RpcError.builtIn('UNSUPPORTED_SERVER');
+    }
 
-      const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
-      const id = crypto.randomUUID();
+    const effectiveTimeoutMs = Math.max(responseTimeoutMs, minEffectiveTimeoutMs);
+    const id = crypto.randomUUID();
 
-      await this.publishRpcRequest(
-        destinationIdentity,
-        id,
-        method,
-        payload,
-        effectiveTimeout,
-        remoteClientProtocol,
-      );
+    await this.publishRpcRequest(
+      destinationIdentity,
+      id,
+      method,
+      payload,
+      effectiveTimeoutMs,
+      remoteClientProtocol,
+    );
 
-      const ackTimeoutId = setTimeout(() => {
-        this.pendingAcks.delete(id);
-        reject(RpcError.builtIn('CONNECTION_TIMEOUT'));
-        this.pendingResponses.delete(id);
-        clearTimeout(responseTimeoutId);
-      }, maxRoundTripLatency);
+    const completionFuture = new Future<string, RpcError>();
 
-      this.pendingAcks.set(id, {
-        resolve: () => {
-          clearTimeout(ackTimeoutId);
-        },
-        participantIdentity: destinationIdentity,
-      });
+    const ackTimeoutId = setTimeout(() => {
+      this.pendingAcks.delete(id);
+      completionFuture.reject?.(RpcError.builtIn('CONNECTION_TIMEOUT'));
+      this.pendingResponses.delete(id);
+      clearTimeout(responseTimeoutId);
+    }, maxRoundTripLatencyMs);
 
-      const responseTimeoutId = setTimeout(() => {
-        this.pendingResponses.delete(id);
-        reject(RpcError.builtIn('RESPONSE_TIMEOUT'));
-      }, responseTimeout);
-
-      this.pendingResponses.set(id, {
-        resolve: (responsePayload: string | null, responseError: RpcError | null) => {
-          clearTimeout(responseTimeoutId);
-          if (this.pendingAcks.has(id)) {
-            this.log.warn('RPC response received before ack', id);
-            this.pendingAcks.delete(id);
-            clearTimeout(ackTimeoutId);
-          }
-
-          if (responseError) {
-            reject(responseError);
-          } else {
-            resolve(responsePayload ?? '');
-          }
-        },
-        participantIdentity: destinationIdentity,
-      });
+    this.pendingAcks.set(id, {
+      resolve: () => {
+        clearTimeout(ackTimeoutId);
+      },
+      participantIdentity: destinationIdentity,
     });
-  }
 
-  /**
-   * Handle an incoming data packet that may contain an RPC ack or response.
-   * Returns true if the packet was handled.
-   */
-  async handleDataPacket(packet: DataPacket): Promise<boolean> {
-    switch (packet.value.case) {
-      case 'rpcResponse': {
-        const rpcResponse = packet.value.value as RpcResponse;
-        let payload: string | null = null;
-        let error: RpcError | null = null;
+    const responseTimeoutId = setTimeout(() => {
+      this.pendingResponses.delete(id);
+      completionFuture.reject?.(RpcError.builtIn('RESPONSE_TIMEOUT'));
+    }, responseTimeoutMs);
 
-        if (rpcResponse.value.case === 'payload') {
-          payload = rpcResponse.value.value;
-        } else if (rpcResponse.value.case === 'error') {
-          error = RpcError.fromProto(rpcResponse.value.value);
-        } else if (rpcResponse.value.case === 'compressedPayload') {
-          try {
-            payload = await gzipDecompress(rpcResponse.value.value);
-          } catch (e) {
-            this.log.error('Failed to decompress RPC response', e);
-            error = RpcError.builtIn('APPLICATION_ERROR');
-          }
-        }
+    this.pendingResponses.set(id, {
+      completionFuture,
+      participantIdentity: destinationIdentity,
+    });
 
-        // Empty payload with no error means the response payload is arriving
-        // via a data stream tagged with lk.rpc_response_id
-        if (!error && payload === '') {
-          try {
-            payload = await this.waitForDataStream(rpcResponse.requestId);
-          } catch (e) {
-            this.log.error('Failed to receive RPC data stream response', e);
-            error = RpcError.builtIn('APPLICATION_ERROR');
-            payload = null;
-          }
-        }
+    return completionFuture.promise.finally(() => {
+      clearTimeout(responseTimeoutId);
 
-        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
-        return true;
-      }
-      case 'rpcAck': {
-        const rpcAck = packet.value.value as RpcAck;
-        this.handleIncomingRpcAck(rpcAck.requestId);
-        return true;
-      }
-      default:
-        return false;
-    }
-  }
-
-  handleParticipantDisconnected(participantIdentity: string) {
-    for (const [id, { participantIdentity: pendingIdentity }] of this.pendingAcks) {
-      if (pendingIdentity === participantIdentity) {
+      if (this.pendingAcks.has(id)) {
+        this.log.warn('RPC response received before ack', id);
         this.pendingAcks.delete(id);
+        clearTimeout(ackTimeoutId);
       }
-    }
-
-    for (const [id, { participantIdentity: pendingIdentity, resolve }] of this.pendingResponses) {
-      if (pendingIdentity === participantIdentity) {
-        resolve(null, RpcError.builtIn('RECIPIENT_DISCONNECTED'));
-        this.pendingResponses.delete(id);
-      }
-    }
-  }
-
-  private handleIncomingRpcAck(requestId: string) {
-    const handler = this.pendingAcks.get(requestId);
-    if (handler) {
-      handler.resolve();
-      this.pendingAcks.delete(requestId);
-    } else {
-      console.error('Ack received for unexpected RPC request', requestId);
-    }
-  }
-
-  private handleIncomingRpcResponse(
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const handler = this.pendingResponses.get(requestId);
-    if (handler) {
-      handler.resolve(payload, error);
-      this.pendingResponses.delete(requestId);
-    } else {
-      console.error('Response received for unexpected RPC request', requestId);
-    }
+    });
   }
 
   private async publishRpcRequest(
@@ -249,15 +157,13 @@ export default class RpcClientManager {
     const payloadBytes = byteLength(payload);
 
     let mode: 'regular' | 'compressed' | 'compressed-data-stream' = 'regular';
-    if (remoteClientProtocol >= 1 && payloadBytes >= COMPRESS_MIN_BYTES) {
+    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && payloadBytes >= COMPRESS_MIN_BYTES) {
       mode = 'compressed';
     }
     if (mode === 'compressed' && payloadBytes >= DATA_STREAM_MIN_BYTES) {
       mode = 'compressed-data-stream';
     }
 
-    let requestPayload;
-    let requestCompressedPayload;
     switch (mode) {
       case 'compressed-data-stream': {
         // Large payload: create the data stream tagged with the request ID,
@@ -267,18 +173,12 @@ export default class RpcClientManager {
           topic: RPC_DATA_STREAM_TOPIC,
           destinationIdentities: [destinationIdentity],
           mimeType: 'application/octet-stream',
-          attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
+          attributes: {
+            [RPC_REQUEST_ID_ATTR]: requestId,
+            [RPC_REQUEST_METHOD_ATTR]: method,
+            [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
+          },
         });
-
-        // Send the RPC request now so the receiver knows to expect a data stream
-        await this.sendRpcRequestPacket(
-          destinationIdentity,
-          requestId,
-          method,
-          '',
-          undefined,
-          responseTimeout,
-        );
         await gzipCompressToWriter(payload, writer);
         await writer.close();
         return;
@@ -286,25 +186,30 @@ export default class RpcClientManager {
 
       case 'compressed':
         // Medium payload: compress inline
-        requestCompressedPayload = await gzipCompress(payload);
-        requestPayload = '';
+        const compressedPayload = await gzipCompress(payload);
+        await this.sendRpcRequestPacket(
+          destinationIdentity,
+          requestId,
+          method,
+          '',
+          compressedPayload,
+          responseTimeout,
+        );
         break;
 
       case 'regular':
       default:
         // Small payload: just include the payload directly, uncompressed
-        requestPayload = payload;
+        await this.sendRpcRequestPacket(
+          destinationIdentity,
+          requestId,
+          method,
+          payload,
+          undefined,
+          responseTimeout,
+        );
         break;
     }
-
-    await this.sendRpcRequestPacket(
-      destinationIdentity,
-      requestId,
-      method,
-      requestPayload,
-      requestCompressedPayload,
-      responseTimeout,
-    );
   }
 
   private async sendRpcRequestPacket(
@@ -335,55 +240,119 @@ export default class RpcClientManager {
   }
 
   /**
+   * Handle an incoming data packet that may contain an RPC ack or response.
+   * Returns true if the packet was handled.
+   */
+  private async handleDataPacket(packet: DataPacket): Promise<boolean> {
+    switch (packet.value.case) {
+      case 'rpcResponse': {
+        const rpcResponse = packet.value.value;
+
+        switch (rpcResponse.value.case) {
+          case 'payload': {
+            this.handleIncomingRpcResponseSuccess(rpcResponse.requestId, rpcResponse.value.value);
+            return true;
+          }
+
+          case 'compressedPayload': {
+            let payload;
+            try {
+              payload = await gzipDecompress(rpcResponse.value.value);
+            } catch (e) {
+              this.log.error('Failed to decompress RPC response', e);
+              this.handleIncomingRpcResponseFailure(
+                rpcResponse.requestId,
+                RpcError.builtIn('APPLICATION_ERROR'),
+              );
+              return true;
+            }
+            this.handleIncomingRpcResponseSuccess(rpcResponse.requestId, payload);
+            return true;
+          }
+
+          case 'error': {
+            const error = RpcError.fromProto(rpcResponse.value.value);
+            this.handleIncomingRpcResponseFailure(rpcResponse.requestId, error);
+            return true;
+          }
+
+          default: {
+            this.log.warn(`Error handling RPC response data packet: unknown rpcResponse.value.case found (${rpcResponse.value.case})`);
+            return false;
+          }
+        }
+      }
+      case 'rpcAck': {
+        const rpcAck = packet.value.value;
+
+        const handler = this.pendingAcks.get(rpcAck.requestId);
+        if (handler) {
+          handler.resolve();
+          this.pendingAcks.delete(rpcAck.requestId);
+        } else {
+          this.log.error(`Ack received for unexpected RPC request: ${rpcAck.requestId}`);
+        }
+
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  /**
    * Handle an incoming byte stream containing an RPC response payload.
    * Decompresses the stream and resolves/rejects the pending data stream future.
    */
-  async handleIncomingDataStream(reader: ByteStreamReader, rpcId: string) {
-    let decompressed: string;
+  async handleIncomingDataStream(
+    reader: ByteStreamReader,
+    responseId: string,
+  ) {
+    let decompressedPayload: string;
     try {
-      decompressed = await gzipDecompressFromReader(reader);
+      decompressedPayload = await gzipDecompressFromReader(reader);
     } catch (e) {
-      this.rejectDataStream(rpcId, e instanceof Error ? e : new Error(String(e)));
+      this.log.warn(`Error decompressing RPC response payload: ${e}`);
+      this.handleIncomingRpcResponseFailure(responseId, RpcError.builtIn('APPLICATION_ERROR'));
       return;
     }
-    this.resolveDataStream(rpcId, decompressed);
+
+    this.handleIncomingRpcResponseSuccess(responseId, decompressedPayload);
   }
 
-  /**
-   * Wait for an RPC response data stream to arrive and return its decompressed payload.
-   */
-  private waitForDataStream(requestId: string): Promise<string> {
-    const existing = this.pendingDataStreams.get(requestId);
-    if (existing) {
-      return existing.promise;
-    }
-
-    const future = new Future<string, Error>();
-    this.pendingDataStreams.set(requestId, future);
-    return future.promise;
-  }
-
-  /**
-   * Called by Room's byte stream handler when a data stream tagged with
-   * lk.rpc_response_id arrives.
-   */
-  resolveDataStream(requestId: string, payload: string) {
-    const existing = this.pendingDataStreams.get(requestId);
-    if (existing) {
-      existing.resolve?.(payload);
-      this.pendingDataStreams.delete(requestId);
+  private handleIncomingRpcResponseSuccess(requestId: string, payload: string) {
+    const handler = this.pendingResponses.get(requestId);
+    if (handler) {
+      handler.completionFuture.resolve?.(payload);
+      this.pendingResponses.delete(requestId);
     } else {
-      const future = new Future<string, Error>();
-      future.resolve?.(payload);
-      this.pendingDataStreams.set(requestId, future);
+      console.error('Response received for unexpected RPC request', requestId);
     }
   }
 
-  rejectDataStream(requestId: string, error: Error) {
-    const existing = this.pendingDataStreams.get(requestId);
-    if (existing) {
-      existing.reject?.(error);
-      this.pendingDataStreams.delete(requestId);
+  private handleIncomingRpcResponseFailure(requestId: string, error: RpcError) {
+    const handler = this.pendingResponses.get(requestId);
+    if (handler) {
+      handler.completionFuture.reject?.(error);
+      this.pendingResponses.delete(requestId);
+    } else {
+      console.error('Response received for unexpected RPC request', requestId);
+    }
+  }
+
+  /** @internal */
+  handleParticipantDisconnected(participantIdentity: string) {
+    for (const [id, { participantIdentity: pendingIdentity }] of this.pendingAcks) {
+      if (pendingIdentity === participantIdentity) {
+        this.pendingAcks.delete(id);
+      }
+    }
+
+    for (const [id, { participantIdentity: pendingIdentity, completionFuture }] of this.pendingResponses) {
+      if (pendingIdentity === participantIdentity) {
+        completionFuture.reject?.(RpcError.builtIn('RECIPIENT_DISCONNECTED'));
+        this.pendingResponses.delete(id);
+      }
     }
   }
 }
