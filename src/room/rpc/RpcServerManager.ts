@@ -167,18 +167,25 @@ export default class RpcServerManager {
 
       await gzipCompressToWriter(response!, writer);
       await writer.close();
-    } else if (
+      return;
+    }
+
+    if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
       responseBytes >= COMPRESS_MIN_BYTES
     ) {
       // Medium response: compress inline
       const compressed = await gzipCompress(response!);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
-    } else if (responseBytes > MAX_PAYLOAD_BYTES) {
+      return;
+    }
+
+    if (responseBytes > MAX_PAYLOAD_BYTES) {
       // Legacy client can't handle large payloads
       const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
       await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+
     } else {
       // Small response or legacy client: send uncompressed
       await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
