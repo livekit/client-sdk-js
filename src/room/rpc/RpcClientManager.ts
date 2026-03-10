@@ -15,7 +15,7 @@ import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import {
   COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
-  MAX_PAYLOAD_BYTES,
+  MAX_LEGACY_PAYLOAD_BYTES,
   type PerformRpcParams,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
@@ -86,7 +86,7 @@ export default class RpcClientManager {
     const payloadBytes = byteLength(payload);
 
     // Only enforce the legacy size limit when compression is not available
-    if (payloadBytes > MAX_PAYLOAD_BYTES && remoteClientProtocol < 1) {
+    if (payloadBytes > MAX_LEGACY_PAYLOAD_BYTES && remoteClientProtocol < 1) {
       throw RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE');
     }
 
