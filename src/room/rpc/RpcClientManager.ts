@@ -157,10 +157,10 @@ export default class RpcClientManager {
     const payloadBytes = byteLength(payload);
 
     let mode: 'regular' | 'compressed' | 'compressed-data-stream' = 'regular';
-    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && payloadBytes >= COMPRESS_MIN_BYTES) {
+    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && payloadBytes > COMPRESS_MIN_BYTES) {
       mode = 'compressed';
     }
-    if (mode === 'compressed' && payloadBytes >= DATA_STREAM_MIN_BYTES) {
+    if (mode === 'compressed' && payloadBytes > DATA_STREAM_MIN_BYTES) {
       mode = 'compressed-data-stream';
     }
 
