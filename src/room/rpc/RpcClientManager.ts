@@ -243,7 +243,7 @@ export default class RpcClientManager {
    * Handle an incoming data packet that may contain an RPC ack or response.
    * Returns true if the packet was handled.
    */
-  private async handleDataPacket(packet: DataPacket): Promise<boolean> {
+  private handleDataPacket = async (packet: DataPacket): Promise<boolean> => {
     switch (packet.value.case) {
       case 'rpcResponse': {
         const rpcResponse = packet.value.value;
@@ -298,7 +298,7 @@ export default class RpcClientManager {
       default:
         return false;
     }
-  }
+  };
 
   /**
    * Handle an incoming byte stream containing an RPC response payload.
