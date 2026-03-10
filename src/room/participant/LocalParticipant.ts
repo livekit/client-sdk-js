@@ -247,8 +247,7 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
-      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
-      .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
   }
 
   private handleReconnecting = () => {
@@ -301,10 +300,6 @@ export default class LocalParticipant extends Participant {
       }
       this.pendingSignalRequests.delete(requestId);
     }
-  };
-
-  private handleDataPacket = async (packet: DataPacket) => {
-    await this.rpcClientManager.handleDataPacket(packet);
   };
 
   /**
@@ -1802,11 +1797,6 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.client.isDisconnected) {
       this.updateTrackSubscriptionPermissions();
     }
-  }
-
-  /** @internal */
-  handleParticipantDisconnected(participantIdentity: string) {
-    this.rpcClientManager.handleParticipantDisconnected(participantIdentity);
   }
 
   /** @internal */
