@@ -163,7 +163,7 @@ export default class RpcServerManager {
     // for lower TTFB
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes >= DATA_STREAM_MIN_BYTES
+      responseBytes > DATA_STREAM_MIN_BYTES
     ) {
       const writer = await this.outgoingDataStreamManager.streamBytes({
         topic: RPC_DATA_STREAM_TOPIC,
@@ -180,7 +180,7 @@ export default class RpcServerManager {
     // Medium response: compress inline
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes >= COMPRESS_MIN_BYTES
+      responseBytes > COMPRESS_MIN_BYTES
     ) {
       const compressed = await gzipCompress(response!);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
@@ -283,7 +283,7 @@ export default class RpcServerManager {
 
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes >= DATA_STREAM_MIN_BYTES
+      responseBytes > DATA_STREAM_MIN_BYTES
     ) {
       // Large response: create the data stream tagged with the request ID,
       // send the RPC response with empty payload, then stream compressed chunks
@@ -301,7 +301,7 @@ export default class RpcServerManager {
 
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes >= COMPRESS_MIN_BYTES
+      responseBytes > COMPRESS_MIN_BYTES
     ) {
       // Medium response: compress inline
       const compressed = await gzipCompress(response);
