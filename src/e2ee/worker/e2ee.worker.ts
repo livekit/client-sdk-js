@@ -281,9 +281,9 @@ function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 
-async function setSharedKey(key: CryptoKey, setActive: boolean, index?: number) {
+async function setSharedKey(key: CryptoKey, updateCurrentKeyIndex: boolean, index?: number) {
   workerLogger.info('set shared key', { index });
-  await getSharedKeyHandler().setKey(key, index);
+  await getSharedKeyHandler().setKey(key, index, updateCurrentKeyIndex);
 }
 
 function setupCryptorErrorEvents(cryptor: FrameCryptor) {
