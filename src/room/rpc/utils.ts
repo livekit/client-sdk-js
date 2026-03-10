@@ -139,11 +139,11 @@ export class RpcError extends Error {
 }
 
 /*
- * Maximum payload size for RPC requests and responses when using the legacy (uncompressed) path.
- * If a payload exceeds this size and the remote client does not support compression,
+ * Maximum payload size for RPC requests and responses when using the legacy (uncompressed / no data
+ * streams) path. If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
-export const MAX_PAYLOAD_BYTES = 15360; // 15 KB
+export const MAX_LEGACY_PAYLOAD_BYTES = 15360; // 15 KB
 
 /**
  * Payloads smaller than this are sent uncompressed (legacy path).

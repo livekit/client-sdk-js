@@ -10,7 +10,7 @@ import type Participant from '../participant/Participant';
 import {
   COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
-  MAX_PAYLOAD_BYTES,
+  MAX_LEGACY_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
@@ -78,16 +78,19 @@ export default class RpcServerManager {
     compressedPayload: Uint8Array,
     responseTimeout: number,
     version: number,
+    isCallerStillConnected: () => boolean,
   ) {
     await this.engine.publishRpcAck(callerIdentity, requestId);
 
     if (version !== 1) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
+      if (isCallerStillConnected()) {
+        await this.engine.publishRpcResponse(
+          callerIdentity,
+          requestId,
+          null,
+          RpcError.builtIn('UNSUPPORTED_VERSION'),
+        );
+      }
       return;
     }
 
@@ -98,12 +101,14 @@ export default class RpcServerManager {
         resolvedPayload = await gzipDecompress(compressedPayload);
       } catch (e) {
         this.log.error('Failed to decompress RPC request payload', e);
-        await this.engine.publishRpcResponse(
-          callerIdentity,
-          requestId,
-          null,
-          RpcError.builtIn('APPLICATION_ERROR'),
-        );
+        if (isCallerStillConnected()) {
+          await this.engine.publishRpcResponse(
+            callerIdentity,
+            requestId,
+            null,
+            RpcError.builtIn('APPLICATION_ERROR'),
+          );
+        }
         return;
       }
     }
@@ -111,12 +116,14 @@ export default class RpcServerManager {
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
+      if (isCallerStillConnected()) {
+        await this.engine.publishRpcResponse(
+          callerIdentity,
+          requestId,
+          null,
+          RpcError.builtIn('UNSUPPORTED_METHOD'),
+        );
+      }
       return;
     }
 
@@ -140,7 +147,9 @@ export default class RpcServerManager {
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
 
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      if (isCallerStillConnected()) {
+        await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      }
       return;
     }
 
@@ -149,13 +158,13 @@ export default class RpcServerManager {
 
     const responseBytes = byteLength(response ?? '');
 
+    // Large response: create the data stream tagged with the request ID,
+    // send the RPC response with empty payload, then stream compressed chunks
+    // for lower TTFB
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
       responseBytes >= DATA_STREAM_MIN_BYTES
     ) {
-      // Large response: create the data stream tagged with the request ID,
-      // send the RPC response with empty payload, then stream compressed chunks
-      // for lower TTFB
       const writer = await this.outgoingDataStreamManager.streamBytes({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [callerIdentity],
@@ -163,31 +172,33 @@ export default class RpcServerManager {
         attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
       });
 
-      await this.engine.publishRpcResponse(callerIdentity, requestId, '', null);
-
-      await gzipCompressToWriter(response!, writer);
+      await gzipCompressToWriter(response, writer);
       await writer.close();
       return;
     }
 
+    // Medium response: compress inline
     if (
       callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
       responseBytes >= COMPRESS_MIN_BYTES
     ) {
-      // Medium response: compress inline
       const compressed = await gzipCompress(response!);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
       return;
     }
 
-    if (responseBytes > MAX_PAYLOAD_BYTES) {
-      // Legacy client can't handle large payloads
+    // Legacy client can't handle large payloads
+    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
       const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      if (isCallerStillConnected()) {
+        await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      }
+      return;
+    }
 
-    } else {
-      // Small response or legacy client: send uncompressed
+    // Small response or legacy client: send uncompressed
+    if (isCallerStillConnected()) {
       await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
     }
   }
@@ -298,7 +309,7 @@ export default class RpcServerManager {
       return;
     }
 
-    if (responseBytes > MAX_PAYLOAD_BYTES) {
+    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
       // Legacy client can't handle large payloads
       const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
