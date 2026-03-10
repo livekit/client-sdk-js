@@ -80,7 +80,6 @@ import { type ConnectionQuality, ParticipantKind } from './participant/Participa
 import RemoteParticipant from './participant/RemoteParticipant';
 import {
   RPC_DATA_STREAM_TOPIC,
-  RPC_REQUEST_ID_ATTR,
   RPC_RESPONSE_ID_ATTR,
   RpcClientManager,
   type RpcInvocationData,
@@ -1836,7 +1835,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
     participant.setDisconnected();
-    this.localParticipant?.handleParticipantDisconnected(participant.identity);
+    this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -2398,24 +2397,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private getRemoteParticipantClientProtocol(identity: Participant["identity"]) {
-    console.info('REMOTE', identity, this.remoteParticipants);
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
   }
 
   private registerRpcDataStreamHandler() {
     this.incomingDataStreamManager.registerByteStreamHandler(
       RPC_DATA_STREAM_TOPIC,
-      async (reader, _participantInfo) => {
-        const attrs = reader.info.attributes ?? {};
-        const requestId = attrs[RPC_REQUEST_ID_ATTR];
-        const responseId = attrs[RPC_RESPONSE_ID_ATTR];
+      async (reader, { identity }) => {
+        const attributes = reader.info.attributes ?? {};
+        const responseId = attributes[RPC_RESPONSE_ID_ATTR];
 
-        if (requestId) {
-          await this.rpcServerManager.handleIncomingDataStream(reader, requestId);
-        } else if (responseId) {
+        if (responseId) {
           await this.rpcClientManager.handleIncomingDataStream(reader, responseId);
         } else {
-          this.log.warn('Received RPC DataStream without a request/response ID attribute');
+          await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
         }
       },
     );

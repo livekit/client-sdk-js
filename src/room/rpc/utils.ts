@@ -163,6 +163,13 @@ export const DATA_STREAM_MIN_BYTES = 15360; // 15 KB
  */
 export const RPC_REQUEST_ID_ATTR = 'lk.rpc_request_id';
 
+
+/** @internal */
+export const RPC_REQUEST_METHOD_ATTR = 'lk.rpc_request_method';
+
+/** @internal */
+export const RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR = 'lk.rpc_request_response_timeout_ms';
+
 /**
  * Attribute key set on a data stream to associate it with an RPC response.
  * @internal
