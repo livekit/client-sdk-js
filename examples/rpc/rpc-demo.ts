@@ -81,7 +81,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     async (data: RpcInvocationData) => {
       console.log(`[Greeter] Oh ${data.callerIdentity} arrived and said "${data.payload}"`);
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      return 'Welcome and have a wonderful day!';
+      return 'Welcome and have a wonderful day!' + new Array<string>(10_000).fill('a').join('');
     },
   );
 
