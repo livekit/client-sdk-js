@@ -1400,7 +1400,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.maybeCreateEngine();
   }
 
-  private onTrackAdded(
+  private async onTrackAdded(
     mediaTrack: MediaStreamTrack,
     stream: MediaStream,
     receiver: RTCRtpReceiver,
@@ -1451,16 +1451,34 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    const participant = Array.from(this.remoteParticipants.values()).find(
-      (p) => p.sid === participantSid,
-    ) as RemoteParticipant | undefined;
+    const findParticipant = () =>
+      Array.from(this.remoteParticipants.values()).find((p) => p.sid === participantSid) as
+        | RemoteParticipant
+        | undefined;
+
+    let participant = findParticipant();
 
     if (!participant) {
-      this.log.error(
-        `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
-        this.logContext,
-      );
-      return;
+      const waitForParticipant = async () => {
+        const start = performance.now();
+        while (performance.now() - start < 300) {
+          await sleep(20);
+          const p = findParticipant();
+          if (p) {
+            return p;
+          }
+        }
+      };
+      participant = await waitForParticipant();
+
+      if (!participant) {
+        // participant still not found after waiting for it, giving up
+        this.log.error(
+          `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
+          this.logContext,
+        );
+        return;
+      }
     }
 
     // in single peer connection case, the trackID is locally generated,
