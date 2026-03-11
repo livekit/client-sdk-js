@@ -121,7 +121,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const abortController = new AbortController();
 
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
@@ -149,7 +148,6 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            abortController,
           });
         },
       });
@@ -170,7 +168,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const abortController = new AbortController();
 
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
@@ -199,7 +196,6 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            abortController,
           });
         },
       });

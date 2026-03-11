@@ -124,7 +124,6 @@ export interface StreamController<T extends DataStream_Chunk> {
   startTime: number;
   endTime?: number;
   sendingParticipantIdentity: string;
-  abortController: AbortController;
 }
 
 export interface BaseStreamInfo {
