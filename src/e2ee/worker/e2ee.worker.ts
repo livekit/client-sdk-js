@@ -329,17 +329,23 @@ function handleSifTrailer(trailer: Uint8Array) {
 // Operations using RTCRtpScriptTransform.
 // @ts-ignore
 if (self.RTCTransformEvent) {
-  workerLogger.debug('setup transform event');
   // @ts-ignore
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    workerLogger.debug('transformer', transformer);
-
     const { kind, participantIdentity, trackId, codec } =
       transformer.options as ScriptTransformOptions;
-    const cryptor = getTrackCryptor(participantIdentity, trackId);
-    workerLogger.debug('transform', { codec });
-    cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, false, codec);
+    messageQueue.run(async () => {
+      const cryptor = getTrackCryptor(participantIdentity, trackId);
+      workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
+      cryptor.setupTransform(
+        kind,
+        transformer.readable,
+        transformer.writable,
+        trackId,
+        false,
+        codec,
+      );
+    });
   };
 }
