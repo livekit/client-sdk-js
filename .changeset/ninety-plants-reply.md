@@ -1,5 +1,5 @@
 ---
-"livekit-client": patch
+'livekit-client': patch
 ---
 
-Use abortSignal for out of band failure handling in data streams
+Use controller.error to signal unexpected errors mid data stream
