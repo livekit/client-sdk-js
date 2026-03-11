@@ -271,9 +271,7 @@ const appActions = {
 
       let message = '';
       try {
-        for await (const chunk of await reader.withAbortSignal(
-          streamReaderAbortController.signal,
-        )) {
+        for await (const chunk of reader.withAbortSignal(streamReaderAbortController.signal)) {
           message += chunk;
           console.log('received message', message, participant);
           handleChatMessage(
