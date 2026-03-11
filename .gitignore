@@ -113,4 +113,7 @@ pkg/
 bin/
 examples/**/build/
 
+# dts validation task working directory
+dts-validation/
+
 .env.local
