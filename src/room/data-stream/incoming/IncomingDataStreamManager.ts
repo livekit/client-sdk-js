@@ -78,11 +78,11 @@ export default class IncomingDataStreamManager {
         DataStreamErrorReason.AbnormalEnd,
       );
       for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
-        controller.abortController.abort(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.byteStreamControllers.delete(id);
       }
       for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.abortController.abort(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.textStreamControllers.delete(id);
       }
     }
@@ -154,12 +154,7 @@ export default class IncomingDataStreamManager {
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          abortController.signal,
-        ),
+        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         {
           identity: participantIdentity,
         },
@@ -209,12 +204,7 @@ export default class IncomingDataStreamManager {
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          abortController.signal,
-        ),
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
     }

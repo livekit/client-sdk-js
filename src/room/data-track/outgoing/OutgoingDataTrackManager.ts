@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
-import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type { Throws } from '../../../utils/throws';
 import { Future } from '../../utils';
 import { type EncryptionProvider } from '../e2ee';
@@ -161,8 +160,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       throw DataTrackPublishError.limitReached();
     }
 
-    const timeoutSignal = abortSignalTimeout(PUBLISH_TIMEOUT_MILLISECONDS);
-    const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
+    const timeoutSignal = AbortSignal.timeout(PUBLISH_TIMEOUT_MILLISECONDS);
+    const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
     if (this.descriptors.has(handle)) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
