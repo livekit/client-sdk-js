@@ -22,25 +22,11 @@ export class WaitableMapAbortError extends DOMException {
  * // Wait for a key which will be added soon:
  * const value = await map.waitUntilExists("key");
  */
-export class WaitableMap<K, V> implements Iterable<[K, V]> {
-  private inner: Map<K, V>;
-
+export class WaitableMap<K, V> extends Map<K, V> {
   private pending: Map<K, Array<Future<V, WaitableMapAbortError>>> = new Map();
 
-  constructor(entries?: Array<[K, V]> | null) {
-    this.inner = new Map(entries);
-  }
-
-  get size(): number {
-    return this.inner.size;
-  }
-
-  get(key: K): V | undefined {
-    return this.inner.get(key);
-  }
-
   set(key: K, value: V): this {
-    this.inner.set(key, value);
+    this.set(key, value);
 
     // Resolve any futures waiting on this key.
     const futures = this.pending.get(key);
@@ -54,38 +40,6 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
     }
 
     return this;
-  }
-
-  has(key: K): boolean {
-    return this.inner.has(key);
-  }
-
-  delete(key: K): boolean {
-    return this.inner.delete(key);
-  }
-
-  clear(): void {
-    this.inner.clear();
-  }
-
-  keys(): MapIterator<K> {
-    return this.inner.keys();
-  }
-
-  values(): MapIterator<V> {
-    return this.inner.values();
-  }
-
-  entries(): MapIterator<[K, V]> {
-    return this.inner.entries();
-  }
-
-  forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
-    this.inner.forEach(callbackfn, thisArg);
-  }
-
-  [Symbol.iterator](): MapIterator<[K, V]> {
-    return this.inner[Symbol.iterator]();
   }
 
   get [Symbol.toStringTag](): string {
@@ -102,7 +56,7 @@ export class WaitableMap<K, V> implements Iterable<[K, V]> {
   waitUntilExists(key: K): Promise<V>;
   waitUntilExists(key: K, signal: AbortSignal): Promise<Throws<V, WaitableMapAbortError>>;
   async waitUntilExists(key: K, signal?: AbortSignal) {
-    const existing = this.inner.get(key);
+    const existing = this.get(key);
     if (typeof existing !== 'undefined') {
       return existing;
     }
