@@ -8,7 +8,7 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { Future, bigIntToNumber } from '../../utils';
+import { bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -78,11 +78,11 @@ export default class IncomingDataStreamManager {
         DataStreamErrorReason.AbnormalEnd,
       );
       for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
-        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.byteStreamControllers.delete(id);
       }
       for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.textStreamControllers.delete(id);
       }
     }
@@ -121,10 +121,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never, Error>();
-      outOfBandFailureRejectingFuture.promise.catch((err) => {
-        this.log.error(err);
-      });
 
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
@@ -152,17 +148,11 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          outOfBandFailureRejectingFuture,
-        ),
+        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         {
           identity: participantIdentity,
         },
@@ -178,10 +168,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never, Error>();
-      outOfBandFailureRejectingFuture.promise.catch((err) => {
-        this.log.error(err);
-      });
 
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
@@ -210,17 +196,11 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          outOfBandFailureRejectingFuture,
-        ),
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
     }
