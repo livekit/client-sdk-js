@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.17.4
+
+### Patch Changes
+
+- Fix shouldReturnCachedValueFromFetch check for cached options - [#1837](https://github.com/livekit/client-sdk-js/pull/1837) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.17.3
 
 ### Patch Changes
