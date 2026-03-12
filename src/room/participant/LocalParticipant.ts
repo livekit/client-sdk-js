@@ -2282,11 +2282,13 @@ export default class LocalParticipant extends Participant {
   async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
     let track;
     try {
-      track = await this.roomOutgoingDataTrackManager.publishRequest(options);
+      track = this.roomOutgoingDataTrackManager.createTrackRequest(options);
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
+
+    await track.publish();
 
     return track;
   }
