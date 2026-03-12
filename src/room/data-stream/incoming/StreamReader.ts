@@ -71,6 +71,9 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
 
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
+    // Suppress unhandled rejection on reader.closed — errors are
+    // already propagated through reader.read() to the consumer.
+    reader.closed.catch(() => {});
 
     const cleanup = () => {
       reader.releaseLock();
@@ -195,6 +198,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
    */
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
+    // Suppress unhandled rejection on reader.closed — errors are
+    // already propagated through reader.read() to the consumer.
+    reader.closed.catch(() => {});
     const decoder = new TextDecoder('utf-8', { fatal: true });
     const signal = this.signal;
 
