@@ -1,12 +1,13 @@
 import type { DataTrackFrame } from './frame';
+import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import type { DataTrackOptions } from './outgoing/types';
 import {
   DataTrackSymbol,
   type IDataTrack,
   type ILocalTrack,
   TrackSymbol,
 } from './track-interfaces';
-import type { DataTrackInfo } from './types';
 
 export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   readonly trackSymbol = TrackSymbol;
@@ -15,19 +16,46 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   readonly typeSymbol = DataTrackSymbol;
 
-  info: DataTrackInfo;
+  protected options: DataTrackOptions;
+
+  /** @internal */
+  handle: DataTrackHandle;
 
   protected manager: OutgoingDataTrackManager;
 
   /** @internal */
-  constructor(info: DataTrackInfo, manager: OutgoingDataTrackManager) {
-    this.info = info;
+  constructor(
+    options: DataTrackOptions,
+    handle: DataTrackHandle,
+    manager: OutgoingDataTrackManager,
+  ) {
+    this.options = options;
+    this.handle = handle;
     this.manager = manager;
+  }
+
+  get info() {
+    const descriptor = this.descriptor;
+    if (descriptor?.type === 'active') {
+      return descriptor.info;
+    } else {
+      return undefined;
+    }
   }
 
   /** The raw descriptor from the manager containing the internal state for this local track. */
   protected get descriptor() {
-    return this.manager.getDescriptor(this.info.pubHandle);
+    return this.manager.getDescriptor(this.handle);
+  }
+
+  /** Publish the track to the SFU. This must be done before calling {@link tryPush} for the first time. */
+  async publish(signal?: AbortSignal) {
+    try {
+      await this.manager.publishRequest(this.handle, this.options, signal);
+    } catch (err) {
+      // NOTE: Rethrow errors to break Throws<...> type boundary
+      throw err;
+    }
   }
 
   isPublished() {
@@ -45,7 +73,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    */
   tryPush(payload: DataTrackFrame['payload']) {
     try {
-      return this.manager.tryProcessAndSend(this.info.pubHandle, payload);
+      return this.manager.tryProcessAndSend(this.handle, payload);
     } catch (err) {
       // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
       // propagate upwards into the public interface.
@@ -59,7 +87,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * */
   async unpublish() {
     try {
-      await this.manager.unpublishRequest(this.info.pubHandle);
+      await this.manager.unpublishRequest(this.handle);
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;

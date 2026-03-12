@@ -12,6 +12,7 @@ import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
+  DataTrackPublishErrorReason,
   DataTrackPushFrameError,
   DataTrackPushFrameErrorReason,
 } from './errors';
@@ -28,7 +29,8 @@ const log = getLogger(LoggerNames.DataTracks);
 
 export type PendingDescriptor = {
   type: 'pending';
-  completionFuture: Future<LocalDataTrack, DataTrackPublishError>;
+  /** Resolves when the descriptor is fully published. */
+  completionFuture: Future<void, DataTrackPublishError>;
 };
 export type ActiveDescriptor = {
   type: 'active';
@@ -120,14 +122,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     return this.descriptors.get(handle) ?? null;
   }
 
-  createLocalDataTrack(handle: DataTrackHandle) {
-    const descriptor = this.getDescriptor(handle);
-    if (descriptor?.type !== 'active') {
-      return null;
-    }
-    return new LocalDataTrack(descriptor.info, this);
-  }
-
   /** Used by attached {@link LocalDataTrack} instances to broadcast data track packets to other
    * subscribers.
    * @internal
@@ -170,13 +164,27 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Client requested to publish a track. */
-  async publishRequest(options: DataTrackOptions, signal?: AbortSignal) {
+  /**
+   * Create a new {@link LocalDataTrack} which can be published / unpublished later. It starts
+   * unpublished.
+   * @internal
+   **/
+  createTrackRequest(
+    options: DataTrackOptions,
+  ): Throws<LocalDataTrack, DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>> {
     const handle = this.handleAllocator.get();
     if (!handle) {
       throw DataTrackPublishError.limitReached();
     }
 
+    return new LocalDataTrack(options, handle, this);
+  }
+
+  /**
+   * Client requested to publish a track.
+   * @internal
+   **/
+  async publishRequest(handle: DataTrackHandle, options: DataTrackOptions, signal?: AbortSignal) {
     const timeoutSignal = abortSignalTimeout(PUBLISH_TIMEOUT_MILLISECONDS);
     const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
 
@@ -220,12 +228,14 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       usesE2ee: this.e2eeManager !== null,
     });
 
-    const localDataTrack = await descriptor.completionFuture.promise;
+    await descriptor.completionFuture.promise;
     combinedSignal.removeEventListener('abort', onAbort);
-    return localDataTrack;
   }
 
-  /** Get information about all currently published tracks. */
+  /**
+   * Get information about all currently published tracks.
+   * @internal
+   **/
   queryPublished() {
     const descriptorInfos = Array.from(this.descriptors.values())
       .filter((descriptor): descriptor is ActiveDescriptor => descriptor.type === 'active')
@@ -234,7 +244,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     return descriptorInfos;
   }
 
-  /** Client request to unpublish a track. */
+  /**
+   * Client request to unpublish a track.
+   * @internal
+   **/
   async unpublishRequest(handle: DataTrackHandle) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
@@ -251,7 +264,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     await descriptor.unpublishingFuture.promise;
   }
 
-  /** SFU responded to a request to publish a data track. */
+  /**
+   * SFU responded to a request to publish a data track.
+   * @internal
+   **/
   receivedSfuPublishResponse(handle: DataTrackHandle, result: SfuPublishResponseResult) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
@@ -267,15 +283,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
           const e2eeManager = info.usesE2ee ? this.e2eeManager : null;
           this.descriptors.set(info.pubHandle, Descriptor.active(info, e2eeManager));
 
-          const localDataTrack = this.createLocalDataTrack(info.pubHandle);
-          if (!localDataTrack) {
-            // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-            throw new Error(
-              'DataTrackOutgoingManager.handleSfuPublishResponse: localDataTrack was not created after active descriptor stored.',
-            );
-          }
-
-          descriptor.completionFuture.resolve?.(localDataTrack);
+          descriptor.completionFuture.resolve?.();
         } else {
           descriptor.completionFuture.reject?.(result.error);
         }
@@ -299,7 +307,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** SFU notification that a track has been unpublished. */
+  /**
+   * SFU notification that a track has been unpublished.
+   * @internal
+   **/
   receivedSfuUnpublishResponse(handle: DataTrackHandle) {
     const descriptor = this.descriptors.get(handle);
     if (!descriptor) {
@@ -321,6 +332,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
    *
    * This must be sent after a full reconnect in order for existing publications
    * to be recognized by the SFU. Each republished track will be assigned a new SID.
+   * @internal
    */
   sfuWillRepublishTracks() {
     for (const [handle, descriptor] of this.descriptors.entries()) {
@@ -342,7 +354,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Shuts down the manager and all associated tracks. */
+  /**
+   * Shuts down the manager and all associated tracks.
+   * @internal
+   **/
   async shutdown() {
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {

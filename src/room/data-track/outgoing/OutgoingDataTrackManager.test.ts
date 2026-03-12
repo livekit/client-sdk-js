@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type DecryptDataResponseMessage, type EncryptDataResponseMessage } from '../../..';
+import {
+  type DecryptDataResponseMessage,
+  type EncryptDataResponseMessage,
+  LocalDataTrack,
+} from '../../..';
 import { type BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import RTCEngine from '../../RTCEngine';
@@ -75,8 +79,11 @@ describe('DataTrackOutgoingManager', () => {
       'sfuPublishRequest',
     ]);
 
+    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -96,7 +103,7 @@ describe('DataTrackOutgoingManager', () => {
     });
 
     // Make sure that the original input event resolves.
-    const localDataTrack = await publishRequestPromise;
+    await publishRequestPromise;
     expect(localDataTrack.isPublished()).toStrictEqual(true);
   });
 
@@ -107,7 +114,8 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -131,7 +139,8 @@ describe('DataTrackOutgoingManager', () => {
 
     // 1. Publish a data track
     const controller = new AbortController();
-    const publishRequestPromise = manager.publishRequest({ name: 'test' }, controller.signal);
+    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish(controller.signal);
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -159,10 +168,8 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // Publish a data track
-    const publishRequestPromise = manager.publishRequest(
-      { name: 'test' },
-      AbortSignal.abort(/* already aborted */),
-    );
+    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish(AbortSignal.abort(/* already aborted */));
 
     // Make sure cancellation is immediately bubbled up
     expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
@@ -251,8 +258,7 @@ describe('DataTrackOutgoingManager', () => {
         'packetsAvailable',
       ]);
 
-      const localDataTrack = manager.createLocalDataTrack(5)!;
-      expect(localDataTrack).not.toStrictEqual(null);
+      const localDataTrack = new LocalDataTrack({ name: 'track name' }, 5, manager);
 
       // Kick off sending the bytes...
       localDataTrack.tryPush(inputBytes);
@@ -277,7 +283,8 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -297,7 +304,7 @@ describe('DataTrackOutgoingManager', () => {
     });
 
     // Get the connected local data track
-    const localDataTrack = await publishRequestPromise;
+    await publishRequestPromise;
     expect(localDataTrack.isPublished()).toStrictEqual(true);
 
     // Kick off sending the payload bytes
@@ -396,7 +403,7 @@ describe('DataTrackOutgoingManager', () => {
       'packetsAvailable',
       'sfuUnpublishRequest',
     ]);
-    const localDataTrack = manager.createLocalDataTrack(5)!;
+    const localDataTrack = new LocalDataTrack({ name: 'track name' }, 5, manager);
 
     // Make sure the descriptor is in there
     expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
