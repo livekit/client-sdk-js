@@ -59,7 +59,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     if (!isResponseTokenValid(this.cachedResponse)) {
       return false;
     }
-    if (this.isSameAsCachedFetchOptions(fetchOptions)) {
+    if (!this.isSameAsCachedFetchOptions(fetchOptions)) {
       return false;
     }
     return true;
