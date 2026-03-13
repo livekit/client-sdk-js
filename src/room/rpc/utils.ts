@@ -139,10 +139,156 @@ export class RpcError extends Error {
 }
 
 /*
- * Maximum payload size for RPC requests and responses. If a payload exceeds this size,
+ * Maximum payload size for RPC requests and responses for clients with a clientProtocol of less
+ * than CLIENT_PROTOCOL_GZIP_RPC.
+ *
+ * If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
-export const MAX_PAYLOAD_BYTES = 15360; // 15 KB
+export const MAX_LEGACY_PAYLOAD_BYTES = 15360; // 15 KB
+
+/**
+ * Payloads above this size are sent via a data stream instead of inline.
+ * @internal
+ */
+export const DATA_STREAM_MIN_BYTES = 15360; // 15 KB
+
+/**
+ * Attribute key set on a data stream to associate it with an RPC request.
+ * @internal
+ */
+export const RPC_REQUEST_ID_ATTR = 'lk.rpc_request_id';
+
+/** @internal */
+export const RPC_REQUEST_METHOD_ATTR = 'lk.rpc_request_method';
+
+/** @internal */
+export const RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR = 'lk.rpc_request_response_timeout_ms';
+
+/**
+ * Attribute key set on a data stream to associate it with an RPC response.
+ * @internal
+ */
+export const RPC_RESPONSE_ID_ATTR = 'lk.rpc_response_id';
+
+/**
+ * Topic used for RPC payload data streams.
+ * @internal
+ */
+export const RPC_DATA_STREAM_TOPIC = 'lk.rpc_payload';
+
+/**
+ * Compress a string payload using gzip.
+ * @internal
+ */
+export async function gzipCompress(data: string): Promise<Uint8Array> {
+  const input = new TextEncoder().encode(data);
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(input);
+  writer.close();
+
+  const reader = cs.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+  }
+
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+/**
+ * Compress a string payload using gzip, streaming each compressed chunk to the provided writer.
+ * @internal
+ */
+export async function gzipCompressToWriter(
+  data: string,
+  writer: { write(chunk: Uint8Array): Promise<void> },
+): Promise<void> {
+  const input = new TextEncoder().encode(data);
+  const cs = new CompressionStream('gzip');
+  const csWriter = cs.writable.getWriter();
+  csWriter.write(input);
+  csWriter.close();
+
+  const reader = cs.readable.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    await writer.write(value);
+  }
+}
+
+/**
+ * Decompress a gzip-compressed payload back to a string.
+ * @internal
+ */
+export async function gzipDecompress(data: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(data);
+  writer.close();
+
+  const reader = ds.readable.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+  return result;
+}
+
+/**
+ * Decompress a gzip-compressed stream of chunks back to a string, feeding each chunk
+ * into the decompression stream as it arrives rather than buffering first.
+ * @internal
+ */
+export async function gzipDecompressFromReader(reader: AsyncIterable<Uint8Array>): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const dsWriter = ds.writable.getWriter();
+
+  // Feed compressed chunks into the decompression stream as they arrive
+  const pipePromise = (async () => {
+    for await (const chunk of reader) {
+      await dsWriter.write(chunk);
+    }
+    await dsWriter.close();
+  })();
+
+  // Read decompressed output concurrently
+  const dsReader = ds.readable.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+  while (true) {
+    const { done, value } = await dsReader.read();
+    if (done) {
+      break;
+    }
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+
+  await pipePromise;
+  return result;
+}
 
 /**
  * @internal

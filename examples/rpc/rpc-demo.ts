@@ -37,6 +37,13 @@ async function main() {
   }
 
   try {
+    console.log('\n\nRunning send long info example...');
+    await Promise.all([performSendVeryLongInfo(callersRoom)]);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+
+  try {
     console.log('\n\nRunning error handling example...');
     await Promise.all([performDivision(callersRoom)]);
   } catch (error) {
@@ -85,6 +92,18 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     },
   );
 
+  await greetersRoom.registerRpcMethod(
+    'exchanging-long-info',
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (data: RpcInvocationData) => {
+      console.log(
+        `[Greeter] ${data.callerIdentity} has arrived and said that its long info is "${data.payload}"`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return new Array<string>(10_000).fill('Y').join('');
+    },
+  );
+
   await mathGeniusRoom.registerRpcMethod('square-root', async (data: RpcInvocationData) => {
     const jsonData = JSON.parse(data.payload);
     const number = jsonData.number;
@@ -130,6 +149,21 @@ const performGreeting = async (room: Room): Promise<void> => {
       payload: 'Hello',
     });
     console.log(`[Caller] That's nice, the greeter said: "${response}"`);
+  } catch (error) {
+    console.error('[Caller] RPC call failed:', error);
+    throw error;
+  }
+};
+
+const performSendVeryLongInfo = async (room: Room): Promise<void> => {
+  console.log('[Caller] Sending the greeter a very long message');
+  try {
+    const response = await room.localParticipant.performRpc({
+      destinationIdentity: 'greeter',
+      method: 'exchanging-long-info',
+      payload: new Array<string>(10_000).fill('X').join(''),
+    });
+    console.log(`[Caller] The greeter's long info is: "${response}"`);
   } catch (error) {
     console.error('[Caller] RPC call failed:', error);
     throw error;

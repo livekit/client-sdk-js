@@ -5,6 +5,7 @@ import type {
   UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -29,6 +30,11 @@ export default class RemoteParticipant extends Participant {
 
   signalClient: SignalClient;
 
+  /** A version number indicating the set of features that the report participant's client supports.
+   * @internal
+   **/
+  clientProtocol: number;
+
   private volumeMap: Map<Track.Source, number>;
 
   private audioOutput?: AudioOutputOptions;
@@ -48,6 +54,7 @@ export default class RemoteParticipant extends Participant {
       pi.attributes,
       loggerOptions,
       pi.kind,
+      pi.clientProtocol,
     );
   }
 
@@ -69,6 +76,7 @@ export default class RemoteParticipant extends Participant {
     attributes?: Record<string, string>,
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
+    clientProtocol: number = CLIENT_PROTOCOL_DEFAULT,
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
@@ -76,6 +84,7 @@ export default class RemoteParticipant extends Participant {
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
     this.volumeMap = new Map();
+    this.clientProtocol = clientProtocol;
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {

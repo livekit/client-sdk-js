@@ -1285,6 +1285,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
+  async publishRpcResponseCompressed(
+    destinationIdentity: string,
+    requestId: string,
+    compressedPayload: Uint8Array,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcResponse',
+        value: new RpcResponse({
+          requestId,
+          value: { case: 'compressedPayload', value: compressedPayload },
+        }),
+      },
+    });
+
+    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
   async publishRpcAck(destinationIdentity: string, requestId: string) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
