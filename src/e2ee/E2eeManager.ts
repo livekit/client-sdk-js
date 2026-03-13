@@ -170,7 +170,7 @@ export class E2EEManager
       case 'initAck':
         if (data.enabled) {
           this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
+            this.postKey(keyInfo, false);
           });
         }
         break;
@@ -178,7 +178,7 @@ export class E2EEManager
       case 'enable':
         if (data.enabled) {
           this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
+            this.postKey(keyInfo, false);
           });
         }
         if (
@@ -310,8 +310,9 @@ export class E2EEManager
         if (!this.room) {
           throw new TypeError(`expected room to be present on signal connect`);
         }
+        const latestKeyIndex = keyProvider.getLatestManuallySetKeyIndex();
         keyProvider.getKeys().forEach((keyInfo) => {
-          this.postKey(keyInfo);
+          this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
         });
         this.setParticipantCryptorEnabled(
           this.room.localParticipant.isE2EEEnabled,
@@ -341,7 +342,9 @@ export class E2EEManager
     });
 
     keyProvider
-      .on(KeyProviderEvent.SetKey, (keyInfo) => this.postKey(keyInfo))
+      .on(KeyProviderEvent.SetKey, (keyInfo, updateCurrentKeyIndex) =>
+        this.postKey(keyInfo, updateCurrentKeyIndex ?? true),
+      )
       .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
         this.postRatchetRequest(participantId, keyIndex),
       );
@@ -412,7 +415,7 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postKey({ key, participantIdentity, keyIndex }: KeyInfo) {
+  private postKey({ key, participantIdentity, keyIndex }: KeyInfo, updateCurrentKeyIndex: boolean) {
     if (!this.worker) {
       throw Error('could not set key, worker is missing');
     }
@@ -423,6 +426,7 @@ export class E2EEManager
         isPublisher: participantIdentity === this.room?.localParticipant.identity,
         key,
         keyIndex,
+        updateCurrentKeyIndex,
       },
     };
     this.worker.postMessage(msg);

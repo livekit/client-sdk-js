@@ -1,5 +1,5 @@
-import { debounce } from 'ts-debounce';
 import type { UserFrameMetadata } from '../../user_timestamp';
+import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';

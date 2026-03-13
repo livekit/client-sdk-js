@@ -14,6 +14,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
 
   private readonly options: KeyProviderOptions;
 
+  private latestManuallySetKeyIndex = 0;
+
   constructor(options: Partial<KeyProviderOptions> = {}) {
     super();
     this.keyInfoMap = new Map();
@@ -35,7 +37,10 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
       );
     }
     this.keyInfoMap.set(`${participantIdentity ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
-    this.emit(KeyProviderEvent.SetKey, keyInfo);
+    if (keyIndex !== undefined) {
+      this.latestManuallySetKeyIndex = keyIndex;
+    }
+    this.emit(KeyProviderEvent.SetKey, keyInfo, keyIndex !== undefined);
   }
 
   /**
@@ -57,6 +62,10 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
 
   getKeys() {
     return Array.from(this.keyInfoMap.values());
+  }
+
+  getLatestManuallySetKeyIndex() {
+    return this.latestManuallySetKeyIndex;
   }
 
   getOptions() {

@@ -324,6 +324,7 @@ const appActions = {
           );
         }
       } catch (err) {
+        console.error('text stream error', err);
         message += 'ERROR';
         handleChatMessage(
           {
@@ -333,7 +334,6 @@ const appActions = {
           },
           room.getParticipantByIdentity(participant?.identity),
         );
-        throw err;
       }
 
       if (!info.size) {

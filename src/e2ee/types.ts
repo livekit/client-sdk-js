@@ -23,6 +23,7 @@ export interface SetKeyMessage extends BaseMessage {
     isPublisher: boolean;
     key: CryptoKey;
     keyIndex?: number;
+    updateCurrentKeyIndex: boolean;
   };
 }
 
