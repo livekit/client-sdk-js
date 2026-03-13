@@ -88,6 +88,10 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     }
   }
 
+  invalidateCache() {
+    this.cachedResponse = null;
+  }
+
   protected abstract update(options: TokenSourceFetchOptions): Promise<TokenSourceResponse>;
 }
 
