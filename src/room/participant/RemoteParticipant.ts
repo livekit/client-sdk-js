@@ -7,6 +7,7 @@ import type {
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
 import type RemoteDataTrack from '../data-track/RemoteDataTrack';
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -21,7 +22,6 @@ import type { LoggerOptions } from '../types';
 import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
-import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
