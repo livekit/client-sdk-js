@@ -48,6 +48,7 @@ import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
 import { isPacketTrailerSupported } from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
+import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
@@ -128,7 +129,6 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -2470,9 +2470,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private getRemoteParticipantClientProtocol = (identity: Participant["identity"]) => {
+  private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
-  }
+  };
 
   private registerRpcDataStreamHandler() {
     this.incomingDataStreamManager.registerByteStreamHandler(

@@ -6,7 +6,7 @@ import type {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
-import RemoteDataTrack from '../data-track/RemoteDataTrack';
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import type IncomingDataTrackManager from '../data-track/incoming/IncomingDataTrackManager';
 import { DataTrackInfo } from '../data-track/types';
 import { ParticipantEvent, TrackEvent } from '../events';
@@ -23,7 +23,6 @@ import type { LoggerOptions } from '../types';
 import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
-import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
