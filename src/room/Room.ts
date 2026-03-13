@@ -44,7 +44,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
-import { stripUserTimestampFromEncodedFrame } from '../user_timestamp/UserTimestampTransformer';
+import { stripPacketTrailerFromEncodedFrame } from '../packet_trailer/PacketTrailerTransformer';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
@@ -127,8 +127,8 @@ export enum ConnectionState {
   SignalReconnecting = 'signalReconnecting',
 }
 
-function createUserTimestampWorker(): Worker {
-  return new Worker(new URL('./livekit-client.user-timestamp.worker.js', import.meta.url));
+function createPacketTrailerWorker(): Worker {
+  return new Worker(new URL('./livekit-client.packet-trailer.worker.js', import.meta.url));
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
@@ -2205,7 +2205,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // video frames. When e2ee IS enabled, the FrameCryptor worker
           // handles this before decryption.
           if (!this.hasE2EESetup && track instanceof RemoteVideoTrack && track.receiver) {
-            this.setupUserTimestampTransform(track);
+            this.setupPacketTrailerTransform(track);
           }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
@@ -2630,7 +2630,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * and falls back to createEncodedStreams (legacy insertable streams) on
    * Chromium where encodedInsertableStreams is enabled on the PeerConnection.
    */
-  private setupUserTimestampTransform(track: RemoteVideoTrack) {
+  private setupPacketTrailerTransform(track: RemoteVideoTrack) {
     const receiver = track.receiver;
     if (!receiver) {
       return;
@@ -2638,9 +2638,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       if (isScriptTransformSupported() && !isChromiumBased()) {
-        const worker = createUserTimestampWorker();
+        const worker = createPacketTrailerWorker();
         worker.onmessage = (ev: MessageEvent) => {
-          if (ev.data?.kind === 'userTimestamp' && typeof ev.data.timestampUs === 'number') {
+          if (ev.data?.kind === 'packetTrailer' && typeof ev.data.timestampUs === 'number') {
             track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp, ev.data.frameId);
           }
         };
@@ -2657,7 +2657,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         const transformStream = new TransformStream<RTCEncodedVideoFrame, RTCEncodedVideoFrame>({
           transform: (encodedFrame, controller) => {
             try {
-              const result = stripUserTimestampFromEncodedFrame(encodedFrame);
+              const result = stripPacketTrailerFromEncodedFrame(encodedFrame);
               if (result !== undefined) {
                 track.setUserTimestamp(result.timestampUs, result.rtpTimestamp, result.frameId);
               }

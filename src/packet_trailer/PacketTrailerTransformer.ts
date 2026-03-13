@@ -1,8 +1,8 @@
 /**
- * Utilities for parsing LiveKit user timestamp (LKTS) trailers from encoded
+ * Utilities for parsing LiveKit packet trailer (LKTS) from encoded
  * video frames on the receive side.
  *
- * Trailer wire format (matches rust-sdks user_timestamp.h):
+ * Trailer wire format (matches rust-sdks packet_trailer.h):
  *
  *   [TLV...] [trailer_len: 1B] [magic "LKTS": 4B]
  *
@@ -25,27 +25,27 @@ export interface UserFrameMetadata {
   frameId?: number;
 }
 
-export interface UserTimestampInfo extends UserFrameMetadata {
+export interface PacketTrailerInfo extends UserFrameMetadata {
   /** Frame payload with the LKTS trailer removed. */
   payload: ArrayBuffer;
 }
 
-export interface UserTimestampWithRtp extends UserFrameMetadata {
+export interface PacketTrailerWithRtp extends UserFrameMetadata {
   /** RTP timestamp from the encoded frame (90 kHz clock for video). */
   rtpTimestamp: number;
 }
 
 /** ASCII bytes for 'L', 'K', 'T', 'S'. */
-export const USER_TS_MAGIC = Uint8Array.from([0x4c, 0x4b, 0x54, 0x53]);
+export const PACKET_TRAILER_MAGIC = Uint8Array.from([0x4c, 0x4b, 0x54, 0x53]);
 /** Envelope: [trailer_len: 1B] [magic: 4B] */
-export const USER_TS_ENVELOPE_SIZE = 5;
+export const PACKET_TRAILER_ENVELOPE_SIZE = 5;
 
 /** TLV tag IDs */
 export const TAG_TIMESTAMP_US = 0x01;
 export const TAG_FRAME_ID = 0x02;
 
 /** Trailer size when both timestamp_us and frame_id are present. */
-export const USER_TS_TRAILER_SIZE = 21;
+export const PACKET_TRAILER_SIZE = 21;
 
 /**
  * Extracts an LKTS trailer from the end of an encoded frame, if present.
@@ -53,28 +53,28 @@ export const USER_TS_TRAILER_SIZE = 21;
  * Returns the payload without the trailer and the parsed metadata,
  * or `undefined` if no valid trailer is found.
  */
-export function extractUserTimestampTrailer(frameData: ArrayBuffer): UserTimestampInfo | undefined {
+export function extractPacketTrailer(frameData: ArrayBuffer): PacketTrailerInfo | undefined {
   const bytes = new Uint8Array(frameData);
-  if (bytes.byteLength < USER_TS_ENVELOPE_SIZE) {
+  if (bytes.byteLength < PACKET_TRAILER_ENVELOPE_SIZE) {
     return undefined;
   }
 
   // Check magic bytes at the very end of the frame.
-  const magicStart = bytes.byteLength - USER_TS_MAGIC.length;
-  for (let i = 0; i < USER_TS_MAGIC.length; i++) {
-    if (bytes[magicStart + i] !== USER_TS_MAGIC[i]) {
+  const magicStart = bytes.byteLength - PACKET_TRAILER_MAGIC.length;
+  for (let i = 0; i < PACKET_TRAILER_MAGIC.length; i++) {
+    if (bytes[magicStart + i] !== PACKET_TRAILER_MAGIC[i]) {
       return undefined;
     }
   }
 
   const trailerLen = (bytes[bytes.byteLength - 5] ?? 0) ^ 0xff;
 
-  if (trailerLen < USER_TS_ENVELOPE_SIZE || trailerLen > bytes.byteLength) {
+  if (trailerLen < PACKET_TRAILER_ENVELOPE_SIZE || trailerLen > bytes.byteLength) {
     return undefined;
   }
 
   const trailerStart = bytes.byteLength - trailerLen;
-  const tlvEnd = bytes.byteLength - USER_TS_ENVELOPE_SIZE;
+  const tlvEnd = bytes.byteLength - PACKET_TRAILER_ENVELOPE_SIZE;
   const view = new DataView(frameData);
 
   let timestampUs: number | undefined;
@@ -113,13 +113,13 @@ export function extractUserTimestampTrailer(frameData: ArrayBuffer): UserTimesta
  * Strips an LKTS trailer from an RTCEncodedVideoFrame in-place.
  * Replaces `encodedFrame.data` with the payload (trailer removed).
  *
- * @returns The extracted user timestamp and the frame's RTP timestamp,
+ * @returns The extracted packet trailer metadata and the frame's RTP timestamp,
  *          or `undefined` if no trailer was found.
  */
-export function stripUserTimestampFromEncodedFrame(
+export function stripPacketTrailerFromEncodedFrame(
   encodedFrame: RTCEncodedVideoFrame,
-): UserTimestampWithRtp | undefined {
-  const info = extractUserTimestampTrailer(encodedFrame.data);
+): PacketTrailerWithRtp | undefined {
+  const info = extractPacketTrailer(encodedFrame.data);
   if (!info) {
     return undefined;
   }

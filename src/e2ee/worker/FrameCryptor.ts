@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
-import { stripUserTimestampFromEncodedFrame } from '../../user_timestamp/UserTimestampTransformer';
+import { stripPacketTrailerFromEncodedFrame } from '../../packet_trailer/PacketTrailerTransformer';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
@@ -13,7 +13,7 @@ import type {
   KeyProviderOptions,
   KeySet,
   RatchetResult,
-  UserTimestampMessage,
+  PacketTrailerMessage,
 } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -461,23 +461,23 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    // Always attempt to strip LKTS user timestamp trailer before any e2ee
+    // Always attempt to strip LKTS packet trailer before any e2ee
     // processing. On the send side, the trailer is appended *after* encryption,
     // so it must be removed *before* decryption.
     if (isVideoFrame(encodedFrame) && encodedFrame.data.byteLength > 0) {
       try {
-        const userTsResult = stripUserTimestampFromEncodedFrame(
+        const packetTrailerResult = stripPacketTrailerFromEncodedFrame(
           encodedFrame as RTCEncodedVideoFrame,
         );
-        if (userTsResult !== undefined && this.trackId && this.participantIdentity) {
-          const msg: UserTimestampMessage = {
-            kind: 'userTimestamp',
+        if (packetTrailerResult !== undefined && this.trackId && this.participantIdentity) {
+          const msg: PacketTrailerMessage = {
+            kind: 'packetTrailer',
             data: {
               trackId: this.trackId,
               participantIdentity: this.participantIdentity,
-              timestampUs: userTsResult.timestampUs,
-              frameId: userTsResult.frameId,
-              rtpTimestamp: userTsResult.rtpTimestamp,
+              timestampUs: packetTrailerResult.timestampUs,
+              frameId: packetTrailerResult.frameId,
+              rtpTimestamp: packetTrailerResult.rtpTimestamp,
             },
           };
           postMessage(msg);

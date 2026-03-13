@@ -150,8 +150,8 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   };
 }
 
-export interface UserTimestampMessage extends BaseMessage {
-  kind: 'userTimestamp';
+export interface PacketTrailerMessage extends BaseMessage {
+  kind: 'packetTrailer';
   data: {
     trackId: string;
     participantIdentity: string;
@@ -178,7 +178,7 @@ export type E2EEWorkerMessage =
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
   | EncryptDataResponseMessage
-  | UserTimestampMessage;
+  | PacketTrailerMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

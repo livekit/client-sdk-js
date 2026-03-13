@@ -1,5 +1,5 @@
 /**
- * Lightweight worker for stripping LKTS user timestamp trailers from inbound
+ * Lightweight worker for stripping LKTS packet trailers from inbound
  * encoded video frames via RTCRtpScriptTransform.
  *
  * When a valid trailer is found, the metadata is posted back to the main
@@ -9,9 +9,9 @@
 import {
   TAG_FRAME_ID,
   TAG_TIMESTAMP_US,
-  USER_TS_ENVELOPE_SIZE,
-  USER_TS_MAGIC,
-} from './UserTimestampTransformer';
+  PACKET_TRAILER_ENVELOPE_SIZE,
+  PACKET_TRAILER_MAGIC,
+} from './PacketTrailerTransformer';
 
 function stripAndForward(
   readable: ReadableStream<RTCEncodedVideoFrame>,
@@ -21,11 +21,11 @@ function stripAndForward(
     transform(encodedFrame, controller) {
       try {
         const bytes = new Uint8Array(encodedFrame.data);
-        if (bytes.byteLength >= USER_TS_ENVELOPE_SIZE) {
-          const magicStart = bytes.byteLength - USER_TS_MAGIC.length;
+        if (bytes.byteLength >= PACKET_TRAILER_ENVELOPE_SIZE) {
+          const magicStart = bytes.byteLength - PACKET_TRAILER_MAGIC.length;
           let match = true;
-          for (let i = 0; i < USER_TS_MAGIC.length; i++) {
-            if (bytes[magicStart + i] !== USER_TS_MAGIC[i]) {
+          for (let i = 0; i < PACKET_TRAILER_MAGIC.length; i++) {
+            if (bytes[magicStart + i] !== PACKET_TRAILER_MAGIC[i]) {
               match = false;
               break;
             }
@@ -33,9 +33,9 @@ function stripAndForward(
           if (match) {
             const trailerLen = (bytes[bytes.byteLength - 5] ?? 0) ^ 0xff;
 
-            if (trailerLen >= USER_TS_ENVELOPE_SIZE && trailerLen <= bytes.byteLength) {
+            if (trailerLen >= PACKET_TRAILER_ENVELOPE_SIZE && trailerLen <= bytes.byteLength) {
               const trailerStart = bytes.byteLength - trailerLen;
-              const tlvEnd = bytes.byteLength - USER_TS_ENVELOPE_SIZE;
+              const tlvEnd = bytes.byteLength - PACKET_TRAILER_ENVELOPE_SIZE;
               const view = new DataView(encodedFrame.data);
 
               let timestampUs: number | undefined;
@@ -64,7 +64,7 @@ function stripAndForward(
 
                 encodedFrame.data = encodedFrame.data.slice(0, trailerStart);
                 postMessage({
-                  kind: 'userTimestamp',
+                  kind: 'packetTrailer',
                   timestampUs,
                   frameId,
                   rtpTimestamp: rtpTimestamp ?? 0,

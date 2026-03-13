@@ -33,8 +33,8 @@ export default [
     kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
   ),
   workerConfig(
-    'src/user_timestamp/userTimestamp.worker.ts',
-    'user-timestamp.worker',
-    kebabCaseToPascalCase(packageJson.name) + '.userTimestamp.worker',
+    'src/packet_trailer/packetTrailer.worker.ts',
+    'packet-trailer.worker',
+    kebabCaseToPascalCase(packageJson.name) + '.packetTrailer.worker',
   ),
 ];

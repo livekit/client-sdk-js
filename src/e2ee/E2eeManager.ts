@@ -222,7 +222,7 @@ export class E2EEManager
           encryptFuture.resolve(data as EncryptDataResponseMessage['data']);
         }
         break;
-      case 'userTimestamp':
+      case 'packetTrailer':
         this.handleUserTimestamp(
           data.trackId,
           data.participantIdentity,

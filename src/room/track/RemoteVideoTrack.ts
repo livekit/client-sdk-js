@@ -1,4 +1,4 @@
-import type { UserFrameMetadata } from '../../user_timestamp';
+import type { UserFrameMetadata } from '../../packet_trailer';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
