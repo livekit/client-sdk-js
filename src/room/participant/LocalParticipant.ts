@@ -30,7 +30,7 @@ import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
-import type LocalDataTrack from '../data-track/LocalDataTrack';
+import LocalDataTrack from '../data-track/LocalDataTrack';
 import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
 import { DataTrackPublishError } from '../data-track/outgoing/errors';
 import type { DataTrackOptions } from '../data-track/outgoing/types';
@@ -2278,16 +2278,13 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  /** FIXME: add docstring */
+  /** Publishes a data track.
+   *
+   * Returns the published data track if successful. Use {@link LocalDataTrack#tryPush}
+   * to send data frames on the track.
+   */
   async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
-    let track;
-    try {
-      track = this.roomOutgoingDataTrackManager.createTrackRequest(options);
-    } catch (err) {
-      // NOTE: Rethrow errors to break Throws<...> type boundary
-      throw err;
-    }
-
+    const track = new LocalDataTrack(options, this.roomOutgoingDataTrackManager);
     await track.publish();
 
     return track;

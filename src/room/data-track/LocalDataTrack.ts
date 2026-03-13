@@ -1,6 +1,7 @@
 import type { DataTrackFrame } from './frame';
 import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import { DataTrackPushFrameError } from './outgoing/errors';
 import type { DataTrackOptions } from './outgoing/types';
 import {
   DataTrackSymbol,
@@ -8,6 +9,7 @@ import {
   type ILocalTrack,
   TrackSymbol,
 } from './track-interfaces';
+import type { DataTrackInfo } from './types';
 
 export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   readonly trackSymbol = TrackSymbol;
@@ -18,22 +20,29 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   protected options: DataTrackOptions;
 
-  /** @internal */
-  handle: DataTrackHandle;
+  /** Represents the currently active {@link DataTrackHandle} for the publication. */
+  protected handle: DataTrackHandle | null = null;
 
   protected manager: OutgoingDataTrackManager;
 
   /** @internal */
-  constructor(
-    options: DataTrackOptions,
-    handle: DataTrackHandle,
-    manager: OutgoingDataTrackManager,
-  ) {
+  constructor(options: DataTrackOptions, manager: OutgoingDataTrackManager) {
     this.options = options;
-    this.handle = handle;
     this.manager = manager;
   }
 
+  /** @internal */
+  static withExplicitHandle(
+    options: DataTrackOptions,
+    manager: OutgoingDataTrackManager,
+    handle: DataTrackHandle,
+  ) {
+    const track = new LocalDataTrack(options, manager);
+    track.handle = handle;
+    return track;
+  }
+
+  /** Metrics about the data track publication. */
   get info() {
     const descriptor = this.descriptor;
     if (descriptor?.type === 'active') {
@@ -45,20 +54,20 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   /** The raw descriptor from the manager containing the internal state for this local track. */
   protected get descriptor() {
-    return this.manager.getDescriptor(this.handle);
+    return this.handle ? this.manager.getDescriptor(this.handle) : null;
   }
 
   /** Publish the track to the SFU. This must be done before calling {@link tryPush} for the first time. */
   async publish(signal?: AbortSignal) {
     try {
-      await this.manager.publishRequest(this.handle, this.options, signal);
+      this.handle = await this.manager.publishRequest(this.options, signal);
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
   }
 
-  isPublished() {
+  isPublished(): this is { info: DataTrackInfo } {
     // NOTE: a track which is internally in the "resubscribing" state is still considered
     // published from the public API perspective.
     return this.descriptor?.type === 'active' && this.descriptor.publishState !== 'unpublished';
@@ -72,6 +81,10 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * - The room is no longer connected
    */
   tryPush(payload: DataTrackFrame['payload']) {
+    if (!this.handle) {
+      throw DataTrackPushFrameError.trackUnpublished();
+    }
+
     try {
       return this.manager.tryProcessAndSend(this.handle, payload);
     } catch (err) {
@@ -86,6 +99,10 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * will fail.
    * */
   async unpublish() {
+    if (!this.handle) {
+      throw DataTrackPushFrameError.trackUnpublished();
+    }
+
     try {
       await this.manager.unpublishRequest(this.handle);
     } catch (err) {
