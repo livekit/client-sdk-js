@@ -8,7 +8,6 @@ import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../participant/Participant';
 import {
-  COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
   MAX_LEGACY_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
@@ -178,11 +177,8 @@ export default class RpcServerManager {
     }
 
     // Medium response: compress inline
-    if (
-      callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes > COMPRESS_MIN_BYTES
-    ) {
-      const compressed = await gzipCompress(response!);
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
+      const compressed = await gzipCompress(response);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
       return;
     }
@@ -299,10 +295,7 @@ export default class RpcServerManager {
       return;
     }
 
-    if (
-      callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes > COMPRESS_MIN_BYTES
-    ) {
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
       // Medium response: compress inline
       const compressed = await gzipCompress(response);
       await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
