@@ -96,6 +96,25 @@ describe('RemoteVideoTrack', () => {
       expect(events[1].height).toBe(200);
     });
   });
+
+  describe('frame metadata', () => {
+    it('stores and consumes frame metadata by RTP timestamp', () => {
+      track.setUserTimestamp(123456789, 9000, 42);
+
+      expect(track.lookupFrameMetadata(9000)).toStrictEqual({
+        timestampUs: 123456789,
+        frameId: 42,
+      });
+      expect(track.lookupFrameMetadata(9000)).toBeUndefined();
+    });
+
+    it('preserves lookupUserTimestamp compatibility', () => {
+      track.setUserTimestamp(123456789, 9000, 42);
+
+      expect(track.lookupUserTimestamp(9000)).toBe(123456789);
+      expect(track.lookupFrameMetadata(9000)).toBeUndefined();
+    });
+  });
 });
 
 class MockElementInfo implements ElementInfo {
