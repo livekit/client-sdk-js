@@ -61,6 +61,7 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DEFAULT_MAX_AGE_MS, type RegionUrlProvider } from './RegionUrlProvider';
+import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -91,7 +92,6 @@ import {
   supportsTransceiver,
   toHttpUrl,
 } from './utils';
-import { DataTrackInfo } from './data-track/types';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
