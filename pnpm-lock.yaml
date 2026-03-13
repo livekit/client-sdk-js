@@ -58,8 +58,8 @@ importers:
         specifier: ^0.0.4
         version: 0.0.4
       '@livekit/throws-transformer':
-        specifier: ^0.1.0
-        version: 0.1.0(typescript@5.8.3)
+        specifier: ^0.1.1
+        version: 0.1.1(typescript@5.8.3)
       '@rollup/plugin-babel':
         specifier: 6.1.0
         version: 6.1.0(@babel/core@7.29.0)(rollup@4.59.0)
@@ -1128,8 +1128,8 @@ packages:
   '@livekit/protocol@1.44.0':
     resolution: {integrity: sha512-/vfhDUGcUKO8Q43r6i+5FrDhl5oZjm/X3U4x2Iciqvgn5C8qbj+57YPcWSJ1kyIZm5Cm6AV2nAPjMm3ETD/iyg==}
 
-  '@livekit/throws-transformer@0.1.0':
-    resolution: {integrity: sha512-issVYMlLo3qKqhY41HuR85pYL2pHrENw9mdkxVK9LmEEsABt7UKYSpqg0Sw3SJJa+LX71GDVQuhoD/ybSAuXjQ==}
+  '@livekit/throws-transformer@0.1.1':
+    resolution: {integrity: sha512-ET7hDdlPrjl3pSmsHyj3P7X+DOBoBCThA0MRGiRf4wZCSHNl+E+7IlEHbv+WQucw7grjFKBTYWdEJuCUmLK29A==}
     hasBin: true
     peerDependencies:
       typescript: '>=4.7.0'
@@ -2187,8 +2187,8 @@ packages:
     resolution: {integrity: sha512-ZSW3ma5GkcQBIpwZTSRAI8N71Uuwgs93IezB7mf7R60tC8ZbJideoDNKjHn2O9KIlx6rkGTTEk1xUCK2E1Y2Yg==}
     engines: {node: '>=10.13.0'}
 
-  enhanced-resolve@5.19.0:
-    resolution: {integrity: sha512-phv3E1Xl4tQOShqSte26C7Fl84EwUdZsyOuSSk9qtAGyyQs2s3jJzComh+Abf4g187lUUAvH+H26omrqia2aGg==}
+  enhanced-resolve@5.20.0:
+    resolution: {integrity: sha512-/ce7+jQ1PQ6rVXwe+jKEg5hW5ciicHwIQUagZkp6IufBoY3YDgdTTY1azVs0qoRgVmvsNB+rbjLJxDAeHHtwsQ==}
     engines: {node: '>=10.13.0'}
 
   enquirer@2.4.1:
@@ -5266,7 +5266,7 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
-  '@livekit/throws-transformer@0.1.0(typescript@5.8.3)':
+  '@livekit/throws-transformer@0.1.1(typescript@5.8.3)':
     dependencies:
       glob: 13.0.6
       typescript: 5.8.3
@@ -6384,7 +6384,7 @@ snapshots:
       graceful-fs: 4.2.11
       tapable: 2.2.1
 
-  enhanced-resolve@5.19.0:
+  enhanced-resolve@5.20.0:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.0
@@ -6668,7 +6668,7 @@ snapshots:
   eslint-plugin-n@17.23.1(eslint@9.39.2(jiti@2.4.2))(typescript@5.8.3):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.4.2))
-      enhanced-resolve: 5.19.0
+      enhanced-resolve: 5.20.0
       eslint: 9.39.2(jiti@2.4.2)
       eslint-plugin-es-x: 7.8.0(eslint@9.39.2(jiti@2.4.2))
       get-tsconfig: 4.13.6
