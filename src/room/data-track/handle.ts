@@ -1,4 +1,4 @@
-import { type Throws } from '../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { LivekitReasonedError } from '../errors';
 import { U16_MAX_SIZE } from './utils';
 
