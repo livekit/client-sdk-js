@@ -5,7 +5,9 @@ import {
   ClientInfo,
   ConnectionQualityUpdate,
   ConnectionSettings,
+  DataTrackSubscriberHandles,
   DisconnectReason,
+  Encryption_Type,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
@@ -14,6 +16,8 @@ import {
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
+  PublishDataTrackRequest,
+  PublishDataTrackResponse,
   ReconnectReason,
   ReconnectResponse,
   RequestResponse,
@@ -35,6 +39,10 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
   TrickleRequest,
+  UnpublishDataTrackRequest,
+  UnpublishDataTrackResponse,
+  UpdateDataSubscription,
+  UpdateDataSubscription_Update,
   UpdateLocalAudioTrack,
   UpdateParticipantMetadata,
   UpdateSubscription,
@@ -45,6 +53,8 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
+import type { DataTrackHandle } from '../room/data-track/handle';
+import { type DataTrackSid } from '../room/data-track/types';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
@@ -173,6 +183,14 @@ export class SignalClient {
   onRoomMoved?: (res: RoomMovedResponse) => void;
 
   onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
+
+  onPublishDataTrackResponse?: (event: PublishDataTrackResponse) => void;
+
+  onUnPublishDataTrackResponse?: (event: UnpublishDataTrackResponse) => void;
+
+  onDataTrackSubscriberHandles?: (event: DataTrackSubscriberHandles) => void;
+
+  onJoined?: (event: JoinResponse) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -437,8 +455,9 @@ export class SignalClient {
             return;
           }
 
-          // Handle join response - set up ping configuration
+          // Handle join response
           if (firstSignalResponse.message?.case === 'join') {
+            // Set up ping configuration
             this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
             this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
 
@@ -448,6 +467,10 @@ export class SignalClient {
                 timeout: this.pingTimeoutDuration,
                 interval: this.pingIntervalDuration,
               });
+            }
+
+            if (this.onJoined) {
+              this.onJoined(firstSignalResponse.message.value);
             }
           }
 
@@ -685,7 +708,40 @@ export class SignalClient {
     });
   }
 
-  async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
+  sendPublishDataTrackRequest(handle: DataTrackHandle, name: string, usesE2ee: boolean) {
+    return this.sendRequest({
+      case: 'publishDataTrackRequest',
+      value: new PublishDataTrackRequest({
+        pubHandle: handle,
+        name: name,
+        encryption: usesE2ee ? Encryption_Type.GCM : Encryption_Type.NONE,
+      }),
+    });
+  }
+
+  sendUnPublishDataTrackRequest(handle: DataTrackHandle) {
+    return this.sendRequest({
+      case: 'unpublishDataTrackRequest',
+      value: new UnpublishDataTrackRequest({ pubHandle: handle }),
+    });
+  }
+
+  sendUpdateDataSubscription(sid: DataTrackSid, subscribe: boolean) {
+    return this.sendRequest({
+      case: 'updateDataSubscription',
+      value: new UpdateDataSubscription({
+        // FIXME: consider refactoring to allow caller to pass an array of events through
+        updates: [
+          new UpdateDataSubscription_Update({
+            trackSid: sid,
+            subscribe,
+          }),
+        ],
+      }),
+    });
+  }
+
+  private async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
@@ -729,6 +785,7 @@ export class SignalClient {
   }
 
   private handleSignalResponse(res: SignalResponse) {
+    console.log('SIGNAL MSG:', res.message);
     const msg = res.message;
     if (msg == undefined) {
       this.log.debug('received unsupported message', this.logContext);
@@ -826,6 +883,18 @@ export class SignalClient {
     } else if (msg.case === 'mediaSectionsRequirement') {
       if (this.onMediaSectionsRequirement) {
         this.onMediaSectionsRequirement(msg.value);
+      }
+    } else if (msg.case === 'publishDataTrackResponse') {
+      if (this.onPublishDataTrackResponse) {
+        this.onPublishDataTrackResponse(msg.value);
+      }
+    } else if (msg.case === 'unpublishDataTrackResponse') {
+      if (this.onUnPublishDataTrackResponse) {
+        this.onUnPublishDataTrackResponse(msg.value);
+      }
+    } else if (msg.case === 'dataTrackSubscriberHandles') {
+      if (this.onDataTrackSubscriberHandles) {
+        this.onDataTrackSubscriberHandles(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

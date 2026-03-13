@@ -1,7 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import {
   DataPacket,
-  DataPacket_Kind,
   DataStream_ByteHeader,
   DataStream_Chunk,
   DataStream_Header,
@@ -12,6 +11,7 @@ import {
 } from '@livekit/protocol';
 import { type StructuredLogger } from '../../../logger';
 import type RTCEngine from '../../RTCEngine';
+import { DataChannelKind } from '../../RTCEngine';
 import { EngineEvent } from '../../events';
 import type {
   ByteStreamInfo,
@@ -137,7 +137,7 @@ export default class OutgoingDataStreamManager {
         value: header,
       },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
     let chunkId = 0;
     const engine = this.engine;
@@ -158,7 +158,7 @@ export default class OutgoingDataStreamManager {
               value: chunk,
             },
           });
-          await engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+          await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
 
           chunkId += 1;
         }
@@ -174,7 +174,7 @@ export default class OutgoingDataStreamManager {
             value: trailer,
           },
         });
-        await engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+        await engine.sendDataPacket(trailerPacket, DataChannelKind.RELIABLE);
       },
       abort(err) {
         console.log('Sink error:', err);
@@ -262,7 +262,7 @@ export default class OutgoingDataStreamManager {
       },
     });
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
     let chunkId = 0;
     const writeMutex = new Mutex();
@@ -288,7 +288,7 @@ export default class OutgoingDataStreamManager {
                 }),
               },
             });
-            await engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+            await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
             chunkId += 1;
             byteOffset += subChunk.byteLength;
           }
@@ -307,7 +307,7 @@ export default class OutgoingDataStreamManager {
             value: trailer,
           },
         });
-        await engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+        await engine.sendDataPacket(trailerPacket, DataChannelKind.RELIABLE);
       },
       abort(err) {
         logLocal.error('Sink error:', err);

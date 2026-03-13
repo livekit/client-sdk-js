@@ -2,6 +2,8 @@
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
+  LocalDataTrack,
+  RemoteDataTrack,
   RoomConnectOptions,
   RoomOptions,
   ScalabilityMode,
@@ -38,6 +40,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -58,6 +61,9 @@ let currentRoom: Room | undefined;
 let startTime: number;
 
 let streamReaderAbortController: AbortController | undefined;
+
+let localDataTracks: Array<LocalDataTrack> = [];
+let remoteDataTracks: Array<RemoteDataTrack> = [];
 
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
@@ -261,6 +267,17 @@ const appActions = {
       })
       .on(RoomEvent.EncryptionError, (error) => {
         appendLog(`Error encrypting track data: ${error.message}`);
+      })
+      .on(RoomEvent.RemoteDataTrackPublished, (track) => {
+        remoteDataTracks.push(track);
+        renderRemoteDataTracks();
+      })
+      .on(RoomEvent.RemoteDataTrackUnpublished, (sid) => {
+        const index = remoteDataTracks.findIndex((t) => t.info.sid === sid);
+        if (index >= 0) {
+          remoteDataTracks.splice(index, 1);
+          renderRemoteDataTracks();
+        }
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
@@ -676,6 +693,37 @@ const appActions = {
       });
     }
   },
+
+  publishLocalDataTrack: async () => {
+    const button = $('local-data-track-publish-button');
+    const input = <HTMLInputElement>$('local-data-track-publish-name');
+
+    if (!currentRoom) {
+      console.error(`publishDataTrack failed: Room not connected.`);
+      return;
+    }
+
+    button.innerText = 'Publishing...';
+    button.setAttribute('disabled', 'true');
+    input.classList.remove('is-invalid');
+
+    try {
+      const localDataTrack = await currentRoom.localParticipant.publishDataTrack({
+        name: input.value,
+      });
+      input.value = '';
+      localDataTracks.push(localDataTrack);
+      renderLocalDataTracks();
+    } catch (err) {
+      console.error(`publishDataTrack failed:`, err);
+
+      // Make the input red to signify failure
+      input.classList.add('is-invalid');
+    } finally {
+      button.innerText = 'Publish Local';
+      button.removeAttribute('disabled');
+    }
+  },
 };
 
 declare global {
@@ -747,6 +795,12 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
     renderParticipant(p, true);
   });
   renderScreenShare(currentRoom);
+
+  localDataTracks = [];
+  renderLocalDataTracks();
+
+  remoteDataTracks = [];
+  renderRemoteDataTracks();
 
   const container = $('participants-area');
   if (container) {
@@ -1015,6 +1069,360 @@ function renderBitrate() {
     if (elm) {
       elm.innerHTML = displayText;
     }
+  }
+}
+
+function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
+  const { sid, pubHandle, name } = localDataTrack.info;
+  const published = localDataTrack.isPublished();
+
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
+      <div class="d-flex align-items-center">
+        <span class="badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap mr-2">
+          ${published ? '✓ Live' : '⏳ Pending'}
+        </span>
+        <button id="local-data-track-delete-${sid}" class="btn btn-outline-danger btn-sm" type="button">✕</button>
+      </div>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1">Handle: ${pubHandle}</span>
+    </div>
+    <div class="d-flex align-items-center">
+      <input
+        id="local-data-track-slider-${sid}"
+        type="range"
+        min="0"
+        max="512"
+        value="0"
+        class="custom-range flex-grow-1 mr-2"
+      />
+      <span id="local-data-track-slider-value-${sid}" class="text-monospace text-muted" style="min-width: 3.5em; text-align: right; font-size: 0.85rem;">0</span>
+    </div>
+  `;
+
+  const slider = item.querySelector<HTMLInputElement>(`#local-data-track-slider-${sid}`)!;
+  const valueLabel = item.querySelector<HTMLSpanElement>(`#local-data-track-slider-value-${sid}`)!;
+  const deleteButton = item.querySelector<HTMLButtonElement>(`#local-data-track-delete-${sid}`)!;
+
+  slider.addEventListener('input', () => {
+    const value = slider.value;
+    valueLabel.textContent = value;
+    try {
+      localDataTrack.tryPush(state.encoder.encode(value));
+    } catch (err) {
+      console.error(`Local data track ${sid}: tryPush failed:`, err);
+    }
+  });
+
+  deleteButton.addEventListener('click', async () => {
+    deleteButton.disabled = true;
+    try {
+      await localDataTrack.unpublish();
+    } catch (err) {
+      console.error(`DataTrack:${sid} unpublish failed:`, err);
+      deleteButton.disabled = false;
+      return;
+    }
+    deleteButton.disabled = false;
+
+    localDataTracks.splice(localDataTracks.indexOf(localDataTrack), 1);
+    renderLocalDataTracks();
+  });
+
+  return item;
+}
+
+function updateLocalDataTrackElement(
+  element: HTMLDivElement,
+  localDataTrack: LocalDataTrack,
+): void {
+  const published = localDataTrack.isPublished();
+
+  const badge = element.querySelector<HTMLSpanElement>('.badge[data-status]');
+  if (badge) {
+    badge.className = `badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap`;
+    badge.textContent = published ? '✓ Live' : '⏳ Pending';
+  }
+}
+
+function renderLocalDataTracks() {
+  const wrapper = $('data-tracks-local-list');
+
+  const renderedLocalDataTrackSids = new Set<string>();
+
+  // Update or remove existing children
+  for (const child of Array.from(wrapper.children)) {
+    const element = child as HTMLDivElement;
+    const sid = element.dataset.sid!;
+    const localDataTrack = localDataTracks.find((l) => l.info.sid === sid);
+    if (localDataTrack) {
+      updateLocalDataTrackElement(element, localDataTrack);
+    } else {
+      element.remove();
+    }
+    renderedLocalDataTrackSids.add(sid);
+  }
+
+  // Create elements for new tracks
+  for (const localDataTrack of localDataTracks.filter(
+    (l) => !renderedLocalDataTrackSids.has(l.info.sid),
+  )) {
+    const child = createLocalDataTrackElement(localDataTrack);
+    wrapper.appendChild(child);
+  }
+}
+
+function renderHexDump(payload: Uint8Array): HTMLElement {
+  const bytesPerLine = 8;
+  const table = document.createElement('table');
+  table.style.cssText =
+    'border-collapse: collapse; width: 100%; font-size: 0.68rem; line-height: 1.4;';
+
+  for (let offset = 0; offset < payload.byteLength; offset += bytesPerLine) {
+    const chunk = payload.slice(offset, offset + bytesPerLine);
+    const row = document.createElement('tr');
+
+    // Address column
+    const addrCell = document.createElement('td');
+    addrCell.style.cssText =
+      'color: #6c757d; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top; user-select: none;';
+    addrCell.textContent = offset.toString(16).padStart(8, '0');
+    row.appendChild(addrCell);
+
+    // Hex column
+    const hexCell = document.createElement('td');
+    hexCell.style.cssText =
+      'color: #28a745; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top;';
+    const hexStr = Array.from(chunk)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ')
+      .padEnd(bytesPerLine * 3 - 1, ' ');
+    hexCell.textContent = hexStr;
+    row.appendChild(hexCell);
+
+    // ASCII column
+    const asciiCell = document.createElement('td');
+    asciiCell.style.cssText =
+      'color: #e9ecef; padding: 0; white-space: pre; vertical-align: top; text-align: right;';
+    const ascii = Array.from(chunk)
+      .map((b) => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.'))
+      .join('');
+    asciiCell.textContent = '|' + ascii.padEnd(bytesPerLine, ' ') + '|';
+    row.appendChild(asciiCell);
+
+    table.appendChild(row);
+  }
+
+  return table;
+}
+
+function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
+  const { sid, pubHandle, name } = remoteDataTrack.info;
+  const identity = remoteDataTrack.publisherIdentity;
+
+  const chartWidth = 600;
+  const chartHeight = 200;
+  const pad = { top: 10, right: 10, bottom: 10, left: 10 };
+  const plotW = chartWidth - pad.left - pad.right;
+  const plotH = chartHeight - pad.top - pad.bottom;
+  const timeWindowMs = 30_000;
+  const maxValue = 512;
+
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${identity}" style="min-width: 0;">${identity}</span>
+      <div class="d-flex align-items-center flex-shrink-0">
+        <button id="remote-data-track-play-stop-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe"></button>
+        <button id="remote-data-track-clear-${sid}" class="btn btn-sm btn-outline-secondary" type="button">Clear</button>
+      </div>
+    </div>
+    <div class="d-flex align-items-center mb-1">
+      <span class="text-muted text-truncate mr-2" style="font-size: 0.8rem;" title="${name}">${name}</span>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
+    </div>
+    <div style="position: relative;">
+      <svg id="remote-data-track-chart-${sid}" viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 4px;">
+        <line x1="${pad.left}" y1="${pad.top + plotH}" x2="${pad.left + plotW}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
+        <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
+        <path id="remote-data-track-path-${sid}" d="" fill="none" stroke="#ff4444" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" />
+      </svg>
+      <span id="remote-data-track-placeholder-${sid}" class="text-muted" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.8rem;">Subscription not started</span>
+    </div>
+  `;
+
+  const pathEl = item.querySelector<SVGPathElement>(`#remote-data-track-path-${sid}`)!;
+  const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
+  const playStopButton = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-play-stop-${sid}`,
+  )!;
+  const clearButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-clear-${sid}`)!;
+
+  let reader: ReadableStreamDefaultReader | null = null;
+  let renderInterval: number | null = null;
+  let points: Array<{ time: number; value: number }> = [];
+
+  function valueToY(value: number): number {
+    const clamped = Math.max(0, Math.min(maxValue, value));
+    return pad.top + plotH - (clamped / maxValue) * plotH;
+  }
+
+  function renderChart(): void {
+    const now = Date.now();
+    const cutoff = now - timeWindowMs;
+
+    // Prune points that have scrolled off the chart
+    while (points.length > 0 && points[0].time < cutoff) {
+      points.pop();
+    }
+
+    if (points.length === 0) {
+      pathEl.setAttribute('d', '');
+      return;
+    }
+
+    let d = '';
+    for (const pt of points) {
+      const age = now - pt.time;
+      const x = pad.left + (age / timeWindowMs) * plotW;
+      const y = valueToY(pt.value);
+      d += d === '' ? `M${pad.left},${y} L${x},${y}` : ` L${x},${y}`;
+    }
+    pathEl.setAttribute('d', d);
+  }
+
+  function startRenderLoop(): void {
+    if (renderInterval) {
+      return;
+    }
+    renderInterval = window.setInterval(renderChart, 1000 / 30);
+  }
+
+  function stopRenderLoop(): void {
+    if (renderInterval) {
+      window.clearInterval(renderInterval);
+      renderInterval = null;
+    }
+  }
+
+  function clearPoints(): void {
+    points = [];
+    pathEl.setAttribute('d', '');
+  }
+
+  function showPlaceholder(text: string): void {
+    placeholder.textContent = text;
+    placeholder.style.display = '';
+  }
+
+  function hidePlaceholder(): void {
+    placeholder.style.display = 'none';
+  }
+
+  async function startSubscription(): Promise<void> {
+    clearPoints();
+    hidePlaceholder();
+
+    playStopButton.textContent = 'Stop';
+    playStopButton.classList.replace('btn-outline-success', 'btn-outline-danger');
+    playStopButton.title = 'Unsubscribe';
+
+    startRenderLoop();
+
+    let stream: ReadableStream<DataTrackFrame>;
+    try {
+      stream = await remoteDataTrack.subscribe();
+    } catch (err) {
+      console.error(`Remote data track ${sid}: subscribe failed:`, err);
+      stopSubscription();
+      return;
+    }
+
+    reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        const str = new TextDecoder().decode(value.payload);
+        const parsed = parseInt(str, 10);
+        console.log('>>>', parsed);
+        if (!isNaN(parsed)) {
+          points.unshift({ time: Date.now(), value: parsed });
+        }
+      }
+    } catch (err) {
+      console.error(`Remote data track ${sid}: stream read failed:`, err);
+    } finally {
+      stopSubscription();
+    }
+  }
+
+  function stopSubscription(): void {
+    if (reader) {
+      reader.cancel();
+      reader = null;
+    }
+    stopRenderLoop();
+    renderChart();
+    playStopButton.textContent = 'Play';
+    playStopButton.classList.replace('btn-outline-danger', 'btn-outline-success');
+    playStopButton.title = 'Subscribe';
+    if (points.length === 0) {
+      showPlaceholder('Subscription not started');
+    }
+  }
+
+  startSubscription();
+  playStopButton.addEventListener('click', () => {
+    if (reader) {
+      stopSubscription();
+    } else {
+      startSubscription();
+    }
+  });
+
+  clearButton.addEventListener('click', () => {
+    clearPoints();
+    if (!reader) {
+      showPlaceholder('Subscription not started');
+    }
+  });
+
+  return item;
+}
+
+function renderRemoteDataTracks() {
+  const wrapper = $('data-tracks-remote-list');
+
+  const renderedSids = new Set<string>();
+
+  for (const child of Array.from(wrapper.children)) {
+    const li = child as HTMLLIElement;
+    const sid = li.dataset.sid!;
+    const remoteDataTrack = remoteDataTracks.find((r) => r.info.sid === sid);
+    if (!remoteDataTrack) {
+      li.remove();
+    }
+    renderedSids.add(sid);
+  }
+
+  for (const remoteDataTrack of remoteDataTracks.filter((r) => !renderedSids.has(r.info.sid))) {
+    wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
   }
 }
 

@@ -1,31 +1,76 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  type DecryptDataResponseMessage,
+  type EncryptDataResponseMessage,
+  LocalDataTrack,
+} from '../../..';
+import { type BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
-import { EncryptionProvider } from '../e2ee';
+import RTCEngine from '../../RTCEngine';
+import Room from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
-  DataTrackOutgoingManagerCallbacks,
+  type DataTrackOutgoingManagerCallbacks,
   Descriptor,
 } from './OutgoingDataTrackManager';
 import { DataTrackPublishError } from './errors';
 
-/** A fake "encryption" provider used for test purposes. Adds a prefix to the payload. */
-const PrefixingEncryptionProvider: EncryptionProvider = {
-  encrypt(payload: Uint8Array) {
+/** Fake encryption provider for testing e2ee data track features. */
+export class PrefixingEncryptionProvider implements BaseE2EEManager {
+  isEnabled = true;
+
+  isDataChannelEncryptionEnabled = true;
+
+  setup(_room: Room) {}
+
+  setupEngine(_engine: RTCEngine) {}
+
+  setParticipantCryptorEnabled(_enabled: boolean, _participantIdentity: string) {}
+
+  setSifTrailer(_trailer: Uint8Array) {}
+
+  on(_event: any, _listener: any): this {
+    return this;
+  }
+
+  /** A fake "encryption" provider used for test purposes. Adds a prefix to the payload. */
+  async encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']> {
     const prefix = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
 
-    const output = new Uint8Array(prefix.length + payload.length);
+    const output = new Uint8Array(prefix.length + data.length);
     output.set(prefix, 0);
-    output.set(payload, prefix.length);
+    output.set(data, prefix.length);
 
     return {
+      uuid: crypto.randomUUID(),
       payload: output,
       iv: new Uint8Array(12), // Just leaving this empty, is this a bad idea?
       keyIndex: 0,
     };
-  },
-};
+  }
+
+  /** A fake "decryption" provider used for test purposes. Assumes the payload is prefixed with
+   * 0xdeafbeef, which is stripped off. */
+  async handleEncryptedData(
+    payload: Uint8Array,
+    _iv: Uint8Array,
+    _participantIdentity: string,
+    _keyIndex: number,
+  ): Promise<DecryptDataResponseMessage['data']> {
+    if (payload[0] !== 0xde || payload[1] !== 0xad || payload[2] !== 0xbe || payload[3] !== 0xef) {
+      throw new Error(
+        `PrefixingEncryptionProvider: first four bytes of payload were not 0xdeadbeef, found ${payload.slice(0, 4)}`,
+      );
+    }
+
+    return {
+      uuid: crypto.randomUUID(),
+      payload: payload.slice(4),
+    };
+  }
+}
 
 describe('DataTrackOutgoingManager', () => {
   it('should test track publishing (ok case)', async () => {
@@ -34,8 +79,11 @@ describe('DataTrackOutgoingManager', () => {
       'sfuPublishRequest',
     ]);
 
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -55,7 +103,7 @@ describe('DataTrackOutgoingManager', () => {
     });
 
     // Make sure that the original input event resolves.
-    const localDataTrack = await publishRequestPromise;
+    await publishRequestPromise;
     expect(localDataTrack.isPublished()).toStrictEqual(true);
   });
 
@@ -66,7 +114,8 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -90,7 +139,8 @@ describe('DataTrackOutgoingManager', () => {
 
     // 1. Publish a data track
     const controller = new AbortController();
-    const publishRequestPromise = manager.publishRequest({ name: 'test' }, controller.signal);
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    const publishRequestPromise = localDataTrack.publish(controller.signal);
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -108,6 +158,95 @@ describe('DataTrackOutgoingManager', () => {
 
     // 5. Make sure cancellation is bubbled up as an error to stop further execution
     expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+  });
+
+  it('should test track publishing (cancellation before it starts)', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'sfuUnpublishRequest',
+    ]);
+
+    // Publish a data track
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    const publishRequestPromise = localDataTrack.publish(AbortSignal.abort(/* already aborted */));
+
+    // Make sure cancellation is immediately bubbled up
+    expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+
+    // And there were no pending sfu publish requests sent
+    expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
+  });
+
+  it('should test track publishing, unpublishing, and republishing again', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'sfuUnpublishRequest',
+    ]);
+
+    // 1. Create a local data track
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
+    // 2. Publish it
+    const publishRequestPromise = localDataTrack.publish();
+
+    // 3. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(false);
+    const handle = sfuPublishEvent.handle;
+
+    // 4. Respond to the SFU publish request with an OK response
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+
+    // Make sure that the original input event resolves.
+    await publishRequestPromise;
+
+    // 5. Now the data track should be published
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // 6. Unpublish the data track
+    const unpublishRequestPromise = localDataTrack.unpublish();
+    const sfuUnpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
+    manager.receivedSfuUnpublishResponse(sfuUnpublishEvent.handle);
+    await unpublishRequestPromise;
+
+    // 7. Now the data track should be unpublished
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
+    // 8. Now, republish the track and make sure that be done a second time
+    const publishRequestPromise2 = localDataTrack.publish();
+    const sfuPublishEvent2 = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent2.name).toStrictEqual('test');
+    expect(sfuPublishEvent2.usesE2ee).toStrictEqual(false);
+    const handle2 = sfuPublishEvent2.handle;
+    manager.receivedSfuPublishResponse(handle2, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent2.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+    await publishRequestPromise2;
+
+    // 9. Ensure that the track is published again
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // 10. Also ensure that the handle used on the second publish attempt differs from the first
+    // publish attempt.
+    expect(handle).not.toStrictEqual(handle2);
   });
 
   it.each([
@@ -190,8 +329,7 @@ describe('DataTrackOutgoingManager', () => {
         'packetsAvailable',
       ]);
 
-      const localDataTrack = manager.createLocalDataTrack(5)!;
-      expect(localDataTrack).not.toStrictEqual(null);
+      const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
 
       // Kick off sending the bytes...
       localDataTrack.tryPush(inputBytes);
@@ -208,7 +346,7 @@ describe('DataTrackOutgoingManager', () => {
 
   it('should send e2ee encrypted datatrack payload', async () => {
     const manager = new OutgoingDataTrackManager({
-      encryptionProvider: PrefixingEncryptionProvider,
+      e2eeManager: new PrefixingEncryptionProvider(),
     });
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',
@@ -216,7 +354,8 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const publishRequestPromise = manager.publishRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
     const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
@@ -236,7 +375,7 @@ describe('DataTrackOutgoingManager', () => {
     });
 
     // Get the connected local data track
-    const localDataTrack = await publishRequestPromise;
+    await publishRequestPromise;
     expect(localDataTrack.isPublished()).toStrictEqual(true);
 
     // Kick off sending the payload bytes
@@ -309,6 +448,76 @@ describe('DataTrackOutgoingManager', () => {
 
     // Make sure data track is no longer
     expect(manager.getDescriptor(5)).toStrictEqual(null);
+  });
+
+  it('should test a full reconnect', async () => {
+    const pubHandle = 5;
+    // Create a manager prefilled with a descriptor
+    const manager = OutgoingDataTrackManager.withDescriptors(
+      new Map([
+        [
+          DataTrackHandle.fromNumber(5),
+          Descriptor.active(
+            {
+              sid: 'bogus-sid',
+              pubHandle,
+              name: 'test',
+              usesE2ee: false,
+            },
+            null,
+          ),
+        ],
+      ]),
+    );
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'packetsAvailable',
+      'sfuUnpublishRequest',
+    ]);
+    const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
+
+    // Make sure the descriptor is in there
+    expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
+
+    // Simulate a full reconnect, which means that any published tracks will need to be republished.
+    manager.sfuWillRepublishTracks();
+
+    // Even though behind the scenes the SFU publications are not active, the user should still see
+    // it as "published", sfu reconnects are an implementation detail
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // But, even though `isPublished` is true, pushing data should drop (no sfu to send them to!)
+    await expect(() =>
+      localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05])),
+    ).rejects.toThrowError('Frame was dropped');
+
+    // 2. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(false);
+    const handle = sfuPublishEvent.handle;
+    expect(handle).toStrictEqual(pubHandle);
+
+    // 3. Respond to the SFU publish request with an OK response
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid-REPUBLISHED',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+
+    // After all this, the local data track should still be published
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // And the sid should be the new value
+    expect(localDataTrack.info!.sid).toStrictEqual('bogus-sid-REPUBLISHED');
+
+    // And now that the tracks are backed by the SFU again, pushes should function!
+    await localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    await managerEvents.waitFor('packetsAvailable');
   });
 
   it('should query currently active descriptors', async () => {
