@@ -57,6 +57,9 @@ importers:
       '@livekit/changesets-changelog-github':
         specifier: ^0.0.4
         version: 0.0.4
+      '@livekit/throws-transformer':
+        specifier: ^0.1.0
+        version: 0.1.0(typescript@5.8.3)
       '@rollup/plugin-babel':
         specifier: 6.1.0
         version: 6.1.0(@babel/core@7.29.0)(rollup@4.59.0)
@@ -1124,6 +1127,12 @@ packages:
 
   '@livekit/protocol@1.44.0':
     resolution: {integrity: sha512-/vfhDUGcUKO8Q43r6i+5FrDhl5oZjm/X3U4x2Iciqvgn5C8qbj+57YPcWSJ1kyIZm5Cm6AV2nAPjMm3ETD/iyg==}
+
+  '@livekit/throws-transformer@0.1.0':
+    resolution: {integrity: sha512-issVYMlLo3qKqhY41HuR85pYL2pHrENw9mdkxVK9LmEEsABt7UKYSpqg0Sw3SJJa+LX71GDVQuhoD/ybSAuXjQ==}
+    hasBin: true
+    peerDependencies:
+      typescript: '>=4.7.0'
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3800,8 +3809,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20260226:
-    resolution: {integrity: sha512-vJ64NNlCqPdhlQsLQArDL3V1wcrPDYfkT0cTonqZ1FARTlQPGTyrEOJdiSlwyYVZl7pTisOn7n8G2rgu3WyiQA==}
+  typescript@6.0.0-dev.20260313:
+    resolution: {integrity: sha512-eKxRC45O/I+UL3gNjl1YBLV+UyfDvhNs5zQ0DOTuCpxlGtbKjsffe15txpqRt++PSPTHLpShUbiLy56+sZAMUA==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5257,6 +5266,11 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
+  '@livekit/throws-transformer@0.1.0(typescript@5.8.3)':
+    dependencies:
+      glob: 13.0.6
+      typescript: 5.8.3
+
   '@manypkg/find-root@1.1.0':
     dependencies:
       '@babel/runtime': 7.23.2
@@ -6348,7 +6362,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20260226
+      typescript: 6.0.0-dev.20260313
 
   dunder-proto@1.0.1:
     dependencies:
@@ -8196,7 +8210,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20260226: {}
+  typescript@6.0.0-dev.20260313: {}
 
   uc.micro@2.1.0: {}
 
