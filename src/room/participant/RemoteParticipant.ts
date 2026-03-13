@@ -5,6 +5,7 @@ import type {
   UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -19,7 +20,6 @@ import type { LoggerOptions } from '../types';
 import { isAudioTrack, isRemoteTrack } from '../utils';
 import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
-import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 
 export default class RemoteParticipant extends Participant {
   audioTrackPublications: Map<string, RemoteTrackPublication>;
