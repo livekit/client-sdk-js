@@ -15,7 +15,7 @@ import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenVal
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
-export abstract class TokenSourceCached extends TokenSourceConfigurable {
+abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedFetchOptions: TokenSourceFetchOptions | null = null;
 
   private cachedResponse: TokenSourceResponse | null = null;
@@ -72,9 +72,15 @@ export abstract class TokenSourceCached extends TokenSourceConfigurable {
     return decodeTokenPayload(this.cachedResponse.participantToken);
   }
 
-  async fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject> {
+  async fetch(
+    options: TokenSourceFetchOptions,
+    force?: boolean,
+  ): Promise<TokenSourceResponseObject> {
     const unlock = await this.fetchMutex.lock();
     try {
+      if (force) {
+        this.cachedResponse = null;
+      }
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
@@ -86,10 +92,6 @@ export abstract class TokenSourceCached extends TokenSourceConfigurable {
     } finally {
       unlock();
     }
-  }
-
-  invalidateCache() {
-    this.cachedResponse = null;
   }
 
   protected abstract update(options: TokenSourceFetchOptions): Promise<TokenSourceResponse>;
