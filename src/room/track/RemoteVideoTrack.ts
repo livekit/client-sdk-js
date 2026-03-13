@@ -1,4 +1,5 @@
 import { debounce } from 'ts-debounce';
+import type { UserFrameMetadata } from '../../user_timestamp';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
@@ -26,15 +27,15 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private lastDimensions?: Track.Dimensions;
 
   /**
-   * RTP timestamp -> user timestamp (microseconds) map.
+   * RTP timestamp -> frame metadata map.
    * Mirrors the Rust SDK's `recv_map_`: populated when an LKTS trailer is
    * stripped from an encoded frame, keyed by the frame's RTP timestamp so
-   * decoded frames can look up their user timestamp regardless of frame
+   * decoded frames can look up their frame metadata regardless of frame
    * drops or reordering.
    *
    * @experimental
    */
-  private userTimestampMap = new Map<number, number>();
+  private userTimestampMap = new Map<number, UserFrameMetadata>();
 
   private userTimestampMapOrder: number[] = [];
 
@@ -78,11 +79,12 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    * @param timestampUs - user timestamp in microseconds since Unix epoch
    * @param rtpTimestamp - RTP timestamp from the encoded frame (90 kHz clock).
    *   When provided, the mapping is stored so decoded frames can look up their
-   *   user timestamp via {@link lookupUserTimestamp}.
+   *   frame metadata via {@link lookupFrameMetadata}.
+   * @param frameId - monotonic frame id extracted from the trailer.
    *
    * @internal
    */
-  setUserTimestamp(timestampUs: number, rtpTimestamp?: number) {
+  setUserTimestamp(timestampUs: number, rtpTimestamp?: number, frameId?: number) {
     if (rtpTimestamp !== undefined) {
       while (this.userTimestampMap.size >= MAX_USER_TIMESTAMP_MAP_ENTRIES) {
         const oldest = this.userTimestampMapOrder.shift();
@@ -90,9 +92,30 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
           this.userTimestampMap.delete(oldest);
         }
       }
-      this.userTimestampMap.set(rtpTimestamp, timestampUs);
+      this.userTimestampMap.set(rtpTimestamp, { timestampUs, frameId });
       this.userTimestampMapOrder.push(rtpTimestamp);
     }
+  }
+
+  /**
+   * Look up the frame metadata associated with a given RTP timestamp.
+   * The entry is consumed (removed) after lookup, matching the Rust SDK
+   * behaviour.
+   *
+   * @returns The frame metadata, or `undefined` if not found.
+   * @experimental
+   */
+  lookupFrameMetadata(rtpTimestamp: number): UserFrameMetadata | undefined {
+    const metadata = this.userTimestampMap.get(rtpTimestamp);
+    if (metadata === undefined) {
+      return undefined;
+    }
+    this.userTimestampMap.delete(rtpTimestamp);
+    const idx = this.userTimestampMapOrder.indexOf(rtpTimestamp);
+    if (idx !== -1) {
+      this.userTimestampMapOrder.splice(idx, 1);
+    }
+    return metadata;
   }
 
   /**
@@ -104,16 +127,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    * @experimental
    */
   lookupUserTimestamp(rtpTimestamp: number): number | undefined {
-    const ts = this.userTimestampMap.get(rtpTimestamp);
-    if (ts === undefined) {
-      return undefined;
-    }
-    this.userTimestampMap.delete(rtpTimestamp);
-    const idx = this.userTimestampMapOrder.indexOf(rtpTimestamp);
-    if (idx !== -1) {
-      this.userTimestampMapOrder.splice(idx, 1);
-    }
-    return ts;
+    return this.lookupFrameMetadata(rtpTimestamp)?.timestampUs;
   }
 
   /** @internal */

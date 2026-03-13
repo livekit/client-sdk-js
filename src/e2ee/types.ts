@@ -155,6 +155,7 @@ export interface UserTimestampMessage extends BaseMessage {
     trackId: string;
     participantIdentity: string;
     timestampUs: number;
+    frameId?: number;
     rtpTimestamp?: number;
   };
 }

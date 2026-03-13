@@ -2635,7 +2635,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         const worker = createUserTimestampWorker();
         worker.onmessage = (ev: MessageEvent) => {
           if (ev.data?.kind === 'userTimestamp' && typeof ev.data.timestampUs === 'number') {
-            track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp);
+            track.setUserTimestamp(ev.data.timestampUs, ev.data.rtpTimestamp, ev.data.frameId);
           }
         };
         // @ts-ignore
@@ -2653,7 +2653,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             try {
               const result = stripUserTimestampFromEncodedFrame(encodedFrame);
               if (result !== undefined) {
-                track.setUserTimestamp(result.timestampUs, result.rtpTimestamp);
+                track.setUserTimestamp(result.timestampUs, result.rtpTimestamp, result.frameId);
               }
             } catch {
               // Best-effort: never break the media pipeline if parsing fails.

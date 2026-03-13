@@ -227,6 +227,7 @@ export class E2EEManager
           data.trackId,
           data.participantIdentity,
           data.timestampUs,
+          data.frameId,
           data.rtpTimestamp,
         );
         break;
@@ -244,6 +245,7 @@ export class E2EEManager
     trackId: string,
     participantIdentity: string,
     timestampUs: number,
+    frameId?: number,
     rtpTimestamp?: number,
   ) {
     if (!this.room) {
@@ -259,7 +261,7 @@ export class E2EEManager
         pub.track.mediaStreamID === trackId &&
         pub.track instanceof RemoteVideoTrack
       ) {
-        pub.track.setUserTimestamp(timestampUs, rtpTimestamp);
+        pub.track.setUserTimestamp(timestampUs, rtpTimestamp, frameId);
         return;
       }
     }

@@ -476,6 +476,7 @@ export class FrameCryptor extends BaseFrameCryptor {
               trackId: this.trackId,
               participantIdentity: this.participantIdentity,
               timestampUs: userTsResult.timestampUs,
+              frameId: userTsResult.frameId,
               rtpTimestamp: userTsResult.rtpTimestamp,
             },
           };

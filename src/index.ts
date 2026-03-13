@@ -169,6 +169,7 @@ export {
 export { LocalTrackRecorder } from './room/track/record';
 
 export {
+  type UserFrameMetadata,
   type UserTimestampInfo,
   type UserTimestampWithRtp,
   USER_TS_MAGIC,
