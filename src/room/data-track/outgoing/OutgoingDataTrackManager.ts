@@ -12,7 +12,6 @@ import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
-  DataTrackPublishErrorReason,
   DataTrackPushFrameError,
   DataTrackPushFrameErrorReason,
 } from './errors';
