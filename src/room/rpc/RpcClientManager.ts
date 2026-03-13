@@ -13,7 +13,6 @@ import type Participant from '../participant/Participant';
 import { Future, compareVersions } from '../utils';
 import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import {
-  COMPRESS_MIN_BYTES,
   DATA_STREAM_MIN_BYTES,
   MAX_LEGACY_PAYLOAD_BYTES,
   type PerformRpcParams,
@@ -157,7 +156,7 @@ export default class RpcClientManager {
     const payloadBytes = byteLength(payload);
 
     let mode: 'regular' | 'compressed' | 'compressed-data-stream' = 'regular';
-    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && payloadBytes > COMPRESS_MIN_BYTES) {
+    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
       mode = 'compressed';
     }
     if (mode === 'compressed' && payloadBytes > DATA_STREAM_MIN_BYTES) {
