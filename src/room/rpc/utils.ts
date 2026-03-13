@@ -261,9 +261,7 @@ export async function gzipDecompress(data: Uint8Array): Promise<string> {
  * into the decompression stream as it arrives rather than buffering first.
  * @internal
  */
-export async function gzipDecompressFromReader(
-  reader: AsyncIterable<Uint8Array>,
-): Promise<string> {
+export async function gzipDecompressFromReader(reader: AsyncIterable<Uint8Array>): Promise<string> {
   const ds = new DecompressionStream('gzip');
   const dsWriter = ds.writable.getWriter();
 

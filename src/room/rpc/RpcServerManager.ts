@@ -160,10 +160,7 @@ export default class RpcServerManager {
     // Large response: create the data stream tagged with the request ID,
     // send the RPC response with empty payload, then stream compressed chunks
     // for lower TTFB
-    if (
-      callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes > DATA_STREAM_MIN_BYTES
-    ) {
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes > DATA_STREAM_MIN_BYTES) {
       const writer = await this.outgoingDataStreamManager.streamBytes({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [callerIdentity],
@@ -205,15 +202,17 @@ export default class RpcServerManager {
    */
   async handleIncomingDataStream(
     reader: ByteStreamReader,
-    callerIdentity: Participant["identity"],
-    dataStreamAttrs: Record<string, string>
+    callerIdentity: Participant['identity'],
+    dataStreamAttrs: Record<string, string>,
   ) {
     const requestId = dataStreamAttrs[RPC_REQUEST_ID_ATTR];
     const method = dataStreamAttrs[RPC_REQUEST_METHOD_ATTR];
     const responseTimeout = parseInt(dataStreamAttrs[RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR], 10);
 
     if (!requestId || !method || Number.isNaN(responseTimeout)) {
-      this.log.warn(`RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`);
+      this.log.warn(
+        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`,
+      );
       await this.engine.publishRpcResponse(
         callerIdentity,
         requestId,
@@ -277,10 +276,7 @@ export default class RpcServerManager {
 
     const responseBytes = byteLength(response ?? '');
 
-    if (
-      callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC &&
-      responseBytes > DATA_STREAM_MIN_BYTES
-    ) {
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes > DATA_STREAM_MIN_BYTES) {
       // Large response: create the data stream tagged with the request ID,
       // send the RPC response with empty payload, then stream compressed chunks
       // for lower TTFB

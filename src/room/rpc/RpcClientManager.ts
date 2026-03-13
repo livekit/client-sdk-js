@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: 2026 LiveKit, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
-import {
-  DataPacket,
-  DataPacket_Kind,
-  RpcRequest,
-} from '@livekit/protocol';
+import { DataPacket, DataPacket_Kind, RpcRequest } from '@livekit/protocol';
 import { type StructuredLogger } from '../../logger';
+import { CLIENT_PROTOCOL_GZIP_RPC } from '../../version';
 import type RTCEngine from '../RTCEngine';
+import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
+import { EngineEvent } from '../events';
 import type Participant from '../participant/Participant';
 import { Future, compareVersions } from '../utils';
-import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import {
   DATA_STREAM_MIN_BYTES,
   MAX_LEGACY_PAYLOAD_BYTES,
@@ -27,8 +25,6 @@ import {
   gzipDecompress,
   gzipDecompressFromReader,
 } from './utils';
-import { CLIENT_PROTOCOL_GZIP_RPC } from '../../version';
-import { EngineEvent } from '../events';
 
 /**
  * Manages the client (caller) side of RPC: sending requests, tracking pending
@@ -49,7 +45,7 @@ export default class RpcClientManager {
   private pendingResponses = new Map<
     string /* request id */,
     {
-      completionFuture: Future<string, RpcError>,
+      completionFuture: Future<string, RpcError>;
       participantIdentity: string;
     }
   >();
@@ -276,7 +272,9 @@ export default class RpcClientManager {
           }
 
           default: {
-            this.log.warn(`Error handling RPC response data packet: unknown rpcResponse.value.case found (${rpcResponse.value.case})`);
+            this.log.warn(
+              `Error handling RPC response data packet: unknown rpcResponse.value.case found (${rpcResponse.value.case})`,
+            );
             return false;
           }
         }
@@ -303,10 +301,7 @@ export default class RpcClientManager {
    * Handle an incoming byte stream containing an RPC response payload.
    * Decompresses the stream and resolves/rejects the pending data stream future.
    */
-  async handleIncomingDataStream(
-    reader: ByteStreamReader,
-    responseId: string,
-  ) {
+  async handleIncomingDataStream(reader: ByteStreamReader, responseId: string) {
     let decompressedPayload: string;
     try {
       decompressedPayload = await gzipDecompressFromReader(reader);
@@ -347,7 +342,8 @@ export default class RpcClientManager {
       }
     }
 
-    for (const [id, { participantIdentity: pendingIdentity, completionFuture }] of this.pendingResponses) {
+    for (const [id, { participantIdentity: pendingIdentity, completionFuture }] of this
+      .pendingResponses) {
       if (pendingIdentity === participantIdentity) {
         completionFuture.reject?.(RpcError.builtIn('RECIPIENT_DISCONNECTED'));
         this.pendingResponses.delete(id);

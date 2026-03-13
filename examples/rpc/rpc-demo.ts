@@ -96,7 +96,9 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     'exchanging-long-info',
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (data: RpcInvocationData) => {
-      console.log(`[Greeter] ${data.callerIdentity} has arrived and said that its long info is "${data.payload}"`);
+      console.log(
+        `[Greeter] ${data.callerIdentity} has arrived and said that its long info is "${data.payload}"`,
+      );
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return new Array<string>(10_000).fill('Y').join('');
     },
@@ -154,7 +156,7 @@ const performGreeting = async (room: Room): Promise<void> => {
 };
 
 const performSendVeryLongInfo = async (room: Room): Promise<void> => {
-  console.log("[Caller] Sending the greeter a very long message");
+  console.log('[Caller] Sending the greeter a very long message');
   try {
     const response = await room.localParticipant.performRpc({
       destinationIdentity: 'greeter',
