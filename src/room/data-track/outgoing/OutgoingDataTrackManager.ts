@@ -165,26 +165,18 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /**
-   * Create a new {@link LocalDataTrack} which can be published / unpublished later. It starts
-   * unpublished.
+   * Client requested to publish a track.
    * @internal
    **/
-  createTrackRequest(
+  async publishRequest(
     options: DataTrackOptions,
-  ): Throws<LocalDataTrack, DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>> {
+    signal?: AbortSignal,
+  ): Promise<Throws<DataTrackHandle, DataTrackPublishError>> {
     const handle = this.handleAllocator.get();
     if (!handle) {
       throw DataTrackPublishError.limitReached();
     }
 
-    return new LocalDataTrack(options, handle, this);
-  }
-
-  /**
-   * Client requested to publish a track.
-   * @internal
-   **/
-  async publishRequest(handle: DataTrackHandle, options: DataTrackOptions, signal?: AbortSignal) {
     const timeoutSignal = abortSignalTimeout(PUBLISH_TIMEOUT_MILLISECONDS);
     const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
 
@@ -218,7 +210,9 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     };
     if (combinedSignal.aborted) {
       onAbort(); // NOTE: this rejects `completionFuture`; the next line just returns the rejection
-      return descriptor.completionFuture.promise;
+      return descriptor.completionFuture.promise.then(
+        () => handle /* no-op, makes typescript happy */,
+      );
     }
     combinedSignal.addEventListener('abort', onAbort);
 
@@ -230,6 +224,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     await descriptor.completionFuture.promise;
     combinedSignal.removeEventListener('abort', onAbort);
+    return handle;
   }
 
   /**

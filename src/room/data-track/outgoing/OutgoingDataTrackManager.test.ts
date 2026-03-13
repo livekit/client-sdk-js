@@ -79,7 +79,7 @@ describe('DataTrackOutgoingManager', () => {
       'sfuPublishRequest',
     ]);
 
-    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
     expect(localDataTrack.isPublished()).toStrictEqual(false);
 
     // 1. Publish a data track
@@ -114,7 +114,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
     const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
@@ -139,7 +139,7 @@ describe('DataTrackOutgoingManager', () => {
 
     // 1. Publish a data track
     const controller = new AbortController();
-    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
     const publishRequestPromise = localDataTrack.publish(controller.signal);
 
     // 2. This publish request should be sent along to the SFU
@@ -168,7 +168,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // Publish a data track
-    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
     const publishRequestPromise = localDataTrack.publish(AbortSignal.abort(/* already aborted */));
 
     // Make sure cancellation is immediately bubbled up
@@ -176,6 +176,77 @@ describe('DataTrackOutgoingManager', () => {
 
     // And there were no pending sfu publish requests sent
     expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
+  });
+
+  it('should test track publishing, unpublishing, and republishing again', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'sfuUnpublishRequest',
+    ]);
+
+    // 1. Create a local data track
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
+    // 2. Publish it
+    const publishRequestPromise = localDataTrack.publish();
+
+    // 3. This publish request should be sent along to the SFU
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent.name).toStrictEqual('test');
+    expect(sfuPublishEvent.usesE2ee).toStrictEqual(false);
+    const handle = sfuPublishEvent.handle;
+
+    // 4. Respond to the SFU publish request with an OK response
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+
+    // Make sure that the original input event resolves.
+    await publishRequestPromise;
+
+    // 5. Now the data track should be published
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // 6. Unpublish the data track
+    const unpublishRequestPromise = localDataTrack.unpublish();
+    const sfuUnpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
+    manager.receivedSfuUnpublishResponse(sfuUnpublishEvent.handle);
+    await unpublishRequestPromise;
+
+    // 7. Now the data track should be unpublished
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+
+    // 8. Now, republish the track and make sure that be done a second time
+    const publishRequestPromise2 = localDataTrack.publish();
+    const sfuPublishEvent2 = await managerEvents.waitFor('sfuPublishRequest');
+    expect(sfuPublishEvent2.name).toStrictEqual('test');
+    expect(sfuPublishEvent2.usesE2ee).toStrictEqual(false);
+    const handle2 = sfuPublishEvent2.handle;
+    manager.receivedSfuPublishResponse(handle2, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: sfuPublishEvent2.handle,
+        name: 'test',
+        usesE2ee: false,
+      },
+    });
+    await publishRequestPromise2;
+
+    // 9. Ensure that the track is published again
+    expect(localDataTrack.isPublished()).toStrictEqual(true);
+
+    // 10. Also ensure that the handle used on the second publish attempt differs from the first
+    // publish attempt.
+    expect(handle).not.toStrictEqual(handle2);
   });
 
   it.each([
@@ -258,7 +329,7 @@ describe('DataTrackOutgoingManager', () => {
         'packetsAvailable',
       ]);
 
-      const localDataTrack = new LocalDataTrack({ name: 'track name' }, 5, manager);
+      const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
 
       // Kick off sending the bytes...
       localDataTrack.tryPush(inputBytes);
@@ -283,7 +354,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // 1. Publish a data track
-    const localDataTrack = manager.createTrackRequest({ name: 'test' });
+    const localDataTrack = new LocalDataTrack({ name: 'test' }, manager);
     const publishRequestPromise = localDataTrack.publish();
 
     // 2. This publish request should be sent along to the SFU
@@ -403,7 +474,7 @@ describe('DataTrackOutgoingManager', () => {
       'packetsAvailable',
       'sfuUnpublishRequest',
     ]);
-    const localDataTrack = new LocalDataTrack({ name: 'track name' }, 5, manager);
+    const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
 
     // Make sure the descriptor is in there
     expect(manager.getDescriptor(5)?.type).toStrictEqual('active');
@@ -442,7 +513,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(localDataTrack.isPublished()).toStrictEqual(true);
 
     // And the sid should be the new value
-    expect(localDataTrack.info.sid).toStrictEqual('bogus-sid-REPUBLISHED');
+    expect(localDataTrack.info!.sid).toStrictEqual('bogus-sid-REPUBLISHED');
 
     // And now that the tracks are backed by the SFU again, pushes should function!
     await localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
