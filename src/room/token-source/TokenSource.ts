@@ -15,7 +15,7 @@ import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenVal
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
-abstract class TokenSourceCached extends TokenSourceConfigurable {
+export abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedFetchOptions: TokenSourceFetchOptions | null = null;
 
   private cachedResponse: TokenSourceResponse | null = null;
