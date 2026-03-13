@@ -1,5 +1,5 @@
 import { LoggerNames, getLogger } from '../../logger';
-import { type Throws } from '../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrame } from './frame';
 import { DataTrackPacket, FrameMarker } from './packet';

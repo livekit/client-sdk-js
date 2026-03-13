@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
-import type { Throws } from '../../../utils/throws';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import { Future } from '../../utils';
 import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';

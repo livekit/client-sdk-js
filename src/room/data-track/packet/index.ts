@@ -1,4 +1,4 @@
-import { type Throws } from '../../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { DataTrackHandle, DataTrackHandleError, DataTrackHandleErrorReason } from '../handle';
 import {
   DataTrackTimestamp,
