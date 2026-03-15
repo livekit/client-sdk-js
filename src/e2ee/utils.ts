@@ -1,5 +1,6 @@
 import { type DataPacket, EncryptedPacketPayload } from '@livekit/protocol';
 import { ENCRYPTION_ALGORITHM } from './constants';
+import type { KeyProviderOptions } from './types';
 
 export function isE2EESupported() {
   return isInsertableStreamSupported() || isScriptTransformSupported();
@@ -92,8 +93,8 @@ function getAlgoOptions(algorithmName: string, salt: string) {
  * Derives a set of keys from the master key.
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
  */
-export async function deriveKeys(material: CryptoKey, salt: string) {
-  const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
+export async function deriveKeys(material: CryptoKey, options: KeyProviderOptions) {
+  const algorithmOptions = getAlgoOptions(material.algorithm.name, options.ratchetSalt);
 
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
   // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
@@ -102,7 +103,7 @@ export async function deriveKeys(material: CryptoKey, salt: string) {
     material,
     {
       name: ENCRYPTION_ALGORITHM,
-      length: 128,
+      length: options.keySize,
     },
     false,
     ['encrypt', 'decrypt'],

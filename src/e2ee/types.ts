@@ -183,6 +183,12 @@ export type KeyProviderOptions = {
   ratchetWindowSize: number;
   failureTolerance: number;
   keyringSize: number;
+  /**
+   * Size of the encryption key in bits.
+   * Defaults to 128. Note that 128 is currently the only value
+   * supported by non-web SDKs.
+   */
+  keySize: 128 | 256;
 };
 
 export type KeyInfo = {
