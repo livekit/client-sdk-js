@@ -55,8 +55,8 @@ import {
   type TextStreamHandler,
 } from './data-stream/incoming/StreamReader';
 import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
-import type RemoteDataTrack from './data-track/RemoteDataTrack';
 import type LocalDataTrack from './data-track/LocalDataTrack';
+import type RemoteDataTrack from './data-track/RemoteDataTrack';
 import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
 import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
 import { DataTrackInfo, type DataTrackSid } from './data-track/types';

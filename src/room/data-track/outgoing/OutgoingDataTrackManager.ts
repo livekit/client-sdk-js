@@ -231,7 +231,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     combinedSignal.removeEventListener('abort', onAbort);
 
     this.emit('trackPublished', {
-      track: LocalDataTrack.withExplicitHandle(options, this, handle)
+      track: LocalDataTrack.withExplicitHandle(options, this, handle),
     });
 
     return handle;

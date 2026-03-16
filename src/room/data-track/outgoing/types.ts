@@ -1,5 +1,5 @@
-import { type DataTrackHandle } from '../handle';
 import type LocalDataTrack from '../LocalDataTrack';
+import { type DataTrackHandle } from '../handle';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
 import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
