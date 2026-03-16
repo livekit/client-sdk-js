@@ -261,7 +261,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // Only advertize tracks from other participants
           return;
         }
-        this.emit(RoomEvent.RemoteDataTrackPublished, event.track);
+        this.emit(RoomEvent.DataTrackPublished, event.track);
         this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
       })
       .on('trackUnavailable', (event) => {
@@ -269,7 +269,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // Only advertize tracks from other participants
           return;
         }
-        this.emit(RoomEvent.RemoteDataTrackUnpublished, event.sid);
+        this.emit(RoomEvent.DataTrackUnpublished, event.sid);
         this.remoteParticipants.get(event.publisherIdentity)?.removeRemoteDataTrack(event.sid);
       });
 
@@ -2861,6 +2861,6 @@ export type RoomEventCallbacks = {
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
   participantActive: (participant: Participant) => void;
-  remoteDataTrackPublished: (track: RemoteDataTrack) => void;
-  remoteDataTrackUnpublished: (sid: DataTrackSid) => void;
+  dataTrackPublished: (track: RemoteDataTrack) => void;
+  dataTrackUnpublished: (sid: DataTrackSid) => void;
 };
