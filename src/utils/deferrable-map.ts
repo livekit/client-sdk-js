@@ -26,7 +26,7 @@ export class DeferrableMap<K, V> extends Map<K, V> {
   private pending: Map<K, Array<Future<V, DeferrableMapAbortError>>> = new Map();
 
   set(key: K, value: V): this {
-    this.set(key, value);
+    super.set(key, value);
 
     // Resolve any futures waiting on this key.
     const futures = this.pending.get(key);
