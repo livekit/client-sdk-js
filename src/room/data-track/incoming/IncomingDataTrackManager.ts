@@ -188,7 +188,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       await proxiedCompletionFuture.promise;
       combinedSignal.removeEventListener('abort', onAbort);
 
-      return this.createReadableStream(sid);
+      return this.createReadableStream(sid, highWaterMark);
     };
 
     switch (descriptor.subscription.type) {
