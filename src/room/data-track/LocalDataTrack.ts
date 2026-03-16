@@ -57,7 +57,10 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
     return this.handle ? this.manager.getDescriptor(this.handle) : null;
   }
 
-  /** Publish the track to the SFU. This must be done before calling {@link tryPush} for the first time. */
+  /**
+   * Publish the track to the SFU. This must be done before calling {@link tryPush} for the first time.
+   * @internal
+   * */
   async publish(signal?: AbortSignal) {
     try {
       this.handle = await this.manager.publishRequest(this.options, signal);
