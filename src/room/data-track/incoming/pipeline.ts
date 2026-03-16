@@ -1,5 +1,5 @@
-import { LoggerNames, getLogger } from '../../../logger';
 import type { Throws } from '@livekit/throws-transformer/throws';
+import { LoggerNames, getLogger } from '../../../logger';
 import DataTrackDepacketizer, { DataTrackDepacketizerDropError } from '../depacketizer';
 import type { DecryptionProvider, EncryptedPayload } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
