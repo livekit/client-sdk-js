@@ -257,7 +257,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       room: this.latestJoinResponse?.room?.name,
       roomID: this.latestJoinResponse?.room?.sid,
       participant: this.latestJoinResponse?.participant?.identity,
-      pID: this.participantSid,
+      participantID: this.participantSid,
     };
   }
 
