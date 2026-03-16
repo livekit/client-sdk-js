@@ -1,5 +1,5 @@
 import { Future } from '../room/utils';
-import { type Throws } from './throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 
 /** An error which is thrown if a {@link WaitableMap#waitUntilExists} call is aborted midway
  * through. */
