@@ -134,6 +134,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this._isClosed;
   }
 
+  get isNewlyCreated() {
+    return this._isNewlyCreated;
+  }
+
   get pendingReconnect() {
     return !!this.reconnectTimeout;
   }
@@ -155,6 +159,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private pcState: PCState = PCState.New;
 
   private _isClosed: boolean = true;
+
+  private _isNewlyCreated: boolean = true;
 
   private pendingTrackResolvers: {
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
@@ -269,6 +275,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
   ): Promise<JoinResponse> {
+    this._isNewlyCreated = false;
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
