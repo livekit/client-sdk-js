@@ -56,6 +56,7 @@ import {
 } from './data-stream/incoming/StreamReader';
 import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
 import type RemoteDataTrack from './data-track/RemoteDataTrack';
+import type LocalDataTrack from './data-track/LocalDataTrack';
 import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
 import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
 import { DataTrackInfo, type DataTrackSid } from './data-track/types';
@@ -280,6 +281,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on('sfuUnpublishRequest', (event) => {
         this.engine.client.sendUnPublishDataTrackRequest(event.handle);
+      })
+      .on('trackPublished', (event) => {
+        this.emit(RoomEvent.LocalDataTrackPublished, event.track);
+      })
+      .on('trackUnpublished', (event) => {
+        this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
       })
       .on('packetsAvailable', ({ bytes }) => {
         this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY);
@@ -2863,4 +2870,6 @@ export type RoomEventCallbacks = {
   participantActive: (participant: Participant) => void;
   dataTrackPublished: (track: RemoteDataTrack) => void;
   dataTrackUnpublished: (sid: DataTrackSid) => void;
+  localDataTrackPublished: (track: LocalDataTrack) => void;
+  localDataTrackUnpublished: (sid: DataTrackSid) => void;
 };

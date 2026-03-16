@@ -21,6 +21,8 @@ import {
   type EventPacketsAvailable,
   type EventSfuPublishRequest,
   type EventSfuUnpublishRequest,
+  type EventTrackPublished,
+  type EventTrackUnpublished,
   type SfuPublishResponseResult,
 } from './types';
 
@@ -69,6 +71,10 @@ export type DataTrackOutgoingManagerCallbacks = {
   sfuUnpublishRequest: (event: EventSfuUnpublishRequest) => void;
   /** Serialized packets are ready to be sent over the transport. */
   packetsAvailable: (event: EventPacketsAvailable) => void;
+  /** A new {@link LocalDataTrack} has been published */
+  trackPublished: (event: EventTrackPublished) => void;
+  /** A {@link LocalDataTrack} has been unpublished */
+  trackUnpublished: (event: EventTrackUnpublished) => void;
 };
 
 type OutgoingDataTrackManagerOptions = {
@@ -223,6 +229,11 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     await descriptor.completionFuture.promise;
     combinedSignal.removeEventListener('abort', onAbort);
+
+    this.emit('trackPublished', {
+      track: LocalDataTrack.withExplicitHandle(options, this, handle)
+    });
+
     return handle;
   }
 
@@ -256,6 +267,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     this.emit('sfuUnpublishRequest', { handle });
 
     await descriptor.unpublishingFuture.promise;
+
+    this.emit('trackUnpublished', { sid: descriptor.info.sid });
   }
 
   /**

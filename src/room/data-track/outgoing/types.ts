@@ -1,5 +1,6 @@
 import { type DataTrackHandle } from '../handle';
-import { type DataTrackInfo } from '../types';
+import type LocalDataTrack from '../LocalDataTrack';
+import { type DataTrackInfo, type DataTrackSid } from '../types';
 import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
 /** Options for publishing a data track. */
@@ -35,3 +36,10 @@ export type EventSfuUnpublishRequest = {
 export type EventPacketsAvailable = {
   bytes: Uint8Array;
 };
+
+/** A track has been created by a local participant and is available to be
+ * subscribed to. */
+export type EventTrackPublished = { track: LocalDataTrack };
+
+/** A track has been unpublished by a remote participant and can no longer be subscribed to. */
+export type EventTrackUnpublished = { sid: DataTrackSid };

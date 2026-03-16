@@ -362,6 +362,16 @@ export enum RoomEvent {
    * Emits when a new data track has been unpublished by a downstream participant.
    */
   DataTrackUnpublished = 'dataTrackUnpublished',
+
+  /**
+   * Emits when a new data track has been published locally.
+   */
+  LocalDataTrackPublished = 'localDataTrackPublished',
+
+  /**
+   * Emits when a new data track has been unpublished locally.
+   */
+  LocalDataTrackUnpublished = 'localDataTrackUnpublished',
 }
 
 export enum ParticipantEvent {
