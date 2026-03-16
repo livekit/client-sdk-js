@@ -1,4 +1,4 @@
-import { type Throws } from '../../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { type DataTrackSerializeErrorAll } from './errors';
 
 /** An abstract class implementing common behavior related to data track binary serialization. */

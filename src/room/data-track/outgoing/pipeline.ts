@@ -1,4 +1,4 @@
-import { type Throws } from '../../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { type EncryptedPayload, type EncryptionProvider } from '../e2ee';
 import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
