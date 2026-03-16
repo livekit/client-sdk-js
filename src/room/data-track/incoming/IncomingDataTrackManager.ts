@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
-import type { Throws } from '../../../utils/throws';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import type Participant from '../../participant/Participant';
 import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
