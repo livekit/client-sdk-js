@@ -86,9 +86,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   toBinaryLengthBytes(): number {
     return (
-      U8_LENGTH_BYTES /* tag */ +
-      U8_LENGTH_BYTES /* length */ +
-      DataTrackE2eeExtension.lengthBytes
+      U8_LENGTH_BYTES /* tag */ + U8_LENGTH_BYTES /* length */ + DataTrackE2eeExtension.lengthBytes
     );
   }
 
