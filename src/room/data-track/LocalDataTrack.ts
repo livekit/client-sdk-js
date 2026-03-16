@@ -1,3 +1,4 @@
+import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import type { DataTrackFrame } from './frame';
 import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
@@ -25,10 +26,14 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   protected manager: OutgoingDataTrackManager;
 
+  protected log: StructuredLogger = log;
+
   /** @internal */
   constructor(options: DataTrackOptions, manager: OutgoingDataTrackManager) {
     this.options = options;
     this.manager = manager;
+
+    this.log = getLogger(LoggerNames.DataTracks);
   }
 
   /** @internal */
@@ -85,7 +90,8 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    */
   tryPush(payload: DataTrackFrame['payload']) {
     if (!this.handle) {
-      throw DataTrackPushFrameError.trackUnpublished();
+      this.log.warn(`Data track "${this.options.name}" is not published, skipping tryPush.`);
+      return;
     }
 
     try {
