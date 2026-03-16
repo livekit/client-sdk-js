@@ -1,9 +1,9 @@
-import { Future } from '../room/utils';
 import { type Throws } from '@livekit/throws-transformer/throws';
+import { Future } from '../room/utils';
 
-/** An error which is thrown if a {@link WaitableMap#waitUntilExists} call is aborted midway
+/** An error which is thrown if a {@link DeferrableMap#getDeferred} call is aborted midway
  * through. */
-export class WaitableMapAbortError extends DOMException {
+export class DeferrableMapAbortError extends DOMException {
   reason: unknown;
 
   constructor(message: string, reason?: unknown) {
@@ -20,10 +20,10 @@ export class WaitableMapAbortError extends DOMException {
  * // An already existing key:
  * const value = map.get("key");
  * // Wait for a key which will be added soon:
- * const value = await map.waitUntilExists("key");
+ * const value = await map.getDeferred("key");
  */
-export class WaitableMap<K, V> extends Map<K, V> {
-  private pending: Map<K, Array<Future<V, WaitableMapAbortError>>> = new Map();
+export class DeferrableMap<K, V> extends Map<K, V> {
+  private pending: Map<K, Array<Future<V, DeferrableMapAbortError>>> = new Map();
 
   set(key: K, value: V): this {
     this.set(key, value);
@@ -51,11 +51,11 @@ export class WaitableMap<K, V> extends Map<K, V> {
    * promise that resolves once `set(key, value)` is called.
    *
    * If an `AbortSignal` is provided and it is aborted before the key appears,
-   * the returned promise rejects with an {@link WaitableMapAbortError}.
+   * the returned promise rejects with an {@link DeferrableMapAbortError}.
    */
-  waitUntilExists(key: K): Promise<V>;
-  waitUntilExists(key: K, signal: AbortSignal): Promise<Throws<V, WaitableMapAbortError>>;
-  async waitUntilExists(key: K, signal?: AbortSignal) {
+  getDeferred(key: K): Promise<V>;
+  getDeferred(key: K, signal: AbortSignal): Promise<Throws<V, DeferrableMapAbortError>>;
+  async getDeferred(key: K, signal?: AbortSignal) {
     const existing = this.get(key);
     if (typeof existing !== 'undefined') {
       return existing;
@@ -63,10 +63,10 @@ export class WaitableMap<K, V> extends Map<K, V> {
 
     // Bail out immediately if the signal is already aborted.
     if (signal?.aborted) {
-      throw new WaitableMapAbortError('The operation was aborted.', signal.reason);
+      throw new DeferrableMapAbortError('The operation was aborted.', signal.reason);
     }
 
-    const future = new Future<V, WaitableMapAbortError>(undefined, () => {
+    const future = new Future<V, DeferrableMapAbortError>(undefined, () => {
       // Clean up the pending list when the future settles.
       const futures = this.pending.get(key);
       if (!futures) {
@@ -93,7 +93,7 @@ export class WaitableMap<K, V> extends Map<K, V> {
     if (signal) {
       const onAbort = () => {
         if (!future.isResolved) {
-          future.reject?.(new WaitableMapAbortError('The operation was aborted.', signal.reason));
+          future.reject?.(new DeferrableMapAbortError('The operation was aborted.', signal.reason));
         }
       };
       signal.addEventListener('abort', onAbort, { once: true });

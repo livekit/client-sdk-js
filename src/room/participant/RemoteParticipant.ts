@@ -5,7 +5,7 @@ import type {
   UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
-import { WaitableMap } from '../../utils/waitable-map';
+import { DeferrableMap } from '../../utils/deferrable-map';
 import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
@@ -34,8 +34,8 @@ export default class RemoteParticipant extends Participant {
    * // An already existing data track:
    * const track = remoteParticipant.dataTracks.get("data track name");
    * // Wait for a data track which will be published soon:
-   * const track = await remoteParticipant.dataTracks.waitUntilExists("data track name"); */
-  dataTracks: WaitableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
+   * const track = await remoteParticipant.dataTracks.getDeferred("data track name"); */
+  dataTracks: DeferrableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
 
   signalClient: SignalClient;
 
@@ -85,7 +85,7 @@ export default class RemoteParticipant extends Participant {
     this.trackPublications = new Map();
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
-    this.dataTracks = new WaitableMap();
+    this.dataTracks = new DeferrableMap();
     this.volumeMap = new Map();
   }
 
