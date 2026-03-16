@@ -2,4 +2,4 @@
 "livekit-client": patch
 ---
 
-Add method to invalidate TokenSource cache
+Add token fetch force option to skip TokenSource cache
