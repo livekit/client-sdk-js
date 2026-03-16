@@ -464,7 +464,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private maybeCreateEngine() {
-    if (this.engine && !this.engine.isClosed) {
+    if (this.engine && (this.engine.isNewlyCreated || !this.engine.isClosed)) {
       return;
     }
 
