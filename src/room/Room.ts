@@ -406,7 +406,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       room: this.name,
       roomID: this.roomInfo?.sid,
       participant: this.localParticipant.identity,
-      pID: this.localParticipant.sid,
+      participantID: this.localParticipant.sid,
     };
   }
 
@@ -1481,7 +1481,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!trackId.startsWith('TR')) {
       this.log.warn(
         `Tried to add a track whose 'sid' could not be determined for a participant, that's not present. Sid: ${participantSid}, streamId: ${streamId}, trackId: ${trackId}`,
-        { ...this.logContext, rpID: participantSid, streamId, trackId },
+        { ...this.logContext, remoteParticipantID: participantSid, streamId, trackId },
       );
     }
 

@@ -54,7 +54,7 @@ export default class RemoteParticipant extends Participant {
   protected get logContext() {
     return {
       ...super.logContext,
-      rpID: this.sid,
+      remoteParticipantID: this.sid,
       remoteParticipant: this.identity,
     };
   }
