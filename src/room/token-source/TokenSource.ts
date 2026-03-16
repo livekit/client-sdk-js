@@ -72,9 +72,15 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     return decodeTokenPayload(this.cachedResponse.participantToken);
   }
 
-  async fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject> {
+  async fetch(
+    options: TokenSourceFetchOptions,
+    force?: boolean,
+  ): Promise<TokenSourceResponseObject> {
     const unlock = await this.fetchMutex.lock();
     try {
+      if (force) {
+        this.cachedResponse = null;
+      }
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
