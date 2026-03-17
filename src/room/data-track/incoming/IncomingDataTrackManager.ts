@@ -226,7 +226,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         return reader;
       }
       case 'active': {
-        return this.createReadableStream(sid);
+        return this.createReadableStream(sid, highWaterMark);
       }
     }
   }
