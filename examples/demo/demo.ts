@@ -268,11 +268,11 @@ const appActions = {
       .on(RoomEvent.EncryptionError, (error) => {
         appendLog(`Error encrypting track data: ${error.message}`);
       })
-      .on(RoomEvent.RemoteDataTrackPublished, (track) => {
+      .on(RoomEvent.DataTrackPublished, (track) => {
         remoteDataTracks.push(track);
         renderRemoteDataTracks();
       })
-      .on(RoomEvent.RemoteDataTrackUnpublished, (sid) => {
+      .on(RoomEvent.DataTrackUnpublished, (sid) => {
         const index = remoteDataTracks.findIndex((t) => t.info.sid === sid);
         if (index >= 0) {
           remoteDataTracks.splice(index, 1);
