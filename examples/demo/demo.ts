@@ -1073,8 +1073,10 @@ function renderBitrate() {
 }
 
 function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
+  if (!localDataTrack.isPublished()) {
+    return null;
+  }
   const { sid, pubHandle, name } = localDataTrack.info;
-  const published = localDataTrack.isPublished();
 
   const item = document.createElement('div');
   item.className = 'list-group-item local-data-track-item p-2 mt-2';
@@ -1084,9 +1086,7 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
     <div class="d-flex align-items-start justify-content-between mt-1">
       <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
       <div class="d-flex align-items-center">
-        <span class="badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap mr-2">
-          ${published ? '✓ Live' : '⏳ Pending'}
-        </span>
+        <span class="badge badge-success text-nowrap mr-2">✓ Live</span>
         <button id="local-data-track-delete-${sid}" class="btn btn-outline-danger btn-sm" type="button">✕</button>
       </div>
     </div>
@@ -1145,7 +1145,7 @@ function updateLocalDataTrackElement(
 ): void {
   const published = localDataTrack.isPublished();
 
-  const badge = element.querySelector<HTMLSpanElement>('.badge[data-status]');
+  const badge = element.querySelector<HTMLSpanElement>('.badge');
   if (badge) {
     badge.className = `badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap`;
     badge.textContent = published ? '✓ Live' : '⏳ Pending';
@@ -1155,13 +1155,14 @@ function updateLocalDataTrackElement(
 function renderLocalDataTracks() {
   const wrapper = $('data-tracks-local-list');
 
+  const publishedTracks = localDataTracks.filter((l) => l.isPublished());
   const renderedLocalDataTrackSids = new Set<string>();
 
   // Update or remove existing children
   for (const child of Array.from(wrapper.children)) {
     const element = child as HTMLDivElement;
     const sid = element.dataset.sid!;
-    const localDataTrack = localDataTracks.find((l) => l.info.sid === sid);
+    const localDataTrack = publishedTracks.find((l) => l.info.sid === sid);
     if (localDataTrack) {
       updateLocalDataTrackElement(element, localDataTrack);
     } else {
@@ -1171,11 +1172,13 @@ function renderLocalDataTracks() {
   }
 
   // Create elements for new tracks
-  for (const localDataTrack of localDataTracks.filter(
+  for (const localDataTrack of publishedTracks.filter(
     (l) => !renderedLocalDataTrackSids.has(l.info.sid),
   )) {
     const child = createLocalDataTrackElement(localDataTrack);
-    wrapper.appendChild(child);
+    if (child) {
+      wrapper.appendChild(child);
+    }
   }
 }
 
