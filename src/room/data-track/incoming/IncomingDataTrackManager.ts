@@ -117,7 +117,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
   ): Promise<
     Throws<
-      ReadableStream<DataTrackFrame /* FIXME: should this be a frame? or just a packet? */>,
+      ReadableStream<DataTrackFrame>,
       DataTrackSubscribeError
     >
   > {
