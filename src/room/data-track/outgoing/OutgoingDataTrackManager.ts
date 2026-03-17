@@ -18,7 +18,7 @@ import {
 import DataTrackOutgoingPipeline from './pipeline';
 import {
   type DataTrackOptions,
-  type EventPacketsAvailable,
+  type EventPacketAvailable,
   type EventSfuPublishRequest,
   type EventSfuUnpublishRequest,
   type EventTrackPublished,
@@ -69,8 +69,8 @@ export type DataTrackOutgoingManagerCallbacks = {
   sfuPublishRequest: (event: EventSfuPublishRequest) => void;
   /** Request sent to the SFU to unpublish a track. */
   sfuUnpublishRequest: (event: EventSfuUnpublishRequest) => void;
-  /** Serialized packets are ready to be sent over the transport. */
-  packetsAvailable: (event: EventPacketsAvailable) => void;
+  /** A serialized packet is ready to be sent over the transport. */
+  packetAvailable: (event: EventPacketAvailable) => void;
   /** A new {@link LocalDataTrack} has been published */
   trackPublished: (event: EventTrackPublished) => void;
   /** A {@link LocalDataTrack} has been unpublished */
@@ -160,7 +160,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     try {
       for await (const packet of descriptor.pipeline.processFrame(frame)) {
-        this.emit('packetsAvailable', { bytes: packet.toBinary() });
+        this.emit('packetAvailable', { bytes: packet.toBinary() });
       }
     } catch (err) {
       // NOTE: In the rust implementation this "dropped" error means something different (not enough room

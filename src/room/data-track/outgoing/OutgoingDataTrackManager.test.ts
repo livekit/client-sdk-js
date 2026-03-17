@@ -326,7 +326,7 @@ describe('DataTrackOutgoingManager', () => {
         ]),
       );
       const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
-        'packetsAvailable',
+        'packetAvailable',
       ]);
 
       const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
@@ -336,7 +336,7 @@ describe('DataTrackOutgoingManager', () => {
 
       // ... and make sure the corresponding events are emitted to tell the SFU to send the packets
       for (const outputPacketJson of outputPacketsJson) {
-        const packetBytes = await managerEvents.waitFor('packetsAvailable');
+        const packetBytes = await managerEvents.waitFor('packetAvailable');
         const [packet] = DataTrackPacket.fromBinary(packetBytes.bytes);
 
         expect(packet.toJSON()).toStrictEqual(outputPacketJson);
@@ -350,7 +350,7 @@ describe('DataTrackOutgoingManager', () => {
     });
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',
-      'packetsAvailable',
+      'packetAvailable',
     ]);
 
     // 1. Publish a data track
@@ -382,7 +382,7 @@ describe('DataTrackOutgoingManager', () => {
     localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
 
     // Make sure the packet that was sent was encrypted with the PrefixingEncryptionProvider
-    const packetBytes = await managerEvents.waitFor('packetsAvailable');
+    const packetBytes = await managerEvents.waitFor('packetAvailable');
     const [packet] = DataTrackPacket.fromBinary(packetBytes.bytes);
 
     expect(packet.toJSON()).toStrictEqual({
@@ -471,7 +471,7 @@ describe('DataTrackOutgoingManager', () => {
     );
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
       'sfuPublishRequest',
-      'packetsAvailable',
+      'packetAvailable',
       'sfuUnpublishRequest',
     ]);
     const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
@@ -517,7 +517,7 @@ describe('DataTrackOutgoingManager', () => {
 
     // And now that the tracks are backed by the SFU again, pushes should function!
     await localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
-    await managerEvents.waitFor('packetsAvailable');
+    await managerEvents.waitFor('packetAvailable');
   });
 
   it('should query currently active descriptors', async () => {

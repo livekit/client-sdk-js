@@ -32,8 +32,8 @@ export type EventSfuUnpublishRequest = {
   handle: DataTrackHandle;
 };
 
-/** Serialized packets are ready to be sent over the transport. */
-export type EventPacketsAvailable = {
+/** A serialized packet is ready to be sent over the transport. */
+export type EventPacketAvailable = {
   bytes: Uint8Array;
 };
 

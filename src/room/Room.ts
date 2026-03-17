@@ -288,7 +288,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on('trackUnpublished', (event) => {
         this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
       })
-      .on('packetsAvailable', ({ bytes }) => {
+      .on('packetAvailable', ({ bytes }) => {
         this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY);
       });
 
