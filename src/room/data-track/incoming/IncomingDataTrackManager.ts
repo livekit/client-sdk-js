@@ -14,9 +14,9 @@ import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
-import { DataTrackSubscriptionReader } from './subscription-reader';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
+import { DataTrackSubscriptionReader } from './subscription-reader';
 import {
   type EventSfuUpdateSubscription,
   type EventTrackAvailable,
@@ -184,7 +184,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       await proxiedCompletionFuture.promise;
       combinedSignal.removeEventListener('abort', onAbort);
 
-      return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), { signal });
+      return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), {
+        signal,
+      });
     };
 
     switch (descriptor.subscription.type) {
@@ -227,7 +229,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         return reader;
       }
       case 'active': {
-        return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), { signal });
+        return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), {
+          signal,
+        });
       }
     }
   }
