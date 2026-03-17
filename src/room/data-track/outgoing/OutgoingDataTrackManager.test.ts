@@ -110,6 +110,26 @@ describe('DataTrackOutgoingManager', () => {
     expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
   });
 
+  it('should test track publishing (cancellation before it starts)', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+      'sfuUnpublishRequest',
+    ]);
+
+    // Publish a data track
+    const publishRequestPromise = manager.publishRequest(
+      { name: 'test' },
+      AbortSignal.abort(/* already aborted */),
+    );
+
+    // Make sure cancellation is immediately bubbled up
+    expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+
+    // And there were no pending sfu publish requests sent
+    expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
+  });
+
   it.each([
     // Single packet payload case
     [

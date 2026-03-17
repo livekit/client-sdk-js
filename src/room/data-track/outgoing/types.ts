@@ -1,5 +1,5 @@
 import { type DataTrackHandle } from '../handle';
-import { type DataTrackInfo } from '../track';
+import { type DataTrackInfo } from '../types';
 import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
 /** Options for publishing a data track. */
@@ -19,19 +19,18 @@ export type SfuPublishResponseResult =
     };
 
 /** Request sent to the SFU to publish a track. */
-export type OutputEventSfuPublishRequest = {
+export type EventSfuPublishRequest = {
   handle: DataTrackHandle;
   name: string;
   usesE2ee: boolean;
 };
 
 /** Request sent to the SFU to unpublish a track. */
-export type OutputEventSfuUnpublishRequest = {
+export type EventSfuUnpublishRequest = {
   handle: DataTrackHandle;
 };
 
 /** Serialized packets are ready to be sent over the transport. */
-export type OutputEventPacketsAvailable = {
+export type EventPacketsAvailable = {
   bytes: Uint8Array;
-  signal?: AbortSignal;
 };

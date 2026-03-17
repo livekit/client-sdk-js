@@ -43,13 +43,7 @@ export class DataTrackHandleError<
 
 export type DataTrackHandle = number;
 export const DataTrackHandle = {
-  fromNumber(
-    raw: number,
-  ): Throws<
-    DataTrackHandle,
-    | DataTrackHandleError<DataTrackHandleErrorReason.TooLarge>
-    | DataTrackHandleError<DataTrackHandleErrorReason.Reserved>
-  > {
+  fromNumber(raw: number): Throws<DataTrackHandle, DataTrackHandleError> {
     if (raw === 0) {
       throw DataTrackHandleError.reserved(raw);
     }

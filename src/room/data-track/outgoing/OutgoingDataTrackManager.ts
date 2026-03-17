@@ -2,12 +2,14 @@ import { EventEmitter } from 'events';
 import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
 import { LoggerNames, getLogger } from '../../../logger';
+import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import { Future } from '../../utils';
+import LocalDataTrack from '../LocalDataTrack';
 import { type EncryptionProvider } from '../e2ee';
 import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
 import { DataTrackExtensions } from '../packet/extensions';
-import { type DataTrackInfo, LocalDataTrack } from '../track';
+import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
   DataTrackPublishErrorReason,
@@ -17,9 +19,9 @@ import {
 import DataTrackOutgoingPipeline from './pipeline';
 import {
   type DataTrackOptions,
-  type OutputEventPacketsAvailable,
-  type OutputEventSfuPublishRequest,
-  type OutputEventSfuUnpublishRequest,
+  type EventPacketsAvailable,
+  type EventSfuPublishRequest,
+  type EventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
 
@@ -67,14 +69,14 @@ export const Descriptor = {
 
 export type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
-  sfuPublishRequest: (event: OutputEventSfuPublishRequest) => void;
+  sfuPublishRequest: (event: EventSfuPublishRequest) => void;
   /** Request sent to the SFU to unpublish a track. */
-  sfuUnpublishRequest: (event: OutputEventSfuUnpublishRequest) => void;
+  sfuUnpublishRequest: (event: EventSfuUnpublishRequest) => void;
   /** Serialized packets are ready to be sent over the transport. */
-  packetsAvailable: (event: OutputEventPacketsAvailable) => void;
+  packetsAvailable: (event: EventPacketsAvailable) => void;
 };
 
-type DataTrackLocalManagerOptions = {
+type OutgoingDataTrackManagerOptions = {
   /**
    * Provider to use for encrypting outgoing frame payloads.
    *
@@ -93,7 +95,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   private descriptors = new Map<DataTrackHandle, Descriptor>();
 
-  constructor(options?: DataTrackLocalManagerOptions) {
+  constructor(options?: OutgoingDataTrackManagerOptions) {
     super();
     this.encryptionProvider = options?.encryptionProvider ?? null;
   }
@@ -160,8 +162,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       throw DataTrackPublishError.limitReached();
     }
 
-    const timeoutSignal = AbortSignal.timeout(PUBLISH_TIMEOUT_MILLISECONDS);
-    const combinedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    const timeoutSignal = abortSignalTimeout(PUBLISH_TIMEOUT_MILLISECONDS);
+    const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
 
     if (this.descriptors.has(handle)) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -191,6 +193,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
         );
       }
     };
+    if (combinedSignal.aborted) {
+      onAbort(); // NOTE: this rejects `completionFuture`; the next line just returns the rejection
+      return descriptor.completionFuture.promise;
+    }
     combinedSignal.addEventListener('abort', onAbort);
 
     this.emit('sfuPublishRequest', {

@@ -1,22 +1,25 @@
 import type { DataTrackFrame } from './frame';
-import { type DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
+import {
+  DataTrackSymbol,
+  type IDataTrack,
+  type ILocalTrack,
+  TrackSymbol,
+} from './track-interfaces';
+import type { DataTrackInfo } from './types';
 
-export type DataTrackSid = string;
+export default class LocalDataTrack implements ILocalTrack, IDataTrack {
+  readonly trackSymbol = TrackSymbol;
 
-/** Information about a published data track. */
-export type DataTrackInfo = {
-  sid: DataTrackSid;
-  pubHandle: DataTrackHandle;
-  name: String;
-  usesE2ee: boolean;
-};
+  readonly isLocal = true;
 
-export class LocalDataTrack {
+  readonly typeSymbol = DataTrackSymbol;
+
   info: DataTrackInfo;
 
   protected manager: OutgoingDataTrackManager;
 
+  /** @internal */
   constructor(info: DataTrackInfo, manager: OutgoingDataTrackManager) {
     this.info = info;
     this.manager = manager;

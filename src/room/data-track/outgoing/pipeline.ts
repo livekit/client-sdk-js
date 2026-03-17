@@ -4,7 +4,7 @@ import { type DataTrackFrame } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
 import DataTrackPacketizer, { DataTrackPacketizerError } from '../packetizer';
-import type { DataTrackInfo } from '../track';
+import type { DataTrackInfo } from '../types';
 import { DataTrackOutgoingPipelineError, DataTrackOutgoingPipelineErrorReason } from './errors';
 
 type Options = {
@@ -31,11 +31,7 @@ export default class DataTrackOutgoingPipeline {
 
   *processFrame(
     frame: DataTrackFrame,
-  ): Throws<
-    Generator<DataTrackPacket>,
-    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Packetizer>
-    | DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
-  > {
+  ): Throws<Generator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
     const encryptedFrame = this.encryptIfNeeded(frame);
 
     try {
