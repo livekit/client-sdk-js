@@ -19,9 +19,9 @@ import {
 import DataTrackOutgoingPipeline from './pipeline';
 import {
   type DataTrackOptions,
-  type OutputEventPacketsAvailable,
-  type OutputEventSfuPublishRequest,
-  type OutputEventSfuUnpublishRequest,
+  type EventPacketsAvailable,
+  type EventSfuPublishRequest,
+  type EventSfuUnpublishRequest,
   type SfuPublishResponseResult,
 } from './types';
 
@@ -69,11 +69,11 @@ export const Descriptor = {
 
 export type DataTrackOutgoingManagerCallbacks = {
   /** Request sent to the SFU to publish a track. */
-  sfuPublishRequest: (event: OutputEventSfuPublishRequest) => void;
+  sfuPublishRequest: (event: EventSfuPublishRequest) => void;
   /** Request sent to the SFU to unpublish a track. */
-  sfuUnpublishRequest: (event: OutputEventSfuUnpublishRequest) => void;
+  sfuUnpublishRequest: (event: EventSfuUnpublishRequest) => void;
   /** Serialized packets are ready to be sent over the transport. */
-  packetsAvailable: (event: OutputEventPacketsAvailable) => void;
+  packetsAvailable: (event: EventPacketsAvailable) => void;
 };
 
 type OutgoingDataTrackManagerOptions = {

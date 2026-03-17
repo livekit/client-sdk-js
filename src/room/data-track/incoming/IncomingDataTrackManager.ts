@@ -16,29 +16,24 @@ import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
+import {
+  type EventSfuUpdateSubscription,
+  type EventTrackAvailable,
+  type EventTrackUnavailable,
+} from './types';
 
 const log = getLogger(LoggerNames.DataTracks);
 
-type SfuUpdateSubscription = {
-  /** Identifier of the affected track. */
-  sid: DataTrackSid;
-  /** Whether to subscribe or unsubscribe. */
-  subscribe: boolean;
-};
-
 export type DataTrackIncomingManagerCallbacks = {
   /** Request sent to the SFU to update the subscription for a data track. */
-  sfuUpdateSubscription: (event: SfuUpdateSubscription) => void;
+  sfuUpdateSubscription: (event: EventSfuUpdateSubscription) => void;
 
   /** A track has been published by a remote participant and is available to be
    * subscribed to. */
-  trackAvailable: (event: { track: RemoteDataTrack }) => void;
+  trackAvailable: (event: EventTrackAvailable) => void;
 
   /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
-  trackUnavailable: (event: {
-    sid: DataTrackSid;
-    publisherIdentity: Participant['identity'];
-  }) => void;
+  trackUnavailable: (event: EventTrackUnavailable) => void;
 };
 
 /** Track is not subscribed to. */
