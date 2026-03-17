@@ -294,7 +294,7 @@ describe('DataTrackIncomingManager', () => {
     it('should be unable to subscribe to a non existing data track', async () => {
       const manager = new IncomingDataTrackManager();
       await expect(manager.subscribeRequest('does not exist')).rejects.toThrowError(
-        'Cannot subscribe to data track when disconnected',
+        'Cannot subscribe to unknown track',
       );
     });
 
@@ -402,7 +402,7 @@ describe('DataTrackIncomingManager', () => {
       expect(start.subscribe).toBe(true);
 
       // Make sure cancellation is immediately bubbled up
-      expect(subscribeRequestPromise).rejects.toStrictEqual(DataTrackSubscribeError.cancelled());
+      await expect(subscribeRequestPromise).rejects.toStrictEqual(DataTrackSubscribeError.cancelled());
 
       // Make sure that there is immediately another "unsubscribe" sent
       const end = await managerEvents.waitFor('sfuUpdateSubscription');
