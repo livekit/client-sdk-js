@@ -110,12 +110,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     sid: DataTrackSid,
     signal?: AbortSignal,
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): Promise<
-    Throws<
-      ReadableStream<DataTrackFrame>,
-      DataTrackSubscribeError
-    >
-  > {
+  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
