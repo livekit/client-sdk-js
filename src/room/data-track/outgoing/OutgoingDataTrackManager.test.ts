@@ -172,7 +172,7 @@ describe('DataTrackOutgoingManager', () => {
     const publishRequestPromise = localDataTrack.publish(AbortSignal.abort(/* already aborted */));
 
     // Make sure cancellation is immediately bubbled up
-    expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+    await expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
 
     // And there were no pending sfu publish requests sent
     expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
@@ -587,7 +587,7 @@ describe('DataTrackOutgoingManager', () => {
     const shutdownPromise = manager.shutdown();
 
     // The pending data track should be cancelled
-    expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
+    await expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
 
     // And the active data track should be requested to be unpublished
     const unpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');
