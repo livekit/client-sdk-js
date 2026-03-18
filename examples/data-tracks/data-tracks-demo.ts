@@ -5,7 +5,7 @@ const $ = (id: string) => document.getElementById(id)!;
 
 const encoder = new TextEncoder();
 
-let roomName = `data-tracks-${Math.random().toString(36).substring(7)}`;
+let roomName = `data-tracks-example`;
 
 let publisherRoom: Room | null = null;
 let subscriberRoom: Room | null = null;
@@ -33,8 +33,9 @@ async function connectPublisher() {
   btn.disabled = true;
   btn.textContent = 'Connecting...';
 
+  const identity = `publisher-${Math.random().toString(36).substring(7)}`;
   try {
-    publisherRoom = await connectParticipant('publisher', roomName);
+    publisherRoom = await connectParticipant(identity, roomName);
   } catch (err) {
     console.error('Publisher failed to connect:', err);
     btn.disabled = false;
@@ -42,7 +43,7 @@ async function connectPublisher() {
     return;
   }
 
-  $('publisher-identity')!.textContent = 'publisher';
+  $('publisher-identity')!.textContent = identity;
   ($('publish-btn') as HTMLButtonElement).disabled = false;
   btn.disabled = false;
   btn.textContent = 'Disconnect';
@@ -82,8 +83,9 @@ async function connectSubscriber() {
       }
     });
 
+  const identity = `publisher-${Math.random().toString(36).substring(7)}`;
   try {
-    const { token, url } = await fetchToken('subscriber', roomName);
+    const { token, url } = await fetchToken(identity, roomName);
     await room.connect(url, token);
     await new Promise<void>((resolve) => {
       if (room.state === 'connected') {
@@ -100,7 +102,7 @@ async function connectSubscriber() {
     return;
   }
 
-  $('subscriber-identity')!.textContent = 'subscriber';
+  $('subscriber-identity')!.textContent = identity;
   btn.disabled = false;
   btn.textContent = 'Disconnect';
   updateRoomStatus();
@@ -111,7 +113,6 @@ function updateRoomStatus() {
   if (publisherRoom || subscriberRoom) {
     roomNameEl.textContent = roomName;
   } else {
-    roomName = `data-tracks-${Math.random().toString(36).substring(7)}`;
     roomNameEl.textContent = 'Not connected';
   }
 }
