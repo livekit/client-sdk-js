@@ -110,6 +110,82 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
+  /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
+   * SFU. The SFU subscription is initiated lazily when the stream is created.
+   *
+   * @returns A tuple of the ReadableStream and a Promise that resolves once the SFU subscription
+   * is fully established / the stream is ready to receive frames.
+   *
+   * @internal
+   **/
+  openSubscriptionStream(
+    sid: DataTrackSid,
+    signal?: AbortSignal,
+    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
+  ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
+    let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
+    const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
+
+    const stream = new ReadableStream<DataTrackFrame>(
+      {
+        start: (controller) => {
+          streamController = controller;
+
+          const onAbort = () => {
+            controller.error(DataTrackSubscribeError.cancelled());
+          };
+
+          this.subscribeRequest(sid, signal).then(async () => {
+            signal?.addEventListener('abort', onAbort);
+
+            const descriptor = this.descriptors.get(sid);
+            if (!descriptor) {
+              log.error(`Unknown track ${sid}`);
+              return;
+            }
+            if (descriptor.subscription.type !== 'active') {
+              log.error(`Subscription for track ${sid} is not active`);
+              return;
+            }
+
+            descriptor.subscription.streamControllers.add(controller);
+            sfuSubscriptionComplete.resolve?.();
+          }).catch((err) => {
+            controller.error(err);
+            sfuSubscriptionComplete.reject?.(err);
+          }).finally(() => {
+            signal?.removeEventListener('abort', onAbort);
+          });
+        },
+        cancel: () => {
+          if (!streamController) {
+            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
+            return;
+          }
+          const descriptor = this.descriptors.get(sid);
+          if (!descriptor) {
+            log.warn(`Unknown track ${sid}, skipping cancel...`);
+            return;
+          }
+          if (descriptor.subscription.type !== 'active') {
+            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
+            return;
+          }
+
+          descriptor.subscription.streamControllers.delete(streamController);
+
+          // If no active stream controllers are left, also unsubscribe on the SFU end.
+          if (descriptor.subscription.streamControllers.size === 0) {
+            this.unSubscribeRequest(descriptor.info.sid);
+          }
+        },
+      },
+      new CountQueuingStrategy({ highWaterMark }),
+    );
+
+    return [stream, sfuSubscriptionComplete.promise];
+  }
+
   /** Client requested to subscribe to a data track.
    *
    * This is sent when the user calls {@link RemoteDataTrack.subscribe}.
@@ -228,81 +304,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         return;
       }
     }
-  }
-
-  /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
-   * SFU. The SFU subscription is initiated lazily when the stream is created.
-   *
-   * @returns A tuple of the ReadableStream and a Promise that resolves once the SFU subscription
-   * is fully established and the stream is ready to receive frames.
-   * @internal
-   **/
-  createReadableStream(
-    sid: DataTrackSid,
-    signal?: AbortSignal,
-    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
-    let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
-    const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
-
-    const stream = new ReadableStream<DataTrackFrame>(
-      {
-        start: (controller) => {
-          streamController = controller;
-
-          const onAbort = () => {
-            controller.error(DataTrackSubscribeError.cancelled());
-          };
-
-          this.subscribeRequest(sid, signal).then(async () => {
-            signal?.addEventListener('abort', onAbort);
-
-            const descriptor = this.descriptors.get(sid);
-            if (!descriptor) {
-              log.error(`Unknown track ${sid}`);
-              return;
-            }
-            if (descriptor.subscription.type !== 'active') {
-              log.error(`Subscription for track ${sid} is not active`);
-              return;
-            }
-
-            descriptor.subscription.streamControllers.add(controller);
-            sfuSubscriptionComplete.resolve?.();
-          }).catch((err) => {
-            controller.error(err);
-            sfuSubscriptionComplete.reject?.(err);
-          }).finally(() => {
-            signal?.removeEventListener('abort', onAbort);
-          });
-        },
-        cancel: () => {
-          if (!streamController) {
-            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
-            return;
-          }
-          const descriptor = this.descriptors.get(sid);
-          if (!descriptor) {
-            log.warn(`Unknown track ${sid}, skipping cancel...`);
-            return;
-          }
-          if (descriptor.subscription.type !== 'active') {
-            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
-            return;
-          }
-
-          descriptor.subscription.streamControllers.delete(streamController);
-
-          // If no active stream controllers are left, also unsubscribe on the SFU end.
-          if (descriptor.subscription.streamControllers.size === 0) {
-            this.unSubscribeRequest(descriptor.info.sid);
-          }
-        },
-      },
-      new CountQueuingStrategy({ highWaterMark }),
-    );
-
-    return [stream, sfuSubscriptionComplete.promise];
   }
 
   /**

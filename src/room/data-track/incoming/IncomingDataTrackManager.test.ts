@@ -107,7 +107,7 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Create a subscription readable stream (SFU subscription starts lazily in the background)
-      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
       const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
@@ -163,7 +163,7 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Create a subscription readable stream
-      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
       const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
@@ -229,7 +229,7 @@ describe('DataTrackIncomingManager', () => {
       const readers: Array<ReadableStreamDefaultReader<DataTrackFrame>> = [];
       for (let index = 0; index < 8; index += 1) {
         // Create a subscription readable stream
-        const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+        const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
         readers.push(stream.getReader());
 
         // Make sure that the sfu interactions ONLY happen for the first subscription opened.
@@ -485,7 +485,7 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
-      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
       const reader = stream.getReader();
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
@@ -525,7 +525,7 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Create a subscription readable stream
-      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
       const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
