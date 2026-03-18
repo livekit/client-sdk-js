@@ -135,27 +135,30 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
             controller.error(DataTrackSubscribeError.cancelled());
           };
 
-          this.subscribeRequest(sid, signal).then(async () => {
-            signal?.addEventListener('abort', onAbort);
+          this.subscribeRequest(sid, signal)
+            .then(async () => {
+              signal?.addEventListener('abort', onAbort);
 
-            const descriptor = this.descriptors.get(sid);
-            if (!descriptor) {
-              log.error(`Unknown track ${sid}`);
-              return;
-            }
-            if (descriptor.subscription.type !== 'active') {
-              log.error(`Subscription for track ${sid} is not active`);
-              return;
-            }
+              const descriptor = this.descriptors.get(sid);
+              if (!descriptor) {
+                log.error(`Unknown track ${sid}`);
+                return;
+              }
+              if (descriptor.subscription.type !== 'active') {
+                log.error(`Subscription for track ${sid} is not active`);
+                return;
+              }
 
-            descriptor.subscription.streamControllers.add(controller);
-            sfuSubscriptionComplete.resolve?.();
-          }).catch((err) => {
-            controller.error(err);
-            sfuSubscriptionComplete.reject?.(err);
-          }).finally(() => {
-            signal?.removeEventListener('abort', onAbort);
-          });
+              descriptor.subscription.streamControllers.add(controller);
+              sfuSubscriptionComplete.resolve?.();
+            })
+            .catch((err) => {
+              controller.error(err);
+              sfuSubscriptionComplete.reject?.(err);
+            })
+            .finally(() => {
+              signal?.removeEventListener('abort', onAbort);
+            });
         },
         cancel: () => {
           if (!streamController) {

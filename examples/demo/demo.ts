@@ -1270,14 +1270,11 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
 
   const pathEl = item.querySelector<SVGPathElement>(`#remote-data-track-path-${sid}`)!;
   const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
-  const playButton = item.querySelector<HTMLButtonElement>(
-    `#remote-data-track-play-${sid}`,
-  )!;
+  const playButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-play-${sid}`)!;
   const abortButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-abort-${sid}`)!;
   const cancelReadButton = item.querySelector<HTMLButtonElement>(
     `#remote-data-track-cancel-${sid}`,
   )!;
-
 
   let subscriptionAbortController: AbortController | null = null;
   let reader: ReadableStreamDefaultReader<DataTrackFrame> | null = null;
@@ -1409,7 +1406,6 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   playButton.addEventListener('click', startSubscription);
   abortButton.addEventListener('click', stopViaAbort);
   cancelReadButton.addEventListener('click', stopViaCancelRead);
-
 
   return item;
 }
