@@ -547,6 +547,9 @@ describe('DataTrackIncomingManager', () => {
       const sfuUpdateSubscriptionCancelEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionCancelEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionCancelEvent.subscribe).toStrictEqual(false);
+
+      // 8. Make sure the in flight stream is now complete
+      await expect(reader.read()).resolves.toStrictEqual({ value: undefined, done: true });
     });
   });
 });
