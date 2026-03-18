@@ -133,6 +133,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
           const onAbort = () => {
             controller.error(DataTrackSubscribeError.cancelled());
+            sfuSubscriptionComplete.reject?.(DataTrackSubscribeError.cancelled());
           };
 
           this.subscribeRequest(sid, signal)
