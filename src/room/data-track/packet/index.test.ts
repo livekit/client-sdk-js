@@ -92,7 +92,7 @@ describe('DataTrackPacket', () => {
 
           // E2ee extension
           1, // ID 1
-          12, // Length 12
+          13, // Length 13
           0xfa, // Key index
           0x3c, // Iv array
           0x3c,
@@ -109,7 +109,7 @@ describe('DataTrackPacket', () => {
 
           // User timestamp extension
           2, // ID 2
-          7, // Length 7
+          8, // Length 8
           68, // Timestamp value (big endian)
           17,
           34,
@@ -194,7 +194,7 @@ describe('DataTrackPacket', () => {
 
           // E2ee extension
           1, // ID 1
-          12, // Length 12
+          13, // Length 13
           0xfa, // Key index
           0x3c, // Iv array
           0x3c,
