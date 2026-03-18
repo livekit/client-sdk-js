@@ -374,8 +374,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     // Detect published track
-    const sidsInUpdate = new Set<DataTrackSid>();
+    const publisherParticipantToSidsInUpdate = new Map<
+      Participant['identity'],
+      Set<DataTrackSid>
+    >();
     for (const [publisherIdentity, infos] of updates.entries()) {
+      const sidsInUpdate = new Set<DataTrackSid>();
       for (const info of infos) {
         sidsInUpdate.add(info.sid);
         if (this.descriptors.has(info.sid)) {
@@ -383,14 +387,18 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         }
         await this.handleTrackPublished(publisherIdentity, info);
       }
+      publisherParticipantToSidsInUpdate.set(publisherIdentity, sidsInUpdate);
     }
 
     // Detect unpublished tracks
-    let unpublishedSids = Array.from(this.descriptors.keys()).filter(
-      (sid) => !sidsInUpdate.has(sid),
-    );
-    for (const sid of unpublishedSids) {
-      this.handleTrackUnpublished(sid);
+    for (const [publisherIdentity, sidsInUpdate] of publisherParticipantToSidsInUpdate.entries()) {
+      const descriptorsForPublisher = Array.from(this.descriptors.entries())
+        .filter(([_sid, descriptor]) => descriptor.publisherIdentity === publisherIdentity)
+        .map(([sid]) => sid);
+      let unpublishedSids = descriptorsForPublisher.filter((sid) => !sidsInUpdate.has(sid));
+      for (const sid of unpublishedSids) {
+        this.handleTrackUnpublished(sid);
+      }
     }
   }
 
