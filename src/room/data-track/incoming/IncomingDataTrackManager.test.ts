@@ -119,8 +119,8 @@ describe('DataTrackIncomingManager', () => {
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
-      const subscriptionReader = await subscribeRequestPromise;
-      const iterator = subscriptionReader[Symbol.asyncIterator]();
+      const readableStream = await subscribeRequestPromise;
+      const reader = readableStream.getReader();
 
       // 6. Simulate receiving a packet
       manager.packetReceived(
@@ -137,8 +137,8 @@ describe('DataTrackIncomingManager', () => {
         ).toBinary(),
       );
 
-      // 7. Make sure that packet comes out of the subscription reader
-      const { value, done } = await iterator.next();
+      // 7. Make sure that packet comes out of the ReadableStream
+      const { value, done } = await reader.read();
       expect(done).toStrictEqual(false);
       expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
     });
@@ -175,8 +175,8 @@ describe('DataTrackIncomingManager', () => {
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
-      const subscriptionReader = await subscribeRequestPromise;
-      const iterator = subscriptionReader[Symbol.asyncIterator]();
+      const readableStream = await subscribeRequestPromise;
+      const reader = readableStream.getReader();
 
       // 6. Simulate receiving a (fake) encrypted packet
       manager.packetReceived(
@@ -200,8 +200,8 @@ describe('DataTrackIncomingManager', () => {
         ).toBinary(),
       );
 
-      // 7. Make sure that packet comes out of the subscription reader
-      const { value, done } = await iterator.next();
+      // 7. Make sure that packet comes out of the ReadableStream
+      const { value, done } = await reader.read();
       expect(done).toStrictEqual(false);
       expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
     });
@@ -226,7 +226,7 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Set up lots of subscribers
-      const iterators: Array<AsyncIterator<DataTrackFrame>> = [];
+      const readers: Array<ReadableStreamDefaultReader<DataTrackFrame>> = [];
       for (let index = 0; index < 8; index += 1) {
         // Subscribe to a data track
         const subscribeRequestPromise = manager.subscribeRequest(sid);
@@ -245,8 +245,9 @@ describe('DataTrackIncomingManager', () => {
         }
 
         // 5. Make sure that the subscription promise resolves.
-        const subscriptionReader = await subscribeRequestPromise;
-        iterators.push(subscriptionReader[Symbol.asyncIterator]());
+        const readableStream = await subscribeRequestPromise;
+        const reader = readableStream.getReader();
+        readers.push(reader);
       }
 
       // 6. Simulate receiving a packet
@@ -264,8 +265,8 @@ describe('DataTrackIncomingManager', () => {
         ).toBinary(),
       );
 
-      // 7. Make sure that packet comes out of all subscription readers
-      const results = await Promise.all(iterators.map((iterator) => iterator.next()));
+      // 7. Make sure that packet comes out of all of the `ReadableStream`s
+      const results = await Promise.all(readers.map((reader) => reader.read()));
       for (const { value, done } of results) {
         expect(done).toStrictEqual(false);
         expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
@@ -492,8 +493,7 @@ describe('DataTrackIncomingManager', () => {
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 3. Start an active stream read for later
-      const subscriptionReader = await subscribeRequestPromise;
-      const iterator = subscriptionReader[Symbol.asyncIterator]();
+      const reader = (await subscribeRequestPromise).getReader();
 
       // 4. Simulate the remote participant disconnecting
       manager.handleRemoteParticipantDisconnected(senderIdentity);
@@ -504,8 +504,7 @@ describe('DataTrackIncomingManager', () => {
       expect(endEvent.subscribe).toStrictEqual(false);
 
       // 6. Make sure the in flight stream read was closed
-      const { done } = await iterator.next();
-      expect(done).toStrictEqual(true);
+      await reader.closed;
     });
 
     it('should terminate the sfu subscription once all downstream ReadableStreams are cancelled', async () => {
@@ -538,11 +537,11 @@ describe('DataTrackIncomingManager', () => {
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 5. Make sure that the subscription promise resolves.
-      const subscriptionReader = await subscribeRequestPromise;
-      const iterator = subscriptionReader[Symbol.asyncIterator]();
+      const readableStream = await subscribeRequestPromise;
+      const reader = readableStream.getReader();
 
-      // 6. Stop iterating, which cancels the underlying stream
-      await iterator.return!();
+      // 6. Manually cancel the readable stream
+      await reader.cancel();
 
       // 7. Make sure the underlying SFU subscription is terminated
       const sfuUpdateSubscriptionCancelEvent = await managerEvents.waitFor('sfuUpdateSubscription');

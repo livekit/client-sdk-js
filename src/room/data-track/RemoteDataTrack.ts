@@ -1,7 +1,6 @@
 import type Participant from '../participant/Participant';
 import type { DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
-import type { DataTrackSubscriptionReader } from './incoming/subscription-reader';
 import {
   DataTrackSymbol,
   type IDataTrack,
@@ -50,7 +49,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    *
    * # Returns
    *
-   * A {@link DataTrackSubscriptionReader} that yields {@link DataTrackFrame}s as they arrive.
+   * A stream that yields {@link DataTrackFrame}s as they arrive.
    *
    * # Multiple Subscriptions
    *
@@ -67,7 +66,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    */
   async subscribe(
     options?: RemoteDataTrackSubscribeOptions,
-  ): Promise<DataTrackSubscriptionReader> {
+  ): Promise<ReadableStream<DataTrackFrame>> {
     try {
       const stream = await this.manager.subscribeRequest(
         this.info.sid,

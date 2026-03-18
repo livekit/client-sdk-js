@@ -14,7 +14,6 @@ import type { DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
-import { DataTrackSubscriptionReader } from './subscription-reader';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
 import {
@@ -123,7 +122,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     sid: DataTrackSid,
     signal?: AbortSignal,
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): Promise<Throws<DataTrackSubscriptionReader, DataTrackSubscribeError>> {
+  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -184,7 +183,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       await proxiedCompletionFuture.promise;
       combinedSignal.removeEventListener('abort', onAbort);
 
-      return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), { signal });
+      return this.createReadableStream(sid, highWaterMark);
     };
 
     switch (descriptor.subscription.type) {
@@ -227,7 +226,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         return reader;
       }
       case 'active': {
-        return new DataTrackSubscriptionReader(this.createReadableStream(sid, highWaterMark), { signal });
+        return this.createReadableStream(sid, highWaterMark);
       }
     }
   }

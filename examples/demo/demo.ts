@@ -40,6 +40,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -1273,7 +1274,7 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   )!;
   const clearButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-clear-${sid}`)!;
 
-  let subscriptionAbortController: AbortController | null = null;
+  let reader: ReadableStreamDefaultReader | null = null;
   let renderInterval: number | null = null;
   let points: Array<{ time: number; value: number }> = [];
 
@@ -1344,13 +1345,23 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
 
     startRenderLoop();
 
-    subscriptionAbortController = new AbortController();
+    let stream: ReadableStream<DataTrackFrame>;
     try {
-      const reader = await remoteDataTrack.subscribe({
-        signal: subscriptionAbortController.signal,
-      });
-      for await (const frame of reader) {
-        const str = new TextDecoder().decode(frame.payload);
+      stream = await remoteDataTrack.subscribe();
+    } catch (err) {
+      console.error(`Remote data track ${sid}: subscribe failed:`, err);
+      stopSubscription();
+      return;
+    }
+
+    reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        const str = new TextDecoder().decode(value.payload);
         const parsed = parseInt(str, 10);
         console.log('>>>', parsed);
         if (!isNaN(parsed)) {
@@ -1358,20 +1369,16 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
         }
       }
     } catch (err) {
-      if (subscriptionAbortController?.signal.aborted) {
-        console.error(`Remote data track ${sid}: stream read failed:`, err);
-      } else {
-        console.error(`Remote data track ${sid}: unexpected error:`, err);
-      }
+      console.error(`Remote data track ${sid}: stream read failed:`, err);
     } finally {
       stopSubscription();
     }
   }
 
   function stopSubscription(): void {
-    if (subscriptionAbortController) {
-      subscriptionAbortController.abort();
-      subscriptionAbortController = null;
+    if (reader) {
+      reader.cancel();
+      reader = null;
     }
     stopRenderLoop();
     renderChart();
