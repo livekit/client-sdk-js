@@ -1,5 +1,5 @@
-import { BaseAsyncReader } from '../../../utils/base-async-reader';
 import type { DataTrackFrame } from '../frame';
+import { BaseAsyncReader } from '../../../utils/base-async-reader';
 
 type DataTrackSubscriptionReaderOptions = {
   /**
@@ -15,10 +15,7 @@ type DataTrackSubscriptionReaderOptions = {
 export class DataTrackSubscriptionReader extends BaseAsyncReader<DataTrackFrame> {
   private stream: ReadableStream<DataTrackFrame>;
 
-  constructor(
-    stream: ReadableStream<DataTrackFrame>,
-    options?: DataTrackSubscriptionReaderOptions,
-  ) {
+  constructor(stream: ReadableStream<DataTrackFrame>, options?: DataTrackSubscriptionReaderOptions) {
     super(options?.signal);
     this.stream = stream;
   }

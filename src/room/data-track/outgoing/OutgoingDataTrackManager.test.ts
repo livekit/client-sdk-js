@@ -587,9 +587,7 @@ describe('DataTrackOutgoingManager', () => {
     const shutdownPromise = manager.shutdown();
 
     // The pending data track should be cancelled
-    await expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError(
-      'Room disconnected',
-    );
+    await expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError('Room disconnected');
 
     // And the active data track should be requested to be unpublished
     const unpublishEvent = await managerEvents.waitFor('sfuUnpublishRequest');

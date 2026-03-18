@@ -1,5 +1,4 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
-import { BaseAsyncReader } from '../../../utils/base-async-reader';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
 import { bigIntToNumber } from '../../utils';
@@ -9,15 +8,12 @@ export type BaseStreamReaderReadAllOpts = {
   signal?: AbortSignal;
 };
 
-abstract class BaseStreamReader<
-  Info extends BaseStreamInfo,
-  Payload,
-> extends BaseAsyncReader<Payload> {
+abstract class BaseStreamReader<T extends BaseStreamInfo> {
   protected reader: ReadableStream<DataStream_Chunk>;
 
   protected totalByteSize?: number;
 
-  protected _info: Info;
+  protected _info: T;
 
   protected bytesReceived: number;
 
@@ -44,8 +40,7 @@ abstract class BaseStreamReader<
     }
   }
 
-  constructor(info: Info, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
-    super();
+  constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
     this.reader = stream;
     this.totalByteSize = totalByteSize;
     this._info = info;
@@ -59,7 +54,7 @@ abstract class BaseStreamReader<
   abstract readAll(opts?: BaseStreamReaderReadAllOpts): Promise<string | Array<Uint8Array>>;
 }
 
-export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo, Uint8Array> {
+export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
     this.validateBytesReceived();
@@ -71,6 +66,8 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo, Uint8Arra
   }
 
   onProgress?: (progress: number | undefined) => void;
+
+  signal?: AbortSignal;
 
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
@@ -153,8 +150,10 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo, Uint8Arra
 /**
  * A class to read chunks from a ReadableStream and provide them in a structured format.
  */
-export class TextStreamReader extends BaseStreamReader<TextStreamInfo, string> {
+export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   private receivedChunks: Map<number, DataStream_Chunk>;
+
+  signal?: AbortSignal;
 
   /**
    * A TextStreamReader instance can be used as an AsyncIterator that returns the entire string
