@@ -1094,30 +1094,36 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
       <span class="badge badge-secondary mr-1">SID: ${sid}</span>
       <span class="badge badge-secondary mr-1">Handle: ${pubHandle}</span>
     </div>
-    <div class="d-flex align-items-center">
+    <div class="input-group input-group-sm">
       <input
-        id="local-data-track-slider-${sid}"
-        type="range"
-        min="0"
-        max="512"
-        value="0"
-        class="custom-range flex-grow-1 mr-2"
+        id="local-data-track-input-${sid}"
+        type="text"
+        class="form-control text-monospace"
+        placeholder="Push a test message"
       />
-      <span id="local-data-track-slider-value-${sid}" class="text-monospace text-muted" style="min-width: 3.5em; text-align: right; font-size: 0.85rem;">0</span>
+      <div class="input-group-append">
+        <button id="local-data-track-send-${sid}" class="btn btn-outline-primary" type="button">
+          Send
+        </button>
+      </div>
     </div>
   `;
 
-  const slider = item.querySelector<HTMLInputElement>(`#local-data-track-slider-${sid}`)!;
-  const valueLabel = item.querySelector<HTMLSpanElement>(`#local-data-track-slider-value-${sid}`)!;
+  const input = item.querySelector<HTMLInputElement>(`#local-data-track-input-${sid}`)!;
+  const sendButton = item.querySelector<HTMLButtonElement>(`#local-data-track-send-${sid}`)!;
   const deleteButton = item.querySelector<HTMLButtonElement>(`#local-data-track-delete-${sid}`)!;
 
-  slider.addEventListener('input', () => {
-    const value = slider.value;
-    valueLabel.textContent = value;
+  sendButton.addEventListener('click', () => {
+    const text = input.value;
+    if (!text) {
+      return;
+    }
     try {
-      localDataTrack.tryPush(state.encoder.encode(value));
+      localDataTrack.tryPush(state.encoder.encode(text));
+      input.value = '';
     } catch (err) {
       console.error(`Local data track ${sid}: tryPush failed:`, err);
+      input.classList.add('is-invalid');
     }
   });
 
@@ -1230,14 +1236,6 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   const { sid, pubHandle, name } = remoteDataTrack.info;
   const identity = remoteDataTrack.publisherIdentity;
 
-  const chartWidth = 600;
-  const chartHeight = 200;
-  const pad = { top: 10, right: 10, bottom: 10, left: 10 };
-  const plotW = chartWidth - pad.left - pad.right;
-  const plotH = chartHeight - pad.top - pad.bottom;
-  const timeWindowMs = 30_000;
-  const maxValue = 512;
-
   const item = document.createElement('div');
   item.className = 'list-group-item local-data-track-item p-2 mt-2';
   item.dataset.sid = sid;
@@ -1246,7 +1244,7 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
     <div class="d-flex align-items-center justify-content-between mb-1">
       <span class="font-weight-bold text-truncate mr-2" title="${identity}" style="min-width: 0;">${identity}</span>
       <div class="d-flex align-items-center flex-shrink-0">
-        <button id="remote-data-track-play-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe">Subscribe</button>
+        <button id="remote-data-track-subscribe-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe">Subscribe</button>
         <button id="remote-data-track-abort-${sid}" class="btn btn-sm btn-outline-warning mr-1" type="button" title="Stop via AbortSignal" style="display:none;">Abort</button>
         <button id="remote-data-track-cancel-${sid}" class="btn btn-sm btn-outline-danger mr-1" type="button" title="Stop via reader.cancel()" style="display:none;">Cancel Read</button>
       </div>
@@ -1258,95 +1256,75 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
       <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
       <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
     </div>
-    <div style="display: flex; align-items: center; justify-content: center; position: relative;">
-      <svg id="remote-data-track-chart-${sid}" viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 4px;">
-        <line x1="${pad.left}" y1="${pad.top + plotH}" x2="${pad.left + plotW}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
-        <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
-        <path id="remote-data-track-path-${sid}" d="" fill="none" stroke="#ff4444" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" />
-      </svg>
-      <span id="remote-data-track-placeholder-${sid}" class="text-muted" style="position: absolute; font-size: 0.8rem; text-align: center;">Subscription not started</span>
+    <div class="remote-data-track-well bg-dark rounded p-2 text-monospace" style="max-height: 180px; overflow-y: auto; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; min-height: 60px;">
+      <span id="remote-data-track-placeholder-${sid}" class="text-muted">Subscription not started</span>
     </div>
   `;
 
-  const pathEl = item.querySelector<SVGPathElement>(`#remote-data-track-path-${sid}`)!;
+  const well = item.querySelector<HTMLDivElement>('.remote-data-track-well')!;
   const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
-  const playButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-play-${sid}`)!;
-  const abortButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-abort-${sid}`)!;
-  const cancelReadButton = item.querySelector<HTMLButtonElement>(
-    `#remote-data-track-cancel-${sid}`,
+  const subscribeBtn = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-subscribe-${sid}`,
   )!;
-
+  const abortBtn = item.querySelector<HTMLButtonElement>(`#remote-data-track-abort-${sid}`)!;
+  const cancelReadBtn = item.querySelector<HTMLButtonElement>(`#remote-data-track-cancel-${sid}`)!;
   let subscriptionAbortController: AbortController | null = null;
   let reader: ReadableStreamDefaultReader<DataTrackFrame> | null = null;
-  let renderInterval: number | null = null;
-  let points: Array<{ time: number; value: number }> = [];
+  let frameCounter = 0;
 
-  function valueToY(value: number): number {
-    const clamped = Math.max(0, Math.min(maxValue, value));
-    return pad.top + plotH - (clamped / maxValue) * plotH;
-  }
-
-  function renderChart(): void {
-    const now = Date.now();
-    const cutoff = now - timeWindowMs;
-
-    // Prune points that have scrolled off the chart
-    while (points.length > 0 && points[0].time < cutoff) {
-      points.pop();
-    }
-
-    if (points.length === 0) {
-      pathEl.setAttribute('d', '');
-      return;
-    }
-
-    let d = '';
-    for (const pt of points) {
-      const age = now - pt.time;
-      const x = pad.left + (age / timeWindowMs) * plotW;
-      const y = valueToY(pt.value);
-      d += d === '' ? `M${pad.left},${y} L${x},${y}` : ` L${x},${y}`;
-    }
-    pathEl.setAttribute('d', d);
-  }
-
-  function startRenderLoop(): void {
-    if (renderInterval) {
-      return;
-    }
-    renderInterval = window.setInterval(renderChart, 1000 / 30);
-  }
-
-  function stopRenderLoop(): void {
-    if (renderInterval) {
-      window.clearInterval(renderInterval);
-      renderInterval = null;
-    }
-  }
-
-  function clearPoints(): void {
-    points = [];
-    pathEl.setAttribute('d', '');
+  function clearWell(): void {
+    well.querySelectorAll('.remote-data-track-frame').forEach((el) => el.remove());
+    frameCounter = 0;
   }
 
   function showPlaceholder(text: string): void {
     placeholder.textContent = text;
     placeholder.style.display = '';
+    well.style.display = 'flex';
+    if (!well.contains(placeholder)) {
+      well.appendChild(placeholder);
+    }
   }
 
   function hidePlaceholder(): void {
     placeholder.style.display = 'none';
+    well.style.display = 'block';
+  }
+
+  function hasFrames(): boolean {
+    return well.querySelector('.remote-data-track-frame') !== null;
+  }
+
+  function appendFrame(payload: Uint8Array): void {
+    hidePlaceholder();
+
+    frameCounter++;
+    const entry = document.createElement('div');
+    entry.className = 'remote-data-track-frame border-bottom border-secondary pb-1 mb-1';
+
+    const meta = document.createElement('div');
+    meta.className = 'text-muted';
+    meta.style.cssText = 'font-size: 0.65rem;';
+    const sizeString =
+      payload.byteLength < 1024
+        ? `${payload.byteLength} bytes`
+        : `${(payload.byteLength / 1024).toFixed(2)} KB`;
+    meta.textContent = `#${frameCounter} · ${sizeString} · ${new Date().toISOString()}`;
+    entry.appendChild(meta);
+
+    entry.appendChild(renderHexDump(payload));
+
+    well.appendChild(entry);
+    well.scrollTop = well.scrollHeight;
   }
 
   async function startSubscription(): Promise<void> {
-    clearPoints();
-    hidePlaceholder();
+    clearWell();
+    showPlaceholder('Waiting for frames...');
 
-    playButton.style.display = 'none';
-    abortButton.style.display = '';
-    cancelReadButton.style.display = '';
-
-    startRenderLoop();
+    subscribeBtn.style.display = 'none';
+    abortBtn.style.display = '';
+    cancelReadBtn.style.display = '';
 
     subscriptionAbortController = new AbortController();
     const stream = remoteDataTrack.subscribe({
@@ -1359,12 +1337,7 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
         if (done) {
           break;
         }
-        const str = new TextDecoder().decode(value.payload);
-        const parsed = parseInt(str, 10);
-        console.log('>>>', parsed);
-        if (!isNaN(parsed)) {
-          points.unshift({ time: Date.now(), value: parsed });
-        }
+        appendFrame(value.payload);
       }
     } catch (err) {
       console.error(`Remote data track ${sid}: subscription failed:`, err);
@@ -1392,20 +1365,18 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
   function cleanupAfterStop(): void {
     subscriptionAbortController = null;
     reader = null;
-    stopRenderLoop();
-    renderChart();
-    playButton.style.display = '';
-    abortButton.style.display = 'none';
-    cancelReadButton.style.display = 'none';
-    if (points.length === 0) {
+    subscribeBtn.style.display = '';
+    abortBtn.style.display = 'none';
+    cancelReadBtn.style.display = 'none';
+    if (!hasFrames()) {
       showPlaceholder('Subscription not started');
     }
   }
 
   startSubscription();
-  playButton.addEventListener('click', startSubscription);
-  abortButton.addEventListener('click', stopViaAbort);
-  cancelReadButton.addEventListener('click', stopViaCancelRead);
+  subscribeBtn.addEventListener('click', startSubscription);
+  abortBtn.addEventListener('click', stopViaAbort);
+  cancelReadBtn.addEventListener('click', stopViaCancelRead);
 
   return item;
 }
