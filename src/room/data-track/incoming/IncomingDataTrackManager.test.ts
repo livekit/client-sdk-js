@@ -106,8 +106,9 @@ describe('DataTrackIncomingManager', () => {
       );
       await managerEvents.waitFor('trackAvailable');
 
-      // 2. Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(sid);
+      // 2. Create a subscription readable stream (SFU subscription starts lazily in the background)
+      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
@@ -118,9 +119,8 @@ describe('DataTrackIncomingManager', () => {
       // the subscription
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
-      // 5. Make sure that the subscription promise resolves.
-      const readableStream = await subscribeRequestPromise;
-      const reader = readableStream.getReader();
+      // 5. Wait for the subscription to be fully established
+      await sfuSubscriptionComplete;
 
       // 6. Simulate receiving a packet
       manager.packetReceived(
@@ -162,8 +162,9 @@ describe('DataTrackIncomingManager', () => {
       );
       await managerEvents.waitFor('trackAvailable');
 
-      // 2. Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(sid);
+      // 2. Create a subscription readable stream
+      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
@@ -174,9 +175,8 @@ describe('DataTrackIncomingManager', () => {
       // the subscription
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
-      // 5. Make sure that the subscription promise resolves.
-      const readableStream = await subscribeRequestPromise;
-      const reader = readableStream.getReader();
+      // 5. Wait for the subscription to be fully established
+      await sfuSubscriptionComplete;
 
       // 6. Simulate receiving a (fake) encrypted packet
       manager.packetReceived(
@@ -228,8 +228,9 @@ describe('DataTrackIncomingManager', () => {
       // 2. Set up lots of subscribers
       const readers: Array<ReadableStreamDefaultReader<DataTrackFrame>> = [];
       for (let index = 0; index < 8; index += 1) {
-        // Subscribe to a data track
-        const subscribeRequestPromise = manager.subscribeRequest(sid);
+        // Create a subscription readable stream
+        const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+        readers.push(stream.getReader());
 
         // Make sure that the sfu interactions ONLY happen for the first subscription opened.
         if (index === 0) {
@@ -244,10 +245,8 @@ describe('DataTrackIncomingManager', () => {
           );
         }
 
-        // 5. Make sure that the subscription promise resolves.
-        const readableStream = await subscribeRequestPromise;
-        const reader = readableStream.getReader();
-        readers.push(reader);
+        // 5. Wait for the subscription to be fully established
+        await sfuSubscriptionComplete;
       }
 
       // 6. Simulate receiving a packet
@@ -486,14 +485,15 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackAvailable');
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
-      const subscribeRequestPromise = manager.subscribeRequest(sid);
+      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const reader = stream.getReader();
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
       // 3. Start an active stream read for later
-      const reader = (await subscribeRequestPromise).getReader();
+      await sfuSubscriptionComplete;
 
       // 4. Simulate the remote participant disconnecting
       manager.handleRemoteParticipantDisconnected(senderIdentity);
@@ -524,8 +524,9 @@ describe('DataTrackIncomingManager', () => {
       );
       await managerEvents.waitFor('trackAvailable');
 
-      // 2. Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(sid);
+      // 2. Create a subscription readable stream
+      const [stream, sfuSubscriptionComplete] = manager.createReadableStream(sid);
+      const reader = stream.getReader();
 
       // 3. This subscribe request should be sent along to the SFU
       const sfuUpdateSubscriptionInitEvent = await managerEvents.waitFor('sfuUpdateSubscription');
@@ -536,9 +537,8 @@ describe('DataTrackIncomingManager', () => {
       // the subscription
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
 
-      // 5. Make sure that the subscription promise resolves.
-      const readableStream = await subscribeRequestPromise;
-      const reader = readableStream.getReader();
+      // 5. Wait for the subscription to be fully established
+      await sfuSubscriptionComplete;
 
       // 6. Manually cancel the readable stream
       await reader.cancel();
