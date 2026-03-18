@@ -127,7 +127,9 @@ describe('DataTrackOutgoingManager', () => {
     });
 
     // Make sure that the rejection bubbles back to the caller
-    expect(publishRequestPromise).rejects.toThrowError('Data track publication limit reached');
+    await expect(publishRequestPromise).rejects.toThrowError(
+      'Data track publication limit reached',
+    );
   });
 
   it('should test track publishing (cancellation half way through)', async () => {
@@ -157,7 +159,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(sfuUnpublishEvent.handle).toStrictEqual(handle);
 
     // 5. Make sure cancellation is bubbled up as an error to stop further execution
-    expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
+    await expect(publishRequestPromise).rejects.toStrictEqual(DataTrackPublishError.cancelled());
   });
 
   it('should test track publishing (cancellation before it starts)', async () => {
