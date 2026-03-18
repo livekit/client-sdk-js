@@ -121,8 +121,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   async subscribeRequest(
     sid: DataTrackSid,
     signal?: AbortSignal,
-    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
+  ): Promise<Throws<void, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -134,6 +133,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       userProvidedSignal?: AbortSignal,
       timeoutSignal?: AbortSignal,
     ) => {
+      if (currentDescriptor.subscription.type === 'active') {
+        // Subscription has already become active! So bail out early, there is nothing to wait for.
+        return;
+      }
       if (currentDescriptor.subscription.type !== 'pending') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
         throw new Error(
@@ -182,8 +185,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       combinedSignal.addEventListener('abort', onAbort);
       await proxiedCompletionFuture.promise;
       combinedSignal.removeEventListener('abort', onAbort);
-
-      return this.createReadableStream(sid, highWaterMark);
     };
 
     switch (descriptor.subscription.type) {
@@ -215,26 +216,27 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         const timeoutSignal = abortSignalTimeout(SUBSCRIBE_TIMEOUT_MILLISECONDS);
 
         // Wait for the subscription to complete, or time out if it takes too long
-        const reader = await waitForCompletionFuture(descriptor, signal, timeoutSignal);
-        return reader;
+        await waitForCompletionFuture(descriptor, signal, timeoutSignal);
       }
       case 'pending': {
         descriptor.subscription.pendingRequestCount += 1;
 
         // Wait for the subscription to complete
-        const reader = await waitForCompletionFuture(descriptor, signal);
-        return reader;
+        await waitForCompletionFuture(descriptor, signal);
       }
       case 'active': {
-        return this.createReadableStream(sid, highWaterMark);
+        return;
       }
     }
   }
 
   /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
-   * SFU. */
-  private createReadableStream(
+   * SFU.
+   * @internal
+   **/
+  createReadableStream(
     sid: DataTrackSid,
+    signal?: AbortSignal,
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
   ) {
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
@@ -242,17 +244,30 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       {
         start: (controller) => {
           streamController = controller;
-          const descriptor = this.descriptors.get(sid);
-          if (!descriptor) {
-            log.error(`Unknown track ${sid}`);
-            return;
-          }
-          if (descriptor.subscription.type !== 'active') {
-            log.error(`Subscription for track ${sid} is not active`);
-            return;
-          }
 
-          descriptor.subscription.streamControllers.add(controller);
+          const onAbort = () => {
+            controller.error(DataTrackSubscribeError.cancelled());
+          };
+
+          this.subscribeRequest(sid, signal).then(async () => {
+            signal?.addEventListener('abort', onAbort);
+
+            const descriptor = this.descriptors.get(sid);
+            if (!descriptor) {
+              log.error(`Unknown track ${sid}`);
+              return;
+            }
+            if (descriptor.subscription.type !== 'active') {
+              log.error(`Subscription for track ${sid} is not active`);
+              return;
+            }
+
+            descriptor.subscription.streamControllers.add(controller);
+          }).catch((err) => {
+            controller.error(err);
+          }).finally(() => {
+            signal?.removeEventListener('abort', onAbort);
+          });
         },
         cancel: () => {
           if (!streamController) {

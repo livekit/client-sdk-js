@@ -64,11 +64,11 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * Note that newly created subscriptions only receive frames published after
    * the initial subscription is established.
    */
-  async subscribe(
+  subscribe(
     options?: RemoteDataTrackSubscribeOptions,
-  ): Promise<ReadableStream<DataTrackFrame>> {
+  ): ReadableStream<DataTrackFrame> {
     try {
-      const stream = await this.manager.subscribeRequest(
+      const stream = this.manager.createReadableStream(
         this.info.sid,
         options?.signal,
         options?.highWaterMark,
