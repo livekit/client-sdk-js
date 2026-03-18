@@ -18,7 +18,7 @@ export type RemoteDataTrackSubscribeOptions = {
 
   /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
    * frames. Defaults to 4, but this may not be good enough for especially high frequency data. */
-  highWaterMark?: number;
+  bufferSize?: number;
 };
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
@@ -69,7 +69,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
       const [stream] = this.manager.openSubscriptionStream(
         this.info.sid,
         options?.signal,
-        options?.highWaterMark,
+        options?.bufferSize,
       );
       return stream;
     } catch (err) {

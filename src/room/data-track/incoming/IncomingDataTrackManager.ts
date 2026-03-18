@@ -121,7 +121,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   openSubscriptionStream(
     sid: DataTrackSid,
     signal?: AbortSignal,
-    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
+    bufferSize = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
   ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
@@ -184,7 +184,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           }
         },
       },
-      new CountQueuingStrategy({ highWaterMark }),
+      new CountQueuingStrategy({ highWaterMark: bufferSize }),
     );
 
     return [stream, sfuSubscriptionComplete.promise];
