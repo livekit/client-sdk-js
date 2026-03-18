@@ -68,7 +68,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
     options?: RemoteDataTrackSubscribeOptions,
   ): ReadableStream<DataTrackFrame> {
     try {
-      const stream = this.manager.createReadableStream(
+      const [stream] = this.manager.createReadableStream(
         this.info.sid,
         options?.signal,
         options?.highWaterMark,

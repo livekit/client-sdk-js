@@ -231,16 +231,21 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
-   * SFU.
+   * SFU. The SFU subscription is initiated lazily when the stream is created.
+   *
+   * @returns A tuple of the ReadableStream and a Promise that resolves once the SFU subscription
+   * is fully established and the stream is ready to receive frames.
    * @internal
    **/
   createReadableStream(
     sid: DataTrackSid,
     signal?: AbortSignal,
     highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ) {
+  ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
-    return new ReadableStream<DataTrackFrame>(
+    const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
+
+    const stream = new ReadableStream<DataTrackFrame>(
       {
         start: (controller) => {
           streamController = controller;
@@ -263,8 +268,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
             }
 
             descriptor.subscription.streamControllers.add(controller);
+            sfuSubscriptionComplete.resolve?.();
           }).catch((err) => {
             controller.error(err);
+            sfuSubscriptionComplete.reject?.(err);
           }).finally(() => {
             signal?.removeEventListener('abort', onAbort);
           });
@@ -294,6 +301,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       },
       new CountQueuingStrategy({ highWaterMark }),
     );
+
+    return [stream, sfuSubscriptionComplete.promise];
   }
 
   /**
