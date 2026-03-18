@@ -1246,8 +1246,9 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
     <div class="d-flex align-items-center justify-content-between mb-1">
       <span class="font-weight-bold text-truncate mr-2" title="${identity}" style="min-width: 0;">${identity}</span>
       <div class="d-flex align-items-center flex-shrink-0">
-        <button id="remote-data-track-play-stop-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe"></button>
-        <button id="remote-data-track-clear-${sid}" class="btn btn-sm btn-outline-secondary" type="button">Clear</button>
+        <button id="remote-data-track-play-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe">Subscribe</button>
+        <button id="remote-data-track-abort-${sid}" class="btn btn-sm btn-outline-warning mr-1" type="button" title="Stop via AbortSignal" style="display:none;">Abort</button>
+        <button id="remote-data-track-cancel-${sid}" class="btn btn-sm btn-outline-danger mr-1" type="button" title="Stop via reader.cancel()" style="display:none;">Cancel Read</button>
       </div>
     </div>
     <div class="d-flex align-items-center mb-1">
@@ -1257,24 +1258,29 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
       <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
       <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
     </div>
-    <div style="position: relative;">
+    <div style="display: flex; align-items: center; justify-content: center; position: relative;">
       <svg id="remote-data-track-chart-${sid}" viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 4px;">
         <line x1="${pad.left}" y1="${pad.top + plotH}" x2="${pad.left + plotW}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
         <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + plotH}" stroke="#6c757d" stroke-width="1" />
         <path id="remote-data-track-path-${sid}" d="" fill="none" stroke="#ff4444" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" />
       </svg>
-      <span id="remote-data-track-placeholder-${sid}" class="text-muted" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.8rem;">Subscription not started</span>
+      <span id="remote-data-track-placeholder-${sid}" class="text-muted" style="position: absolute; font-size: 0.8rem; text-align: center;">Subscription not started</span>
     </div>
   `;
 
   const pathEl = item.querySelector<SVGPathElement>(`#remote-data-track-path-${sid}`)!;
   const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
-  const playStopButton = item.querySelector<HTMLButtonElement>(
-    `#remote-data-track-play-stop-${sid}`,
+  const playButton = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-play-${sid}`,
   )!;
-  const clearButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-clear-${sid}`)!;
+  const abortButton = item.querySelector<HTMLButtonElement>(`#remote-data-track-abort-${sid}`)!;
+  const cancelReadButton = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-cancel-${sid}`,
+  )!;
 
-  let reader: ReadableStreamDefaultReader | null = null;
+
+  let subscriptionAbortController: AbortController | null = null;
+  let reader: ReadableStreamDefaultReader<DataTrackFrame> | null = null;
   let renderInterval: number | null = null;
   let points: Array<{ time: number; value: number }> = [];
 
@@ -1339,21 +1345,16 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
     clearPoints();
     hidePlaceholder();
 
-    playStopButton.textContent = 'Stop';
-    playStopButton.classList.replace('btn-outline-success', 'btn-outline-danger');
-    playStopButton.title = 'Unsubscribe';
+    playButton.style.display = 'none';
+    abortButton.style.display = '';
+    cancelReadButton.style.display = '';
 
     startRenderLoop();
 
-    let stream: ReadableStream<DataTrackFrame>;
-    try {
-      stream = await remoteDataTrack.subscribe();
-    } catch (err) {
-      console.error(`Remote data track ${sid}: subscribe failed:`, err);
-      stopSubscription();
-      return;
-    }
-
+    subscriptionAbortController = new AbortController();
+    const stream = remoteDataTrack.subscribe({
+      signal: subscriptionAbortController.signal,
+    });
     reader = stream.getReader();
     try {
       while (true) {
@@ -1369,42 +1370,46 @@ function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
         }
       }
     } catch (err) {
-      console.error(`Remote data track ${sid}: stream read failed:`, err);
+      console.error(`Remote data track ${sid}: subscription failed:`, err);
     } finally {
-      stopSubscription();
+      cleanupAfterStop();
     }
   }
 
-  function stopSubscription(): void {
+  function stopViaAbort(): void {
+    if (subscriptionAbortController) {
+      subscriptionAbortController.abort();
+      subscriptionAbortController = null;
+    }
+    cleanupAfterStop();
+  }
+
+  function stopViaCancelRead(): void {
     if (reader) {
       reader.cancel();
       reader = null;
     }
+    cleanupAfterStop();
+  }
+
+  function cleanupAfterStop(): void {
+    subscriptionAbortController = null;
+    reader = null;
     stopRenderLoop();
     renderChart();
-    playStopButton.textContent = 'Play';
-    playStopButton.classList.replace('btn-outline-danger', 'btn-outline-success');
-    playStopButton.title = 'Subscribe';
+    playButton.style.display = '';
+    abortButton.style.display = 'none';
+    cancelReadButton.style.display = 'none';
     if (points.length === 0) {
       showPlaceholder('Subscription not started');
     }
   }
 
   startSubscription();
-  playStopButton.addEventListener('click', () => {
-    if (reader) {
-      stopSubscription();
-    } else {
-      startSubscription();
-    }
-  });
+  playButton.addEventListener('click', startSubscription);
+  abortButton.addEventListener('click', stopViaAbort);
+  cancelReadButton.addEventListener('click', stopViaCancelRead);
 
-  clearButton.addEventListener('click', () => {
-    clearPoints();
-    if (!reader) {
-      showPlaceholder('Subscription not started');
-    }
-  });
 
   return item;
 }
