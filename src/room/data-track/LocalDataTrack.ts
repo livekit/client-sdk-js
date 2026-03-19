@@ -4,7 +4,6 @@ import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
 import { DataTrackPushFrameError } from './outgoing/errors';
 import type { DataTrackOptions } from './outgoing/types';
-import { DataTrackExtensions } from './packet/extensions';
 import {
   DataTrackSymbol,
   type IDataTrack,
@@ -89,16 +88,14 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * - The track has been unpublished by the local participant or SFU
    * - The room is no longer connected
    */
-  tryPush(payload: Uint8Array, extensions = new DataTrackExtensions()) {
+  tryPush(payload: DataTrackFrame['payload']) {
     if (!this.handle) {
       this.log.warn(`Data track "${this.options.name}" is not published, skipping tryPush.`);
       return;
     }
 
-    const frame: DataTrackFrame = { payload, extensions };
-
     try {
-      return this.manager.tryProcessAndSend(this.handle, frame);
+      return this.manager.tryProcessAndSend(this.handle, payload);
     } catch (err) {
       // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
       // propagate upwards into the public interface.

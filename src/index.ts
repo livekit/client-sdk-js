@@ -162,9 +162,9 @@ export type {
 };
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {
-  DataTrackExtensions,
-  DataTrackUserTimestampExtension,
-  DataTrackE2eeExtension,
+  type DataTrackExtensions,
+  type DataTrackUserTimestampExtension,
+  type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
 export { type DataChannelKind } from './room/RTCEngine';
 
