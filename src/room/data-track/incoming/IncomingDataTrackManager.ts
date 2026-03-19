@@ -77,7 +77,7 @@ const SUBSCRIBE_TIMEOUT_MILLISECONDS = 10_000;
 
 /** Maximum number of {@link DataTrackFrame}s that are cached for each ReadableStream subscription.
  * If data comes in too fast and saturates this threshold, backpressure will be applied. */
-const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 16;
+const READABLE_STREAM_DEFAULT_BUFFER_SIZE = 16;
 
 export default class IncomingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
   private e2eeManager: BaseE2EEManager | null;
@@ -121,7 +121,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   openSubscriptionStream(
     sid: DataTrackSid,
     signal?: AbortSignal,
-    bufferSize = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
+    bufferSize = READABLE_STREAM_DEFAULT_BUFFER_SIZE,
   ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();

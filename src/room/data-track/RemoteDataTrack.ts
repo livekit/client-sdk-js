@@ -17,7 +17,7 @@ export type DataTrackSubscribeOptions = {
   signal?: AbortSignal;
 
   /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
-   * frames. Defaults to 4, but this may not be good enough for especially high frequency data. */
+   * frames. Defaults to 16, but this may not be good enough for especially high frequency data. */
   bufferSize?: number;
 };
 
