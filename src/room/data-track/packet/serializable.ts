@@ -9,7 +9,10 @@ export default abstract class Serializable {
   /** Given a DataView, serialize the instance inside and return the number of bytes written. */
   abstract toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeError>;
 
-  /** Encodes the instance as binary and returns the data as a Uint8Array. */
+  /**
+   * Encodes the instance as binary and returns the data as a Uint8Array.
+   * @internal
+   **/
   toBinary(): Throws<Uint8Array, DataTrackSerializeError> {
     const lengthBytes = this.toBinaryLengthBytes();
     const output = new ArrayBuffer(lengthBytes);

@@ -10,14 +10,18 @@ export enum DataTrackExtensionTag {
 }
 
 abstract class DataTrackExtension extends Serializable {
+  /** @internal */
   static tag: DataTrackExtensionTag;
 
+  /** @internal */
   static lengthBytes: number;
 }
 
 export class DataTrackUserTimestampExtension extends DataTrackExtension {
+  /** @internal */
   static tag = DataTrackExtensionTag.UserTimestamp;
 
+  /** @internal */
   static lengthBytes = 8;
 
   timestamp: bigint;
@@ -27,6 +31,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     this.timestamp = timestamp;
   }
 
+  /** @internal */
   toBinaryLengthBytes(): number {
     return (
       U8_LENGTH_BYTES /* tag */ +
@@ -35,6 +40,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     );
   }
 
+  /** @internal */
   toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
@@ -58,6 +64,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
     return byteIndex;
   }
 
+  /** @internal */
   toJSON() {
     return {
       tag: DataTrackUserTimestampExtension.tag as number,
@@ -69,8 +76,10 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 }
 
 export class DataTrackE2eeExtension extends DataTrackExtension {
+  /** @internal */
   static tag = DataTrackExtensionTag.E2ee;
 
+  /** @internal */
   static lengthBytes = 13;
 
   keyIndex: number;
@@ -83,12 +92,14 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     this.iv = iv;
   }
 
+  /** @internal */
   toBinaryLengthBytes(): number {
     return (
       U8_LENGTH_BYTES /* tag */ + U8_LENGTH_BYTES /* length */ + DataTrackE2eeExtension.lengthBytes
     );
   }
 
+  /** @internal */
   toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
@@ -117,6 +128,7 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
     return byteIndex;
   }
 
+  /** @internal */
   toJSON() {
     return {
       tag: DataTrackE2eeExtension.tag as number,
@@ -131,8 +143,10 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 export class DataTrackExtensions extends Serializable {
   userTimestamp?: DataTrackUserTimestampExtension;
 
+  /** @internal */
   e2ee?: DataTrackE2eeExtension;
 
+  /** @internal */
   constructor(
     opts: { userTimestamp?: DataTrackUserTimestampExtension; e2ee?: DataTrackE2eeExtension } = {},
   ) {
@@ -141,6 +155,12 @@ export class DataTrackExtensions extends Serializable {
     this.e2ee = opts.e2ee;
   }
 
+  /** Creates a new data tracks extensions context containing user timestamp data. */
+  static withUserTimestamp(userTimestamp: DataTrackUserTimestampExtension) {
+    return new DataTrackExtensions({ userTimestamp });
+  }
+
+  /** @internal */
   toBinaryLengthBytes() {
     let lengthBytes = 0;
     if (this.userTimestamp) {
@@ -152,6 +172,7 @@ export class DataTrackExtensions extends Serializable {
     return lengthBytes;
   }
 
+  /** @internal */
   toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
@@ -178,6 +199,7 @@ export class DataTrackExtensions extends Serializable {
     return byteIndex;
   }
 
+  /** @internal */
   static fromBinary<Input extends DataView | ArrayBuffer | Uint8Array>(
     input: Input,
   ): Throws<
@@ -245,6 +267,7 @@ export class DataTrackExtensions extends Serializable {
     return [new DataTrackExtensions({ userTimestamp, e2ee }), dataView.byteLength];
   }
 
+  /** @internal */
   toJSON() {
     return {
       userTimestamp: this.userTimestamp?.toJSON() ?? null,
