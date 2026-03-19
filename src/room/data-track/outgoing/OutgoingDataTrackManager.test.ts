@@ -334,7 +334,7 @@ describe('DataTrackOutgoingManager', () => {
       const localDataTrack = LocalDataTrack.withExplicitHandle({ name: 'track name' }, manager, 5);
 
       // Kick off sending the bytes...
-      localDataTrack.tryPush(inputBytes);
+      localDataTrack.tryPush({ payload: inputBytes });
 
       // ... and make sure the corresponding events are emitted to tell the SFU to send the packets
       for (const outputPacketJson of outputPacketsJson) {
@@ -381,7 +381,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(localDataTrack.isPublished()).toStrictEqual(true);
 
     // Kick off sending the payload bytes
-    localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
 
     // Make sure the packet that was sent was encrypted with the PrefixingEncryptionProvider
     const packetBytes = await managerEvents.waitFor('packetAvailable');
@@ -490,7 +490,7 @@ describe('DataTrackOutgoingManager', () => {
 
     // But, even though `isPublished` is true, pushing data should drop (no sfu to send them to!)
     await expect(() =>
-      localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05])),
+      localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) }),
     ).rejects.toThrowError('Frame was dropped');
 
     // 2. This publish request should be sent along to the SFU
@@ -518,7 +518,7 @@ describe('DataTrackOutgoingManager', () => {
     expect(localDataTrack.info!.sid).toStrictEqual('bogus-sid-REPUBLISHED');
 
     // And now that the tracks are backed by the SFU again, pushes should function!
-    await localDataTrack.tryPush(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
+    await localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
     await managerEvents.waitFor('packetAvailable');
   });
 

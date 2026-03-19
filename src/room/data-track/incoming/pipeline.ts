@@ -2,7 +2,7 @@ import type { Throws } from '@livekit/throws-transformer/throws';
 import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import DataTrackDepacketizer, { DataTrackDepacketizerDropError } from '../depacketizer';
-import type { DataTrackFrame } from '../frame';
+import type { DataTrackFrameInternal } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo } from '../types';
 
@@ -52,7 +52,7 @@ export default class IncomingDataTrackPipeline {
 
   async processPacket(
     packet: DataTrackPacket,
-  ): Promise<Throws<DataTrackFrame | null, DataTrackDepacketizerDropError>> {
+  ): Promise<Throws<DataTrackFrameInternal | null, DataTrackDepacketizerDropError>> {
     const frame = this.depacketize(packet);
     if (!frame) {
       return null;
@@ -71,8 +71,8 @@ export default class IncomingDataTrackPipeline {
    */
   private depacketize(
     packet: DataTrackPacket,
-  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
-    let frame: DataTrackFrame | null;
+  ): Throws<DataTrackFrameInternal | null, DataTrackDepacketizerDropError> {
+    let frame: DataTrackFrameInternal | null;
     try {
       frame = this.depacketizer.push(packet);
     } catch (err) {
@@ -87,7 +87,7 @@ export default class IncomingDataTrackPipeline {
   /**
    * Decrypt the frame's payload if E2EE is enabled for this track.
    */
-  private async decryptIfNeeded(frame: DataTrackFrame): Promise<DataTrackFrame | null> {
+  private async decryptIfNeeded(frame: DataTrackFrameInternal): Promise<DataTrackFrameInternal | null> {
     const e2eeManager = this.e2eeManager;
 
     if (!e2eeManager) {

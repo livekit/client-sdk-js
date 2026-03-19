@@ -1,6 +1,6 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
 import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
-import { type DataTrackFrame } from '../frame';
+import { type DataTrackFrameInternal } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';
 import DataTrackPacketizer, { DataTrackPacketizerError } from '../packetizer';
@@ -34,7 +34,7 @@ export default class DataTrackOutgoingPipeline {
   }
 
   async *processFrame(
-    frame: DataTrackFrame,
+    frame: DataTrackFrameInternal,
   ): Throws<AsyncGenerator<DataTrackPacket>, DataTrackOutgoingPipelineError> {
     const encryptedFrame = await this.encryptIfNeeded(frame);
 
@@ -49,10 +49,10 @@ export default class DataTrackOutgoingPipeline {
   }
 
   async encryptIfNeeded(
-    frame: DataTrackFrame,
+    frame: DataTrackFrameInternal,
   ): Promise<
     Throws<
-      DataTrackFrame,
+      DataTrackFrameInternal,
       DataTrackOutgoingPipelineError<DataTrackOutgoingPipelineErrorReason.Encryption>
     >
   > {

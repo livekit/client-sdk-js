@@ -1,6 +1,6 @@
 import type { Throws } from '@livekit/throws-transformer/throws';
 import { LivekitReasonedError } from '../errors';
-import { type DataTrackFrame } from './frame';
+import { type DataTrackFrameInternal } from './frame';
 import { DataTrackHandle } from './handle';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from './packet';
 import { DataTrackClock, DataTrackTimestamp, WrapAroundUnsignedInt } from './utils';
@@ -38,7 +38,7 @@ export enum DataTrackPacketizerReason {
   MtuTooShort = 0,
 }
 
-/** A packetizer takes a {@link DataTrackFrame} as input and generates a series
+/** A packetizer takes a {@link DataTrackFrameInternal} as input and generates a series
  * of {@link DataTrackPacket}s for transmission to other clients over webrtc. */
 export default class DataTrackPacketizer {
   private handle: DataTrackHandle;
@@ -70,13 +70,13 @@ export default class DataTrackPacketizer {
     }
   }
 
-  /** Generates a series of packets for the specified {@link DataTrackPacketizerFrame}.
+  /** Generates a series of packets for the specified {@link DataTrackFrameInternal}.
    *
    * NOTE: The return value of this function is a generator, so it can be lazily ran if desired,
    * or converted to an array with {@link Array.from}.
    */
   *packetize(
-    frame: DataTrackFrame,
+    frame: DataTrackFrameInternal,
     options?: PacketizeOptions,
   ): Throws<Generator<DataTrackPacket>, DataTrackPacketizerError> {
     const frameNumber = this.frameNumber.getThenIncrement();

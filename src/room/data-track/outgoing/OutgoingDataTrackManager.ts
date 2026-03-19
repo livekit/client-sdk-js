@@ -6,9 +6,8 @@ import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import { Future } from '../../utils';
 import LocalDataTrack from '../LocalDataTrack';
-import type { DataTrackFrame } from '../frame';
+import type { DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
-import { DataTrackExtensions } from '../packet/extensions';
 import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
@@ -133,7 +132,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
    */
   async tryProcessAndSend(
     handle: DataTrackHandle,
-    payload: Uint8Array,
+    frame: DataTrackFrameInternal,
   ): Promise<
     Throws<
       void,
@@ -152,11 +151,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     if (descriptor.publishState === 'republishing') {
       throw DataTrackPushFrameError.dropped('Data track republishing');
     }
-
-    const frame: DataTrackFrame = {
-      payload,
-      extensions: new DataTrackExtensions(),
-    };
 
     try {
       for await (const packet of descriptor.pipeline.processFrame(frame)) {

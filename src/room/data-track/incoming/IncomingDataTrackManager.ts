@@ -10,7 +10,7 @@ import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
 import { DataTrackDepacketizerDropError } from '../depacketizer';
-import type { DataTrackFrame } from '../frame';
+import { DataTrackFrameInternal, type DataTrackFrame } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
@@ -517,8 +517,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    const frame = await descriptor.subscription.pipeline.processPacket(packet);
-    if (!frame) {
+    const internalFrame = await descriptor.subscription.pipeline.processPacket(packet);
+    if (!internalFrame) {
       // Not all packets have been received yet to form a complete frame
       return;
     }
@@ -531,6 +531,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         );
         continue;
       }
+      const frame = DataTrackFrameInternal.lossyIntoFrame(internalFrame);
       controller.enqueue(frame);
     }
   }

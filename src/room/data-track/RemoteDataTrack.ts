@@ -1,5 +1,5 @@
 import type Participant from '../participant/Participant';
-import type { DataTrackFrame } from './frame';
+import { type DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
 import {
   DataTrackSymbol,
