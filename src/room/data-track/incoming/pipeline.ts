@@ -87,7 +87,9 @@ export default class IncomingDataTrackPipeline {
   /**
    * Decrypt the frame's payload if E2EE is enabled for this track.
    */
-  private async decryptIfNeeded(frame: DataTrackFrameInternal): Promise<DataTrackFrameInternal | null> {
+  private async decryptIfNeeded(
+    frame: DataTrackFrameInternal,
+  ): Promise<DataTrackFrameInternal | null> {
     const e2eeManager = this.e2eeManager;
 
     if (!e2eeManager) {

@@ -1,5 +1,5 @@
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
-import { DataTrackFrameInternal, type DataTrackFrame } from './frame';
+import { type DataTrackFrame, DataTrackFrameInternal } from './frame';
 import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
 import { DataTrackPushFrameError } from './outgoing/errors';

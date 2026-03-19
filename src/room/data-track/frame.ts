@@ -1,11 +1,10 @@
-import { DataTrackExtensions, DataTrackUserTimestampExtension } from "./packet/extensions";
+import { DataTrackExtensions, DataTrackUserTimestampExtension } from './packet/extensions';
 
 /** A pair of payload bytes and packet extensions which can be fed into a {@link DataTrackPacketizer}. */
 export type DataTrackFrame = {
   payload: Uint8Array;
   userTimestamp?: bigint;
 };
-
 
 /** An internal representation o data track frame which contains all SFU metadata. */
 export type DataTrackFrameInternal = {
@@ -18,9 +17,9 @@ export const DataTrackFrameInternal = {
     return {
       payload: frame.payload,
       extensions: new DataTrackExtensions({
-        userTimestamp: frame.userTimestamp ? (
-          new DataTrackUserTimestampExtension(frame.userTimestamp)
-        ) : undefined,
+        userTimestamp: frame.userTimestamp
+          ? new DataTrackUserTimestampExtension(frame.userTimestamp)
+          : undefined,
       }),
     };
   },
@@ -31,5 +30,5 @@ export const DataTrackFrameInternal = {
       payload: frame.payload,
       userTimestamp: frame.extensions.userTimestamp?.timestamp,
     };
-  }
+  },
 };

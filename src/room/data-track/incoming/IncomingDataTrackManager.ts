@@ -10,7 +10,7 @@ import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
 import { DataTrackDepacketizerDropError } from '../depacketizer';
-import { DataTrackFrameInternal, type DataTrackFrame } from '../frame';
+import { type DataTrackFrame, DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
