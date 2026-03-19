@@ -18,8 +18,8 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
-        'trackUnavailable',
+        'trackPublished',
+        'trackUnpublished',
       ]);
 
       // 1. Add a track, make sure the track available event was sent
@@ -39,11 +39,11 @@ describe('DataTrackIncomingManager', () => {
         ]),
       );
 
-      const trackAvailableEvent = await managerEvents.waitFor('trackAvailable');
-      expect(trackAvailableEvent.track.info.sid).toStrictEqual('sid1');
-      expect(trackAvailableEvent.track.info.pubHandle).toStrictEqual(DataTrackHandle.fromNumber(5));
-      expect(trackAvailableEvent.track.info.name).toStrictEqual('test');
-      expect(trackAvailableEvent.track.info.usesE2ee).toStrictEqual(false);
+      const trackPublishedEvent = await managerEvents.waitFor('trackPublished');
+      expect(trackPublishedEvent.track.info.sid).toStrictEqual('sid1');
+      expect(trackPublishedEvent.track.info.pubHandle).toStrictEqual(DataTrackHandle.fromNumber(5));
+      expect(trackPublishedEvent.track.info.name).toStrictEqual('test');
+      expect(trackPublishedEvent.track.info.usesE2ee).toStrictEqual(false);
 
       // 2. Check to make sure the publication has been noted in internal state
       expect((await manager.queryPublications()).map((p) => p.pubHandle)).to.deep.equal([
@@ -54,9 +54,9 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(new Map([['identity1', []]]));
       expect(await manager.queryPublications()).to.deep.equal([]);
 
-      const trackUnavailableEvent = await managerEvents.waitFor('trackUnavailable');
-      expect(trackUnavailableEvent.sid).toStrictEqual('sid1');
-      expect(trackUnavailableEvent.publisherIdentity).toStrictEqual('identity1');
+      const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');
+      expect(trackUnpublishedEvent.sid).toStrictEqual('sid1');
+      expect(trackUnpublishedEvent.publisherIdentity).toStrictEqual('identity1');
     });
 
     it('should process sfu publication updates idempotently', async () => {
@@ -93,7 +93,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -104,7 +104,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Create a subscription readable stream (SFU subscription starts lazily in the background)
       const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
@@ -149,7 +149,7 @@ describe('DataTrackIncomingManager', () => {
       });
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -160,7 +160,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: true }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Create a subscription readable stream
       const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
@@ -210,7 +210,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -223,7 +223,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle, name: 'test', usesE2ee: false }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Set up lots of subscribers
       const readers: Array<ReadableStreamDefaultReader<DataTrackFrame>> = [];
@@ -283,7 +283,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const sid = 'data track sid';
@@ -297,7 +297,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Subscribe to a data track
       const controller = new AbortController();
@@ -321,7 +321,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const sid = 'data track sid';
@@ -335,7 +335,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Subscribe to a data track twice
       const controllerOne = new AbortController();
@@ -396,7 +396,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const sid = 'data track sid';
@@ -410,7 +410,7 @@ describe('DataTrackIncomingManager', () => {
           ],
         ]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Create subscription A
       const controllerA = new AbortController();
@@ -442,7 +442,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -453,7 +453,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Begin subscribing to a data track
       const promise = manager.subscribeRequest(sid);
@@ -471,7 +471,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -482,7 +482,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
@@ -511,7 +511,7 @@ describe('DataTrackIncomingManager', () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
         'sfuUpdateSubscription',
-        'trackAvailable',
+        'trackPublished',
       ]);
 
       const senderIdentity = 'identity';
@@ -522,7 +522,7 @@ describe('DataTrackIncomingManager', () => {
       await manager.receiveSfuPublicationUpdates(
         new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
       );
-      await managerEvents.waitFor('trackAvailable');
+      await managerEvents.waitFor('trackPublished');
 
       // 2. Create a subscription readable stream
       const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);

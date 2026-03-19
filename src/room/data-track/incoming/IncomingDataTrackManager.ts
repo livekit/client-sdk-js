@@ -30,10 +30,10 @@ export type DataTrackIncomingManagerCallbacks = {
 
   /** A track has been published by a remote participant and is available to be
    * subscribed to. */
-  trackAvailable: (event: EventTrackAvailable) => void;
+  trackPublished: (event: EventTrackAvailable) => void;
 
   /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
-  trackUnavailable: (event: EventTrackUnavailable) => void;
+  trackUnpublished: (event: EventTrackUnavailable) => void;
 };
 
 /** Track is not subscribed to. */
@@ -422,7 +422,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.descriptors.set(descriptor.info.sid, descriptor);
 
     const track = new RemoteDataTrack(descriptor.info, this, { publisherIdentity });
-    this.emit('trackAvailable', { track });
+    this.emit('trackPublished', { track });
   }
 
   handleTrackUnpublished(sid: DataTrackSid) {
@@ -437,7 +437,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
-    this.emit('trackUnavailable', { sid, publisherIdentity: descriptor.publisherIdentity });
+    this.emit('trackUnpublished', { sid, publisherIdentity: descriptor.publisherIdentity });
   }
 
   /** SFU notification that handles have been assigned for requested subscriptions. */
@@ -572,7 +572,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   /** Shutdown the manager, ending any subscriptions. */
   shutdown() {
     for (const descriptor of this.descriptors.values()) {
-      this.emit('trackUnavailable', {
+      this.emit('trackUnpublished', {
         sid: descriptor.info.sid,
         publisherIdentity: descriptor.publisherIdentity,
       });

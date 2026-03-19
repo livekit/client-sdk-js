@@ -257,7 +257,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on('sfuUpdateSubscription', (event) => {
         this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
       })
-      .on('trackAvailable', (event) => {
+      .on('trackPublished', (event) => {
         if (event.track.publisherIdentity === this.localParticipant.identity) {
           // Only advertize tracks from other participants
           return;
@@ -265,7 +265,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.DataTrackPublished, event.track);
         this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
       })
-      .on('trackUnavailable', (event) => {
+      .on('trackUnpublished', (event) => {
         if (event.publisherIdentity === this.localParticipant.identity) {
           // Only advertize tracks from other participants
           return;
