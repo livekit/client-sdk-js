@@ -13,7 +13,7 @@ type RemoteDataTrackOptions = {
   publisherIdentity: Participant['identity'];
 };
 
-export type RemoteDataTrackSubscribeOptions = {
+export type DataTrackSubscribeOptions = {
   signal?: AbortSignal;
 
   /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
@@ -64,7 +64,7 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * Note that newly created subscriptions only receive frames published after
    * the initial subscription is established.
    */
-  subscribe(options?: RemoteDataTrackSubscribeOptions): ReadableStream<DataTrackFrame> {
+  subscribe(options?: DataTrackSubscribeOptions): ReadableStream<DataTrackFrame> {
     try {
       const [stream] = this.manager.openSubscriptionStream(
         this.info.sid,
