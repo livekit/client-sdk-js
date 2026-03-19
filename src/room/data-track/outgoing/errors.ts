@@ -26,6 +26,10 @@ export enum DataTrackPublishErrorReason {
 
   /** The name requested is not able to be used when creating the data track. */
   InvalidName = 6,
+
+  /** There was an error publishing, but it was not something that could be sorted into a known
+   * category. */
+  Unknown = 7,
 }
 
 export class DataTrackPublishError<
@@ -83,6 +87,13 @@ export class DataTrackPublishError<
       'Data track publication limit reached',
       DataTrackPublishErrorReason.LimitReached,
       { rawMessage },
+    );
+  }
+
+  static unknown(reason: number, message: string) {
+    return new DataTrackPublishError(
+      `Received RequestResponse for publishDataTrack, but reason was unrecognised (${reason}, ${message})`,
+      DataTrackPublishErrorReason.Unknown,
     );
   }
 

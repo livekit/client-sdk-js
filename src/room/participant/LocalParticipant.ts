@@ -338,10 +338,7 @@ export default class LocalParticipant extends Participant {
             error = DataTrackPublishError.limitReached(response.message);
             break;
           default:
-            this.log.error(
-              `Received RequestResponse for publishDataTrack, but reason was unrecognised (${response.reason}), so skipping.`,
-              this.logContext,
-            );
+            error = DataTrackPublishError.unknown(response.reason, response.message);
             return;
         }
 
