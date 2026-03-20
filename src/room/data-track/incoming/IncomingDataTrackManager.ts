@@ -297,12 +297,14 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
         // Wait for the subscription to complete, or time out if it takes too long
         await waitForCompletionFuture(descriptor, signal, timeoutSignal);
+        return;
       }
       case 'pending': {
         descriptor.subscription.pendingRequestCount += 1;
 
         // Wait for the subscription to complete
         await waitForCompletionFuture(descriptor, signal);
+        return;
       }
       case 'active': {
         return;
