@@ -1119,7 +1119,7 @@ function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
       return;
     }
     try {
-      localDataTrack.tryPush(state.encoder.encode(text));
+      localDataTrack.tryPush({ payload: state.encoder.encode(text) });
       input.value = '';
     } catch (err) {
       console.error(`Local data track ${sid}: tryPush failed:`, err);
