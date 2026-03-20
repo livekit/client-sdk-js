@@ -217,7 +217,7 @@ function createLocalTrackElement(localDataTrack: LocalDataTrack): HTMLElement | 
   slider.addEventListener('input', () => {
     valueLabel.textContent = slider.value;
     try {
-      localDataTrack.tryPush(encoder.encode(slider.value));
+      localDataTrack.tryPush({ payload: encoder.encode(slider.value) });
     } catch (err) {
       console.error(`Local data track ${sid}: tryPush failed:`, err);
     }
