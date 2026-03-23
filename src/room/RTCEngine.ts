@@ -1413,22 +1413,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async sendLossyBytes(
     bytes: Uint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
+    bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      // lossy channel, drop messages to reduce latency
       if (!this.isBufferStatusLow(kind)) {
-        this.lossyDataDropCount += 1;
-        if (this.lossyDataDropCount % 100 === 0) {
-          this.log.warn(
-            `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-            this.logContext,
-          );
+        // Depending on the exact circumstance that data is being sent, either drop or wait for the
+        // buffer status to not be low before continuing.
+        switch (bufferStatusLowBehavior) {
+          case 'wait':
+            this.log.warn(`waiting for data channel buffer status to go low, ${dc.bufferedAmount} > ${dc.bufferedAmountLowThreshold}`, bytes, this.logContext);
+            await this.waitForBufferStatusLow(kind);
+            this.log.warn(`data channel buffer status no longer low, ${dc.bufferedAmount} <= ${dc.bufferedAmountLowThreshold}`, this.logContext);
+            break;
+          case 'drop':
+            // this.log.warn(`dropping lossy data channel message`, this.logContext);
+            // Drop messages to reduce latency
+            this.lossyDataDropCount += 1;
+            if (this.lossyDataDropCount % 100 === 0) {
+              this.log.warn(
+                `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+                this.logContext,
+              );
+            }
+            return;
         }
-        return;
       }
       this.lossyDataStatCurrentBytes += bytes.byteLength;
 
