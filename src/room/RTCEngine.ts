@@ -784,9 +784,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.dataTrackDC.bufferedAmountLowThreshold = 65535;
 
     // handle buffer amount low events
-    this.lossyDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.LOSSY);
-    this.reliableDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.RELIABLE);
-    this.dataTrackDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.DATA_TRACK_LOSSY);
+    this.lossyDC.onbufferedamountlow = (e) =>
+      this.handleBufferedAmountLow(e, DataChannelKind.LOSSY);
+    this.reliableDC.onbufferedamountlow = (e) =>
+      this.handleBufferedAmountLow(e, DataChannelKind.RELIABLE);
+    this.dataTrackDC.onbufferedamountlow = (e) =>
+      this.handleBufferedAmountLow(e, DataChannelKind.DATA_TRACK_LOSSY);
 
     this.cleanupLossyDataStats();
     this.lossyDataStatInterval = setInterval(() => {
