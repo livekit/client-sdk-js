@@ -1842,10 +1842,6 @@ export type EngineEventCallbacks = {
   signalConnected: (joinResp: JoinResponse) => void;
 };
 
-function supportOptionalDatachannel(protocol: number | undefined): boolean {
-  return protocol !== undefined && protocol > 13;
-}
-
 function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
   const participantIdentity = newObj.participantIdentity
     ? newObj.participantIdentity
