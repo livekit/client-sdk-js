@@ -72,7 +72,7 @@ export class PCTransportManager {
     return this._mode;
   }
 
-  constructor(rtcConfig: RTCConfiguration, mode: PCMode, loggerOptions: LoggerOptions) {
+  constructor(mode: PCMode, loggerOptions: LoggerOptions, rtcConfig?: RTCConfiguration) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
 
