@@ -1431,9 +1431,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // buffer status to not be low before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            this.log.warn(`waiting for data channel buffer status to go low, ${dc.bufferedAmount} > ${dc.bufferedAmountLowThreshold}`, bytes, this.logContext);
             await this.waitForBufferStatusLow(kind);
-            this.log.warn(`data channel buffer status no longer low, ${dc.bufferedAmount} <= ${dc.bufferedAmountLowThreshold}`, this.logContext);
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
