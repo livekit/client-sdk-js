@@ -114,9 +114,7 @@ export default class OutgoingDataStreamManager {
       mimeType: info.mimeType,
       topic: info.topic,
       timestamp: numberToBigInt(info.timestamp),
-      totalLength: info.size !== undefined
-        ? numberToBigInt(info.size)
-        : undefined,
+      totalLength: numberToBigInt(info.size),
       attributes: info.attributes,
       contentHeader: {
         case: 'textHeader',
@@ -242,9 +240,7 @@ export default class OutgoingDataStreamManager {
     };
 
     const header = new DataStream_Header({
-      totalLength: info.size !== undefined
-        ? numberToBigInt(info.size)
-        : undefined,
+      totalLength: numberToBigInt(info.size),
       mimeType: info.mimeType,
       streamId,
       topic: info.topic,
