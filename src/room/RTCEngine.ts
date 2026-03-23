@@ -784,9 +784,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.dataTrackDC.bufferedAmountLowThreshold = 65535;
 
     // handle buffer amount low events
-    this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
-    this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
-    this.dataTrackDC.onbufferedamountlow = this.handleBufferedAmountLow;
+    this.lossyDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.LOSSY);
+    this.reliableDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.RELIABLE);
+    this.dataTrackDC.onbufferedamountlow = (e) => this.handleBufferedAmountLow(e, DataChannelKind.DATA_TRACK_LOSSY);
 
     this.cleanupLossyDataStats();
     this.lossyDataStatInterval = setInterval(() => {
@@ -912,11 +912,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  private handleBufferedAmountLow = (event: Event) => {
-    const channel = event.currentTarget as RTCDataChannel;
-    const channelKind =
-      channel.maxRetransmits === 0 ? DataChannelKind.LOSSY : DataChannelKind.RELIABLE;
-
+  private handleBufferedAmountLow = (_event: Event, channelKind: DataChannelKind) => {
     this.updateAndEmitDCBufferStatus(channelKind);
   };
 
