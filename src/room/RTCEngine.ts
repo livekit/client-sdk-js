@@ -816,6 +816,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDCSub = channel;
     } else if (channel.label === lossyDataChannel) {
       this.lossyDCSub = channel;
+    } else if (channel.label === dataTrackDataChannel) {
+      channel.onmessage = this.handleDataTrackMessage;
+      return;
     } else {
       return;
     }
