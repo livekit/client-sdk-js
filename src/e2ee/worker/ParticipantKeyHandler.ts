@@ -173,7 +173,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     ratchetedResult: RatchetResult | null = null,
     updateCurrentKeyIndex = true,
   ) {
-    const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
+    const keySet = await deriveKeys(material, this.keyProviderOptions);
     const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : this.currentKeyIndex;
     workerLogger.debug(`setting new key with index ${keyIndex}`, {
       usage: material.usages,
