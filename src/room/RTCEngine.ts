@@ -160,12 +160,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableDC?: RTCDataChannel;
 
-  private dataTrackDC?: RTCDataChannel;
-
-  private dcBufferStatus: Map<DataChannelKind, boolean>;
-
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
+
+  private dataTrackDC?: RTCDataChannel;
+
+  // @ts-ignore noUnusedLocals
+  private dataTrackDCSub?: RTCDataChannel;
+
+  private dcBufferStatus: Map<DataChannelKind, boolean>;
 
   private subscriberPrimary: boolean = false;
 
@@ -380,11 +383,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     dcCleanup(this.reliableDC);
     dcCleanup(this.reliableDCSub);
     dcCleanup(this.dataTrackDC);
+    dcCleanup(this.dataTrackDCSub);
 
     this.lossyDC = undefined;
     this.lossyDCSub = undefined;
     this.reliableDC = undefined;
     this.reliableDCSub = undefined;
+    this.dataTrackDC = undefined;
+    this.dataTrackDCSub = undefined;
     this.reliableMessageBuffer = new DataPacketBuffer();
     this.reliableDataSequence = 1;
     this.reliableReceivedState.clear();
@@ -812,18 +818,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!channel) {
       return;
     }
+    let handler;
     if (channel.label === reliableDataChannel) {
       this.reliableDCSub = channel;
+      handler = this.handleDataMessage;
     } else if (channel.label === lossyDataChannel) {
       this.lossyDCSub = channel;
+      handler = this.handleDataMessage;
     } else if (channel.label === dataTrackDataChannel) {
-      channel.onmessage = this.handleDataTrackMessage;
-      return;
+      this.dataTrackDCSub = channel;
+      handler = this.handleDataTrackMessage;
     } else {
       return;
     }
     this.log.debug(`on data channel ${channel.id}, ${channel.label}`, this.logContext);
-    channel.onmessage = this.handleDataMessage;
+    channel.onmessage = handler;
   };
 
   private handleDataMessage = async (message: MessageEvent) => {
@@ -1684,7 +1693,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           return this.lossyDCSub;
         }
       case DataChannelKind.DATA_TRACK_LOSSY:
-        return this.dataTrackDC;
+        if (!sub) {
+          return this.dataTrackDC;
+        } else {
+          return this.dataTrackDCSub;
+        }
     }
   }
 
