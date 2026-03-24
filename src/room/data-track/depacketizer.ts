@@ -38,9 +38,9 @@ export class DataTrackDepacketizerDropError<
     this.frameNumber = frameNumber;
   }
 
-  static interrupted(frameNumber: number) {
+  static interrupted(frameNumber: number, newFrameNumber: number) {
     return new DataTrackDepacketizerDropError(
-      'Interrupted by the start of a new frame',
+      `Interrupted by the start of a new frame ${newFrameNumber}`,
       DataTrackDepacketizerDropReason.Interrupted,
       frameNumber,
     );
@@ -133,7 +133,10 @@ export default class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         const frameNumber = this.partial.frameNumber;
         this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+        throw DataTrackDepacketizerDropError.interrupted(
+          frameNumber,
+          packet.header.frameNumber.value,
+        );
       } else {
         log.warn(
           `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
@@ -161,10 +164,13 @@ export default class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         const frameNumber = this.partial.frameNumber;
         this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+        throw DataTrackDepacketizerDropError.interrupted(
+          frameNumber,
+          packet.header.frameNumber.value,
+        );
       } else {
         log.warn(
-          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
+          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame ${packet.header.frameNumber.value}, dropping.`,
         );
       }
     }
@@ -201,7 +207,10 @@ export default class DataTrackDepacketizer {
     if (packet.header.frameNumber.value !== this.partial.frameNumber) {
       const frameNumber = this.partial.frameNumber;
       this.reset();
-      throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+      throw DataTrackDepacketizerDropError.interrupted(
+        frameNumber,
+        packet.header.frameNumber.value,
+      );
     }
 
     // NOTE: this check will block reprocessing packets with duplicate sequence values if the
