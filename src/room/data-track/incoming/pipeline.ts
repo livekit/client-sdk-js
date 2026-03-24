@@ -78,7 +78,7 @@ export default class IncomingDataTrackPipeline {
     } catch (err) {
       // In a future version, use this to maintain drop statistics.
       // FIXME: is this a good idea?
-      log.debug(`Data frame depacketize error: ${err}`);
+      log.warn(`Data frame depacketize error: ${err}`);
       return null;
     }
     return frame;
