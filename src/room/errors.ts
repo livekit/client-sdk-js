@@ -311,6 +311,63 @@ export class SignalReconnectError extends LivekitError {
   }
 }
 
+export enum AudioOutputPermissionErrorReason {
+  /**
+   * The user dismissed the browser's selectAudioOutput() permission prompt,
+   * or the permission was denied by a Permissions Policy.
+   * Thrown from {@link Room.switchActiveDevice} when switching to a non-default
+   * audio output on Safari 26+ without an active microphone.
+   */
+  PermissionDenied = 'PermissionDenied',
+  /**
+   * selectAudioOutput() requires transient user activation (a user gesture such
+   * as a click or tap). This error is thrown from {@link Room.switchActiveDevice}
+   * when the call was not initiated from a user gesture handler on Safari 26+
+   * without an active microphone.
+   */
+  MissingUserActivation = 'MissingUserActivation',
+}
+
+export class AudioOutputPermissionError extends LivekitReasonedError<AudioOutputPermissionErrorReason> {
+  readonly name = 'AudioOutputPermissionError';
+
+  reason: AudioOutputPermissionErrorReason;
+
+  reasonName: string;
+
+  private constructor(message: string, reason: AudioOutputPermissionErrorReason) {
+    super(22, message);
+    this.reason = reason;
+    this.reasonName = AudioOutputPermissionErrorReason[reason];
+  }
+
+  /**
+   * The user dismissed the browser's selectAudioOutput() permission prompt,
+   * or the permission was denied by a Permissions Policy.
+   * Thrown from {@link Room.switchActiveDevice} when switching to a non-default
+   * audio output on Safari 26+ without an active microphone.
+   */
+  static permissionDenied(message: string) {
+    return new AudioOutputPermissionError(
+      message,
+      AudioOutputPermissionErrorReason.PermissionDenied,
+    );
+  }
+
+  /**
+   * selectAudioOutput() requires transient user activation (a user gesture such
+   * as a click or tap). This error is thrown from {@link Room.switchActiveDevice}
+   * when the call was not initiated from a user gesture handler on Safari 26+
+   * without an active microphone.
+   */
+  static missingUserActivation(message: string) {
+    return new AudioOutputPermissionError(
+      message,
+      AudioOutputPermissionErrorReason.MissingUserActivation,
+    );
+  }
+}
+
 export enum MediaDeviceFailure {
   // user rejected permissions
   PermissionDenied = 'PermissionDenied',

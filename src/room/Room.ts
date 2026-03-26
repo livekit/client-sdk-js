@@ -63,6 +63,7 @@ import {
   videoDefaults,
 } from './defaults';
 import {
+  AudioOutputPermissionError,
   ConnectionError,
   ConnectionErrorReason,
   UnexpectedConnectionState,
@@ -106,6 +107,7 @@ import {
   isReactNative,
   isRemotePub,
   isSafariBased,
+  isSafariSpeakerSelectionSupported,
   isWeb,
   numberToBigInt,
   sleep,
@@ -1327,6 +1329,33 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ) {
         throw new Error('cannot switch audio output, the current browser does not support it');
       }
+
+      // On Safari 26+, setSinkId() requires explicit permission for non-default devices.
+      // Permission is implicitly granted when the user has an active microphone, but
+      // listener-only users need to go through selectAudioOutput() first.
+      if (
+        isSafariSpeakerSelectionSupported() &&
+        this.localParticipant.audioTrackPublications.size === 0 &&
+        'selectAudioOutput' in navigator.mediaDevices
+      ) {
+        try {
+          // @ts-expect-error selectAudioOutput is not yet in the TypeScript lib types
+          await navigator.mediaDevices.selectAudioOutput({ deviceId });
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'NotAllowedError') {
+            throw AudioOutputPermissionError.permissionDenied(
+              'user denied audio output permission',
+            );
+          }
+          if (e instanceof DOMException && e.name === 'InvalidStateError') {
+            throw AudioOutputPermissionError.missingUserActivation(
+              'switchActiveDevice for audiooutput must be called from a user gesture on this browser',
+            );
+          }
+          throw e;
+        }
+      }
+
       if (this.options.webAudioMix) {
         // setting `default` for web audio output doesn't work, so we need to normalize the id before
         deviceId =
