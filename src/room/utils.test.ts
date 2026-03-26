@@ -183,27 +183,27 @@ describe('extractMaxAgeFromRequestHeaders', () => {
 });
 
 describe('isSafariSpeakerSelectionSupported', () => {
-  it('returns true for Safari >= 26', () => {
+  it('returns true for Safari >= 26 on macOS', () => {
     expect(isSafariSpeakerSelectionSupported({
       name: 'Safari',
       version: '26.0',
       os: 'macOS',
-      osVersion: '26.0',
+      osVersion: '15.0',
     })).toBe(true);
     expect(isSafariSpeakerSelectionSupported({
       name: 'Safari',
       version: '27.1',
       os: 'macOS',
-      osVersion: '27.1',
+      osVersion: '15.1',
     })).toBe(true);
   });
 
-  it('returns true for iOS Safari >= 26', () => {
+  it('returns true for Safari >= 26 on iOS', () => {
     expect(isSafariSpeakerSelectionSupported({
       name: 'Safari',
       version: '26.0',
       os: 'iOS',
-      osVersion: '26.0',
+      osVersion: '19.0',
     })).toBe(true);
   });
 
@@ -212,7 +212,7 @@ describe('isSafariSpeakerSelectionSupported', () => {
       name: 'Safari',
       version: '25.9',
       os: 'macOS',
-      osVersion: '25.9',
+      osVersion: '15.0',
     })).toBe(false);
   });
 
@@ -221,8 +221,18 @@ describe('isSafariSpeakerSelectionSupported', () => {
       name: 'Chrome',
       version: '120.0',
       os: 'macOS',
-      osVersion: '14.0',
+      osVersion: '15.0',
     })).toBe(false);
+    expect(isSafariSpeakerSelectionSupported({
+      name: 'Chrome',
+      version: '120.0',
+      os: 'iOS',
+      osVersion: '19.0',
+    })).toBe(false);
+  });
+
+  it('returns false when browser is undefined', () => {
+    expect(isSafariSpeakerSelectionSupported(undefined)).toBe(false);
   });
 });
 

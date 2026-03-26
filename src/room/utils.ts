@@ -213,13 +213,13 @@ export function isSafariSpeakerSelectionSupported(browser?: BrowserDetails): boo
   if (!browser) {
     browser = getBrowser();
   }
-  // Safari (macOS or iOS) since version 26
+  if (!browser) {
+    return false;
+  }
+  // Check Safari version (works for both macOS Safari and all iOS browsers,
+  // since iOS browsers all use WebKit and are detected as Safari)
   // https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes#WebRTC
-  return (
-    (browser?.name === 'Safari' && compareVersions(browser.version, '26') >= 0) ||
-    (browser?.os === 'iOS' && !!browser?.osVersion && compareVersions(browser.osVersion, '26') >= 0) ||
-    (browser?.os === 'macOS' && !!browser?.osVersion && compareVersions(browser.osVersion, '26') >= 0)
-  );
+  return browser.name === 'Safari' && compareVersions(browser.version, '26') >= 0;
 }
 
 export function isMobile(): boolean {
