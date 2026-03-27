@@ -1,11 +1,10 @@
 # RPC Benchmark
 
-Stress test for LiveKit RPC with configurable payload sizes. Exercises all three RPC transport paths:
+Stress test for LiveKit RPC with configurable payload sizes. Exercises both RPC transport paths:
 
 | Path | Payload Size | Description |
 |------|-------------|-------------|
-| Legacy | < 1 KB | Uncompressed inline payload |
-| Compressed | 1 KB – 15 KB | Gzip-compressed inline payload |
+| Compressed | < 15 KB | Gzip-compressed inline payload |
 | Data Stream | >= 15 KB | Gzip-compressed via one-time data stream |
 
 ## Setup
