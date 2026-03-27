@@ -1856,7 +1856,9 @@ export default class LocalParticipant extends Participant {
    * @throws Error on failure. Details in `message`.
    */
   performRpc(params: PerformRpcParams): TypedPromise<string, RpcError> {
-    return this.rpcClientManager.performRpc(params);
+    return this.rpcClientManager.performRpc(params).then(([_id, completionPromise]) => {
+      return completionPromise;
+    });
   }
 
   /**
