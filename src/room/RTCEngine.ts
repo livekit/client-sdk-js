@@ -1506,7 +1506,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       },
     });
 
-    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @internal */
