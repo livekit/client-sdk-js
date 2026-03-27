@@ -74,7 +74,6 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
