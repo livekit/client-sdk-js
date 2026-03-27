@@ -73,7 +73,7 @@ export default class RpcClientManager {
     method,
     payload,
     responseTimeout: responseTimeoutMs = 15000,
-  }: PerformRpcParams): Promise<string> {
+  }: PerformRpcParams): Promise<[string /* id */, Promise<string>]> {
     const maxRoundTripLatencyMs = 7000;
     const minEffectiveTimeoutMs = maxRoundTripLatencyMs + 1000;
 
@@ -130,7 +130,7 @@ export default class RpcClientManager {
       participantIdentity: destinationIdentity,
     });
 
-    return completionFuture.promise.finally(() => {
+    const completionPromise = completionFuture.promise.finally(() => {
       clearTimeout(responseTimeoutId);
 
       if (this.pendingAcks.has(id)) {
@@ -139,6 +139,8 @@ export default class RpcClientManager {
         clearTimeout(ackTimeoutId);
       }
     });
+
+    return [id, completionPromise];
   }
 
   private async publishRpcRequest(
