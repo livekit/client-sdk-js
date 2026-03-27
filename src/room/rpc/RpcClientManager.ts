@@ -281,15 +281,7 @@ export default class RpcClientManager {
       }
       case 'rpcAck': {
         const rpcAck = packet.value.value;
-
-        const handler = this.pendingAcks.get(rpcAck.requestId);
-        if (handler) {
-          handler.resolve();
-          this.pendingAcks.delete(rpcAck.requestId);
-        } else {
-          this.log.error(`Ack received for unexpected RPC request: ${rpcAck.requestId}`);
-        }
-
+        this.handleIncomingRpcAck(rpcAck.requestId);
         return true;
       }
       default:
@@ -314,7 +306,8 @@ export default class RpcClientManager {
     this.handleIncomingRpcResponseSuccess(responseId, decompressedPayload);
   }
 
-  private handleIncomingRpcResponseSuccess(requestId: string, payload: string) {
+  /** @internal */
+  handleIncomingRpcResponseSuccess(requestId: string, payload: string) {
     const handler = this.pendingResponses.get(requestId);
     if (handler) {
       handler.completionFuture.resolve?.(payload);
@@ -324,13 +317,25 @@ export default class RpcClientManager {
     }
   }
 
-  private handleIncomingRpcResponseFailure(requestId: string, error: RpcError) {
+  /** @internal */
+  handleIncomingRpcResponseFailure(requestId: string, error: RpcError) {
     const handler = this.pendingResponses.get(requestId);
     if (handler) {
       handler.completionFuture.reject?.(error);
       this.pendingResponses.delete(requestId);
     } else {
       console.error('Response received for unexpected RPC request', requestId);
+    }
+  }
+
+  /** @internal */
+  handleIncomingRpcAck(requestId: string) {
+    const handler = this.pendingAcks.get(requestId);
+    if (handler) {
+      handler.resolve();
+      this.pendingAcks.delete(requestId);
+    } else {
+      this.log.error(`Ack received for unexpected RPC request: ${requestId}`);
     }
   }
 
