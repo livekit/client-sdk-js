@@ -190,7 +190,7 @@ export default class RpcServerManager {
       return;
     }
 
-    // Small response or legacy client: send uncompressed
+    // Legacy client: send uncompressed
     if (isCallerStillConnected()) {
       await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
     }
@@ -306,7 +306,7 @@ export default class RpcServerManager {
       return;
     }
 
-    // Small response or legacy client: send uncompressed
+    // Legacy client: send uncompressed
     await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
   }
 }
