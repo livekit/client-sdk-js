@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 LiveKit, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
+import { DataPacket, DataPacket_Kind, RpcAck, RpcResponse } from '@livekit/protocol';
 import { type StructuredLogger } from '../../logger';
 import { CLIENT_PROTOCOL_GZIP_RPC } from '../../version';
 import type RTCEngine from '../RTCEngine';
@@ -79,11 +80,11 @@ export default class RpcServerManager {
     version: number,
     isCallerStillConnected: () => boolean,
   ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
+    await this.publishRpcAck(callerIdentity, requestId);
 
     if (version !== 1) {
       if (isCallerStillConnected()) {
-        await this.engine.publishRpcResponse(
+        await this.publishRpcResponse(
           callerIdentity,
           requestId,
           null,
@@ -101,7 +102,7 @@ export default class RpcServerManager {
       } catch (e) {
         this.log.error('Failed to decompress RPC request payload', e);
         if (isCallerStillConnected()) {
-          await this.engine.publishRpcResponse(
+          await this.publishRpcResponse(
             callerIdentity,
             requestId,
             null,
@@ -116,7 +117,7 @@ export default class RpcServerManager {
 
     if (!handler) {
       if (isCallerStillConnected()) {
-        await this.engine.publishRpcResponse(
+        await this.publishRpcResponse(
           callerIdentity,
           requestId,
           null,
@@ -147,7 +148,7 @@ export default class RpcServerManager {
       }
 
       if (isCallerStillConnected()) {
-        await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+        await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
       }
       return;
     }
@@ -176,7 +177,7 @@ export default class RpcServerManager {
     // Medium response: compress inline
     if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
       const compressed = await gzipCompress(response);
-      await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
+      await this.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
       return;
     }
 
@@ -185,15 +186,74 @@ export default class RpcServerManager {
       const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
       if (isCallerStillConnected()) {
-        await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+        await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
       }
       return;
     }
 
     // Legacy client: send uncompressed
     if (isCallerStillConnected()) {
-      await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
+      await this.publishRpcResponse(callerIdentity, requestId, response, null);
     }
+  }
+
+  private async publishRpcAck(destinationIdentity: string, requestId: string) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcAck',
+        value: new RpcAck({
+          requestId,
+        }),
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
+  private async publishRpcResponse(
+    destinationIdentity: string,
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcResponse',
+        value: new RpcResponse({
+          requestId,
+          value: error
+            ? { case: 'error', value: error.toProto() }
+            : { case: 'payload', value: payload ?? '' },
+        }),
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
+  private async publishRpcResponseCompressed(
+    destinationIdentity: string,
+    requestId: string,
+    compressedPayload: Uint8Array,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcResponse',
+        value: new RpcResponse({
+          requestId,
+          value: { case: 'compressedPayload', value: compressedPayload },
+        }),
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
   /**
@@ -213,7 +273,7 @@ export default class RpcServerManager {
       this.log.warn(
         `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`,
       );
-      await this.engine.publishRpcResponse(
+      await this.publishRpcResponse(
         callerIdentity,
         requestId,
         null,
@@ -226,7 +286,7 @@ export default class RpcServerManager {
       decompressedPayload = await gzipDecompressFromReader(reader);
     } catch (e) {
       this.log.warn(`Error decompressing RPC request payload: ${e}`);
-      await this.engine.publishRpcResponse(
+      await this.publishRpcResponse(
         callerIdentity,
         requestId,
         null,
@@ -238,7 +298,7 @@ export default class RpcServerManager {
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
-      await this.engine.publishRpcResponse(
+      await this.publishRpcResponse(
         callerIdentity,
         requestId,
         null,
@@ -267,7 +327,7 @@ export default class RpcServerManager {
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
 
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
       return;
     }
 
@@ -294,7 +354,7 @@ export default class RpcServerManager {
     if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
       // Medium response: compress inline
       const compressed = await gzipCompress(response);
-      await this.engine.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
+      await this.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
       return;
     }
 
@@ -302,11 +362,11 @@ export default class RpcServerManager {
       // Legacy client can't handle large payloads
       const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
       this.log.warn(`RPC Response payload too large for ${method}`);
-      await this.engine.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
       return;
     }
 
     // Legacy client: send uncompressed
-    await this.engine.publishRpcResponse(callerIdentity, requestId, response, null);
+    await this.publishRpcResponse(callerIdentity, requestId, response, null);
   }
 }
