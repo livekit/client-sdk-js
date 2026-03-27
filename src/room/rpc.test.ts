@@ -93,7 +93,7 @@ describe('RpcClientManager', () => {
 
       mockSendDataPacket.mockImplementationOnce(() => Promise.resolve());
 
-      const [_requestId, completionPromise] = await rpcClientManager.performRpc({
+      const [requestId, completionPromise] = await rpcClientManager.performRpc({
         destinationIdentity: 'remote-identity',
         method,
         payload,
@@ -141,7 +141,7 @@ describe('RpcClientManager', () => {
 
     mockSendDataPacket.mockImplementationOnce(() => Promise.resolve());
 
-    const [_requestId, completionPromise] = await rpcClientManager.performRpc({
+    const [requestId, completionPromise] = await rpcClientManager.performRpc({
       destinationIdentity: 'remote-identity',
       method,
       payload,
