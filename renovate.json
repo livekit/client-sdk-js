@@ -6,7 +6,8 @@
     {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "devDependencies (non-major)"
+      "groupName": "devDependencies (non-major)",
+      "minimumReleaseAge": "2 weeks"
     },
     {
       "matchSourceUrlPrefixes": ["https://github.com/livekit/"],
@@ -17,7 +18,8 @@
     {
       "matchPackageNames": ["typescript"],
       "matchUpdateTypes": ["minor", "major"],
-      "groupName": "typescript (breaking)"
+      "groupName": "typescript (breaking)",
+      "minimumReleaseAge": "2 weeks"
     }
   ]
 }
