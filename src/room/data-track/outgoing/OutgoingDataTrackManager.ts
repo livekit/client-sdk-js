@@ -165,6 +165,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
   /**
    * Client requested to publish a track.
+   *
+   * If the LiveKit server is too old and doesn't support data tracks, a
+   * {@link DataTrackPublishError#timeout} will be thrown.
+   *
    * @internal
    **/
   async publishRequest(

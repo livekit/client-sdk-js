@@ -77,7 +77,7 @@ export class DataTrackPublishError<
 
   static timeout() {
     return new DataTrackPublishError(
-      'Publish data track timed-out',
+      'Publish data track timed-out. Does the LiveKit server support data tracks?',
       DataTrackPublishErrorReason.Timeout,
     );
   }
