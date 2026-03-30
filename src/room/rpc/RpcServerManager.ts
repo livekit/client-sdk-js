@@ -9,7 +9,6 @@ import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../participant/Participant';
 import {
-  DATA_STREAM_MIN_BYTES,
   MAX_LEGACY_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
@@ -19,9 +18,7 @@ import {
   RpcError,
   type RpcInvocationData,
   byteLength,
-  gzipCompress,
   gzipCompressToWriter,
-  gzipDecompress,
   gzipDecompressFromReader,
 } from './utils';
 
@@ -75,7 +72,6 @@ export default class RpcServerManager {
     requestId: string,
     method: string,
     payload: string,
-    compressedPayload: Uint8Array,
     responseTimeout: number,
     version: number,
     isCallerStillConnected: () => boolean,
@@ -84,7 +80,7 @@ export default class RpcServerManager {
 
     if (version !== 1) {
       if (isCallerStillConnected()) {
-        await this.publishRpcResponse(
+        await this.publishRpcResponsePacket(
           callerIdentity,
           requestId,
           null,
@@ -94,30 +90,11 @@ export default class RpcServerManager {
       return;
     }
 
-    // Resolve the actual payload from compressed or data stream sources
-    let resolvedPayload = payload;
-    if (compressedPayload && compressedPayload.length > 0) {
-      try {
-        resolvedPayload = await gzipDecompress(compressedPayload);
-      } catch (e) {
-        this.log.error('Failed to decompress RPC request payload', e);
-        if (isCallerStillConnected()) {
-          await this.publishRpcResponse(
-            callerIdentity,
-            requestId,
-            null,
-            RpcError.builtIn('APPLICATION_ERROR'),
-          );
-        }
-        return;
-      }
-    }
-
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
       if (isCallerStillConnected()) {
-        await this.publishRpcResponse(
+        await this.publishRpcResponsePacket(
           callerIdentity,
           requestId,
           null,
@@ -132,7 +109,7 @@ export default class RpcServerManager {
       response = await handler({
         requestId,
         callerIdentity,
-        payload: resolvedPayload,
+        payload,
         responseTimeout,
       });
     } catch (error) {
@@ -148,52 +125,13 @@ export default class RpcServerManager {
       }
 
       if (isCallerStillConnected()) {
-        await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
+        await this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
       }
       return;
     }
 
-    // Determine how to send the response based on the caller's client protocol
-    const callerClientProtocol = this.getRemoteParticipantClientProtocol(callerIdentity);
-
-    const responseBytes = byteLength(response ?? '');
-
-    // Large response: create the data stream tagged with the request ID,
-    // send the RPC response with empty payload, then stream compressed chunks
-    // for lower TTFB
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes > DATA_STREAM_MIN_BYTES) {
-      const writer = await this.outgoingDataStreamManager.streamBytes({
-        topic: RPC_DATA_STREAM_TOPIC,
-        destinationIdentities: [callerIdentity],
-        mimeType: 'application/octet-stream',
-        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
-      });
-
-      await gzipCompressToWriter(response, writer);
-      await writer.close();
-      return;
-    }
-
-    // Medium response: compress inline
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      const compressed = await gzipCompress(response);
-      await this.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
-      return;
-    }
-
-    // Legacy client can't handle large payloads
-    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
-      const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-      this.log.warn(`RPC Response payload too large for ${method}`);
-      if (isCallerStillConnected()) {
-        await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
-      }
-      return;
-    }
-
-    // Legacy client: send uncompressed
     if (isCallerStillConnected()) {
-      await this.publishRpcResponse(callerIdentity, requestId, response, null);
+      await this.publishRpcResponse(callerIdentity, requestId, response ?? '');
     }
   }
 
@@ -212,7 +150,7 @@ export default class RpcServerManager {
   }
 
   /** @internal */
-  private async publishRpcResponse(
+  private async publishRpcResponsePacket(
     destinationIdentity: string,
     requestId: string,
     payload: string | null,
@@ -235,25 +173,44 @@ export default class RpcServerManager {
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
-  /** @internal */
-  private async publishRpcResponseCompressed(
+  /**
+   * Send a successful RPC response payload, choosing the transport based on
+   * the caller's client protocol version.
+   */
+  private async publishRpcResponse(
     destinationIdentity: string,
     requestId: string,
-    compressedPayload: Uint8Array,
+    payload: string,
   ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: { case: 'compressedPayload', value: compressedPayload },
-        }),
-      },
-    });
+    const callerClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
 
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
+      // Send response as a compressed data stream
+      const writer = await this.outgoingDataStreamManager.streamBytes({
+        topic: RPC_DATA_STREAM_TOPIC,
+        destinationIdentities: [destinationIdentity],
+        mimeType: 'application/octet-stream',
+        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
+      });
+      await gzipCompressToWriter(payload, writer);
+      await writer.close();
+      return;
+    }
+
+    // Legacy client: enforce size limit and send uncompressed payload inline
+    const responseBytes = byteLength(payload);
+    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
+      this.log.warn(`RPC Response payload too large for request ${requestId}`);
+      await this.publishRpcResponsePacket(
+        destinationIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE'),
+      );
+      return;
+    }
+
+    await this.publishRpcResponsePacket(destinationIdentity, requestId, payload, null);
   }
 
   /**
@@ -273,7 +230,7 @@ export default class RpcServerManager {
       this.log.warn(
         `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`,
       );
-      await this.publishRpcResponse(
+      await this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -286,7 +243,7 @@ export default class RpcServerManager {
       decompressedPayload = await gzipDecompressFromReader(reader);
     } catch (e) {
       this.log.warn(`Error decompressing RPC request payload: ${e}`);
-      await this.publishRpcResponse(
+      await this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -298,7 +255,7 @@ export default class RpcServerManager {
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
-      await this.publishRpcResponse(
+      await this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -327,46 +284,10 @@ export default class RpcServerManager {
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
 
-      await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
+      await this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
       return;
     }
 
-    // Determine how to send the response based on the caller's client protocol
-    const callerClientProtocol = this.getRemoteParticipantClientProtocol(callerIdentity);
-
-    const responseBytes = byteLength(response ?? '');
-
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC && responseBytes > DATA_STREAM_MIN_BYTES) {
-      // Large response: create the data stream tagged with the request ID,
-      // send the RPC response with empty payload, then stream compressed chunks
-      // for lower TTFB
-      const writer = await this.outgoingDataStreamManager.streamBytes({
-        topic: RPC_DATA_STREAM_TOPIC,
-        destinationIdentities: [callerIdentity],
-        mimeType: 'application/octet-stream',
-        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
-      });
-      await gzipCompressToWriter(response!, writer);
-      await writer.close();
-      return;
-    }
-
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      // Medium response: compress inline
-      const compressed = await gzipCompress(response);
-      await this.publishRpcResponseCompressed(callerIdentity, requestId, compressed);
-      return;
-    }
-
-    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
-      // Legacy client can't handle large payloads
-      const responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-      this.log.warn(`RPC Response payload too large for ${method}`);
-      await this.publishRpcResponse(callerIdentity, requestId, null, responseError);
-      return;
-    }
-
-    // Legacy client: send uncompressed
-    await this.publishRpcResponse(callerIdentity, requestId, response, null);
+    await this.publishRpcResponse(callerIdentity, requestId, response ?? '');
   }
 }
