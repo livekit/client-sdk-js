@@ -1984,7 +1984,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         rpc.id,
         rpc.method,
         rpc.payload,
-        rpc.compressedPayload,
         rpc.responseTimeoutMs,
         rpc.version,
         () => this.remoteParticipants.has(packet.participantIdentity),
