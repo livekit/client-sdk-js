@@ -48,7 +48,6 @@ describe('RpcClientManager', () => {
     expect(packet.value.value.id).toStrictEqual(requestId);
     expect(packet.value.value.method).toStrictEqual('test-method');
     expect(packet.value.value.payload).toStrictEqual('request-payload');
-    expect(packet.value.value.compressedPayload).toStrictEqual(new Uint8Array());
 
     rpcClientManager.handleIncomingRpcAck(requestId);
 
@@ -192,7 +191,6 @@ describe('RpcServerManager', () => {
       requestId,
       'test-method',
       'request payload',
-      new Uint8Array(),
       responseTimeoutMs,
       1,
       () => true,
@@ -225,7 +223,6 @@ describe('RpcServerManager', () => {
       'test-request-id',
       methodName,
       'test payload',
-      new Uint8Array(),
       5000,
       1,
       () => true,
@@ -262,7 +259,6 @@ describe('RpcServerManager', () => {
       'test-error-request-id',
       methodName,
       'test payload',
-      new Uint8Array(),
       5000,
       1,
       () => true,
@@ -300,7 +296,6 @@ describe('RpcServerManager', () => {
       'test-rpc-error-request-id',
       methodName,
       'test payload',
-      new Uint8Array(),
       5000,
       1,
       () => true,

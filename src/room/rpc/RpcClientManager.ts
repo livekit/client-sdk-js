@@ -11,7 +11,6 @@ import { EngineEvent } from '../events';
 import type Participant from '../participant/Participant';
 import { Future, compareVersions } from '../utils';
 import {
-  DATA_STREAM_MIN_BYTES,
   MAX_LEGACY_PAYLOAD_BYTES,
   type PerformRpcParams,
   RPC_DATA_STREAM_TOPIC,
@@ -20,9 +19,7 @@ import {
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RpcError,
   byteLength,
-  gzipCompress,
   gzipCompressToWriter,
-  gzipDecompress,
   gzipDecompressFromReader,
 } from './utils';
 
@@ -151,70 +148,38 @@ export default class RpcClientManager {
     responseTimeout: number,
     remoteClientProtocol: number,
   ) {
-    const payloadBytes = byteLength(payload);
-
-    let mode: 'regular' | 'compressed' | 'compressed-data-stream' = 'regular';
     if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      mode = 'compressed';
-    }
-    if (mode === 'compressed' && payloadBytes > DATA_STREAM_MIN_BYTES) {
-      mode = 'compressed-data-stream';
+      // Send payload as a compressed data stream
+      const writer = await this.outgoingDataStreamManager.streamBytes({
+        topic: RPC_DATA_STREAM_TOPIC,
+        destinationIdentities: [destinationIdentity],
+        mimeType: 'application/octet-stream',
+        attributes: {
+          [RPC_REQUEST_ID_ATTR]: requestId,
+          [RPC_REQUEST_METHOD_ATTR]: method,
+          [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
+        },
+      });
+      await gzipCompressToWriter(payload, writer);
+      await writer.close();
+      return;
     }
 
-    switch (mode) {
-      case 'compressed-data-stream': {
-        // Large payload: create the data stream tagged with the request ID,
-        // send the RPC request with empty payload/compressedPayload, then
-        // stream compressed chunks for lower TTFB
-        const writer = await this.outgoingDataStreamManager.streamBytes({
-          topic: RPC_DATA_STREAM_TOPIC,
-          destinationIdentities: [destinationIdentity],
-          mimeType: 'application/octet-stream',
-          attributes: {
-            [RPC_REQUEST_ID_ATTR]: requestId,
-            [RPC_REQUEST_METHOD_ATTR]: method,
-            [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
-          },
-        });
-        await gzipCompressToWriter(payload, writer);
-        await writer.close();
-        return;
-      }
-
-      case 'compressed':
-        // Medium payload: compress inline
-        const compressedPayload = await gzipCompress(payload);
-        await this.sendRpcRequestPacket(
-          destinationIdentity,
-          requestId,
-          method,
-          '',
-          compressedPayload,
-          responseTimeout,
-        );
-        break;
-
-      case 'regular':
-      default:
-        // Small payload: just include the payload directly, uncompressed
-        await this.sendRpcRequestPacket(
-          destinationIdentity,
-          requestId,
-          method,
-          payload,
-          undefined,
-          responseTimeout,
-        );
-        break;
-    }
+    // Legacy client: send uncompressed payload inline
+    await this.sendRpcRequestPacket(
+      destinationIdentity,
+      requestId,
+      method,
+      payload,
+      responseTimeout,
+    );
   }
 
   private async sendRpcRequestPacket(
     destinationIdentity: string,
     requestId: string,
     method: string,
-    payload: string | undefined,
-    compressedPayload: Uint8Array | undefined,
+    payload: string,
     responseTimeout: number,
   ) {
     const packet = new DataPacket({
@@ -225,8 +190,7 @@ export default class RpcClientManager {
         value: new RpcRequest({
           id: requestId,
           method,
-          payload: payload ?? '',
-          compressedPayload: compressedPayload ?? new Uint8Array(),
+          payload,
           responseTimeoutMs: responseTimeout,
           version: 1,
         }),
@@ -248,22 +212,6 @@ export default class RpcClientManager {
         switch (rpcResponse.value.case) {
           case 'payload': {
             this.handleIncomingRpcResponseSuccess(rpcResponse.requestId, rpcResponse.value.value);
-            return true;
-          }
-
-          case 'compressedPayload': {
-            let payload;
-            try {
-              payload = await gzipDecompress(rpcResponse.value.value);
-            } catch (e) {
-              this.log.error('Failed to decompress RPC response', e);
-              this.handleIncomingRpcResponseFailure(
-                rpcResponse.requestId,
-                RpcError.builtIn('APPLICATION_ERROR'),
-              );
-              return true;
-            }
-            this.handleIncomingRpcResponseSuccess(rpcResponse.requestId, payload);
             return true;
           }
 

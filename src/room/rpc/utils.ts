@@ -148,12 +148,6 @@ export class RpcError extends Error {
 export const MAX_LEGACY_PAYLOAD_BYTES = 15360; // 15 KB
 
 /**
- * Payloads above this size are sent via a data stream instead of inline.
- * @internal
- */
-export const DATA_STREAM_MIN_BYTES = 15360; // 15 KB
-
-/**
  * Attribute key set on a data stream to associate it with an RPC request.
  * @internal
  */
