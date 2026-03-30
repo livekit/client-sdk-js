@@ -255,14 +255,20 @@
                 <option selected>Audio Input (default)</option>
               </select>
             </div>
-            <div>
+            <div style="display: flex; gap: 4px; align-items: center;">
               <select
                 id="audio-output"
                 class="custom-select"
-                onchange="appActions.handleDeviceSelected(event)"
+                style="flex: 1;"
               >
                 <option selected>Audio Output (default)</option>
               </select>
+              <button
+                class="btn btn-sm btn-primary"
+                onclick="appActions.handleAudioOutputSwitch()"
+              >
+                Apply
+              </button>
             </div>
           </div>
         </div>

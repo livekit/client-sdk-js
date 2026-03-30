@@ -174,6 +174,12 @@ export abstract class Track<
     const hasAudio = allMediaStreamTracks.some((tr) => tr.kind === 'audio');
 
     // manually play media to detect auto playback status
+    // skip play() if the element is already playing to avoid resetting audio routing on iOS Safari
+    if (!element.paused && element.srcObject) {
+      console.log('SAFARI Track.attach: skipping element.play() — already playing, sinkId:', (element as any).sinkId);
+      return element;
+    }
+    console.log('SAFARI Track.attach: calling element.play(), sinkId:', (element as any).sinkId);
     element
       .play()
       .then(() => {
@@ -350,10 +356,12 @@ export abstract class Track<
 }
 
 export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
+  console.log('SAFARI attachToElement called, track.kind:', track.kind, 'element.sinkId:', (element as any).sinkId, 'hasSrcObject:', !!element.srcObject);
   let mediaStream: MediaStream;
   if (element.srcObject instanceof MediaStream) {
     mediaStream = element.srcObject;
   } else {
+    console.log('SAFARI attachToElement: creating NEW MediaStream');
     mediaStream = new MediaStream();
   }
 
@@ -385,6 +393,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 
   // avoid flicker
   if (element.srcObject !== mediaStream) {
+    console.log('SAFARI attachToElement: setting srcObject (changed)', 'element.sinkId:', (element as any).sinkId);
     element.srcObject = mediaStream;
     if ((isSafari() || isFireFox()) && element instanceof HTMLVideoElement) {
       // Firefox also has a timing issue where video doesn't actually get attached unless

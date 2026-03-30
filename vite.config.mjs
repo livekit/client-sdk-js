@@ -13,6 +13,7 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    allowedHosts: ['unpresumptive-maximina-wearied.ngrok-free.dev'],
   },
   build: {
     minify: 'esbuild',

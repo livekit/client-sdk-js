@@ -117,6 +117,8 @@ import {
   unwrapConstraint,
 } from './utils';
 
+(window as any).foo = isSafariSpeakerSelectionSupported;
+
 export enum ConnectionState {
   Disconnected = 'disconnected',
   Connecting = 'connecting',
@@ -1330,6 +1332,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw new Error('cannot switch audio output, the current browser does not support it');
       }
 
+      console.log('SAFARI CHANGING', this.localParticipant.audioTrackPublications.size, navigator.mediaDevices);
+
       // On Safari 26+, setSinkId() requires explicit permission for non-default devices.
       // Permission is implicitly granted when the user has an active microphone, but
       // listener-only users need to go through selectAudioOutput() first.
@@ -1338,6 +1342,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.localParticipant.audioTrackPublications.size === 0 &&
         'selectAudioOutput' in navigator.mediaDevices
       ) {
+        console.log('SAFARI PATH: navigator.mediaDevices.selectAudioOutput', deviceId);
         try {
           // @ts-expect-error selectAudioOutput is not yet in the TypeScript lib types
           await navigator.mediaDevices.selectAudioOutput({ deviceId });
@@ -1365,6 +1370,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId = this.getActiveDevice(kind) ?? this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
 
+      console.log('SAFARI GOT HERE 1');
       try {
         if (this.options.webAudioMix) {
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
@@ -1373,11 +1379,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
         // also set audio output on all audio elements, even if webAudioMix is enabled in order to workaround echo cancellation not working on chrome with non-default output devices
         // see https://issues.chromium.org/issues/40252911#comment7
+        console.log('SAFARI GOT HERE 2', this.remoteParticipants);
         await Promise.all(
           Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({ deviceId })),
         );
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
+        if (e instanceof DOMException && e.name === 'NotAllowedError') {
+          throw AudioOutputPermissionError.missingUserActivation(
+            'setSinkId requires a user gesture — ensure switchActiveDevice is called directly from a click or tap handler (note: select onchange may not qualify on iOS Safari)',
+          );
+        }
         throw e;
       }
     }

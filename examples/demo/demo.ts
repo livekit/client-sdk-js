@@ -641,6 +641,13 @@ const appActions = {
     }
   },
 
+  handleAudioOutputSwitch: async () => {
+    const deviceId = (<HTMLSelectElement>$('audio-output')).value;
+    if (currentRoom) {
+      await currentRoom.switchActiveDevice('audiooutput', deviceId);
+    }
+  },
+
   handlePreferredQuality: (e: Event) => {
     const quality = (<HTMLSelectElement>e.target).value;
     let q = VideoQuality.HIGH;
@@ -1253,3 +1260,36 @@ function populateScalabilityModes() {
 acquireDeviceList();
 populateSupportedCodecs();
 populateScalabilityModes();
+
+const btn = document.createElement('button');                                                                                                            
+btn.textContent = 'Test Receiver on SDK element';                                                                                                        
+btn.style.cssText = 'position:fixed;top:0;left:0;z-index:9999;padding:20px;font-size:18px;';
+btn.onclick = async () => {                                                                                                                              
+  const audio = document.querySelector('audio#audio-example-participant-09558431908272964');                                                                                                         
+  console.log('TEST: element', audio, 'srcObject:', audio.srcObject, 'sinkId:', audio.sinkId, 'paused:', audio.paused);                                  
+  console.log('TEST: tracks:', audio.srcObject?.getTracks().map(t => ({kind: t.kind, id: t.id, readyState: t.readyState})));                             
+  try {                                                                                                                                                  
+    await audio.setSinkId('DF1A26F8EF2686F1823985542AB3364F4D07C58C');                                                                                   
+    audio.pause();                                                                                                                                       
+    await audio.play();
+    console.log('TEST: SUCCESS sinkId:', audio.sinkId);
+  } catch(e) {                                                                                                                                           
+    console.log('TEST: FAIL', e.name, e.message);
+  }                                                                                                                                                      
+};              
+document.body.prepend(btn);    
+
+const btn2 = document.createElement('button');
+btn2.textContent = 'Test with new element';                                                                                                              
+btn2.style.cssText = 'position:fixed;top:50px;left:0;z-index:9999;padding:20px;font-size:18px;';                                                         
+btn2.onclick = async () => {
+  const existing = document.querySelector('audio#audio-example-participant-09558431908272964')!;
+  const fresh = new Audio();
+  await fresh.setSinkId('DF1A26F8EF2686F1823985542AB3364F4D07C58C');                                                                                     
+  fresh.srcObject = existing.srcObject;                                                                                                                  
+  await fresh.play();
+  console.log('TEST2: sinkId:', fresh.sinkId, 'paused:', fresh.paused);                                                                                  
+  // mute the old element to hear only the new one                                                                                                       
+  existing.volume = 0;                                                                                                                                   
+};                                                                                                                                                       
+document.body.prepend(btn2);  

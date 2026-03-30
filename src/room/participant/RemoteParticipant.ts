@@ -366,6 +366,7 @@ export default class RemoteParticipant extends Participant {
    * @internal
    */
   async setAudioOutput(output: AudioOutputOptions) {
+    console.log('SAFARI PRE SINK ID:', output.deviceId)
     this.audioOutput = output;
     const promises: Promise<void>[] = [];
     this.audioTrackPublications.forEach((pub) => {
@@ -374,6 +375,7 @@ export default class RemoteParticipant extends Participant {
       }
     });
     await Promise.all(promises);
+    console.log('SAFARI POST SINK ID:', Array.from(this.audioTrackPublications).map(([_k, p]) => (p.track as any)?.sinkId));
   }
 
   /** @internal */
