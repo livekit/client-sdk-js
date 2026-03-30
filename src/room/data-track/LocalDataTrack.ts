@@ -90,8 +90,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    */
   tryPush(frame: DataTrackFrame) {
     if (!this.handle) {
-      this.log.warn(`Data track "${this.options.name}" is not published, skipping tryPush.`);
-      return;
+      throw DataTrackPushFrameError.trackUnpublished();
     }
 
     const internalFrame = DataTrackFrameInternal.from(frame);
@@ -111,7 +110,10 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * */
   async unpublish() {
     if (!this.handle) {
-      throw DataTrackPushFrameError.trackUnpublished();
+      log.warn(
+        `Data track "${this.options.name}" is not published, so unpublishing has no effect.`,
+      );
+      return;
     }
 
     try {
