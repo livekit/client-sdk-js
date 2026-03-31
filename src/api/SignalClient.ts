@@ -49,7 +49,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -1151,7 +1151,9 @@ async function createJoinRequestConnectionParams(
     joinRequest.reconnectReason = opts.reconnectReason;
   }
   const joinRequestBytes = joinRequest.toBinary();
-  const compressedBytes = await (async () => {
+  let requestBytes: Uint8Array;
+  let compression: WrappedJoinRequest_Compression;
+  if (isCompressionStreamSupported()) {
     const stream = new CompressionStream('gzip');
     const writer = stream.writable.getWriter();
     writer.write(new Uint8Array(joinRequestBytes));
@@ -1170,19 +1172,22 @@ async function createJoinRequestConnectionParams(
       result.set(chunk, offset);
       offset += chunk.length;
     }
-    return result;
-  })();
+    requestBytes = result;
+    compression = WrappedJoinRequest_Compression.GZIP;
+  } else {
+    requestBytes = joinRequestBytes;
+    compression = WrappedJoinRequest_Compression.NONE;
+  }
   const wrappedJoinRequest = new WrappedJoinRequest({
-    joinRequest: compressedBytes,
-    compression: WrappedJoinRequest_Compression.GZIP,
+    joinRequest: requestBytes,
+    compression,
   });
   const wrappedBytes = wrappedJoinRequest.toBinary();
-  params.set(
-    'join_request',
-    btoa(String.fromCharCode(...wrappedBytes))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_'),
-  );
+  const bytesToBase64 = (bytes: Uint8Array) => {
+    const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('');
+    return btoa(binString);
+  };
+  params.set('join_request', bytesToBase64(wrappedBytes).replace(/\+/g, '-').replace(/\//g, '_'));
 
   return params;
 }

@@ -81,6 +81,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -288,7 +289,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       this.setupSignalClientCallbacks();
       let offerProto: SessionDescription | undefined;
-      if (!useV0Path) {
+      if (!useV0Path && isCompressionStreamSupported()) {
         if (!this.pcManager) {
           await this.configure();
           this.createDataChannels();
@@ -312,7 +313,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.participantSid = joinResponse.participant?.sid;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!useV0Path) {
+      if (!useV0Path && isCompressionStreamSupported()) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
         if (!this.pcManager) {
