@@ -83,6 +83,7 @@ import {
   RPC_DATA_STREAM_TOPIC,
   RPC_RESPONSE_ID_ATTR,
   RpcClientManager,
+  RpcError,
   type RpcInvocationData,
   RpcServerManager,
 } from './rpc';
@@ -306,17 +307,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.registerRpcDataStreamHandler();
 
     this.rpcClientManager = new RpcClientManager(
-      this.engine,
       this.log,
       this.outgoingDataStreamManager,
       this.getRemoteParticipantClientProtocol,
+      () => this.engine.latestJoinResponse?.serverInfo?.version,
     );
+    this.rpcClientManager.on('sendDataPacket', ({ packet, kind }) => {
+      this.engine.sendDataPacket(packet, kind);
+    });
     this.rpcServerManager = new RpcServerManager(
-      this.engine,
       this.log,
       this.outgoingDataStreamManager,
       this.getRemoteParticipantClientProtocol,
     );
+    this.rpcServerManager.on('sendDataPacket', ({ packet, kind }) => {
+      this.engine.sendDataPacket(packet, kind);
+    });
 
     this.disconnectLock = new Mutex();
 
@@ -707,12 +713,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.outgoingDataStreamManager) {
       this.outgoingDataStreamManager.setupEngine(this.engine);
-    }
-    if (this.rpcClientManager) {
-      this.rpcClientManager.setupEngine(this.engine);
-    }
-    if (this.rpcServerManager) {
-      this.rpcServerManager.setupEngine(this.engine);
     }
   }
 
@@ -1978,6 +1978,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         rpc.version,
         () => this.remoteParticipants.has(packet.participantIdentity),
       );
+    } else if (packet.value.case === 'rpcResponse') {
+      const rpcResponse = packet.value.value;
+      switch (rpcResponse.value.case) {
+        case 'payload':
+          this.rpcClientManager.handleIncomingRpcResponseSuccess(
+            rpcResponse.requestId,
+            rpcResponse.value.value,
+          );
+          break;
+        case 'error':
+          this.rpcClientManager.handleIncomingRpcResponseFailure(
+            rpcResponse.requestId,
+            RpcError.fromProto(rpcResponse.value.value),
+          );
+          break;
+        default:
+          this.log.warn(
+            `Unknown rpcResponse.value.case: ${rpcResponse.value.case}`,
+            this.logContext,
+          );
+          break;
+      }
+    } else if (packet.value.case === 'rpcAck') {
+      this.rpcClientManager.handleIncomingRpcAck(packet.value.value.requestId);
     }
   };
 
