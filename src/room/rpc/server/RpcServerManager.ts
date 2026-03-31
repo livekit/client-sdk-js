@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 import { DataPacket, DataPacket_Kind, RpcAck, RpcResponse } from '@livekit/protocol';
-import { type StructuredLogger } from '../../logger';
-import { CLIENT_PROTOCOL_GZIP_RPC } from '../../version';
-import type RTCEngine from '../RTCEngine';
-import type { ByteStreamReader } from '../data-stream/incoming/StreamReader';
-import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
-import type Participant from '../participant/Participant';
+import EventEmitter from 'events';
+import type TypedEmitter from 'typed-emitter';
+import { type StructuredLogger } from '../../../logger';
+import { CLIENT_PROTOCOL_GZIP_RPC } from '../../../version';
+import type { ByteStreamReader } from '../../data-stream/incoming/StreamReader';
+import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
+import type Participant from '../../participant/Participant';
 import {
   MAX_LEGACY_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
@@ -20,16 +21,15 @@ import {
   byteLength,
   gzipCompressToWriter,
   gzipDecompressFromReader,
-} from './utils';
+} from '../utils';
+import type { RpcServerManagerCallbacks } from './events';
 
 /**
  * Manages the server (handler) side of RPC: processing incoming requests,
  * managing registered method handlers, and sending responses.
  * @internal
  */
-export default class RpcServerManager {
-  private engine: RTCEngine;
-
+export default class RpcServerManager extends (EventEmitter as new () => TypedEmitter<RpcServerManagerCallbacks>) {
   private log: StructuredLogger;
 
   private outgoingDataStreamManager: OutgoingDataStreamManager;
@@ -39,19 +39,14 @@ export default class RpcServerManager {
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   constructor(
-    engine: RTCEngine,
     log: StructuredLogger,
     outgoingDataStreamManager: OutgoingDataStreamManager,
     getRemoteParticipantClientProtocol: (identity: Participant['identity']) => number,
   ) {
-    this.engine = engine;
+    super();
     this.log = log;
     this.outgoingDataStreamManager = outgoingDataStreamManager;
     this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
-  }
-
-  setupEngine(engine: RTCEngine) {
-    this.engine = engine;
   }
 
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
@@ -76,11 +71,11 @@ export default class RpcServerManager {
     version: number,
     isCallerStillConnected: () => boolean,
   ) {
-    await this.publishRpcAck(callerIdentity, requestId);
+    this.publishRpcAck(callerIdentity, requestId);
 
     if (version !== 1) {
       if (isCallerStillConnected()) {
-        await this.publishRpcResponsePacket(
+        this.publishRpcResponsePacket(
           callerIdentity,
           requestId,
           null,
@@ -94,7 +89,7 @@ export default class RpcServerManager {
 
     if (!handler) {
       if (isCallerStillConnected()) {
-        await this.publishRpcResponsePacket(
+        this.publishRpcResponsePacket(
           callerIdentity,
           requestId,
           null,
@@ -125,7 +120,7 @@ export default class RpcServerManager {
       }
 
       if (isCallerStillConnected()) {
-        await this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
+        this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
       }
       return;
     }
@@ -135,42 +130,44 @@ export default class RpcServerManager {
     }
   }
 
-  private async publishRpcAck(destinationIdentity: string, requestId: string) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
+  private publishRpcAck(destinationIdentity: string, requestId: string) {
+    this.emit('sendDataPacket', {
+      packet: new DataPacket({
+        destinationIdentities: [destinationIdentity],
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'rpcAck',
+          value: new RpcAck({
+            requestId,
+          }),
+        },
+      }),
       kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcAck',
-        value: new RpcAck({
-          requestId,
-        }),
-      },
     });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
-  /** @internal */
-  private async publishRpcResponsePacket(
+  private publishRpcResponsePacket(
     destinationIdentity: string,
     requestId: string,
     payload: string | null,
     error: RpcError | null,
   ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
+    this.emit('sendDataPacket', {
+      packet: new DataPacket({
+        destinationIdentities: [destinationIdentity],
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'rpcResponse',
+          value: new RpcResponse({
+            requestId,
+            value: error
+              ? { case: 'error', value: error.toProto() }
+              : { case: 'payload', value: payload ?? '' },
+          }),
+        },
+      }),
       kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: error
-            ? { case: 'error', value: error.toProto() }
-            : { case: 'payload', value: payload ?? '' },
-        }),
-      },
     });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
   /**
@@ -201,7 +198,7 @@ export default class RpcServerManager {
     const responseBytes = byteLength(payload);
     if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
       this.log.warn(`RPC Response payload too large for request ${requestId}`);
-      await this.publishRpcResponsePacket(
+      this.publishRpcResponsePacket(
         destinationIdentity,
         requestId,
         null,
@@ -210,7 +207,7 @@ export default class RpcServerManager {
       return;
     }
 
-    await this.publishRpcResponsePacket(destinationIdentity, requestId, payload, null);
+    this.publishRpcResponsePacket(destinationIdentity, requestId, payload, null);
   }
 
   /**
@@ -230,7 +227,7 @@ export default class RpcServerManager {
       this.log.warn(
         `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`,
       );
-      await this.publishRpcResponsePacket(
+      this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -243,7 +240,7 @@ export default class RpcServerManager {
       decompressedPayload = await gzipDecompressFromReader(reader);
     } catch (e) {
       this.log.warn(`Error decompressing RPC request payload: ${e}`);
-      await this.publishRpcResponsePacket(
+      this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -255,7 +252,7 @@ export default class RpcServerManager {
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
-      await this.publishRpcResponsePacket(
+      this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
         null,
@@ -284,7 +281,7 @@ export default class RpcServerManager {
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
 
-      await this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
+      this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
       return;
     }
 
