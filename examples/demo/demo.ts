@@ -406,13 +406,16 @@ const appActions = {
           reject(error);
         }
       });
-      await Promise.all([
-        room.connect(url, token, connectOptions),
-        publishPromise.catch(appendLog),
-      ]);
+      let connElapsed = 0;
+      const connectFn = async () => {
+        const connStartTime = Date.now();
+        await room.connect(url, token, connectOptions);
+        connElapsed = Date.now() - connStartTime;
+      };
+      await Promise.all([connectFn(), publishPromise.catch(appendLog)]);
       const elapsed = Date.now() - startTime;
       appendLog(
-        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
+        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms (connect cost: ${Math.round(connElapsed)}ms)`,
         await room.engine.getConnectedServerAddress(),
       );
     } catch (error: any) {

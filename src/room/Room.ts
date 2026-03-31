@@ -1456,10 +1456,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ) as RemoteParticipant | undefined;
 
     if (!participant) {
-      this.log.error(
-        `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
-        this.logContext,
-      );
+      // server could require extra media sections to accelerate subscription.
+      if (participantSid.startsWith('PA')) {
+        this.log.error(
+          `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
+          this.logContext,
+        );
+      }
       return;
     }
 

@@ -775,3 +775,7 @@ export function extractMaxAgeFromRequestHeaders(headers: Headers): number | unde
   }
   return undefined;
 }
+
+export function isCompressionStreamSupported() {
+  return typeof CompressionStream !== 'undefined';
+}

@@ -24,6 +24,7 @@ import {
   RoomMovedResponse,
   RpcAck,
   RpcResponse,
+  SessionDescription,
   SignalTarget,
   SpeakerInfo,
   type StreamStateUpdate,
@@ -80,6 +81,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -96,6 +98,8 @@ const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 const lossyDataChannelBufferThresholdMin = 8 * 1024;
 const lossyDataChannelBufferThresholdMax = 256 * 1024;
+const initialMediaSectionsAudio = 3;
+const initialMediaSectionsVideo = 3;
 
 enum PCState {
   New,
@@ -284,20 +288,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal, useV0Path);
+      let offerProto: SessionDescription | undefined;
+      if (!useV0Path && isCompressionStreamSupported()) {
+        if (!this.pcManager) {
+          await this.configure();
+          this.createDataChannels();
+          this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+        }
+        const offer = await this.pcManager?.publisher.createInitialOffer();
+        if (offer) {
+          offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+        }
+      }
+      const joinResponse = await this.client.join(
+        url,
+        token,
+        opts,
+        abortSignal,
+        useV0Path,
+        offerProto,
+      );
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
+      this.participantSid = joinResponse.participant?.sid;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!this.pcManager) {
-        await this.configure(joinResponse, !useV0Path);
-      }
-
-      // create offer
-      if (!this.subscriberPrimary || joinResponse.fastPublish) {
-        this.negotiate().catch((err) => {
-          log.error(err, this.logContext);
-        });
+      if (!useV0Path && isCompressionStreamSupported()) {
+        this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
+      } else {
+        if (!this.pcManager) {
+          await this.configure(joinResponse, !useV0Path);
+        }
+        // create offer
+        if (!this.subscriberPrimary || joinResponse.fastPublish) {
+          this.negotiate().catch((err) => {
+            log.error(err, this.logContext);
+          });
+        }
       }
 
       this.registerOnLineListener();
@@ -452,25 +479,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.regionUrlProvider = provider;
   }
 
-  private async configure(joinResponse: JoinResponse, useSinglePeerConnection: boolean) {
+  private async configure(joinResponse?: JoinResponse, useSinglePeerConnection?: boolean) {
     // already configured
     if (this.pcManager && this.pcManager.currentState !== PCTransportState.NEW) {
       return;
     }
 
-    this.participantSid = joinResponse.participant?.sid;
-
-    const rtcConfig = this.makeRTCConfiguration(joinResponse);
-
-    this.pcManager = new PCTransportManager(
-      rtcConfig,
-      useSinglePeerConnection
-        ? 'publisher-only'
-        : joinResponse.subscriberPrimary
-          ? 'subscriber-primary'
-          : 'publisher-primary',
-      this.loggerOptions,
-    );
+    if (!joinResponse) {
+      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions);
+    } else {
+      this.participantSid = joinResponse.participant?.sid;
+      const rtcConfig = this.makeRTCConfiguration(joinResponse);
+      this.pcManager = new PCTransportManager(
+        useSinglePeerConnection
+          ? 'publisher-only'
+          : joinResponse.subscriberPrimary
+            ? 'subscriber-primary'
+            : 'publisher-primary',
+        this.loggerOptions,
+        rtcConfig,
+      );
+    }
 
     this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
@@ -494,7 +523,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
-          this.emit(EngineEvent.Connected, joinResponse);
+          this.emit(EngineEvent.Connected, this.latestJoinResponse!);
         }
       } else if (connectionState === PCTransportState.FAILED) {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
@@ -529,10 +558,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (ev.streams.length === 0) return;
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
-
-    if (!supportOptionalDatachannel(joinResponse.serverInfo?.protocol)) {
-      this.createDataChannels();
-    }
   }
 
   private setupSignalClientCallbacks() {
@@ -621,14 +646,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
-      const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
-      for (let i: number = 0; i < requirement.numAudios; i++) {
-        this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
-      }
-      for (let i: number = 0; i < requirement.numVideos; i++) {
-        this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
-      }
-
+      this.addMediaSections(requirement.numAudios, requirement.numVideos);
       this.negotiate();
     };
 
@@ -704,6 +722,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     rtcConfig.continualGatheringPolicy = 'gather_continually';
 
     return rtcConfig;
+  }
+
+  private addMediaSections(numAudios: number, numVideos: number) {
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
+    for (let i: number = 0; i < numAudios; i++) {
+      this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
+    }
+    for (let i: number = 0; i < numVideos; i++) {
+      this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+    }
   }
 
   private createDataChannels() {
@@ -1814,10 +1842,6 @@ export type EngineEventCallbacks = {
   signalRequestResponse: (response: RequestResponse) => void;
   signalConnected: (joinResp: JoinResponse) => void;
 };
-
-function supportOptionalDatachannel(protocol: number | undefined): boolean {
-  return protocol !== undefined && protocol > 13;
-}
 
 function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
   const participantIdentity = newObj.participantIdentity

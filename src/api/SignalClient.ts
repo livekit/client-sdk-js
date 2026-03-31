@@ -42,13 +42,14 @@ import {
   UpdateVideoLayers,
   VideoLayer,
   WrappedJoinRequest,
+  WrappedJoinRequest_Compression,
   protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -248,12 +249,13 @@ export class SignalClient {
     opts: SignalOptions,
     abortSignal?: AbortSignal,
     useV0Path: boolean = false,
+    publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, useV0Path);
+    const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
     return res as JoinResponse;
   }
 
@@ -296,6 +298,7 @@ export class SignalClient {
     abortSignal?: AbortSignal,
     /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
+    publisherOffer?: SessionDescription,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
@@ -305,7 +308,7 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = useV0Path
       ? createConnectionParams(token, clientInfo, opts)
-      : createJoinRequestConnectionParams(token, clientInfo, opts);
+      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
     const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
     const validateUrl = createValidateUrl(rtcUrl).toString();
 
@@ -1125,11 +1128,12 @@ function createConnectionParams(
   return params;
 }
 
-function createJoinRequestConnectionParams(
+async function createJoinRequestConnectionParams(
   token: string,
   info: ClientInfo,
   opts: ConnectOpts,
-): URLSearchParams {
+  publisherOffer?: SessionDescription,
+): Promise<URLSearchParams> {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
@@ -1141,14 +1145,49 @@ function createJoinRequestConnectionParams(
     }),
     reconnect: !!opts.reconnect,
     participantSid: opts.sid ? opts.sid : undefined,
+    publisherOffer: publisherOffer,
   });
   if (opts.reconnectReason) {
     joinRequest.reconnectReason = opts.reconnectReason;
   }
+  const joinRequestBytes = joinRequest.toBinary();
+  let requestBytes: Uint8Array;
+  let compression: WrappedJoinRequest_Compression;
+  if (isCompressionStreamSupported()) {
+    const stream = new CompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(new Uint8Array(joinRequestBytes));
+    writer.close();
+    const chunks: Uint8Array[] = [];
+    const reader = stream.readable.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    requestBytes = result;
+    compression = WrappedJoinRequest_Compression.GZIP;
+  } else {
+    requestBytes = joinRequestBytes;
+    compression = WrappedJoinRequest_Compression.NONE;
+  }
   const wrappedJoinRequest = new WrappedJoinRequest({
-    joinRequest: joinRequest.toBinary(),
+    joinRequest: requestBytes,
+    compression,
   });
-  params.set('join_request', btoa(new TextDecoder('utf-8').decode(wrappedJoinRequest.toBinary())));
+  const wrappedBytes = wrappedJoinRequest.toBinary();
+  const bytesToBase64 = (bytes: Uint8Array) => {
+    const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('');
+    return btoa(binString);
+  };
+  params.set('join_request', bytesToBase64(wrappedBytes).replace(/\+/g, '-').replace(/\//g, '_'));
 
   return params;
 }
