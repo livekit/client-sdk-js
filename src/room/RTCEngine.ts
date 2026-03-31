@@ -300,6 +300,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
       }
+      if (abortSignal?.aborted) {
+        throw ConnectionError.cancelled('Connection aborted');
+      }
       const joinResponse = await this.client.join(
         url,
         token,
@@ -486,7 +489,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (!joinResponse) {
-      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions);
+      const rtcConfig = this.makeRTCConfiguration();
+      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, rtcConfig);
     } else {
       this.participantSid = joinResponse.participant?.sid;
       const rtcConfig = this.makeRTCConfiguration(joinResponse);
@@ -683,7 +687,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
   }
 
-  private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
+  private makeRTCConfiguration(
+    serverResponse?: JoinResponse | ReconnectResponse,
+  ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
     if (this.signalOpts?.e2eeEnabled) {
@@ -691,6 +697,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
+    }
+
+    // @ts-ignore
+    rtcConfig.sdpSemantics = 'unified-plan';
+    // @ts-ignore
+    rtcConfig.continualGatheringPolicy = 'gather_continually';
+
+    if (!serverResponse) {
+      return rtcConfig;
     }
 
     // update ICE servers before creating PeerConnection
@@ -715,11 +730,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     ) {
       rtcConfig.iceTransportPolicy = 'relay';
     }
-
-    // @ts-ignore
-    rtcConfig.sdpSemantics = 'unified-plan';
-    // @ts-ignore
-    rtcConfig.continualGatheringPolicy = 'gather_continually';
 
     return rtcConfig;
   }
