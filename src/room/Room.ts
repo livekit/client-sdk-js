@@ -2345,6 +2345,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return false;
     }
     this.state = state;
+    this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
     return true;
   }
