@@ -2195,7 +2195,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
-          this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
+          this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
