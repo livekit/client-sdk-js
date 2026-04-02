@@ -12,9 +12,5 @@ export {
   RpcError,
   type RpcInvocationData,
   byteLength,
-  gzipCompress,
-  gzipCompressToWriter,
-  gzipDecompress,
-  gzipDecompressFromReader,
   truncateBytes,
 } from './utils';

@@ -19,8 +19,6 @@ import {
   RpcError,
   type RpcInvocationData,
   byteLength,
-  gzipCompressToWriter,
-  gzipDecompressFromReader,
 } from '../utils';
 import type { RpcServerManagerCallbacks } from './events';
 
@@ -180,14 +178,14 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     const callerClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
 
     if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      // Send response as a compressed data stream
+      // Send response as a data stream
       const writer = await this.outgoingDataStreamManager.streamBytes({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
         mimeType: 'application/octet-stream',
         attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
       });
-      await gzipCompressToWriter(payload, writer);
+      await writer.write(payload);
       await writer.close();
       return;
     }
@@ -209,8 +207,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
   }
 
   /**
-   * Handle an incoming byte stream containing an RPC request payload.
-   * Decompresses the stream and resolves/rejects the pending data stream future.
+   * Handle an incoming data stream containing an RPC request payload.
    */
   async handleIncomingDataStream(
     reader: ByteStreamReader,
@@ -233,11 +230,11 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
       );
     }
 
-    let decompressedPayload: string;
+    let payload: string;
     try {
-      decompressedPayload = await gzipDecompressFromReader(reader);
+      payload = await reader.readAll();
     } catch (e) {
-      this.log.warn(`Error decompressing RPC request payload: ${e}`);
+      this.log.warn(`Error reading RPC request payload: ${e}`);
       this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
@@ -264,7 +261,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
       response = await handler({
         requestId,
         callerIdentity,
-        payload: decompressedPayload,
+        payload,
         responseTimeout,
       });
     } catch (error) {
