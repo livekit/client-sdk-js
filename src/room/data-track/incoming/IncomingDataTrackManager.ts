@@ -2,6 +2,7 @@ import { type JoinResponse, type ParticipantUpdate } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
+import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
 import type Participant from '../../participant/Participant';
@@ -9,8 +10,7 @@ import type RemoteParticipant from '../../participant/RemoteParticipant';
 import { Future } from '../../utils';
 import RemoteDataTrack from '../RemoteDataTrack';
 import { DataTrackDepacketizerDropError } from '../depacketizer';
-import type { DecryptionProvider } from '../e2ee';
-import type { DataTrackFrame } from '../frame';
+import { type DataTrackFrame, DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
 import { type DataTrackInfo, type DataTrackSid } from '../types';
@@ -30,10 +30,10 @@ export type DataTrackIncomingManagerCallbacks = {
 
   /** A track has been published by a remote participant and is available to be
    * subscribed to. */
-  trackAvailable: (event: EventTrackAvailable) => void;
+  trackPublished: (event: EventTrackAvailable) => void;
 
   /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
-  trackUnavailable: (event: EventTrackUnavailable) => void;
+  trackUnpublished: (event: EventTrackUnavailable) => void;
 };
 
 /** Track is not subscribed to. */
@@ -69,7 +69,7 @@ type IncomingDataTrackManagerOptions = {
    * If none, remote tracks using end-to-end encryption will not be available
    * for subscription.
    */
-  decryptionProvider: DecryptionProvider | null;
+  e2eeManager?: BaseE2EEManager;
 };
 
 /** How long to wait when attempting to subscribe before timing out. */
@@ -77,10 +77,10 @@ const SUBSCRIBE_TIMEOUT_MILLISECONDS = 10_000;
 
 /** Maximum number of {@link DataTrackFrame}s that are cached for each ReadableStream subscription.
  * If data comes in too fast and saturates this threshold, backpressure will be applied. */
-const READABLE_STREAM_DEFAULT_HIGH_WATER_MARK = 16;
+const READABLE_STREAM_DEFAULT_BUFFER_SIZE = 16;
 
 export default class IncomingDataTrackManager extends (EventEmitter as new () => TypedEmitter<DataTrackIncomingManagerCallbacks>) {
-  private decryptionProvider: DecryptionProvider | null;
+  private e2eeManager: BaseE2EEManager | null;
 
   /** Mapping between track SID and descriptor. */
   private descriptors = new Map<DataTrackSid, Descriptor<SubscriptionState>>();
@@ -95,7 +95,99 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
   constructor(options?: IncomingDataTrackManagerOptions) {
     super();
-    this.decryptionProvider = options?.decryptionProvider ?? null;
+    this.e2eeManager = options?.e2eeManager ?? null;
+  }
+
+  /** @internal */
+  updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
+    this.e2eeManager = e2eeManager;
+
+    // Propegate downwards to all pre-existing pipelines
+    for (const descriptor of this.descriptors.values()) {
+      if (descriptor.subscription.type === 'active') {
+        descriptor.subscription.pipeline.updateE2eeManager(e2eeManager);
+      }
+    }
+  }
+
+  /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
+   * SFU. The SFU subscription is initiated lazily when the stream is created.
+   *
+   * @returns A tuple of the ReadableStream and a Promise that resolves once the SFU subscription
+   * is fully established / the stream is ready to receive frames.
+   *
+   * @internal
+   **/
+  openSubscriptionStream(
+    sid: DataTrackSid,
+    signal?: AbortSignal,
+    bufferSize = READABLE_STREAM_DEFAULT_BUFFER_SIZE,
+  ): [ReadableStream<DataTrackFrame>, Promise<Throws<void, DataTrackSubscribeError>>] {
+    let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
+    const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
+
+    const stream = new ReadableStream<DataTrackFrame>(
+      {
+        start: (controller) => {
+          streamController = controller;
+
+          const onAbort = () => {
+            controller.error(DataTrackSubscribeError.cancelled());
+            sfuSubscriptionComplete.reject?.(DataTrackSubscribeError.cancelled());
+          };
+
+          this.subscribeRequest(sid, signal)
+            .then(async () => {
+              signal?.addEventListener('abort', onAbort);
+
+              const descriptor = this.descriptors.get(sid);
+              if (!descriptor) {
+                log.error(`Unknown track ${sid}`);
+                return;
+              }
+              if (descriptor.subscription.type !== 'active') {
+                log.error(`Subscription for track ${sid} is not active`);
+                return;
+              }
+
+              descriptor.subscription.streamControllers.add(controller);
+              sfuSubscriptionComplete.resolve?.();
+            })
+            .catch((err) => {
+              controller.error(err);
+              sfuSubscriptionComplete.reject?.(err);
+            })
+            .finally(() => {
+              signal?.removeEventListener('abort', onAbort);
+            });
+        },
+        cancel: () => {
+          if (!streamController) {
+            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
+            return;
+          }
+          const descriptor = this.descriptors.get(sid);
+          if (!descriptor) {
+            log.warn(`Unknown track ${sid}, skipping cancel...`);
+            return;
+          }
+          if (descriptor.subscription.type !== 'active') {
+            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
+            return;
+          }
+
+          descriptor.subscription.streamControllers.delete(streamController);
+
+          // If no active stream controllers are left, also unsubscribe on the SFU end.
+          if (descriptor.subscription.streamControllers.size === 0) {
+            this.unSubscribeRequest(descriptor.info.sid);
+          }
+        },
+      },
+      new CountQueuingStrategy({ highWaterMark: bufferSize }),
+    );
+
+    return [stream, sfuSubscriptionComplete.promise];
   }
 
   /** Client requested to subscribe to a data track.
@@ -109,8 +201,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   async subscribeRequest(
     sid: DataTrackSid,
     signal?: AbortSignal,
-    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ): Promise<Throws<ReadableStream<DataTrackFrame>, DataTrackSubscribeError>> {
+  ): Promise<Throws<void, DataTrackSubscribeError>> {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -122,6 +213,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       userProvidedSignal?: AbortSignal,
       timeoutSignal?: AbortSignal,
     ) => {
+      if (currentDescriptor.subscription.type === 'active') {
+        // Subscription has already become active! So bail out early, there is nothing to wait for.
+        return;
+      }
       if (currentDescriptor.subscription.type !== 'pending') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
         throw new Error(
@@ -170,8 +265,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       combinedSignal.addEventListener('abort', onAbort);
       await proxiedCompletionFuture.promise;
       combinedSignal.removeEventListener('abort', onAbort);
-
-      return this.createReadableStream(sid, highWaterMark);
     };
 
     switch (descriptor.subscription.type) {
@@ -203,70 +296,20 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         const timeoutSignal = abortSignalTimeout(SUBSCRIBE_TIMEOUT_MILLISECONDS);
 
         // Wait for the subscription to complete, or time out if it takes too long
-        const reader = await waitForCompletionFuture(descriptor, signal, timeoutSignal);
-        return reader;
+        await waitForCompletionFuture(descriptor, signal, timeoutSignal);
+        return;
       }
       case 'pending': {
         descriptor.subscription.pendingRequestCount += 1;
 
         // Wait for the subscription to complete
-        const reader = await waitForCompletionFuture(descriptor, signal);
-        return reader;
+        await waitForCompletionFuture(descriptor, signal);
+        return;
       }
       case 'active': {
-        return this.createReadableStream(sid);
+        return;
       }
     }
-  }
-
-  /** Allocates a ReadableStream which emits when a new {@link DataTrackFrame} is received from the
-   * SFU. */
-  private createReadableStream(
-    sid: DataTrackSid,
-    highWaterMark = READABLE_STREAM_DEFAULT_HIGH_WATER_MARK,
-  ) {
-    let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
-    return new ReadableStream<DataTrackFrame>(
-      {
-        start: (controller) => {
-          streamController = controller;
-          const descriptor = this.descriptors.get(sid);
-          if (!descriptor) {
-            log.error(`Unknown track ${sid}`);
-            return;
-          }
-          if (descriptor.subscription.type !== 'active') {
-            log.error(`Subscription for track ${sid} is not active`);
-            return;
-          }
-
-          descriptor.subscription.streamControllers.add(controller);
-        },
-        cancel: () => {
-          if (!streamController) {
-            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
-            return;
-          }
-          const descriptor = this.descriptors.get(sid);
-          if (!descriptor) {
-            log.warn(`Unknown track ${sid}, skipping cancel...`);
-            return;
-          }
-          if (descriptor.subscription.type !== 'active') {
-            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
-            return;
-          }
-
-          descriptor.subscription.streamControllers.delete(streamController);
-
-          // If no active stream controllers are left, also unsubscribe on the SFU end.
-          if (descriptor.subscription.streamControllers.size === 0) {
-            this.unSubscribeRequest(descriptor.info.sid);
-          }
-        },
-      },
-      new CountQueuingStrategy({ highWaterMark }),
-    );
   }
 
   /**
@@ -333,8 +376,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     // Detect published track
-    const sidsInUpdate = new Set<DataTrackSid>();
+    const publisherParticipantToSidsInUpdate = new Map<
+      Participant['identity'],
+      Set<DataTrackSid>
+    >();
     for (const [publisherIdentity, infos] of updates.entries()) {
+      const sidsInUpdate = new Set<DataTrackSid>();
       for (const info of infos) {
         sidsInUpdate.add(info.sid);
         if (this.descriptors.has(info.sid)) {
@@ -342,14 +389,18 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         }
         await this.handleTrackPublished(publisherIdentity, info);
       }
+      publisherParticipantToSidsInUpdate.set(publisherIdentity, sidsInUpdate);
     }
 
     // Detect unpublished tracks
-    let unpublishedSids = Array.from(this.descriptors.keys()).filter(
-      (sid) => !sidsInUpdate.has(sid),
-    );
-    for (const sid of unpublishedSids) {
-      this.handleTrackUnpublished(sid);
+    for (const [publisherIdentity, sidsInUpdate] of publisherParticipantToSidsInUpdate.entries()) {
+      const descriptorsForPublisher = Array.from(this.descriptors.entries())
+        .filter(([_sid, descriptor]) => descriptor.publisherIdentity === publisherIdentity)
+        .map(([sid]) => sid);
+      let unpublishedSids = descriptorsForPublisher.filter((sid) => !sidsInUpdate.has(sid));
+      for (const sid of unpublishedSids) {
+        this.handleTrackUnpublished(sid);
+      }
     }
   }
 
@@ -373,7 +424,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.descriptors.set(descriptor.info.sid, descriptor);
 
     const track = new RemoteDataTrack(descriptor.info, this, { publisherIdentity });
-    this.emit('trackAvailable', { track });
+    this.emit('trackPublished', { track });
   }
 
   handleTrackUnpublished(sid: DataTrackSid) {
@@ -388,7 +439,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
-    this.emit('trackUnavailable', { sid, publisherIdentity: descriptor.publisherIdentity });
+    this.emit('trackUnpublished', { sid, publisherIdentity: descriptor.publisherIdentity });
   }
 
   /** SFU notification that handles have been assigned for requested subscriptions. */
@@ -424,7 +475,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         const pipeline = new IncomingDataTrackPipeline({
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,
-          decryptionProvider: this.decryptionProvider,
+          e2eeManager: this.e2eeManager,
         });
 
         const previousDescriptorSubscription = descriptor.subscription;
@@ -442,7 +493,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /** Packet has been received over the transport. */
-  packetReceived(bytes: Uint8Array): Throws<void, DataTrackDepacketizerDropError> {
+  async packetReceived(bytes: Uint8Array): Promise<Throws<void, DataTrackDepacketizerDropError>> {
     let packet: DataTrackPacket;
     try {
       [packet] = DataTrackPacket.fromBinary(bytes);
@@ -468,8 +519,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    const frame = descriptor.subscription.pipeline.processPacket(packet);
-    if (!frame) {
+    const internalFrame = await descriptor.subscription.pipeline.processPacket(packet);
+    if (!internalFrame) {
       // Not all packets have been received yet to form a complete frame
       return;
     }
@@ -482,6 +533,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         );
         continue;
       }
+      const frame = DataTrackFrameInternal.lossyIntoFrame(internalFrame);
       controller.enqueue(frame);
     }
   }
@@ -523,7 +575,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
   /** Shutdown the manager, ending any subscriptions. */
   shutdown() {
     for (const descriptor of this.descriptors.values()) {
-      this.emit('trackUnavailable', {
+      this.emit('trackUnpublished', {
         sid: descriptor.info.sid,
         publisherIdentity: descriptor.publisherIdentity,
       });

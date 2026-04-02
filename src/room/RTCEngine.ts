@@ -8,6 +8,7 @@ import {
   DataChannelReceiveState,
   DataPacket,
   DataPacket_Kind,
+  DataTrackSubscriberHandles,
   DisconnectReason,
   EncryptedPacket,
   EncryptedPacketPayload,
@@ -17,6 +18,7 @@ import {
   LeaveRequest_Action,
   MediaSectionsRequirement,
   ParticipantInfo,
+  PublishDataTrackResponse,
   ReconnectReason,
   type ReconnectResponse,
   RequestResponse,
@@ -36,6 +38,7 @@ import {
   type TrackPublishedResponse,
   TrackUnpublishedResponse,
   Transcription,
+  UnpublishDataTrackResponse,
   UpdateSubscription,
   type UserPacket,
 } from '@livekit/protocol';
@@ -59,6 +62,7 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DEFAULT_MAX_AGE_MS, type RegionUrlProvider } from './RegionUrlProvider';
+import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -93,6 +97,7 @@ import {
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
+const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
@@ -107,6 +112,12 @@ enum PCState {
   Disconnected,
   Reconnecting,
   Closed,
+}
+
+export enum DataChannelKind {
+  RELIABLE = DataPacket_Kind.RELIABLE,
+  LOSSY = DataPacket_Kind.LOSSY,
+  DATA_TRACK_LOSSY,
 }
 
 /** @internal */
@@ -153,10 +164,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableDC?: RTCDataChannel;
 
-  private dcBufferStatus: Map<DataPacket_Kind, boolean>;
-
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
+
+  private dataTrackDC?: RTCDataChannel;
+
+  // @ts-ignore noUnusedLocals
+  private dataTrackDCSub?: RTCDataChannel;
+
+  private dcBufferStatus: Map<DataChannelKind, boolean>;
 
   private subscriberPrimary: boolean = false;
 
@@ -243,8 +259,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
     this.dcBufferStatus = new Map([
-      [DataPacket_Kind.LOSSY, true],
-      [DataPacket_Kind.RELIABLE, true],
+      [DataChannelKind.RELIABLE, true],
+      [DataChannelKind.LOSSY, true],
+      [DataChannelKind.DATA_TRACK_LOSSY, true],
     ]);
 
     this.client.onParticipantUpdate = (updates) =>
@@ -259,6 +276,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
     this.client.onRequestResponse = (response) =>
       this.emit(EngineEvent.SignalRequestResponse, response);
+    this.client.onParticipantUpdate = (updates) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates);
+    this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
   }
 
   /** @internal */
@@ -392,11 +412,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     dcCleanup(this.lossyDCSub);
     dcCleanup(this.reliableDC);
     dcCleanup(this.reliableDCSub);
+    dcCleanup(this.dataTrackDC);
+    dcCleanup(this.dataTrackDCSub);
 
     this.lossyDC = undefined;
     this.lossyDCSub = undefined;
     this.reliableDC = undefined;
     this.reliableDCSub = undefined;
+    this.dataTrackDC = undefined;
+    this.dataTrackDCSub = undefined;
     this.reliableMessageBuffer = new DataPacketBuffer();
     this.reliableDataSequence = 1;
     this.reliableReceivedState.clear();
@@ -654,6 +678,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.negotiate();
     };
 
+    this.client.onPublishDataTrackResponse = (event: PublishDataTrackResponse) => {
+      this.emit(EngineEvent.PublishDataTrackResponse, event);
+    };
+
+    this.client.onUnPublishDataTrackResponse = (event: UnpublishDataTrackResponse) => {
+      this.emit(EngineEvent.UnPublishDataTrackResponse, event);
+    };
+
+    this.client.onDataTrackSubscriberHandles = (event: DataTrackSubscriberHandles) => {
+      this.emit(EngineEvent.DataTrackSubscriberHandles, event);
+    };
+
     this.client.onClose = () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
@@ -758,6 +794,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDC.onmessage = null;
       this.reliableDC.onerror = null;
     }
+    if (this.dataTrackDC) {
+      this.dataTrackDC.onmessage = null;
+      this.dataTrackDC.onerror = null;
+    }
 
     // create data channels
     this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
@@ -767,29 +807,39 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
       ordered: true,
     });
+    this.dataTrackDC = this.pcManager.createPublisherDataChannel(dataTrackDataChannel, {
+      ordered: false,
+      maxRetransmits: 0,
+    });
 
     // also handle messages over the pub channel, for backwards compatibility
     this.lossyDC.onmessage = this.handleDataMessage;
     this.reliableDC.onmessage = this.handleDataMessage;
+    this.dataTrackDC.onmessage = this.handleDataTrackMessage;
 
     // handle datachannel errors
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
+    this.dataTrackDC.onerror = this.handleDataError;
 
     // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
     this.lossyDC.bufferedAmountLowThreshold = 65535;
     this.reliableDC.bufferedAmountLowThreshold = 65535;
+    this.dataTrackDC.bufferedAmountLowThreshold = 65535;
 
     // handle buffer amount low events
-    this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
-    this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
+    this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
+    this.reliableDC.onbufferedamountlow = () =>
+      this.handleBufferedAmountLow(DataChannelKind.RELIABLE);
+    this.dataTrackDC.onbufferedamountlow = () =>
+      this.handleBufferedAmountLow(DataChannelKind.DATA_TRACK_LOSSY);
 
     this.cleanupLossyDataStats();
     this.lossyDataStatInterval = setInterval(() => {
       this.lossyDataStatByterate = this.lossyDataStatCurrentBytes;
       this.lossyDataStatCurrentBytes = 0;
 
-      const dc = this.dataChannelForKind(DataPacket_Kind.LOSSY);
+      const dc = this.dataChannelForKind(DataChannelKind.LOSSY);
       if (dc) {
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
@@ -805,15 +855,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!channel) {
       return;
     }
+    let handler;
     if (channel.label === reliableDataChannel) {
       this.reliableDCSub = channel;
+      handler = this.handleDataMessage;
     } else if (channel.label === lossyDataChannel) {
       this.lossyDCSub = channel;
+      handler = this.handleDataMessage;
+    } else if (channel.label === dataTrackDataChannel) {
+      this.dataTrackDCSub = channel;
+      handler = this.handleDataTrackMessage;
     } else {
       return;
     }
     this.log.debug(`on data channel ${channel.id}, ${channel.label}`, this.logContext);
-    channel.onmessage = this.handleDataMessage;
+    channel.onmessage = handler;
   };
 
   private handleDataMessage = async (message: MessageEvent) => {
@@ -878,6 +934,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
+  private handleDataTrackMessage = async (message: MessageEvent) => {
+    // Decode / normalize into a common format
+    let buffer: ArrayBuffer | undefined;
+    if (message.data instanceof ArrayBuffer) {
+      buffer = message.data;
+    } else if (message.data instanceof Blob) {
+      buffer = await message.data.arrayBuffer();
+    } else {
+      this.log.error('unsupported data type', { ...this.logContext, data: message.data });
+      return;
+    }
+
+    this.emit('dataTrackPacketReceived', new Uint8Array(buffer));
+  };
+
   private handleDataError = (event: Event) => {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
@@ -893,11 +964,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  private handleBufferedAmountLow = (event: Event) => {
-    const channel = event.currentTarget as RTCDataChannel;
-    const channelKind =
-      channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
-
+  private handleBufferedAmountLow = (channelKind: DataChannelKind) => {
     this.updateAndEmitDCBufferStatus(channelKind);
   };
 
@@ -1326,7 +1393,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       },
     });
 
-    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /** @internal */
@@ -1341,11 +1408,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }),
       },
     });
-    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    await this.sendDataPacket(packet, DataChannelKind.RELIABLE);
   }
 
   /* @internal */
-  async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
+  async sendDataPacket(packet: DataPacket, kind: DataChannelKind) {
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
@@ -1364,57 +1431,93 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     }
 
-    if (kind === DataPacket_Kind.RELIABLE) {
+    if (kind === DataChannelKind.RELIABLE) {
       packet.sequence = this.reliableDataSequence;
       this.reliableDataSequence += 1;
     }
 
     const msg = packet.toBinary();
 
+    switch (kind) {
+      case DataChannelKind.LOSSY:
+      case DataChannelKind.DATA_TRACK_LOSSY:
+        return this.sendLossyBytes(msg, kind);
+
+      case DataChannelKind.RELIABLE:
+        const dc = this.dataChannelForKind(kind);
+        if (dc) {
+          await this.waitForBufferStatusLow(kind);
+          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
+
+          if (this.attemptingReconnect) {
+            return;
+          }
+
+          dc.send(msg);
+        }
+
+        this.updateAndEmitDCBufferStatus(kind);
+        break;
+    }
+  }
+
+  /* @internal */
+  async sendLossyBytes(
+    bytes: Uint8Array,
+    kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
+    bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
+  ) {
+    // make sure we do have a data connection
+    await this.ensurePublisherConnected(kind);
+
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (kind === DataPacket_Kind.RELIABLE) {
-        await this.waitForBufferStatusLow(kind);
-        this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
-      } else {
-        // lossy channel, drop messages to reduce latency
-        if (!this.isBufferStatusLow(kind)) {
-          this.lossyDataDropCount += 1;
-          if (this.lossyDataDropCount % 100 === 0) {
-            this.log.warn(
-              `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-              this.logContext,
-            );
-          }
-          return;
+      if (!this.isBufferStatusLow(kind)) {
+        // Depending on the exact circumstance that data is being sent, either drop or wait for the
+        // buffer status to not be low before continuing.
+        switch (bufferStatusLowBehavior) {
+          case 'wait':
+            await this.waitForBufferStatusLow(kind);
+            break;
+          case 'drop':
+            // this.log.warn(`dropping lossy data channel message`, this.logContext);
+            // Drop messages to reduce latency
+            this.lossyDataDropCount += 1;
+            if (this.lossyDataDropCount % 100 === 0) {
+              this.log.warn(
+                `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+                this.logContext,
+              );
+            }
+            return;
         }
-        this.lossyDataStatCurrentBytes += msg.byteLength;
       }
+      this.lossyDataStatCurrentBytes += bytes.byteLength;
 
       if (this.attemptingReconnect) {
         return;
       }
 
-      dc.send(msg);
+      dc.send(bytes);
     }
 
     this.updateAndEmitDCBufferStatus(kind);
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
-    await this.ensurePublisherConnected(DataPacket_Kind.RELIABLE);
-    const dc = this.dataChannelForKind(DataPacket_Kind.RELIABLE);
+    await this.ensurePublisherConnected(DataChannelKind.RELIABLE);
+    const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
       this.reliableMessageBuffer.getAll().forEach((msg) => {
         dc.send(msg.data);
       });
     }
-    this.updateAndEmitDCBufferStatus(DataPacket_Kind.RELIABLE);
+    this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
 
-  private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
-    if (kind === DataPacket_Kind.RELIABLE) {
+  private updateAndEmitDCBufferStatus = (kind: DataChannelKind) => {
+    if (kind === DataChannelKind.RELIABLE) {
       const dc = this.dataChannelForKind(kind);
       if (dc) {
         this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
@@ -1428,14 +1531,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
+  private isBufferStatusLow = (kind: DataChannelKind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
   };
 
-  waitForBufferStatusLow(kind: DataPacket_Kind): TypedPromise<void, UnexpectedConnectionState> {
+  waitForBufferStatusLow(kind: DataChannelKind): TypedPromise<void, UnexpectedConnectionState> {
     return new TypedPromise(async (resolve, reject) => {
       if (this.isBufferStatusLow(kind)) {
         resolve();
@@ -1455,7 +1558,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * @internal
    */
   async ensureDataTransportConnected(
-    kind: DataPacket_Kind,
+    kind: DataChannelKind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
     if (!this.pcManager) {
@@ -1510,7 +1613,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     );
   }
 
-  private async ensurePublisherConnected(kind: DataPacket_Kind) {
+  private async ensurePublisherConnected(kind: DataChannelKind) {
     if (!this.publisherConnectionPromise) {
       this.publisherConnectionPromise = this.ensureDataTransportConnected(kind, false);
     }
@@ -1551,7 +1654,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (
         this.pcManager.publisher.getTransceivers().length == 0 &&
         !this.lossyDC &&
-        !this.reliableDC
+        !this.reliableDC &&
+        !this.dataTrackDC
       ) {
         this.createDataChannels();
       }
@@ -1611,26 +1715,35 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     });
   }
 
-  dataChannelForKind(kind: DataPacket_Kind, sub?: boolean): RTCDataChannel | undefined {
-    if (!sub) {
-      if (kind === DataPacket_Kind.LOSSY) {
-        return this.lossyDC;
-      }
-      if (kind === DataPacket_Kind.RELIABLE) {
-        return this.reliableDC;
-      }
-    } else {
-      if (kind === DataPacket_Kind.LOSSY) {
-        return this.lossyDCSub;
-      }
-      if (kind === DataPacket_Kind.RELIABLE) {
-        return this.reliableDCSub;
-      }
+  dataChannelForKind(kind: DataChannelKind, sub?: boolean): RTCDataChannel | undefined {
+    switch (kind) {
+      case DataChannelKind.RELIABLE:
+        if (!sub) {
+          return this.reliableDC;
+        } else {
+          return this.reliableDCSub;
+        }
+      case DataChannelKind.LOSSY:
+        if (!sub) {
+          return this.lossyDC;
+        } else {
+          return this.lossyDCSub;
+        }
+      case DataChannelKind.DATA_TRACK_LOSSY:
+        if (!sub) {
+          return this.dataTrackDC;
+        } else {
+          return this.dataTrackDCSub;
+        }
     }
   }
 
   /** @internal */
-  sendSyncState(remoteTracks: RemoteTrackPublication[], localTracks: LocalTrackPublication[]) {
+  sendSyncState(
+    remoteTracks: RemoteTrackPublication[],
+    localTracks: LocalTrackPublication[],
+    localDataTrackInfos: Array<DataTrackInfo>,
+  ) {
     if (!this.pcManager) {
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
@@ -1702,6 +1815,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
+        publishDataTracks: localDataTrackInfos.map((info) => {
+          return new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) });
+        }),
       }),
     );
   }
@@ -1725,10 +1841,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         );
       }
     };
-    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
-    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
-    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataChannelKind.LOSSY), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataChannelKind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE, true), SignalTarget.SUBSCRIBER);
     return infos;
   }
 
@@ -1835,7 +1951,7 @@ export type EngineEventCallbacks = {
   /** @internal */
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
-  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataChannelKind) => void;
   participantUpdate: (infos: ParticipantInfo[]) => void;
   roomUpdate: (room: RoomModel) => void;
   roomMoved: (room: RoomMovedResponse) => void;
@@ -1851,6 +1967,11 @@ export type EngineEventCallbacks = {
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
   signalConnected: (joinResp: JoinResponse) => void;
+  publishDataTrackResponse: (event: PublishDataTrackResponse) => void;
+  unPublishDataTrackResponse: (event: UnpublishDataTrackResponse) => void;
+  dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
+  dataTrackPacketReceived: (packet: Uint8Array) => void;
+  joined: (joinResponse: JoinResponse) => void;
 };
 
 function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {

@@ -1,7 +1,7 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
 import { LoggerNames, getLogger } from '../../logger';
 import { LivekitReasonedError } from '../errors';
-import { type DataTrackFrame } from './frame';
+import { type DataTrackFrameInternal } from './frame';
 import { DataTrackPacket, FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
 import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
@@ -38,9 +38,9 @@ export class DataTrackDepacketizerDropError<
     this.frameNumber = frameNumber;
   }
 
-  static interrupted(frameNumber: number) {
+  static interrupted(frameNumber: number, newFrameNumber: number) {
     return new DataTrackDepacketizerDropError(
-      'Interrupted by the start of a new frame',
+      `Interrupted by the start of a new frame ${newFrameNumber}`,
       DataTrackDepacketizerDropReason.Interrupted,
       frameNumber,
     );
@@ -94,12 +94,12 @@ export default class DataTrackDepacketizer {
   /** Should be repeatedly called with received {@link DataTrackPacket}s - intermediate calls
    * aggregate the packet's state internally, and return null.
    *
-   * Once this method is called with the final packet to form a frame, a new {@link DataTrackFrame}
+   * Once this method is called with the final packet to form a frame, a new {@link DataTrackFrameInternal}
    * is returned.*/
   push(
     packet: DataTrackPacket,
     options?: PushOptions,
-  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
+  ): Throws<DataTrackFrameInternal | null, DataTrackDepacketizerDropError> {
     switch (packet.header.marker) {
       case FrameMarker.Single:
         return this.frameFromSingle(packet, options);
@@ -119,7 +119,7 @@ export default class DataTrackDepacketizer {
     packet: DataTrackPacket,
     options?: PushOptions,
   ): Throws<
-    DataTrackFrame | null,
+    DataTrackFrameInternal | null,
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
   > {
     if (packet.header.marker !== FrameMarker.Single) {
@@ -133,7 +133,10 @@ export default class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         const frameNumber = this.partial.frameNumber;
         this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+        throw DataTrackDepacketizerDropError.interrupted(
+          frameNumber,
+          packet.header.frameNumber.value,
+        );
       } else {
         log.warn(
           `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
@@ -161,10 +164,13 @@ export default class DataTrackDepacketizer {
       if (options?.errorOnPartialFrames) {
         const frameNumber = this.partial.frameNumber;
         this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+        throw DataTrackDepacketizerDropError.interrupted(
+          frameNumber,
+          packet.header.frameNumber.value,
+        );
       } else {
         log.warn(
-          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
+          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame ${packet.header.frameNumber.value}, dropping.`,
         );
       }
     }
@@ -185,7 +191,7 @@ export default class DataTrackDepacketizer {
   /** Push to the existing partial frame. */
   private pushToPartial(
     packet: DataTrackPacket,
-  ): Throws<DataTrackFrame | null, DataTrackDepacketizerDropError> {
+  ): Throws<DataTrackFrameInternal | null, DataTrackDepacketizerDropError> {
     if (packet.header.marker !== FrameMarker.Inter && packet.header.marker !== FrameMarker.Final) {
       // @throws-transformer ignore - this should be treated as a "panic" and not be caught
       throw new Error(
@@ -201,7 +207,10 @@ export default class DataTrackDepacketizer {
     if (packet.header.frameNumber.value !== this.partial.frameNumber) {
       const frameNumber = this.partial.frameNumber;
       this.reset();
-      throw DataTrackDepacketizerDropError.interrupted(frameNumber);
+      throw DataTrackDepacketizerDropError.interrupted(
+        frameNumber,
+        packet.header.frameNumber.value,
+      );
     }
 
     // NOTE: this check will block reprocessing packets with duplicate sequence values if the
@@ -234,7 +243,7 @@ export default class DataTrackDepacketizer {
     partial: PartialFrame,
     endSequence: number,
   ): Throws<
-    DataTrackFrame,
+    DataTrackFrameInternal,
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Incomplete>
   > {
     const received = partial.payloads.size;

@@ -1,5 +1,5 @@
 import type Participant from '../participant/Participant';
-import type { DataTrackFrame } from './frame';
+import { type DataTrackFrame } from './frame';
 import type IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
 import {
   DataTrackSymbol,
@@ -13,12 +13,12 @@ type RemoteDataTrackOptions = {
   publisherIdentity: Participant['identity'];
 };
 
-export type RemoteDataTrackSubscribeOptions = {
+export type DataTrackSubscribeOptions = {
   signal?: AbortSignal;
 
   /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
-   * frames. Defaults to 4, but this may not be good enough for especially high frequency data. */
-  highWaterMark?: number;
+   * frames. Defaults to 16, but this may not be good enough for especially high frequency data. */
+  bufferSize?: number;
 };
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
@@ -64,14 +64,12 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * Note that newly created subscriptions only receive frames published after
    * the initial subscription is established.
    */
-  async subscribe(
-    options?: RemoteDataTrackSubscribeOptions,
-  ): Promise<ReadableStream<DataTrackFrame>> {
+  subscribe(options?: DataTrackSubscribeOptions): ReadableStream<DataTrackFrame> {
     try {
-      const stream = await this.manager.subscribeRequest(
+      const [stream] = this.manager.openSubscriptionStream(
         this.info.sid,
         options?.signal,
-        options?.highWaterMark,
+        options?.bufferSize,
       );
       return stream;
     } catch (err) {
