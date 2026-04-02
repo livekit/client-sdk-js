@@ -19,8 +19,6 @@ import {
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RpcError,
   byteLength,
-  gzipCompressToWriter,
-  gzipDecompressFromReader,
 } from '../utils';
 import type { RpcClientManagerCallbacks } from './events';
 
@@ -143,7 +141,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     remoteClientProtocol: number,
   ) {
     if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      // Send payload as a compressed data stream
+      // Send payload as a data stream
       const writer = await this.outgoingDataStreamManager.streamBytes({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
@@ -154,7 +152,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
           [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
         },
       });
-      await gzipCompressToWriter(payload, writer);
+      await writer.write(payload);
       await writer.close();
       return;
     }
@@ -179,20 +177,19 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
   }
 
   /**
-   * Handle an incoming byte stream containing an RPC response payload.
-   * Decompresses the stream and resolves/rejects the pending data stream future.
+   * Handle an incoming data stream containing an RPC response payload.
    */
   async handleIncomingDataStream(reader: ByteStreamReader, responseId: string) {
-    let decompressedPayload: string;
+    let payload: string;
     try {
-      decompressedPayload = await gzipDecompressFromReader(reader);
+      payload = await reader.readAll();
     } catch (e) {
-      this.log.warn(`Error decompressing RPC response payload: ${e}`);
+      this.log.warn(`Error reading RPC response payload: ${e}`);
       this.handleIncomingRpcResponseFailure(responseId, RpcError.builtIn('APPLICATION_ERROR'));
       return;
     }
 
-    this.handleIncomingRpcResponseSuccess(responseId, decompressedPayload);
+    this.handleIncomingRpcResponseSuccess(responseId, payload);
   }
 
   /** @internal */
