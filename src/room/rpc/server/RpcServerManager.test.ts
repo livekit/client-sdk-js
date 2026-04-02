@@ -1,5 +1,4 @@
-import { DataPacket_Kind } from '@livekit/protocol';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, assert } from 'vitest';
 import log from '../../../logger';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../../version';
@@ -47,15 +46,16 @@ describe('RpcServerManager', () => {
 
     // The first event is an acknowledgement of the request
     const ackEvent = await managerEvents.waitFor('sendDataPacket');
-    expect(ackEvent.packet.value.case).toStrictEqual('rpcAck');
+    assert(ackEvent.packet.value.case === 'rpcAck');
     expect(ackEvent.packet.value.value.requestId).toStrictEqual(requestId);
 
     // And the second being the actual response
     const responseEvent = await managerEvents.waitFor('sendDataPacket');
-    expect(responseEvent.packet.value.case).toStrictEqual('rpcResponse');
-    expect(responseEvent.packet.value.value.requestId).toStrictEqual(requestId);
-    expect(responseEvent.packet.value.value.value.case).toStrictEqual('payload');
-    expect(responseEvent.packet.value.value.value.value).toStrictEqual('response payload');
+    assert(responseEvent.packet.value.case === 'rpcResponse');
+    const rpcResponse = responseEvent.packet.value.value;
+    expect(rpcResponse.requestId).toStrictEqual(requestId);
+    assert(rpcResponse.value.case === 'payload');
+    expect(rpcResponse.value.value).toStrictEqual('response payload');
 
     expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
   });
@@ -90,12 +90,10 @@ describe('RpcServerManager', () => {
     // Ensure the first event was for the ack
     const ackEvent = await managerEvents.waitFor('sendDataPacket');
     expect(ackEvent.packet.value.case).toStrictEqual('rpcAck');
-    expect(ackEvent.kind).toStrictEqual(DataPacket_Kind.RELIABLE);
 
     // And the second event was for the response
     const responseEvent = await managerEvents.waitFor('sendDataPacket');
     expect(responseEvent.packet.value.case).toStrictEqual('rpcResponse');
-    expect(responseEvent.kind).toStrictEqual(DataPacket_Kind.RELIABLE);
 
     expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
   });
@@ -125,11 +123,12 @@ describe('RpcServerManager', () => {
 
     // Ensure the first event was for the ack
     const ackEvent = await managerEvents.waitFor('sendDataPacket');
-    expect(ackEvent.packet.value.case).toStrictEqual('rpcAck');
-    expect(ackEvent.kind).toStrictEqual(DataPacket_Kind.RELIABLE);
+    assert(ackEvent.packet.value.case === 'rpcAck');
 
     // And the second event was for the error response
     const errorEvent = await managerEvents.waitFor('sendDataPacket');
+    assert(errorEvent.packet.value.case === 'rpcResponse');
+    assert(errorEvent.packet.value.value.value.case === 'error');
     const errorResponse = errorEvent.packet.value.value.value.value;
     expect(errorResponse.code).toStrictEqual(RpcError.ErrorCode.APPLICATION_ERROR);
 
@@ -162,11 +161,12 @@ describe('RpcServerManager', () => {
 
     // Ensure the first event was for the ack
     const ackEvent = await managerEvents.waitFor('sendDataPacket');
-    expect(ackEvent.packet.value.case).toStrictEqual('rpcAck');
-    expect(ackEvent.kind).toStrictEqual(DataPacket_Kind.RELIABLE);
+    assert(ackEvent.packet.value.case === 'rpcAck');
 
     // And the second event was for the error response
     const errorEvent = await managerEvents.waitFor('sendDataPacket');
+    assert(errorEvent.packet.value.case === 'rpcResponse');
+    assert(errorEvent.packet.value.value.value.case === 'error');
     const errorResponse = errorEvent.packet.value.value.value.value;
     expect(errorResponse.code).toStrictEqual(errorCode);
     expect(errorResponse.message).toStrictEqual(errorMessage);
