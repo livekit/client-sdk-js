@@ -6,7 +6,6 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { type StructuredLogger } from '../../../logger';
 import { CLIENT_PROTOCOL_GZIP_RPC } from '../../../version';
-import { DataChannelKind } from '../../RTCEngine';
 import type { ByteStreamReader } from '../../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../../participant/Participant';
