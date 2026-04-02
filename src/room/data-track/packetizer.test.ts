@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DataTrackFrame } from './frame';
+import { DataTrackFrameInternal } from './frame';
 import { DataTrackHandle } from './handle';
 import { FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
@@ -90,7 +90,7 @@ describe('DataTrackPacketizer', () => {
   ])('should test packetizer edge cases', (payloadSizeBytes, mtuSizeBytes, label) => {
     const packetizer = new DataTrackPacketizer(DataTrackHandle.fromNumber(1), mtuSizeBytes);
 
-    const frame: DataTrackFrame = {
+    const frame: DataTrackFrameInternal = {
       payload: new Uint8Array(payloadSizeBytes).fill(0xab),
       extensions: new DataTrackExtensions(),
     };

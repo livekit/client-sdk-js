@@ -2,6 +2,8 @@
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
+  LocalDataTrack,
+  RemoteDataTrack,
   RoomConnectOptions,
   RoomOptions,
   ScalabilityMode,
@@ -41,6 +43,7 @@ import {
   supportsVP9,
 } from '../../src/index';
 import { TrackEvent } from '../../src/room/events';
+import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -61,6 +64,9 @@ let currentRoom: Room | undefined;
 let startTime: number;
 
 let streamReaderAbortController: AbortController | undefined;
+
+let localDataTracks: Array<LocalDataTrack> = [];
+let remoteDataTracks: Array<RemoteDataTrack> = [];
 
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
@@ -301,6 +307,17 @@ const appActions = {
       })
       .on(RoomEvent.EncryptionError, (error) => {
         appendLog(`Error encrypting track data: ${error.message}`);
+      })
+      .on(RoomEvent.DataTrackPublished, (track) => {
+        remoteDataTracks.push(track);
+        renderRemoteDataTracks();
+      })
+      .on(RoomEvent.DataTrackUnpublished, (sid) => {
+        const index = remoteDataTracks.findIndex((t) => t.info.sid === sid);
+        if (index >= 0) {
+          remoteDataTracks.splice(index, 1);
+          renderRemoteDataTracks();
+        }
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
@@ -446,13 +463,16 @@ const appActions = {
           reject(error);
         }
       });
-      await Promise.all([
-        room.connect(url, token, connectOptions),
-        publishPromise.catch(appendLog),
-      ]);
+      let connElapsed = 0;
+      const connectFn = async () => {
+        const connStartTime = Date.now();
+        await room.connect(url, token, connectOptions);
+        connElapsed = Date.now() - connStartTime;
+      };
+      await Promise.all([connectFn(), publishPromise.catch(appendLog)]);
       const elapsed = Date.now() - startTime;
       appendLog(
-        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
+        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms (connect cost: ${Math.round(connElapsed)}ms)`,
         await room.engine.getConnectedServerAddress(),
       );
     } catch (error: any) {
@@ -716,6 +736,37 @@ const appActions = {
       });
     }
   },
+
+  publishLocalDataTrack: async () => {
+    const button = $('local-data-track-publish-button');
+    const input = <HTMLInputElement>$('local-data-track-publish-name');
+
+    if (!currentRoom) {
+      console.error(`publishDataTrack failed: Room not connected.`);
+      return;
+    }
+
+    button.innerText = 'Publishing...';
+    button.setAttribute('disabled', 'true');
+    input.classList.remove('is-invalid');
+
+    try {
+      const localDataTrack = await currentRoom.localParticipant.publishDataTrack({
+        name: input.value,
+      });
+      input.value = '';
+      localDataTracks.push(localDataTrack);
+      renderLocalDataTracks();
+    } catch (err) {
+      console.error(`publishDataTrack failed:`, err);
+
+      // Make the input red to signify failure
+      input.classList.add('is-invalid');
+    } finally {
+      button.innerText = 'Publish Local';
+      button.removeAttribute('disabled');
+    }
+  },
 };
 
 declare global {
@@ -787,6 +838,12 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
     renderParticipant(p, true);
   });
   renderScreenShare(currentRoom);
+
+  localDataTracks = [];
+  renderLocalDataTracks();
+
+  remoteDataTracks = [];
+  renderRemoteDataTracks();
 
   const container = $('participants-area');
   if (container) {
@@ -1057,6 +1114,335 @@ function renderBitrate() {
     if (elm) {
       elm.innerHTML = displayText;
     }
+  }
+}
+
+function createLocalDataTrackElement(localDataTrack: LocalDataTrack) {
+  if (!localDataTrack.isPublished()) {
+    return null;
+  }
+  const { sid, pubHandle, name } = localDataTrack.info;
+
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${name}">${name}</span>
+      <div class="d-flex align-items-center">
+        <span class="badge badge-success text-nowrap mr-2">✓ Live</span>
+        <button id="local-data-track-delete-${sid}" class="btn btn-outline-danger btn-sm" type="button">✕</button>
+      </div>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1">Handle: ${pubHandle}</span>
+    </div>
+    <div class="input-group input-group-sm">
+      <input
+        id="local-data-track-input-${sid}"
+        type="text"
+        class="form-control text-monospace"
+        placeholder="Push a test message"
+      />
+      <div class="input-group-append">
+        <button id="local-data-track-send-${sid}" class="btn btn-outline-primary" type="button">
+          Send
+        </button>
+      </div>
+    </div>
+  `;
+
+  const input = item.querySelector<HTMLInputElement>(`#local-data-track-input-${sid}`)!;
+  const sendButton = item.querySelector<HTMLButtonElement>(`#local-data-track-send-${sid}`)!;
+  const deleteButton = item.querySelector<HTMLButtonElement>(`#local-data-track-delete-${sid}`)!;
+
+  sendButton.addEventListener('click', () => {
+    const text = input.value;
+    if (!text) {
+      return;
+    }
+    try {
+      localDataTrack.tryPush({ payload: state.encoder.encode(text) });
+      input.value = '';
+    } catch (err) {
+      console.error(`Local data track ${sid}: tryPush failed:`, err);
+      input.classList.add('is-invalid');
+    }
+  });
+
+  deleteButton.addEventListener('click', async () => {
+    deleteButton.disabled = true;
+    try {
+      await localDataTrack.unpublish();
+    } catch (err) {
+      console.error(`DataTrack:${sid} unpublish failed:`, err);
+      deleteButton.disabled = false;
+      return;
+    }
+    deleteButton.disabled = false;
+
+    localDataTracks.splice(localDataTracks.indexOf(localDataTrack), 1);
+    renderLocalDataTracks();
+  });
+
+  return item;
+}
+
+function updateLocalDataTrackElement(
+  element: HTMLDivElement,
+  localDataTrack: LocalDataTrack,
+): void {
+  const published = localDataTrack.isPublished();
+
+  const badge = element.querySelector<HTMLSpanElement>('.badge');
+  if (badge) {
+    badge.className = `badge ${published ? 'badge-success' : 'badge-warning'} text-nowrap`;
+    badge.textContent = published ? '✓ Live' : '⏳ Pending';
+  }
+}
+
+function renderLocalDataTracks() {
+  const wrapper = $('data-tracks-local-list');
+
+  const publishedTracks = localDataTracks.filter((l) => l.isPublished());
+  const renderedLocalDataTrackSids = new Set<string>();
+
+  // Update or remove existing children
+  for (const child of Array.from(wrapper.children)) {
+    const element = child as HTMLDivElement;
+    const sid = element.dataset.sid!;
+    const localDataTrack = publishedTracks.find((l) => l.info.sid === sid);
+    if (localDataTrack) {
+      updateLocalDataTrackElement(element, localDataTrack);
+    } else {
+      element.remove();
+    }
+    renderedLocalDataTrackSids.add(sid);
+  }
+
+  // Create elements for new tracks
+  for (const localDataTrack of publishedTracks.filter(
+    (l) => !renderedLocalDataTrackSids.has(l.info.sid),
+  )) {
+    const child = createLocalDataTrackElement(localDataTrack);
+    if (child) {
+      wrapper.appendChild(child);
+    }
+  }
+}
+
+function renderHexDump(payload: Uint8Array): HTMLElement {
+  const bytesPerLine = 8;
+  const table = document.createElement('table');
+  table.style.cssText =
+    'border-collapse: collapse; width: 100%; font-size: 0.68rem; line-height: 1.4;';
+
+  for (let offset = 0; offset < payload.byteLength; offset += bytesPerLine) {
+    const chunk = payload.slice(offset, offset + bytesPerLine);
+    const row = document.createElement('tr');
+
+    // Address column
+    const addrCell = document.createElement('td');
+    addrCell.style.cssText =
+      'color: #6c757d; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top; user-select: none;';
+    addrCell.textContent = offset.toString(16).padStart(8, '0');
+    row.appendChild(addrCell);
+
+    // Hex column
+    const hexCell = document.createElement('td');
+    hexCell.style.cssText =
+      'color: #28a745; padding: 0 0.6em 0 0; white-space: pre; vertical-align: top;';
+    const hexStr = Array.from(chunk)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ')
+      .padEnd(bytesPerLine * 3 - 1, ' ');
+    hexCell.textContent = hexStr;
+    row.appendChild(hexCell);
+
+    // ASCII column
+    const asciiCell = document.createElement('td');
+    asciiCell.style.cssText =
+      'color: #e9ecef; padding: 0; white-space: pre; vertical-align: top; text-align: right;';
+    const ascii = Array.from(chunk)
+      .map((b) => (b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.'))
+      .join('');
+    asciiCell.textContent = '|' + ascii.padEnd(bytesPerLine, ' ') + '|';
+    row.appendChild(asciiCell);
+
+    table.appendChild(row);
+  }
+
+  return table;
+}
+
+function createRemoteDataTrackElement(remoteDataTrack: RemoteDataTrack) {
+  const { sid, pubHandle, name } = remoteDataTrack.info;
+  const identity = remoteDataTrack.publisherIdentity;
+
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.sid = sid;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${identity}" style="min-width: 0;">${identity}</span>
+      <div class="d-flex align-items-center flex-shrink-0">
+        <button id="remote-data-track-subscribe-${sid}" class="btn btn-sm btn-outline-success mr-1" type="button" title="Subscribe">Subscribe</button>
+        <button id="remote-data-track-abort-${sid}" class="btn btn-sm btn-outline-warning mr-1" type="button" title="Stop via AbortSignal" style="display:none;">Abort</button>
+        <button id="remote-data-track-cancel-${sid}" class="btn btn-sm btn-outline-danger mr-1" type="button" title="Stop via reader.cancel()" style="display:none;">Cancel Read</button>
+      </div>
+    </div>
+    <div class="d-flex align-items-center mb-1">
+      <span class="text-muted text-truncate mr-2" style="font-size: 0.8rem;" title="${name}">${name}</span>
+    </div>
+    <div class="local-data-track-meta text-monospace text-muted mb-2">
+      <span class="badge badge-secondary mr-1" title="SID">SID: ${sid}</span>
+      <span class="badge badge-secondary mr-1" title="Publication Handle">Handle: ${pubHandle}</span>
+    </div>
+    <div class="remote-data-track-well bg-dark rounded p-2 text-monospace" style="max-height: 180px; overflow-y: auto; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; min-height: 60px;">
+      <span id="remote-data-track-placeholder-${sid}" class="text-muted">Subscription not started</span>
+    </div>
+  `;
+
+  const well = item.querySelector<HTMLDivElement>('.remote-data-track-well')!;
+  const placeholder = item.querySelector<HTMLSpanElement>(`#remote-data-track-placeholder-${sid}`)!;
+  const subscribeBtn = item.querySelector<HTMLButtonElement>(
+    `#remote-data-track-subscribe-${sid}`,
+  )!;
+  const abortBtn = item.querySelector<HTMLButtonElement>(`#remote-data-track-abort-${sid}`)!;
+  const cancelReadBtn = item.querySelector<HTMLButtonElement>(`#remote-data-track-cancel-${sid}`)!;
+  let subscriptionAbortController: AbortController | null = null;
+  let reader: ReadableStreamDefaultReader<DataTrackFrame> | null = null;
+  let frameCounter = 0;
+
+  function clearWell(): void {
+    well.querySelectorAll('.remote-data-track-frame').forEach((el) => el.remove());
+    frameCounter = 0;
+  }
+
+  function showPlaceholder(text: string): void {
+    placeholder.textContent = text;
+    placeholder.style.display = '';
+    well.style.display = 'flex';
+    if (!well.contains(placeholder)) {
+      well.appendChild(placeholder);
+    }
+  }
+
+  function hidePlaceholder(): void {
+    placeholder.style.display = 'none';
+    well.style.display = 'block';
+  }
+
+  function hasFrames(): boolean {
+    return well.querySelector('.remote-data-track-frame') !== null;
+  }
+
+  function appendFrame(payload: Uint8Array): void {
+    hidePlaceholder();
+
+    frameCounter++;
+    const entry = document.createElement('div');
+    entry.className = 'remote-data-track-frame border-bottom border-secondary pb-1 mb-1';
+
+    const meta = document.createElement('div');
+    meta.className = 'text-muted';
+    meta.style.cssText = 'font-size: 0.65rem;';
+    const sizeString =
+      payload.byteLength < 1024
+        ? `${payload.byteLength} bytes`
+        : `${(payload.byteLength / 1024).toFixed(2)} KB`;
+    meta.textContent = `#${frameCounter} · ${sizeString} · ${new Date().toISOString()}`;
+    entry.appendChild(meta);
+
+    entry.appendChild(renderHexDump(payload));
+
+    well.appendChild(entry);
+    well.scrollTop = well.scrollHeight;
+  }
+
+  async function startSubscription(): Promise<void> {
+    clearWell();
+    showPlaceholder('Waiting for frames...');
+
+    subscribeBtn.style.display = 'none';
+    abortBtn.style.display = '';
+    cancelReadBtn.style.display = '';
+
+    subscriptionAbortController = new AbortController();
+    const stream = remoteDataTrack.subscribe({
+      signal: subscriptionAbortController.signal,
+    });
+    reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        appendFrame(value.payload);
+      }
+    } catch (err) {
+      console.error(`Remote data track ${sid}: subscription failed:`, err);
+    } finally {
+      cleanupAfterStop();
+    }
+  }
+
+  function stopViaAbort(): void {
+    if (subscriptionAbortController) {
+      subscriptionAbortController.abort();
+      subscriptionAbortController = null;
+    }
+    cleanupAfterStop();
+  }
+
+  function stopViaCancelRead(): void {
+    if (reader) {
+      reader.cancel();
+      reader = null;
+    }
+    cleanupAfterStop();
+  }
+
+  function cleanupAfterStop(): void {
+    subscriptionAbortController = null;
+    reader = null;
+    subscribeBtn.style.display = '';
+    abortBtn.style.display = 'none';
+    cancelReadBtn.style.display = 'none';
+    if (!hasFrames()) {
+      showPlaceholder('Subscription not started');
+    }
+  }
+
+  startSubscription();
+  subscribeBtn.addEventListener('click', startSubscription);
+  abortBtn.addEventListener('click', stopViaAbort);
+  cancelReadBtn.addEventListener('click', stopViaCancelRead);
+
+  return item;
+}
+
+function renderRemoteDataTracks() {
+  const wrapper = $('data-tracks-remote-list');
+
+  const renderedSids = new Set<string>();
+
+  for (const child of Array.from(wrapper.children)) {
+    const li = child as HTMLLIElement;
+    const sid = li.dataset.sid!;
+    const remoteDataTrack = remoteDataTracks.find((r) => r.info.sid === sid);
+    if (!remoteDataTrack) {
+      li.remove();
+    }
+    renderedSids.add(sid);
+  }
+
+  for (const remoteDataTrack of remoteDataTracks.filter((r) => !renderedSids.has(r.info.sid))) {
+    wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
   }
 }
 

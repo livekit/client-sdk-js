@@ -26,7 +26,7 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0",
-    "plugins": [{ "name": "./throws-transformer/plugin.ts" }],
+    "plugins": [{ "name": "@livekit/throws-transformer" }],
   },
   "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],

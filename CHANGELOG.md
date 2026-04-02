@@ -1,5 +1,31 @@
 # Change Log
 
+## 2.18.1
+
+### Patch Changes
+
+- Adds data tracks support - [#1820](https://github.com/livekit/client-sdk-js/pull/1820) ([@1egoman](https://github.com/1egoman))
+
+- Send publisher offer with join request to accelerate connection - [#1846](https://github.com/livekit/client-sdk-js/pull/1846) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Enable E2EE key-size configuration via ExternalE2EEKeyProvider options - [#1841](https://github.com/livekit/client-sdk-js/pull/1841) ([@MariusBernhardt](https://github.com/MariusBernhardt))
+
+## 2.18.0
+
+### Minor Changes
+
+- Rename pID to participantID in log context - [#1842](https://github.com/livekit/client-sdk-js/pull/1842) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure freshly created RTCEngine isn't recreated on join - [#1843](https://github.com/livekit/client-sdk-js/pull/1843) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix shouldReturnCachedValueFromFetch check for cached options - [#1837](https://github.com/livekit/client-sdk-js/pull/1837) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data stream header length field - [#1847](https://github.com/livekit/client-sdk-js/pull/1847) ([@ladvoc](https://github.com/ladvoc))
+
+- Add token fetch force option to skip TokenSource cache - [#1839](https://github.com/livekit/client-sdk-js/pull/1839) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.17.3
 
 ### Patch Changes

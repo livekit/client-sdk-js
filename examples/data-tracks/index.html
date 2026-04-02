@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LiveKit Data Tracks Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <h1>LiveKit Data Tracks Demo</h1>
+    <p class="subtitle">
+      Each data track payload is an ASCII-encoded integer from 0 to 512, sent via a slider.
+      Compatible data track clients in other languages can publish or subscribe to the same room.
+    </p>
+
+    <div class="columns">
+      <!-- Left column: Publisher -->
+      <div class="column">
+        <div class="participant-box">
+          <div class="participant-header">
+            <div class="participant-header-left">
+              <span class="participant-label">Publisher</span>
+              <span class="identity-badge" id="publisher-identity"></span>
+            </div>
+            <button id="publisher-connect-btn" class="btn btn-primary btn-sm">Connect</button>
+          </div>
+          <div class="publish-controls">
+            <input id="publish-name" type="text" placeholder="Track name" />
+            <button id="publish-btn" class="btn btn-primary btn-sm" disabled>Publish</button>
+          </div>
+          <div id="local-tracks-list"></div>
+        </div>
+      </div>
+
+      <!-- Center: Room indicator -->
+      <div class="room-column">
+        <div class="room-box">
+          <div class="room-label">Room</div>
+          <div class="room-name" id="room-name">Not connected</div>
+        </div>
+      </div>
+
+      <!-- Right column: Subscriber -->
+      <div class="column">
+        <div class="participant-box">
+          <div class="participant-header">
+            <div class="participant-header-left">
+              <span class="participant-label">Subscriber</span>
+              <span class="identity-badge" id="subscriber-identity"></span>
+            </div>
+            <button id="subscriber-connect-btn" class="btn btn-primary btn-sm">Connect</button>
+          </div>
+          <div id="remote-tracks-list">
+            <p class="empty-state">No remote tracks published yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fullscreen overlay for remote track charts -->
+    <div id="fullscreen-overlay" class="fullscreen-overlay" style="display: none;">
+      <button id="fullscreen-close" class="fullscreen-close-btn">&times;</button>
+      <div id="fullscreen-content"></div>
+    </div>
+
+    <script type="module" src="./data-tracks-demo.ts"></script>
+  </body>
+</html>

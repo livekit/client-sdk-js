@@ -300,8 +300,10 @@ describe('SignalClient.connect', () => {
 
   describe('Failure Case - WebSocket Connection Errors', () => {
     it('should reject with NotAllowed error for 4xx HTTP status', async () => {
+      const openedPromise = Promise.reject(new Error('Connection failed'));
+      openedPromise.catch(() => {}); // prevent unhandled rejection before join attaches its handler
       mockWebSocketStream({
-        opened: Promise.reject(new Error('Connection failed')),
+        opened: openedPromise,
         readyState: 3,
       });
 
@@ -321,8 +323,10 @@ describe('SignalClient.connect', () => {
     });
 
     it('should reject with ServerUnreachable when fetch fails', async () => {
+      const openedPromise = Promise.reject(new Error('Connection failed'));
+      openedPromise.catch(() => {}); // prevent unhandled rejection before join attaches its handler
       mockWebSocketStream({
-        opened: Promise.reject(new Error('Connection failed')),
+        opened: openedPromise,
         readyState: 3,
       });
 
@@ -338,9 +342,10 @@ describe('SignalClient.connect', () => {
 
     it('should handle ConnectionError from WebSocket rejection', async () => {
       const customError = ConnectionError.internal('Custom error', { status: 500 });
-
+      const openedPromise = Promise.reject(customError);
+      openedPromise.catch(() => {}); // prevent unhandled rejection before join attaches its handler
       mockWebSocketStream({
-        opened: Promise.reject(customError),
+        opened: openedPromise,
         readyState: 3,
       });
 

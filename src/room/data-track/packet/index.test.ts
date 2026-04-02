@@ -72,7 +72,7 @@ describe('DataTrackPacket', () => {
 
       const packet = new DataTrackPacket(header, payloadBytes);
 
-      expect(packet.toBinaryLengthBytes()).toStrictEqual(78);
+      expect(packet.toBinaryLengthBytes()).toStrictEqual(74);
       expect(packet.toBinary()).toStrictEqual(
         new Uint8Array([
           0xc, // Version 0, final, extension
@@ -88,13 +88,11 @@ describe('DataTrackPacket', () => {
           17,
           136,
           0, // Rtp oriented extension words (big endian)
-          7,
+          6,
 
           // E2ee extension
-          0, // ID 1 (big endian)
-          1,
-          0, // Length 12 (big endian)
-          12,
+          1, // ID 1
+          13, // Length 13
           0xfa, // Key index
           0x3c, // Iv array
           0x3c,
@@ -110,10 +108,8 @@ describe('DataTrackPacket', () => {
           0x3c,
 
           // User timestamp extension
-          0, // ID 2 (big endian)
-          2,
-          0, // Length 7 (big endian)
-          7,
+          2, // ID 2
+          8, // Length 8
           68, // Timestamp value (big endian)
           17,
           34,
@@ -178,7 +174,7 @@ describe('DataTrackPacket', () => {
 
       const packet = new DataTrackPacket(header, payloadBytes);
 
-      expect(packet.toBinaryLengthBytes()).toStrictEqual(66);
+      expect(packet.toBinaryLengthBytes()).toStrictEqual(62);
       expect(packet.toBinary()).toStrictEqual(
         new Uint8Array([
           0x14, // Version 0, start, extension
@@ -194,13 +190,11 @@ describe('DataTrackPacket', () => {
           0,
           104,
           0, // RTP oriented extension words (big endian)
-          4,
+          3,
 
           // E2ee extension
-          0, // ID 1 (big endian)
-          1,
-          0, // Length 12 (big endian)
-          12,
+          1, // ID 1
+          13, // Length 13
           0xfa, // Key index
           0x3c, // Iv array
           0x3c,
@@ -216,8 +210,6 @@ describe('DataTrackPacket', () => {
           0x3c,
 
           0, // Extension padding
-          0,
-          0,
 
           0xfa, // Payload
           0xfa,
@@ -431,13 +423,11 @@ describe('DataTrackPacket', () => {
         ...VALID_PACKET_BYTES,
 
         0, // RTP oriented extension words (big endian)
-        4,
+        3,
 
         // E2ee extension
-        0, // ID 1 (big endian)
-        1,
-        0, // Length 12 (big endian)
-        12,
+        1, // ID 1
+        12, // Length 12
         0xfa, // Key index
         0x3c, // Iv array
         0x3c,
@@ -453,8 +443,6 @@ describe('DataTrackPacket', () => {
         0x3c,
 
         0, // Padding
-        0,
-        0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -476,10 +464,8 @@ describe('DataTrackPacket', () => {
         2,
 
         // User timestamp extension
-        0, // ID 2 (big endian)
-        2,
-        0, // Length 7 (big endian)
-        7,
+        2, // ID 2
+        7, // Length 7
         0x44, // Timestamp (big endian)
         0x11,
         0x22,
@@ -488,6 +474,9 @@ describe('DataTrackPacket', () => {
         0x11,
         0x88,
         0x11,
+
+        0, // Padding
+        0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -508,18 +497,18 @@ describe('DataTrackPacket', () => {
         2,
 
         // Unknown / potential future extension
-        0, // ID 8 (big endian)
-        8,
-        0, // Length 12 (big endian)
-        6,
+        8, // ID 8
+        6, // Length 6
         0x1, // Payload
         0x2,
         0x3,
         0x4,
         0x5,
         0x6,
+        0x0,
 
         0x0, // Padding
+        0x0,
         0x0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
