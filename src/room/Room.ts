@@ -222,8 +222,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private outgoingDataTrackManager: OutgoingDataTrackManager;
 
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
-
   private rpcClientManager: RpcClientManager;
 
   private rpcServerManager: RpcServerManager;
@@ -333,8 +331,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options,
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
-      this.getRemoteParticipantClientProtocol.bind(this),
-      this.waitForRpcDataStream,
       this.rpcClientManager,
       this.rpcServerManager,
     );

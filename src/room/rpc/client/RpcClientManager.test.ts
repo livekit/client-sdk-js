@@ -6,8 +6,8 @@ import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import { sleep } from '../../utils';
 import { RpcError } from '../utils';
-import type { RpcClientManagerCallbacks } from './events';
 import RpcClientManager from './RpcClientManager';
+import type { RpcClientManagerCallbacks } from './events';
 
 describe('RpcClientManager', () => {
   let rpcClientManager: RpcClientManager;

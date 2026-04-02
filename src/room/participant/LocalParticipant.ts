@@ -174,8 +174,6 @@ export default class LocalParticipant extends Participant {
     options: InternalRoomOptions,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
     roomOutgoingDataTrackManager: OutgoingDataTrackManager,
-    getRemoteParticipantClientProtocol: (identity: Participant["identity"]) => number,
-    waitForRpcDataStream: (streamId: string) => Promise<string>,
     rpcClientManager: RpcClientManager,
     rpcServerManager: RpcServerManager,
   ) {
@@ -197,8 +195,6 @@ export default class LocalParticipant extends Participant {
     this.pendingSignalRequests = new Map();
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
-    this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
-    this.waitForRpcDataStream = waitForRpcDataStream;
     this.rpcClientManager = rpcClientManager;
     this.rpcServerManager = rpcServerManager;
   }

@@ -6,8 +6,8 @@ import type {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
-import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
+import type RemoteDataTrack from '../data-track/RemoteDataTrack';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
