@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.18.1
+
+### Patch Changes
+
+- Adds data tracks support - [#1820](https://github.com/livekit/client-sdk-js/pull/1820) ([@1egoman](https://github.com/1egoman))
+
+- Send publisher offer with join request to accelerate connection - [#1846](https://github.com/livekit/client-sdk-js/pull/1846) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Enable E2EE key-size configuration via ExternalE2EEKeyProvider options - [#1841](https://github.com/livekit/client-sdk-js/pull/1841) ([@MariusBernhardt](https://github.com/MariusBernhardt))
+
 ## 2.18.0
 
 ### Minor Changes
