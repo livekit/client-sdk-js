@@ -142,7 +142,6 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
           }),
         },
       }),
-      kind: DataPacket_Kind.RELIABLE,
     });
   }
 
@@ -166,7 +165,6 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
           }),
         },
       }),
-      kind: DataPacket_Kind.RELIABLE,
     });
   }
 
