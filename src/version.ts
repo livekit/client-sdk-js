@@ -5,8 +5,8 @@ export const protocolVersion = 16;
 
 /** Initial client protocol. */
 export const CLIENT_PROTOCOL_DEFAULT = 0;
-/** Replaces RPC v1 protocol with a data streams based one to support unlimited request / response
- * payload length. */
+/** Replaces RPC v1 protocol with a v2 data streams based one to support unlimited request /
+ * response payload length. */
 export const CLIENT_PROTOCOL_DATA_STREAM_RPC = 1;
 
 /** The client protocol version indicates what level of support that the client has for
