@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi, assert } from 'vitest';
+import { RpcRequest } from '@livekit/protocol';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../../version';
@@ -36,12 +37,13 @@ describe('RpcServerManager', () => {
     const responseTimeoutMs = 10_000;
     await rpcServerManager.handleIncomingRpcRequest(
       'caller-identity',
-      requestId,
-      'test-method',
-      'request payload',
-      responseTimeoutMs,
-      1,
-      () => true,
+      new RpcRequest({
+        id: requestId,
+        method: 'test-method',
+        payload: 'request payload',
+        responseTimeoutMs,
+        version: 1,
+      }),
     );
 
     // The first event is an acknowledgement of the request
@@ -72,12 +74,13 @@ describe('RpcServerManager', () => {
 
     await rpcServerManager.handleIncomingRpcRequest(
       'remote-identity',
-      'test-request-id',
-      methodName,
-      'test payload',
-      5000,
-      1,
-      () => true,
+      new RpcRequest({
+        id: 'test-request-id',
+        method: methodName,
+        payload: 'test payload',
+        responseTimeoutMs: 5000,
+        version: 1,
+      }),
     );
 
     expect(handler).toHaveBeenCalledWith({
@@ -113,12 +116,13 @@ describe('RpcServerManager', () => {
 
     await rpcServerManager.handleIncomingRpcRequest(
       'remote-identity',
-      'test-error-request-id',
-      methodName,
-      'test payload',
-      5000,
-      1,
-      () => true,
+      new RpcRequest({
+        id: 'test-error-request-id',
+        method: methodName,
+        payload: 'test payload',
+        responseTimeoutMs: 5000,
+        version: 1,
+      }),
     );
 
     // Ensure the first event was for the ack
@@ -151,12 +155,13 @@ describe('RpcServerManager', () => {
 
     await rpcServerManager.handleIncomingRpcRequest(
       'remote-identity',
-      'test-rpc-error-request-id',
-      methodName,
-      'test payload',
-      5000,
-      1,
-      () => true,
+      new RpcRequest({
+        id: 'test-rpc-error-request-id',
+        method: methodName,
+        payload: 'test payload',
+        responseTimeoutMs: 5000,
+        version: 1,
+      }),
     );
 
     // Ensure the first event was for the ack
