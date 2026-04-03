@@ -7,8 +7,9 @@ export { default as RpcServerManager } from './server/RpcServerManager';
 export type { RpcServerManagerCallbacks } from './server/events';
 export {
   type PerformRpcParams,
-  RPC_DATA_STREAM_TOPIC,
-  RPC_RESPONSE_ID_ATTR,
+  RPC_REQUEST_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
+  RPC_REQUEST_ID_ATTR,
   RpcError,
   type RpcInvocationData,
   byteLength,

@@ -6,7 +6,7 @@ import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import { sleep } from '../../utils';
 import {
-  RPC_DATA_STREAM_TOPIC,
+  RPC_REQUEST_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_VERSION_ATTR,
@@ -180,7 +180,7 @@ describe('RpcClientManager', () => {
       // Verify the data stream was used with correct attributes
       expect(mockOutgoingDataStreamManager.streamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          topic: RPC_DATA_STREAM_TOPIC,
+          topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
           attributes: expect.objectContaining({
             [RPC_REQUEST_ID_ATTR]: requestId,
@@ -220,7 +220,7 @@ describe('RpcClientManager', () => {
       // Verify the data stream was used with correct attributes
       expect(mockOutgoingDataStreamManager.streamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          topic: RPC_DATA_STREAM_TOPIC,
+          topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
           attributes: expect.objectContaining({
             [RPC_REQUEST_ID_ATTR]: requestId,

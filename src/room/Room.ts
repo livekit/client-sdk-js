@@ -80,8 +80,8 @@ import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import {
-  RPC_DATA_STREAM_TOPIC,
-  RPC_RESPONSE_ID_ATTR,
+  RPC_REQUEST_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RpcClientManager,
   RpcError,
   type RpcInvocationData,
@@ -2414,16 +2414,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private registerRpcDataStreamHandler() {
     this.incomingDataStreamManager.registerTextStreamHandler(
-      RPC_DATA_STREAM_TOPIC,
+      RPC_REQUEST_DATA_STREAM_TOPIC,
       async (reader, { identity }) => {
         const attributes = reader.info.attributes ?? {};
-        const responseId = attributes[RPC_RESPONSE_ID_ATTR];
-
-        if (responseId) {
-          await this.rpcClientManager.handleIncomingDataStream(reader, responseId);
-        } else {
-          await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
-        }
+        await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
+      },
+    );
+    this.incomingDataStreamManager.registerTextStreamHandler(
+      RPC_RESPONSE_DATA_STREAM_TOPIC,
+      async (reader) => {
+        const attributes = reader.info.attributes ?? {};
+        await this.rpcClientManager.handleIncomingDataStream(reader, attributes);
       },
     );
   }
