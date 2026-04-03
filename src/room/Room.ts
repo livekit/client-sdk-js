@@ -1975,15 +1975,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
-      this.rpcServerManager.handleIncomingRpcRequest(
-        packet.participantIdentity,
-        rpc.id,
-        rpc.method,
-        rpc.payload,
-        rpc.responseTimeoutMs,
-        rpc.version,
-        () => this.remoteParticipants.has(packet.participantIdentity),
-      );
+      this.rpcServerManager.handleIncomingRpcRequest(packet.participantIdentity, rpc);
     } else if (packet.value.case === 'rpcResponse') {
       const rpcResponse = packet.value.value;
       switch (rpcResponse.value.case) {
