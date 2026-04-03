@@ -7,7 +7,7 @@ import { type TextStreamReader } from '../../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../../participant/Participant';
 import {
-  MAX_LEGACY_PAYLOAD_BYTES,
+  MAX_V1_PAYLOAD_BYTES,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
@@ -269,8 +269,8 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
 
     // Legacy client: enforce size limit and send uncompressed payload inline
     const responseBytes = byteLength(payload);
-    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
-      this.log.warn(`RPC Response payload too large for request ${requestId}`);
+    if (responseBytes > MAX_V1_PAYLOAD_BYTES) {
+      this.log.warn(`RPC Response payload too large for request ${requestId}. To send larger responses, consider updating the sending client.`);
       this.publishRpcResponsePacket(
         destinationIdentity,
         requestId,

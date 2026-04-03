@@ -8,7 +8,7 @@ import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingD
 import type Participant from '../../participant/Participant';
 import { Future, compareVersions } from '../../utils';
 import {
-  MAX_LEGACY_PAYLOAD_BYTES,
+  MAX_V1_PAYLOAD_BYTES,
   type PerformRpcParams,
   RPC_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
@@ -70,7 +70,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     const payloadBytes = byteLength(payload);
 
     // Only enforce the legacy size limit when compression is not available
-    if (payloadBytes > MAX_LEGACY_PAYLOAD_BYTES && remoteClientProtocol < 1) {
+    if (payloadBytes > MAX_V1_PAYLOAD_BYTES && remoteClientProtocol < 1) {
       throw RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE');
     }
 

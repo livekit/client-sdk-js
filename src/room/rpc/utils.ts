@@ -145,7 +145,7 @@ export class RpcError extends Error {
  * If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
-export const MAX_LEGACY_PAYLOAD_BYTES = 15360; // 15 KB
+export const MAX_V1_PAYLOAD_BYTES = 15360; // 15 KB
 
 /**
  * Attribute key set on a data stream to associate it with an RPC request.
