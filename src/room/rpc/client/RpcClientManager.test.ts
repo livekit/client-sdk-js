@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../../version';
@@ -26,7 +26,7 @@ describe('RpcClientManager', () => {
     );
   });
 
-  it.skip('should send a rpc message to a participant (legacy path)', async () => {
+  it('should send a rpc message to a participant (legacy path)', async () => {
     const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
       'sendDataPacket',
     ]);
@@ -38,7 +38,7 @@ describe('RpcClientManager', () => {
     });
 
     const { packet } = await managerEvents.waitFor('sendDataPacket');
-    expect(packet.value.case).toStrictEqual('rpcRequest');
+    assert(packet.value.case === 'rpcRequest');
     expect(packet.value.value.id).toStrictEqual(requestId);
     expect(packet.value.value.method).toStrictEqual('test-method');
     expect(packet.value.value.payload).toStrictEqual('request-payload');
@@ -82,10 +82,6 @@ describe('RpcClientManager', () => {
   });
 
   it('should handle RPC request timeout', async () => {
-    const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
-      'sendDataPacket',
-    ]);
-
     vi.useFakeTimers();
 
     try {
@@ -93,7 +89,7 @@ describe('RpcClientManager', () => {
       const payload = 'timeoutPayload';
       const timeout = 50;
 
-      const [requestId, completionPromise] = await rpcClientManager.performRpc({
+      const [, completionPromise] = await rpcClientManager.performRpc({
         destinationIdentity: 'remote-identity',
         method,
         payload,
@@ -113,10 +109,6 @@ describe('RpcClientManager', () => {
   });
 
   it('should handle RPC error response', async () => {
-    const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
-      'sendDataPacket',
-    ]);
-
     const method = 'errorMethod';
     const payload = 'errorPayload';
     const errorCode = 101;
@@ -138,14 +130,10 @@ describe('RpcClientManager', () => {
   });
 
   it('should handle participant disconnection during RPC request', async () => {
-    const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
-      'sendDataPacket',
-    ]);
-
     const method = 'disconnectMethod';
     const payload = 'disconnectPayload';
 
-    const [requestId, completionPromise] = await rpcClientManager.performRpc({
+    const [, completionPromise] = await rpcClientManager.performRpc({
       destinationIdentity: 'remote-identity',
       method,
       payload,
