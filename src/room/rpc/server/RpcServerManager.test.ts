@@ -6,11 +6,11 @@ import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import {
-  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RPC_REQUEST_VERSION_ATTR,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RpcError,
 } from '../utils';
 import RpcServerManager from './RpcServerManager';
