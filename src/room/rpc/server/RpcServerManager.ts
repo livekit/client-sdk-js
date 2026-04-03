@@ -6,7 +6,7 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { type StructuredLogger } from '../../../logger';
 import { CLIENT_PROTOCOL_GZIP_RPC } from '../../../version';
-import type { ByteStreamReader } from '../../data-stream/incoming/StreamReader';
+import { type TextStreamReader } from '../../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../../participant/Participant';
 import {
@@ -179,10 +179,9 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
 
     if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
       // Send response as a data stream
-      const writer = await this.outgoingDataStreamManager.streamBytes({
+      const writer = await this.outgoingDataStreamManager.streamText({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
-        mimeType: 'application/octet-stream',
         attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
       });
       await writer.write(payload);
@@ -210,7 +209,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
    * Handle an incoming data stream containing an RPC request payload.
    */
   async handleIncomingDataStream(
-    reader: ByteStreamReader,
+    reader: TextStreamReader,
     callerIdentity: Participant['identity'],
     dataStreamAttrs: Record<string, string>,
   ) {
