@@ -227,7 +227,10 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
         null,
         RpcError.builtIn('APPLICATION_ERROR'),
       );
+      return;
     }
+
+    this.publishRpcAck(callerIdentity, requestId);
 
     let payload: string;
     try {
