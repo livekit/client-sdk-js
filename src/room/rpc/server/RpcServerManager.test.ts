@@ -198,10 +198,7 @@ describe('RpcServerManager', () => {
     };
 
     beforeEach(() => {
-      outgoingDataStreamManager = new OutgoingDataStreamManager(
-        {} as unknown as RTCEngine,
-        log,
-      );
+      outgoingDataStreamManager = new OutgoingDataStreamManager({} as unknown as RTCEngine, log);
 
       mockStreamTextWriter = {
         write: vi.fn().mockResolvedValue(undefined),
