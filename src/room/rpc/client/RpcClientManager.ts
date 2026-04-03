@@ -2,7 +2,7 @@ import { DataPacket, DataPacket_Kind, RpcRequest } from '@livekit/protocol';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { type StructuredLogger } from '../../../logger';
-import { CLIENT_PROTOCOL_GZIP_RPC } from '../../../version';
+import { CLIENT_PROTOCOL_DATA_STREAM_RPC } from '../../../version';
 import { type TextStreamReader } from '../../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../../participant/Participant';
@@ -138,7 +138,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     responseTimeout: number,
     remoteClientProtocol: number,
   ) {
-    if (remoteClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
+    if (remoteClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
       // Send payload as a data stream
       const writer = await this.outgoingDataStreamManager.streamText({
         topic: RPC_DATA_STREAM_TOPIC,

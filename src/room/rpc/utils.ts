@@ -140,7 +140,7 @@ export class RpcError extends Error {
 
 /*
  * Maximum payload size for RPC requests and responses for clients with a clientProtocol of less
- * than CLIENT_PROTOCOL_GZIP_RPC.
+ * than CLIENT_PROTOCOL_DATA_STREAM_RPC.
  *
  * If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
