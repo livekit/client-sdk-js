@@ -60,6 +60,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
   /**
    * Handle an incoming RPCRequest message containing a payload.
    * This handles "version 1" of rpc requests.
+   * @internal
    */
   async handleIncomingRpcRequest(callerIdentity: string, rpcRequest: RpcRequest) {
     this.publishRpcAck(callerIdentity, rpcRequest.id);
@@ -116,6 +117,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
   /**
    * Handle an incoming data stream containing a RPC request payload.
    * This handles "version 2" of rpc requests.
+   * @internal
    */
   async handleIncomingDataStream(
     reader: TextStreamReader,
