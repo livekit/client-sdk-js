@@ -177,6 +177,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
 
   /**
    * Handle an incoming data stream containing an RPC response payload.
+   * @internal
    */
   async handleIncomingDataStream(reader: TextStreamReader, responseId: string) {
     let payload: string;
@@ -198,7 +199,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       handler.completionFuture.resolve?.(payload);
       this.pendingResponses.delete(requestId);
     } else {
-      console.error('Response received for unexpected RPC request', requestId);
+      this.log.error('Response received for unexpected RPC request', requestId);
     }
   }
 
@@ -209,7 +210,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       handler.completionFuture.reject?.(error);
       this.pendingResponses.delete(requestId);
     } else {
-      console.error('Response received for unexpected RPC request', requestId);
+      this.log.error('Response received for unexpected RPC request', requestId);
     }
   }
 
