@@ -8,11 +8,11 @@ import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingD
 import type Participant from '../../participant/Participant';
 import {
   MAX_V1_PAYLOAD_BYTES,
-  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RPC_REQUEST_VERSION_ATTR,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RpcError,
   type RpcInvocationData,
   byteLength,
