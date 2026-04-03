@@ -10,7 +10,7 @@ import { Future, compareVersions } from '../../utils';
 import {
   MAX_V1_PAYLOAD_BYTES,
   type PerformRpcParams,
-  RPC_DATA_STREAM_TOPIC,
+  RPC_REQUEST_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
@@ -141,7 +141,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     if (remoteClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
       // Send payload as a data stream - a "version 2" rpc request.
       const writer = await this.outgoingDataStreamManager.streamText({
-        topic: RPC_DATA_STREAM_TOPIC,
+        topic: RPC_REQUEST_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
         attributes: {
           [RPC_REQUEST_ID_ATTR]: requestId,
@@ -179,17 +179,26 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
    * Handle an incoming data stream containing an RPC response payload.
    * @internal
    */
-  async handleIncomingDataStream(reader: TextStreamReader, responseId: string) {
+  async handleIncomingDataStream(reader: TextStreamReader, attributes: Record<string, string>) {
+    const associatedRequestId = attributes[RPC_REQUEST_ID_ATTR];
+    if (!associatedRequestId) {
+      this.log.warn(
+        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} not set.`,
+      );
+      this.handleIncomingRpcResponseFailure(associatedRequestId, RpcError.builtIn('APPLICATION_ERROR'));
+      return;
+    }
+
     let payload: string;
     try {
       payload = await reader.readAll();
     } catch (e) {
       this.log.warn(`Error reading RPC response payload: ${e}`);
-      this.handleIncomingRpcResponseFailure(responseId, RpcError.builtIn('APPLICATION_ERROR'));
+      this.handleIncomingRpcResponseFailure(associatedRequestId, RpcError.builtIn('APPLICATION_ERROR'));
       return;
     }
 
-    this.handleIncomingRpcResponseSuccess(responseId, payload);
+    this.handleIncomingRpcResponseSuccess(associatedRequestId, payload);
   }
 
   /** @internal */

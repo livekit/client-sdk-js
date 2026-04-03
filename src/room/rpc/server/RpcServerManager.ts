@@ -8,12 +8,11 @@ import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingD
 import type Participant from '../../participant/Participant';
 import {
   MAX_V1_PAYLOAD_BYTES,
-  RPC_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RPC_REQUEST_VERSION_ATTR,
-  RPC_RESPONSE_ID_ATTR,
   RpcError,
   type RpcInvocationData,
   byteLength,
@@ -258,9 +257,9 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     if (callerClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
       // Send response as a data stream
       const writer = await this.outgoingDataStreamManager.streamText({
-        topic: RPC_DATA_STREAM_TOPIC,
+        topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
-        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
+        attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
       });
       await writer.write(payload);
       await writer.close();
