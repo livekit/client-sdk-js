@@ -14,6 +14,7 @@ import {
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
+  RPC_REQUEST_VERSION_ATTR,
   RpcError,
   byteLength,
 } from '../utils';
@@ -146,6 +147,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
           [RPC_REQUEST_ID_ATTR]: requestId,
           [RPC_REQUEST_METHOD_ATTR]: method,
           [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
+          [RPC_REQUEST_VERSION_ATTR]: "2", // Latest rpc request version
         },
       });
 
