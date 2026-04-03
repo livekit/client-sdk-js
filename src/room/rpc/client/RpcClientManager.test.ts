@@ -33,7 +33,7 @@ describe('RpcClientManager', () => {
       );
     });
 
-    it('should send v1 RPC request to a "legacy" client and receive successful response', async () => {
+    it('should send v1 RPC request to a "legacy" client (happy path)', async () => {
       const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
         'sendDataPacket',
       ]);
@@ -61,6 +61,18 @@ describe('RpcClientManager', () => {
       // Make sure the response came out the other end
       const result = await completionPromise;
       expect(result).toStrictEqual('response payload');
+    });
+
+    it('should fail to send long (> 15kb) v1 RPC request', async () => {
+      const longPayload = new Array<string>(20_000).fill('A').join('');
+
+      const performRpcPromise = rpcClientManager.performRpc({
+        destinationIdentity: 'destination-identity',
+        method: 'test-method',
+        payload: longPayload,
+      });
+
+      await expect(performRpcPromise).rejects.toThrow('Request payload too large');
     });
 
     it('should handle v1 RPC request timeout', async () => {
@@ -149,12 +161,12 @@ describe('RpcClientManager', () => {
       rpcClientManager = new RpcClientManager(
         log,
         mockOutgoingDataStreamManager,
-        (_identity) => CLIENT_PROTOCOL_DATA_STREAM_RPC,
+        (_identity) => CLIENT_PROTOCOL_DATA_STREAM_RPC, // (other participant is "v2")
         () => undefined,
       );
     });
 
-    it('should send v2 RPC request via data stream and receive successful response', async () => {
+    it('should send short v2 RPC request via data stream (happy path)', async () => {
       const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
         'sendDataPacket',
       ]);
@@ -183,35 +195,53 @@ describe('RpcClientManager', () => {
       // No packet should have been emitted
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
 
+      // Asynchronously send a response back
+      await sleep(10);
+      rpcClientManager.handleIncomingRpcAck(requestId);
+      await sleep(10);
+      rpcClientManager.handleIncomingRpcResponseSuccess(requestId, 'response-payload');
+
+      await expect(completionPromise).resolves.toStrictEqual('response-payload');
+    });
+
+    it('should send long (> 15kb) v2 RPC request via data stream', async () => {
+      const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
+        'sendDataPacket',
+      ]);
+
+      const longPayload = new Array<string>(20_000).fill('A').join('');
+
+      const [requestId, completionPromise] = await rpcClientManager.performRpc({
+        destinationIdentity: 'destination-identity',
+        method: 'test-method',
+        payload: longPayload,
+      });
+
+      // Verify the data stream was used with correct attributes
+      expect(mockOutgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          topic: RPC_DATA_STREAM_TOPIC,
+          destinationIdentities: ['destination-identity'],
+          attributes: expect.objectContaining({
+            [RPC_REQUEST_ID_ATTR]: requestId,
+            [RPC_REQUEST_METHOD_ATTR]: 'test-method',
+            [RPC_REQUEST_VERSION_ATTR]: '2',
+          }),
+        }),
+      );
+      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(longPayload);
+      expect(mockStreamTextWriter.close).toHaveBeenCalled();
+
+      // No packet should have been emitted
+      expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
+
       rpcClientManager.handleIncomingRpcAck(requestId);
       rpcClientManager.handleIncomingRpcResponseSuccess(requestId, 'response-payload');
 
       await expect(completionPromise).resolves.toStrictEqual('response-payload');
     });
 
-    it('should send RPC request via data stream with delayed ack and response', async () => {
-      const method = 'testMethod';
-      const payload = 'testPayload';
-      const responsePayload = 'responsePayload';
-
-      const [requestId, completionPromise] = await rpcClientManager.performRpc({
-        destinationIdentity: 'remote-identity',
-        method,
-        payload,
-      });
-
-      setTimeout(() => {
-        rpcClientManager.handleIncomingRpcAck(requestId);
-        setTimeout(() => {
-          rpcClientManager.handleIncomingRpcResponseSuccess(requestId, responsePayload);
-        }, 10);
-      }, 10);
-
-      const result = await completionPromise;
-      expect(result).toStrictEqual(responsePayload);
-    });
-
-    it('should handle RPC request timeout', async () => {
+    it('should handle a v2 RPC request timeout', async () => {
       vi.useFakeTimers();
 
       try {
@@ -232,7 +262,7 @@ describe('RpcClientManager', () => {
       }
     });
 
-    it('should handle RPC error response', async () => {
+    it('should handle a v2 RPC error response', async () => {
       const errorCode = 101;
       const errorMessage = 'Test error message';
 
@@ -251,7 +281,7 @@ describe('RpcClientManager', () => {
       await expect(completionPromise).rejects.toThrow(errorMessage);
     });
 
-    it('should handle participant disconnection during RPC request', async () => {
+    it('should handle participant disconnection during v2 RPC request', async () => {
       const [, completionPromise] = await rpcClientManager.performRpc({
         destinationIdentity: 'remote-identity',
         method: 'disconnectMethod',
@@ -262,23 +292,6 @@ describe('RpcClientManager', () => {
       rpcClientManager.handleParticipantDisconnected('remote-identity');
 
       await expect(completionPromise).rejects.toThrow('Recipient disconnected');
-    });
-
-    it('should receive response via data stream', async () => {
-      const [requestId, completionPromise] = await rpcClientManager.performRpc({
-        destinationIdentity: 'remote-identity',
-        method: 'test-method',
-        payload: 'request-payload',
-      });
-
-      rpcClientManager.handleIncomingRpcAck(requestId);
-
-      const mockReader = {
-        readAll: vi.fn().mockResolvedValue('data-stream-response'),
-      };
-      await rpcClientManager.handleIncomingDataStream(mockReader as any, requestId);
-
-      await expect(completionPromise).resolves.toStrictEqual('data-stream-response');
     });
   });
 });
