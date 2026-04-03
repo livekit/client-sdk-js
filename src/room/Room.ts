@@ -2406,7 +2406,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private registerRpcDataStreamHandler() {
-    this.incomingDataStreamManager.registerByteStreamHandler(
+    this.incomingDataStreamManager.registerTextStreamHandler(
       RPC_DATA_STREAM_TOPIC,
       async (reader, { identity }) => {
         const attributes = reader.info.attributes ?? {};
