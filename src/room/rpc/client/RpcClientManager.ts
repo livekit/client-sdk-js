@@ -62,14 +62,14 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     method,
     payload,
     responseTimeout: responseTimeoutMs = 15000,
-  }: PerformRpcParams): Promise<[string /* id */, Promise<string>]> {
+  }: PerformRpcParams): Promise<[id: string, completionPromise: Promise<string>]> {
     const maxRoundTripLatencyMs = 7000;
     const minEffectiveTimeoutMs = maxRoundTripLatencyMs + 1000;
 
     const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
     const payloadBytes = byteLength(payload);
 
-    // Only enforce the legacy size limit when compression is not available
+    // Only enforce the legacy size limit when on rpc v1
     if (payloadBytes > MAX_V1_PAYLOAD_BYTES && remoteClientProtocol < 1) {
       throw RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE');
     }
