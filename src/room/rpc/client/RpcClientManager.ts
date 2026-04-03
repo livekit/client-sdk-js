@@ -182,10 +182,11 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
   async handleIncomingDataStream(reader: TextStreamReader, attributes: Record<string, string>) {
     const associatedRequestId = attributes[RPC_REQUEST_ID_ATTR];
     if (!associatedRequestId) {
-      this.log.warn(
-        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} not set.`,
+      this.log.warn(`RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} not set.`);
+      this.handleIncomingRpcResponseFailure(
+        associatedRequestId,
+        RpcError.builtIn('APPLICATION_ERROR'),
       );
-      this.handleIncomingRpcResponseFailure(associatedRequestId, RpcError.builtIn('APPLICATION_ERROR'));
       return;
     }
 
@@ -194,7 +195,10 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       payload = await reader.readAll();
     } catch (e) {
       this.log.warn(`Error reading RPC response payload: ${e}`);
-      this.handleIncomingRpcResponseFailure(associatedRequestId, RpcError.builtIn('APPLICATION_ERROR'));
+      this.handleIncomingRpcResponseFailure(
+        associatedRequestId,
+        RpcError.builtIn('APPLICATION_ERROR'),
+      );
       return;
     }
 
