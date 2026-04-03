@@ -1,4 +1,4 @@
-import { DataPacket, DataPacket_Kind, RpcAck, RpcResponse } from '@livekit/protocol';
+import { DataPacket, DataPacket_Kind, RpcAck, RpcRequest, RpcResponse } from '@livekit/protocol';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { type StructuredLogger } from '../../../logger';
@@ -57,50 +57,38 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     this.rpcHandlers.delete(method);
   }
 
-  async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-    isCallerStillConnected: () => boolean,
-  ) {
-    this.publishRpcAck(callerIdentity, requestId);
+  async handleIncomingRpcRequest(callerIdentity: string, rpcRequest: RpcRequest) {
+    this.publishRpcAck(callerIdentity, rpcRequest.id);
 
-    if (version !== 1) {
-      if (isCallerStillConnected()) {
-        this.publishRpcResponsePacket(
-          callerIdentity,
-          requestId,
-          null,
-          RpcError.builtIn('UNSUPPORTED_VERSION'),
-        );
-      }
+    if (rpcRequest.version !== 1) {
+      this.publishRpcResponsePacket(
+        callerIdentity,
+        rpcRequest.id,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
       return;
     }
 
-    const handler = this.rpcHandlers.get(method);
+    const handler = this.rpcHandlers.get(rpcRequest.method);
 
     if (!handler) {
-      if (isCallerStillConnected()) {
-        this.publishRpcResponsePacket(
-          callerIdentity,
-          requestId,
-          null,
-          RpcError.builtIn('UNSUPPORTED_METHOD'),
-        );
-      }
+      this.publishRpcResponsePacket(
+        callerIdentity,
+        rpcRequest.id,
+        null,
+        RpcError.builtIn('UNSUPPORTED_METHOD'),
+      );
       return;
     }
 
     let response: string | null = null;
     try {
       response = await handler({
-        requestId,
+        requestId: rpcRequest.id,
         callerIdentity,
-        payload,
-        responseTimeout,
+        payload: rpcRequest.payload,
+        responseTimeout: rpcRequest.responseTimeoutMs,
       });
     } catch (error) {
       let responseError;
@@ -108,98 +96,17 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
         responseError = error;
       } else {
         this.log.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
+          `Uncaught error returned by RPC handler for ${rpcRequest.method}. Returning APPLICATION_ERROR instead.`,
           error,
         );
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
 
-      if (isCallerStillConnected()) {
-        this.publishRpcResponsePacket(callerIdentity, requestId, null, responseError);
-      }
+      this.publishRpcResponsePacket(callerIdentity, rpcRequest.id, null, responseError);
       return;
     }
 
-    if (isCallerStillConnected()) {
-      await this.publishRpcResponse(callerIdentity, requestId, response ?? '');
-    }
-  }
-
-  private publishRpcAck(destinationIdentity: string, requestId: string) {
-    this.emit('sendDataPacket', {
-      packet: new DataPacket({
-        destinationIdentities: [destinationIdentity],
-        kind: DataPacket_Kind.RELIABLE,
-        value: {
-          case: 'rpcAck',
-          value: new RpcAck({
-            requestId,
-          }),
-        },
-      }),
-    });
-  }
-
-  private publishRpcResponsePacket(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    this.emit('sendDataPacket', {
-      packet: new DataPacket({
-        destinationIdentities: [destinationIdentity],
-        kind: DataPacket_Kind.RELIABLE,
-        value: {
-          case: 'rpcResponse',
-          value: new RpcResponse({
-            requestId,
-            value: error
-              ? { case: 'error', value: error.toProto() }
-              : { case: 'payload', value: payload ?? '' },
-          }),
-        },
-      }),
-    });
-  }
-
-  /**
-   * Send a successful RPC response payload, choosing the transport based on
-   * the caller's client protocol version.
-   */
-  private async publishRpcResponse(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string,
-  ) {
-    const callerClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
-
-    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
-      // Send response as a data stream
-      const writer = await this.outgoingDataStreamManager.streamText({
-        topic: RPC_DATA_STREAM_TOPIC,
-        destinationIdentities: [destinationIdentity],
-        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
-      });
-      await writer.write(payload);
-      await writer.close();
-      return;
-    }
-
-    // Legacy client: enforce size limit and send uncompressed payload inline
-    const responseBytes = byteLength(payload);
-    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
-      this.log.warn(`RPC Response payload too large for request ${requestId}`);
-      this.publishRpcResponsePacket(
-        destinationIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE'),
-      );
-      return;
-    }
-
-    this.publishRpcResponsePacket(destinationIdentity, requestId, payload, null);
+    await this.publishRpcResponse(callerIdentity, rpcRequest.id, response ?? '');
   }
 
   /**
@@ -280,5 +187,82 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     }
 
     await this.publishRpcResponse(callerIdentity, requestId, response ?? '');
+  }
+
+  private publishRpcAck(destinationIdentity: string, requestId: string) {
+    this.emit('sendDataPacket', {
+      packet: new DataPacket({
+        destinationIdentities: [destinationIdentity],
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'rpcAck',
+          value: new RpcAck({
+            requestId,
+          }),
+        },
+      }),
+    });
+  }
+
+  private publishRpcResponsePacket(
+    destinationIdentity: string,
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
+    this.emit('sendDataPacket', {
+      packet: new DataPacket({
+        destinationIdentities: [destinationIdentity],
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'rpcResponse',
+          value: new RpcResponse({
+            requestId,
+            value: error
+              ? { case: 'error', value: error.toProto() }
+              : { case: 'payload', value: payload ?? '' },
+          }),
+        },
+      }),
+    });
+  }
+
+  /**
+   * Send a successful RPC response payload, choosing the transport based on
+   * the caller's client protocol version.
+   */
+  private async publishRpcResponse(
+    destinationIdentity: string,
+    requestId: string,
+    payload: string,
+  ) {
+    const callerClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
+
+    if (callerClientProtocol >= CLIENT_PROTOCOL_GZIP_RPC) {
+      // Send response as a data stream
+      const writer = await this.outgoingDataStreamManager.streamText({
+        topic: RPC_DATA_STREAM_TOPIC,
+        destinationIdentities: [destinationIdentity],
+        attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
+      });
+      await writer.write(payload);
+      await writer.close();
+      return;
+    }
+
+    // Legacy client: enforce size limit and send uncompressed payload inline
+    const responseBytes = byteLength(payload);
+    if (responseBytes > MAX_LEGACY_PAYLOAD_BYTES) {
+      this.log.warn(`RPC Response payload too large for request ${requestId}`);
+      this.publishRpcResponsePacket(
+        destinationIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE'),
+      );
+      return;
+    }
+
+    this.publishRpcResponsePacket(destinationIdentity, requestId, payload, null);
   }
 }
