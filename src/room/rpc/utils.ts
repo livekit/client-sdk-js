@@ -148,9 +148,12 @@ export class RpcError extends Error {
 export const MAX_V1_PAYLOAD_BYTES = 15360; // 15 KB
 
 /**
- * Attribute key set on a data stream to associate it with an RPC request.
+ * Topic used for v2 RPC request data streams.
  * @internal
  */
+export const RPC_REQUEST_DATA_STREAM_TOPIC = 'lk.rpc_request';
+
+/** @internal */
 export const RPC_REQUEST_ID_ATTR = 'lk.rpc_request_id';
 
 /** @internal */
@@ -163,16 +166,10 @@ export const RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR = 'lk.rpc_request_response_tim
 export const RPC_REQUEST_VERSION_ATTR = 'lk.rpc_request_version';
 
 /**
- * Attribute key set on a data stream to associate it with an RPC response.
+ * Topic used for v2 RPC request data streams.
  * @internal
  */
-export const RPC_RESPONSE_ID_ATTR = 'lk.rpc_response_id';
-
-/**
- * Topic used for RPC payload data streams.
- * @internal
- */
-export const RPC_DATA_STREAM_TOPIC = 'lk.rpc_payload';
+export const RPC_RESPONSE_DATA_STREAM_TOPIC = 'lk.rpc_response';
 
 /**
  * @internal

@@ -6,12 +6,11 @@ import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import {
-  RPC_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RPC_REQUEST_VERSION_ATTR,
-  RPC_RESPONSE_ID_ATTR,
   RpcError,
 } from '../utils';
 import RpcServerManager from './RpcServerManager';
@@ -253,9 +252,9 @@ describe('RpcServerManager', () => {
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
       expect(outgoingDataStreamManager.streamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          topic: RPC_DATA_STREAM_TOPIC,
+          topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
           destinationIdentities: ['caller-identity'],
-          attributes: { [RPC_RESPONSE_ID_ATTR]: requestId },
+          attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
         }),
       );
       expect(mockStreamTextWriter.write).toHaveBeenCalledWith('response payload');
