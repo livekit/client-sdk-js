@@ -12,6 +12,7 @@ import {
   RPC_REQUEST_ID_ATTR,
   RPC_REQUEST_METHOD_ATTR,
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
+  RPC_REQUEST_VERSION_ATTR,
   RPC_RESPONSE_ID_ATTR,
   RpcError,
   type RpcInvocationData,
@@ -57,6 +58,10 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     this.rpcHandlers.delete(method);
   }
 
+  /**
+   * Handle an incoming RPCRequest message containing a payload.
+   * This handles "version 1" of rpc requests.
+   */
   async handleIncomingRpcRequest(callerIdentity: string, rpcRequest: RpcRequest) {
     this.publishRpcAck(callerIdentity, rpcRequest.id);
 
@@ -110,7 +115,8 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
   }
 
   /**
-   * Handle an incoming data stream containing an RPC request payload.
+   * Handle an incoming data stream containing a RPC request payload.
+   * This handles "version 2" of rpc requests.
    */
   async handleIncomingDataStream(
     reader: TextStreamReader,
@@ -120,10 +126,11 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     const requestId = dataStreamAttrs[RPC_REQUEST_ID_ATTR];
     const method = dataStreamAttrs[RPC_REQUEST_METHOD_ATTR];
     const responseTimeout = parseInt(dataStreamAttrs[RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR], 10);
+    const version = parseInt(dataStreamAttrs[RPC_REQUEST_VERSION_ATTR], 10);
 
-    if (!requestId || !method || Number.isNaN(responseTimeout)) {
+    if (!requestId || !method || Number.isNaN(responseTimeout) || Number.isNaN(version)) {
       this.log.warn(
-        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} not set.`,
+        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} / ${RPC_REQUEST_VERSION_ATTR} not set.`,
       );
       this.publishRpcResponsePacket(
         callerIdentity,
@@ -135,6 +142,16 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     }
 
     this.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 2) {
+      this.publishRpcResponsePacket(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
 
     let payload: string;
     try {
