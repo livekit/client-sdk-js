@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: 2026 LiveKit, Inc.
-//
-// SPDX-License-Identifier: Apache-2.0
 import { DataPacket, DataPacket_Kind, RpcRequest } from '@livekit/protocol';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
