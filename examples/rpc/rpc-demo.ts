@@ -100,7 +100,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
         `[Greeter] ${data.callerIdentity} has arrived and said that its long info is "${data.payload}"`,
       );
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      return new Array<string>(10_000).fill('Y').join('');
+      return new Array<string>(20_000).fill('Y').join('');
     },
   );
 
@@ -161,7 +161,7 @@ const performSendVeryLongInfo = async (room: Room): Promise<void> => {
     const response = await room.localParticipant.performRpc({
       destinationIdentity: 'greeter',
       method: 'exchanging-long-info',
-      payload: new Array<string>(10_000).fill('X').join(''),
+      payload: new Array<string>(20_000).fill('X').join(''),
     });
     console.log(`[Caller] The greeter's long info is: "${response}"`);
   } catch (error) {
