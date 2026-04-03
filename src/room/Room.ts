@@ -311,7 +311,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       () => this.engine.latestJoinResponse?.serverInfo?.version,
     );
     this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
-      this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
     });
     this.rpcServerManager = new RpcServerManager(
       this.log,
@@ -319,7 +319,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.getRemoteParticipantClientProtocol,
     );
     this.rpcServerManager.on('sendDataPacket', ({ packet }) => {
-      this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
     });
 
     this.disconnectLock = new Mutex();
