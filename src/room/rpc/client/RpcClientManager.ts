@@ -139,7 +139,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     remoteClientProtocol: number,
   ) {
     if (remoteClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
-      // Send payload as a data stream
+      // Send payload as a data stream - a "version 2" rpc request.
       const writer = await this.outgoingDataStreamManager.streamText({
         topic: RPC_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
@@ -156,7 +156,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       return;
     }
 
-    // Legacy client: send uncompressed payload inline
+    // Fallback to sending a literal RpcRequest - a "version 1" rpc request.
     this.emit('sendDataPacket', {
       packet: new DataPacket({
         destinationIdentities: [destinationIdentity],
