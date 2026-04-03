@@ -270,7 +270,9 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     // Legacy client: enforce size limit and send uncompressed payload inline
     const responseBytes = byteLength(payload);
     if (responseBytes > MAX_V1_PAYLOAD_BYTES) {
-      this.log.warn(`RPC Response payload too large for request ${requestId}. To send larger responses, consider updating the sending client.`);
+      this.log.warn(
+        `RPC Response payload too large for request ${requestId}. To send larger responses, consider updating the sending client.`,
+      );
       this.publishRpcResponsePacket(
         destinationIdentity,
         requestId,
