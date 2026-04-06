@@ -26,6 +26,7 @@ import {
   RoomMovedResponse,
   RpcAck,
   RpcResponse,
+  ServerInfo,
   SessionDescription,
   SignalTarget,
   SpeakerInfo,
@@ -298,7 +299,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     abortSignal?: AbortSignal,
     /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
-  ): Promise<JoinResponse> {
+  ): Promise<{ joinResponse: JoinResponse; serverInfo: Partial<ServerInfo> }> {
     this._isNewlyCreated = false;
     this.url = url;
     this.token = token;
@@ -353,7 +354,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.registerOnLineListener();
       this.clientConfiguration = joinResponse.clientConfiguration;
       this.emit(EngineEvent.SignalConnected, joinResponse);
-      return joinResponse;
+
+      let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
+      if (!serverInfo) {
+        serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
+      }
+      this.log.debug(
+        `connected to Livekit Server ${Object.entries(serverInfo)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(', ')}`,
+        {
+          room: joinResponse.room?.name,
+          roomSid: joinResponse.room?.sid,
+          identity: joinResponse.participant?.identity,
+        },
+      );
+
+      return { joinResponse, serverInfo };
     } catch (e) {
       if (e instanceof ConnectionError) {
         if (e.reason === ConnectionErrorReason.ServerUnreachable) {
@@ -1212,13 +1229,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
-        joinResponse = await this.join(
-          regionUrl ?? this.url,
-          this.token,
-          this.signalOpts,
-          undefined,
-          !this.options.singlePeerConnection,
-        );
+        joinResponse = (
+          await this.join(
+            regionUrl ?? this.url,
+            this.token,
+            this.signalOpts,
+            undefined,
+            !this.options.singlePeerConnection,
+          )
+        ).joinResponse;
       } catch (e) {
         if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
           throw new UnexpectedConnectionState('could not reconnect, token might be expired');
