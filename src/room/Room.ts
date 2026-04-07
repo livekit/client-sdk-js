@@ -895,7 +895,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResponse = await engine.join(
+    const { joinResponse, serverInfo } = await engine.join(
       url,
       token,
       {
@@ -910,22 +910,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       !roomOptions.singlePeerConnection,
     );
 
-    let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
-    if (!serverInfo) {
-      serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
-    }
     this.serverInfo = serverInfo;
-
-    this.log.debug(
-      `connected to Livekit Server ${Object.entries(serverInfo)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ')}`,
-      {
-        room: joinResponse.room?.name,
-        roomSid: joinResponse.room?.sid,
-        identity: joinResponse.participant?.identity,
-      },
-    );
 
     if (!serverInfo.version) {
       throw new UnsupportedServer('unknown server version');
