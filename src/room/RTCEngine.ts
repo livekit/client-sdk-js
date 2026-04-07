@@ -85,6 +85,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  Future,
   isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
@@ -1461,6 +1462,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  private lossyBytesWaitBuffer = new Map<DataChannelKind, Array<Future<void, never>>>();
+
   /* @internal */
   async sendLossyBytes(
     bytes: Uint8Array,
@@ -1477,7 +1480,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // buffer status to not be low before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind);
+            if (this.isBufferStatusLow(kind)) {
+              const future = new Future<void, never>();
+              (window as any).lossyBytesWaitBuffer = this.lossyBytesWaitBuffer;
+              const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
+              entries.push(future);
+              this.lossyBytesWaitBuffer.set(kind, entries);
+              await future.promise;
+            }
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
@@ -1528,6 +1538,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+
+      // Now that there is space on the data channel buffer, attempt to fill up the remaining space
+      // with bytes ready to be sent.
+      const buffer = this.lossyBytesWaitBuffer.get(kind) ?? [];
+      while (this.isBufferStatusLow(kind)) {
+        let continueSendingFuture = buffer.shift();
+        if (!continueSendingFuture) {
+          break;
+        }
+        continueSendingFuture.resolve?.();
+      }
+      if (buffer.length === 0) {
+        this.lossyBytesWaitBuffer.delete(kind);
+      }
     }
   };
 
