@@ -250,6 +250,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to buffer lossy data track packets which arrive quickly so they don't overwhelm the data
    * channel buffer */
   private lossyBytesWaitQueue = new Map<DataChannelKind, Array<Future<void, never>>>();
+
   private lossyBytesMutexByKind = new Map<DataChannelKind, Mutex>();
 
   constructor(private options: InternalRoomOptions) {
