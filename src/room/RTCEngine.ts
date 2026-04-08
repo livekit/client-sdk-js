@@ -250,6 +250,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to buffer lossy data track packets which arrive quickly so they don't overwhelm the data
    * channel buffer */
   private lossyBytesWaitBuffer = new Map<DataChannelKind, Array<Future<void, never>>>();
+  private lossyBytesMutexByKind = new Map<DataChannelKind, Mutex>();
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -1472,27 +1473,41 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {
+    let unlock: (() => void) | undefined;
+
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (!this.isBufferStatusLow(kind)) {
-        // Depending on the exact circumstance that data is being sent, either drop or wait for the
-        // buffer status to not be low before continuing.
-        //
-        // An example of where this is used: data tracks, so that a large DataTrackFrame's worth of
-        // packets doesn't have the last half of the packets dropped due to not fitting into the
-        // data channel buffer all at once.
-        switch (bufferStatusLowBehavior) {
-          case 'wait':
+      // Depending on the exact circumstance that data is being sent, either drop or wait for the
+      // buffer status to not be low before continuing.
+      //
+      // An example of where this is used: data tracks, so that a large DataTrackFrame's worth of
+      // packets doesn't have the last half of the packets dropped due to not fitting into the
+      // data channel buffer all at once.
+      switch (bufferStatusLowBehavior) {
+        case 'wait':
+          // Wait for any past enqueued data to be drained before enqueing the next byte
+          let mutex = this.lossyBytesMutexByKind.get(kind);
+          if (!mutex) {
+            mutex = new Mutex();
+            this.lossyBytesMutexByKind.set(kind, mutex);
+          }
+          unlock = await mutex?.lock();
+
+          // If there isn't room in the data channel buffer, then wait for the rtc data channel to
+          // drain and go into "low status" before continuing.
+          if (!this.isBufferStatusLow(kind)) {
             const future = new Future<void, never>();
             const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
             entries.push(future);
             this.lossyBytesWaitBuffer.set(kind, entries);
             await future.promise;
-            break;
-          case 'drop':
+          }
+          break;
+        case 'drop':
+          if (!this.isBufferStatusLow(kind)) {
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
             // Drop messages to reduce latency
             this.lossyDataDropCount += 1;
@@ -1503,7 +1518,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
               );
             }
             return;
-        }
+          }
       }
       this.lossyDataStatCurrentBytes += bytes.byteLength;
 
@@ -1515,6 +1530,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     this.updateAndEmitDCBufferStatus(kind);
+    unlock?.();
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
