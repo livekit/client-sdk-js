@@ -247,6 +247,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
+  /** used to buffer lossy data track packets which arrive quickly so they don't overwhelm the data
+   * channel buffer */
+  private lossyBytesWaitBuffer = new Map<DataChannelKind, Array<Future<void, never>>>();
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -1462,8 +1466,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private lossyBytesWaitBuffer = new Map<DataChannelKind, Array<Future<void, never>>>();
-
   /* @internal */
   async sendLossyBytes(
     bytes: Uint8Array,
@@ -1478,11 +1480,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.isBufferStatusLow(kind)) {
         // Depending on the exact circumstance that data is being sent, either drop or wait for the
         // buffer status to not be low before continuing.
+        //
+        // An example of where this is used: data tracks, so that a large DataTrackFrame's worth of
+        // packets doesn't have the last half of the packets dropped due to not fitting into the
+        // data channel buffer all at once.
         switch (bufferStatusLowBehavior) {
           case 'wait':
             if (this.isBufferStatusLow(kind)) {
               const future = new Future<void, never>();
-              (window as any).lossyBytesWaitBuffer = this.lossyBytesWaitBuffer;
               const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
               entries.push(future);
               this.lossyBytesWaitBuffer.set(kind, entries);
