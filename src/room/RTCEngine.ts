@@ -1486,13 +1486,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // data channel buffer all at once.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            if (this.isBufferStatusLow(kind)) {
-              const future = new Future<void, never>();
-              const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
-              entries.push(future);
-              this.lossyBytesWaitBuffer.set(kind, entries);
-              await future.promise;
-            }
+            const future = new Future<void, never>();
+            const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
+            entries.push(future);
+            this.lossyBytesWaitBuffer.set(kind, entries);
+            await future.promise;
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
