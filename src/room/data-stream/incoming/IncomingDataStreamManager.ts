@@ -8,7 +8,7 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { Future, bigIntToNumber } from '../../utils';
+import { bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -26,6 +26,25 @@ export default class IncomingDataStreamManager {
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
   private textStreamHandlers = new Map<string, TextStreamHandler>();
+
+  private isConnected = false;
+
+  private bufferedPackets: Array<{ packet: DataPacket; encryptionType: Encryption_Type }> = [];
+
+  setConnected(connected: boolean) {
+    this.isConnected = connected;
+    if (connected) {
+      this.flushBufferedPackets();
+    }
+  }
+
+  private flushBufferedPackets() {
+    const packets = this.bufferedPackets;
+    this.bufferedPackets = [];
+    for (const { packet, encryptionType } of packets) {
+      this.handleDataStreamPacket(packet, encryptionType);
+    }
+  }
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
     if (this.textStreamHandlers.has(topic)) {
@@ -58,6 +77,7 @@ export default class IncomingDataStreamManager {
   clearControllers() {
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
+    this.bufferedPackets = [];
   }
 
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
@@ -78,17 +98,21 @@ export default class IncomingDataStreamManager {
         DataStreamErrorReason.AbnormalEnd,
       );
       for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
-        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.byteStreamControllers.delete(id);
       }
       for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        controller.controller.error(abnormalEndError);
         this.textStreamControllers.delete(id);
       }
     }
   }
 
-  async handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
+  handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
+    if (!this.isConnected) {
+      this.bufferedPackets.push({ packet, encryptionType });
+      return;
+    }
     switch (packet.value.case) {
       case 'streamHeader':
         return this.handleStreamHeader(
@@ -105,7 +129,7 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  private async handleStreamHeader(
+  private handleStreamHeader(
     streamHeader: DataStream_Header,
     participantIdentity: string,
     encryptionType: Encryption_Type,
@@ -121,10 +145,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never, Error>();
-      outOfBandFailureRejectingFuture.promise.catch((err) => {
-        this.log.error(err);
-      });
 
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
@@ -152,17 +172,11 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          outOfBandFailureRejectingFuture,
-        ),
+        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         {
           identity: participantIdentity,
         },
@@ -178,10 +192,6 @@ export default class IncomingDataStreamManager {
       }
 
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const outOfBandFailureRejectingFuture = new Future<never, Error>();
-      outOfBandFailureRejectingFuture.promise.catch((err) => {
-        this.log.error(err);
-      });
 
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
@@ -210,17 +220,11 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
-            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(
-          info,
-          stream,
-          bigIntToNumber(streamHeader.totalLength),
-          outOfBandFailureRejectingFuture,
-        ),
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
     }

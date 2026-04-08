@@ -11,7 +11,7 @@ export enum DataTrackDeserializeErrorReason {
 }
 
 export class DataTrackDeserializeError<
-  Reason extends DataTrackDeserializeErrorReason,
+  Reason extends DataTrackDeserializeErrorReason = DataTrackDeserializeErrorReason,
 > extends LivekitReasonedError<DataTrackDeserializeErrorReason> {
   readonly name = 'DataTrackDeserializeError';
 
@@ -73,21 +73,13 @@ export class DataTrackDeserializeError<
   }
 }
 
-export type DataTrackDeserializeErrorAll =
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.TooShort>
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.HeaderOverrun>
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MissingExtWords>
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.UnsupportedVersion>
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.InvalidHandle>
-  | DataTrackDeserializeError<DataTrackDeserializeErrorReason.MalformedExt>;
-
 export enum DataTrackSerializeErrorReason {
   TooSmallForHeader = 0,
   TooSmallForPayload = 1,
 }
 
 export class DataTrackSerializeError<
-  Reason extends DataTrackSerializeErrorReason,
+  Reason extends DataTrackSerializeErrorReason = DataTrackSerializeErrorReason,
 > extends LivekitReasonedError<DataTrackSerializeErrorReason> {
   readonly name = 'DataTrackSerializeError';
 
@@ -115,7 +107,3 @@ export class DataTrackSerializeError<
     );
   }
 }
-
-export type DataTrackSerializeErrorAll =
-  | DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForHeader>
-  | DataTrackSerializeError<DataTrackSerializeErrorReason.TooSmallForPayload>;

@@ -1,5 +1,51 @@
 # Change Log
 
+## 2.18.1
+
+### Patch Changes
+
+- Adds data tracks support - [#1820](https://github.com/livekit/client-sdk-js/pull/1820) ([@1egoman](https://github.com/1egoman))
+
+- Send publisher offer with join request to accelerate connection - [#1846](https://github.com/livekit/client-sdk-js/pull/1846) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Enable E2EE key-size configuration via ExternalE2EEKeyProvider options - [#1841](https://github.com/livekit/client-sdk-js/pull/1841) ([@MariusBernhardt](https://github.com/MariusBernhardt))
+
+## 2.18.0
+
+### Minor Changes
+
+- Rename pID to participantID in log context - [#1842](https://github.com/livekit/client-sdk-js/pull/1842) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure freshly created RTCEngine isn't recreated on join - [#1843](https://github.com/livekit/client-sdk-js/pull/1843) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix shouldReturnCachedValueFromFetch check for cached options - [#1837](https://github.com/livekit/client-sdk-js/pull/1837) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data stream header length field - [#1847](https://github.com/livekit/client-sdk-js/pull/1847) ([@ladvoc](https://github.com/ladvoc))
+
+- Add token fetch force option to skip TokenSource cache - [#1839](https://github.com/livekit/client-sdk-js/pull/1839) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.17.3
+
+### Patch Changes
+
+- Update happy-dom dependency version - [#1821](https://github.com/livekit/client-sdk-js/pull/1821) ([@renovate](https://github.com/apps/renovate))
+
+- e2ee: ensure current key index isn't unintentionally updated - [#1830](https://github.com/livekit/client-sdk-js/pull/1830) ([@lukasIO](https://github.com/lukasIO))
+
+- Prevent unmute -> mute -> unmute cycle for track restarts that happen during unmute - [#1793](https://github.com/livekit/client-sdk-js/pull/1793) ([@mfairley](https://github.com/mfairley))
+
+- Use controller.error to signal unexpected errors mid data stream - [#1834](https://github.com/livekit/client-sdk-js/pull/1834) ([@lukasIO](https://github.com/lukasIO))
+
+- Signal leave on failed connection attempts if signalling is connected - [#1817](https://github.com/livekit/client-sdk-js/pull/1817) ([@lukasIO](https://github.com/lukasIO))
+
+- Vendored ts-debounce and added critical timers to debounce function - [#1800](https://github.com/livekit/client-sdk-js/pull/1800) ([@mfairley](https://github.com/mfairley))
+
+- Ensure cryptor setup respects async queue in worker - [#1833](https://github.com/livekit/client-sdk-js/pull/1833) ([@lukasIO](https://github.com/lukasIO))
+
+- Adds new OutgoingDataTrackManager to manage sending data track payloads - [#1810](https://github.com/livekit/client-sdk-js/pull/1810) ([@1egoman](https://github.com/1egoman))
+
 ## 2.17.2
 
 ### Patch Changes

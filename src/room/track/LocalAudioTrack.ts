@@ -82,7 +82,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         !this.isUserProvided
       ) {
         this.log.debug('reacquiring mic track', this.logContext);
-        await this.restartTrack();
+        await this.restart(undefined, true);
       }
       await super.unmute();
 
@@ -103,8 +103,11 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     await this.restart(constraints);
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<typeof this> {
-    const track = await super.restart(constraints);
+  protected async restart(
+    constraints?: MediaTrackConstraints,
+    isUnmuting?: boolean,
+  ): Promise<typeof this> {
+    const track = await super.restart(constraints, isUnmuting);
     this.checkForSilence();
     return track;
   }

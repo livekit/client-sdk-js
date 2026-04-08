@@ -47,7 +47,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import RTCEngine from './RTCEngine';
+import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
@@ -55,6 +55,11 @@ import {
   type TextStreamHandler,
 } from './data-stream/incoming/StreamReader';
 import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
+import type LocalDataTrack from './data-track/LocalDataTrack';
+import type RemoteDataTrack from './data-track/RemoteDataTrack';
+import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
+import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
+import { DataTrackInfo, type DataTrackSid } from './data-track/types';
 import {
   audioDefaults,
   publishDefaults,
@@ -70,7 +75,7 @@ import {
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
-import type Participant from './participant/Participant';
+import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
@@ -205,6 +210,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private outgoingDataStreamManager: OutgoingDataStreamManager;
 
+  private incomingDataTrackManager: IncomingDataTrackManager;
+
+  private outgoingDataTrackManager: OutgoingDataTrackManager;
+
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   get hasE2EESetup(): boolean {
@@ -243,6 +252,46 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
 
+    this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
+    this.incomingDataTrackManager
+      .on('sfuUpdateSubscription', (event) => {
+        this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
+      })
+      .on('trackPublished', (event) => {
+        if (event.track.publisherIdentity === this.localParticipant.identity) {
+          // Only advertize tracks from other participants
+          return;
+        }
+        this.emit(RoomEvent.DataTrackPublished, event.track);
+        this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
+      })
+      .on('trackUnpublished', (event) => {
+        if (event.publisherIdentity === this.localParticipant.identity) {
+          // Only advertize tracks from other participants
+          return;
+        }
+        this.emit(RoomEvent.DataTrackUnpublished, event.sid);
+        this.remoteParticipants.get(event.publisherIdentity)?.removeRemoteDataTrack(event.sid);
+      });
+
+    this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
+    this.outgoingDataTrackManager
+      .on('sfuPublishRequest', (event) => {
+        this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
+      })
+      .on('sfuUnpublishRequest', (event) => {
+        this.engine.client.sendUnPublishDataTrackRequest(event.handle);
+      })
+      .on('trackPublished', (event) => {
+        this.emit(RoomEvent.LocalDataTrackPublished, event.track);
+      })
+      .on('trackUnpublished', (event) => {
+        this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
+      })
+      .on('packetAvailable', ({ bytes }) => {
+        this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait');
+      });
+
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant(
@@ -252,6 +301,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options,
       this.rpcHandlers,
       this.outgoingDataStreamManager,
+      this.outgoingDataTrackManager,
     );
 
     if (this.options.e2ee || this.options.encryption) {
@@ -259,6 +309,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine.e2eeManager = this.e2eeManager;
+    this.incomingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
+    this.outgoingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -406,7 +458,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       room: this.name,
       roomID: this.roomInfo?.sid,
       participant: this.localParticipant.identity,
-      pID: this.localParticipant.sid,
+      participantID: this.localParticipant.sid,
     };
   }
 
@@ -464,7 +516,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private maybeCreateEngine() {
-    if (this.engine && !this.engine.isClosed) {
+    if (this.engine && (this.engine.isNewlyCreated || !this.engine.isClosed)) {
       return;
     }
 
@@ -515,6 +567,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
+      .on(EngineEvent.Restarted, this.handleRestarted)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.Offline, () => {
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
@@ -560,6 +613,66 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         } else {
           this.handleParticipantUpdates(roomMoved.otherParticipants);
         }
+      })
+      .on(EngineEvent.PublishDataTrackResponse, (event) => {
+        if (!event.info) {
+          this.log.warn(
+            `received PublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
+            this.logContext,
+          );
+          return;
+        }
+
+        this.outgoingDataTrackManager.receivedSfuPublishResponse(event.info.pubHandle, {
+          type: 'ok',
+          data: {
+            sid: event.info.sid,
+            pubHandle: event.info.pubHandle,
+            name: event.info.name,
+            usesE2ee: event.info.encryption !== Encryption_Type.NONE,
+          },
+        });
+      })
+      .on(EngineEvent.UnPublishDataTrackResponse, (event) => {
+        if (!event.info) {
+          this.log.warn(
+            `received UnPublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
+            this.logContext,
+          );
+          return;
+        }
+
+        this.outgoingDataTrackManager.receivedSfuUnpublishResponse(event.info.pubHandle);
+      })
+      .on(EngineEvent.DataTrackSubscriberHandles, (event) => {
+        const handleToSidMapping = new Map(
+          Object.entries(event.subHandles).map(([key, value]) => {
+            return [parseInt(key, 10), value.trackSid];
+          }),
+        );
+
+        this.incomingDataTrackManager.receivedSfuSubscriberHandles(handleToSidMapping);
+      })
+      .on(EngineEvent.DataTrackPacketReceived, (packetBytes) => {
+        try {
+          this.incomingDataTrackManager.packetReceived(packetBytes);
+        } catch (err) {
+          // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
+          // propagate upwards into the public interface.
+          throw err;
+        }
+      })
+      .on(EngineEvent.Joined, (joinResponse) => {
+        // Ingest data track publication updates into data tracks infrastructure
+        const mapped = new Map(
+          joinResponse.otherParticipants.map((participant) => {
+            return [
+              participant.identity,
+              participant.dataTracks.map((info) => DataTrackInfo.from(info)),
+            ];
+          }),
+        );
+        this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
       });
 
     if (this.localParticipant) {
@@ -782,7 +895,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResponse = await engine.join(
+    const { joinResponse, serverInfo } = await engine.join(
       url,
       token,
       {
@@ -797,22 +910,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       !roomOptions.singlePeerConnection,
     );
 
-    let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
-    if (!serverInfo) {
-      serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
-    }
     this.serverInfo = serverInfo;
-
-    this.log.debug(
-      `connected to Livekit Server ${Object.entries(serverInfo)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ')}`,
-      {
-        room: joinResponse.room?.name,
-        roomSid: joinResponse.room?.sid,
-        identity: joinResponse.participant?.identity,
-      },
-    );
 
     if (!serverInfo.version) {
       throw new UnsupportedServer('unknown server version');
@@ -1456,10 +1554,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ) as RemoteParticipant | undefined;
 
     if (!participant) {
-      this.log.error(
-        `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
-        this.logContext,
-      );
+      // server could require extra media sections to accelerate subscription.
+      if (participantSid.startsWith('PA')) {
+        this.log.error(
+          `Tried to add a track for a participant, that's not present. Sid: ${participantSid}`,
+          this.logContext,
+        );
+      }
       return;
     }
 
@@ -1481,7 +1582,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!trackId.startsWith('TR')) {
       this.log.warn(
         `Tried to add a track whose 'sid' could not be determined for a participant, that's not present. Sid: ${participantSid}, streamId: ${streamId}, trackId: ${trackId}`,
-        { ...this.logContext, rpID: participantSid, streamId, trackId },
+        { ...this.logContext, remoteParticipantID: participantSid, streamId, trackId },
       );
     }
 
@@ -1525,6 +1626,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
+  };
+
+  private handleRestarted = () => {
+    this.outgoingDataTrackManager.sfuWillRepublishTracks();
+    this.incomingDataTrackManager.resendSubscriptionUpdates();
   };
 
   private handleSignalRestarted = async (joinResponse: JoinResponse) => {
@@ -1640,10 +1746,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
-    participantInfos.forEach((info) => {
+    for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
-        return;
+        continue;
       }
 
       // LiveKit server doesn't send identity info prior to version 1.5.2 in disconnect updates
@@ -1661,7 +1767,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
       }
-    });
+    }
+
+    // Ingest data track publication updates into data tracks infrastructure
+    const mapped = new Map(
+      participantInfos
+        .filter((p) => p.identity !== this.localParticipant.identity)
+        .map((info) => {
+          return [info.identity, info.dataTracks.map((dataTrack) => DataTrackInfo.from(dataTrack))];
+        }),
+    );
+    this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
 
   private handleParticipantDisconnected(identity: string, participant?: RemoteParticipant) {
@@ -1672,6 +1788,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.incomingDataStreamManager.validateParticipantHasNoActiveDataStreams(identity);
+    this.incomingDataTrackManager.handleRemoteParticipantDisconnected(identity);
 
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
@@ -2192,7 +2309,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
-          this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
+          this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
@@ -2270,7 +2387,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return acc;
     }, [] as RemoteTrackPublication[]);
     const localTracks = this.localParticipant.getTrackPublications() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
-    this.engine.sendSyncState(remoteTracks, localTracks);
+    const localDataTrackInfos = this.outgoingDataTrackManager.queryPublished();
+    this.engine.sendSyncState(remoteTracks, localTracks, localDataTrackInfos);
   }
 
   /**
@@ -2342,6 +2460,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return false;
     }
     this.state = state;
+    this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
     return true;
   }
@@ -2732,10 +2851,14 @@ export type RoomEventCallbacks = {
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
   encryptionError: (error: Error, participant?: Participant) => void;
-  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataChannelKind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
   participantActive: (participant: Participant) => void;
+  dataTrackPublished: (track: RemoteDataTrack) => void;
+  dataTrackUnpublished: (sid: DataTrackSid) => void;
+  localDataTrackPublished: (track: LocalDataTrack) => void;
+  localDataTrackUnpublished: (sid: DataTrackSid) => void;
 };

@@ -603,10 +603,7 @@ export class FrameCryptor extends BaseFrameCryptor {
             // if not, it might be that a different frame has already ratcheted and we try with that one first
             ratchetResult = await this.keys.ratchetKey(keyIndex, false);
 
-            ratchetedKeySet = await deriveKeys(
-              ratchetResult.cryptoKey,
-              this.keyProviderOptions.ratchetSalt,
-            );
+            ratchetedKeySet = await deriveKeys(ratchetResult.cryptoKey, this.keyProviderOptions);
           }
 
           const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {

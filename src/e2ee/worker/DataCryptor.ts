@@ -93,10 +93,7 @@ export class DataCryptor {
             // if not, it might be that a different frame has already ratcheted and we try with that one first
             ratchetResult = await keys.ratchetKey(keyIndex, false);
 
-            ratchetedKeySet = await deriveKeys(
-              ratchetResult.cryptoKey,
-              keys.keyProviderOptions.ratchetSalt,
-            );
+            ratchetedKeySet = await deriveKeys(ratchetResult.cryptoKey, keys.keyProviderOptions);
           }
 
           const decryptedData = await DataCryptor.decrypt(

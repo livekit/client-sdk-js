@@ -5,7 +5,9 @@ import {
   ClientInfo,
   ConnectionQualityUpdate,
   ConnectionSettings,
+  DataTrackSubscriberHandles,
   DisconnectReason,
+  Encryption_Type,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
@@ -14,6 +16,8 @@ import {
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
+  PublishDataTrackRequest,
+  PublishDataTrackResponse,
   ReconnectReason,
   ReconnectResponse,
   RequestResponse,
@@ -35,6 +39,10 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
   TrickleRequest,
+  UnpublishDataTrackRequest,
+  UnpublishDataTrackResponse,
+  UpdateDataSubscription,
+  UpdateDataSubscription_Update,
   UpdateLocalAudioTrack,
   UpdateParticipantMetadata,
   UpdateSubscription,
@@ -42,13 +50,16 @@ import {
   UpdateVideoLayers,
   VideoLayer,
   WrappedJoinRequest,
+  WrappedJoinRequest_Compression,
   protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
+import type { DataTrackHandle } from '../room/data-track/handle';
+import { type DataTrackSid } from '../room/data-track/types';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -174,6 +185,14 @@ export class SignalClient {
 
   onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
 
+  onPublishDataTrackResponse?: (event: PublishDataTrackResponse) => void;
+
+  onUnPublishDataTrackResponse?: (event: UnpublishDataTrackResponse) => void;
+
+  onDataTrackSubscriberHandles?: (event: DataTrackSubscriberHandles) => void;
+
+  onJoined?: (event: JoinResponse) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocketStream;
@@ -248,12 +267,13 @@ export class SignalClient {
     opts: SignalOptions,
     abortSignal?: AbortSignal,
     useV0Path: boolean = false,
+    publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, useV0Path);
+    const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
     return res as JoinResponse;
   }
 
@@ -296,6 +316,7 @@ export class SignalClient {
     abortSignal?: AbortSignal,
     /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
+    publisherOffer?: SessionDescription,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
@@ -305,7 +326,7 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = useV0Path
       ? createConnectionParams(token, clientInfo, opts)
-      : createJoinRequestConnectionParams(token, clientInfo, opts);
+      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
     const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
     const validateUrl = createValidateUrl(rtcUrl).toString();
 
@@ -437,8 +458,9 @@ export class SignalClient {
             return;
           }
 
-          // Handle join response - set up ping configuration
+          // Handle join response
           if (firstSignalResponse.message?.case === 'join') {
+            // Set up ping configuration
             this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
             this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
 
@@ -448,6 +470,10 @@ export class SignalClient {
                 timeout: this.pingTimeoutDuration,
                 interval: this.pingIntervalDuration,
               });
+            }
+
+            if (this.onJoined) {
+              this.onJoined(firstSignalResponse.message.value);
             }
           }
 
@@ -685,7 +711,40 @@ export class SignalClient {
     });
   }
 
-  async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
+  sendPublishDataTrackRequest(handle: DataTrackHandle, name: string, usesE2ee: boolean) {
+    return this.sendRequest({
+      case: 'publishDataTrackRequest',
+      value: new PublishDataTrackRequest({
+        pubHandle: handle,
+        name: name,
+        encryption: usesE2ee ? Encryption_Type.GCM : Encryption_Type.NONE,
+      }),
+    });
+  }
+
+  sendUnPublishDataTrackRequest(handle: DataTrackHandle) {
+    return this.sendRequest({
+      case: 'unpublishDataTrackRequest',
+      value: new UnpublishDataTrackRequest({ pubHandle: handle }),
+    });
+  }
+
+  sendUpdateDataSubscription(sid: DataTrackSid, subscribe: boolean) {
+    return this.sendRequest({
+      case: 'updateDataSubscription',
+      value: new UpdateDataSubscription({
+        // FIXME: consider refactoring to allow caller to pass an array of events through
+        updates: [
+          new UpdateDataSubscription_Update({
+            trackSid: sid,
+            subscribe,
+          }),
+        ],
+      }),
+    });
+  }
+
+  private async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
@@ -826,6 +885,18 @@ export class SignalClient {
     } else if (msg.case === 'mediaSectionsRequirement') {
       if (this.onMediaSectionsRequirement) {
         this.onMediaSectionsRequirement(msg.value);
+      }
+    } else if (msg.case === 'publishDataTrackResponse') {
+      if (this.onPublishDataTrackResponse) {
+        this.onPublishDataTrackResponse(msg.value);
+      }
+    } else if (msg.case === 'unpublishDataTrackResponse') {
+      if (this.onUnPublishDataTrackResponse) {
+        this.onUnPublishDataTrackResponse(msg.value);
+      }
+    } else if (msg.case === 'dataTrackSubscriberHandles') {
+      if (this.onDataTrackSubscriberHandles) {
+        this.onDataTrackSubscriberHandles(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
@@ -1125,11 +1196,12 @@ function createConnectionParams(
   return params;
 }
 
-function createJoinRequestConnectionParams(
+async function createJoinRequestConnectionParams(
   token: string,
   info: ClientInfo,
   opts: ConnectOpts,
-): URLSearchParams {
+  publisherOffer?: SessionDescription,
+): Promise<URLSearchParams> {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
@@ -1141,14 +1213,49 @@ function createJoinRequestConnectionParams(
     }),
     reconnect: !!opts.reconnect,
     participantSid: opts.sid ? opts.sid : undefined,
+    publisherOffer: publisherOffer,
   });
   if (opts.reconnectReason) {
     joinRequest.reconnectReason = opts.reconnectReason;
   }
+  const joinRequestBytes = joinRequest.toBinary();
+  let requestBytes: Uint8Array;
+  let compression: WrappedJoinRequest_Compression;
+  if (isCompressionStreamSupported()) {
+    const stream = new CompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(new Uint8Array(joinRequestBytes));
+    writer.close();
+    const chunks: Uint8Array[] = [];
+    const reader = stream.readable.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    requestBytes = result;
+    compression = WrappedJoinRequest_Compression.GZIP;
+  } else {
+    requestBytes = joinRequestBytes;
+    compression = WrappedJoinRequest_Compression.NONE;
+  }
   const wrappedJoinRequest = new WrappedJoinRequest({
-    joinRequest: joinRequest.toBinary(),
+    joinRequest: requestBytes,
+    compression,
   });
-  params.set('join_request', btoa(new TextDecoder('utf-8').decode(wrappedJoinRequest.toBinary())));
+  const wrappedBytes = wrappedJoinRequest.toBinary();
+  const bytesToBase64 = (bytes: Uint8Array) => {
+    const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('');
+    return btoa(binString);
+  };
+  params.set('join_request', bytesToBase64(wrappedBytes).replace(/\+/g, '-').replace(/\//g, '_'));
 
   return params;
 }

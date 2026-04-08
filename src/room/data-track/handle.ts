@@ -1,4 +1,4 @@
-import { type Throws } from '../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { LivekitReasonedError } from '../errors';
 import { U16_MAX_SIZE } from './utils';
 
@@ -43,13 +43,7 @@ export class DataTrackHandleError<
 
 export type DataTrackHandle = number;
 export const DataTrackHandle = {
-  fromNumber(
-    raw: number,
-  ): Throws<
-    DataTrackHandle,
-    | DataTrackHandleError<DataTrackHandleErrorReason.TooLarge>
-    | DataTrackHandleError<DataTrackHandleErrorReason.Reserved>
-  > {
+  fromNumber(raw: number): Throws<DataTrackHandle, DataTrackHandleError> {
     if (raw === 0) {
       throw DataTrackHandleError.reserved(raw);
     }

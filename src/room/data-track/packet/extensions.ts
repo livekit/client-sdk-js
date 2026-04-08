@@ -1,6 +1,6 @@
-import { type Throws } from '../../../utils/throws';
+import { type Throws } from '@livekit/throws-transformer/throws';
 import { coerceToDataView } from '../utils';
-import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U16_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
+import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
 import Serializable from './serializable';
 
@@ -20,7 +20,7 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
   static lengthBytes = 8;
 
-  private timestamp: bigint;
+  timestamp: bigint;
 
   constructor(timestamp: bigint) {
     super();
@@ -29,8 +29,8 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
 
   toBinaryLengthBytes(): number {
     return (
-      U16_LENGTH_BYTES /* tag */ +
-      U16_LENGTH_BYTES /* length */ +
+      U8_LENGTH_BYTES /* tag */ +
+      U8_LENGTH_BYTES /* length */ +
       DataTrackUserTimestampExtension.lengthBytes
     );
   }
@@ -38,12 +38,11 @@ export class DataTrackUserTimestampExtension extends DataTrackExtension {
   toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
-    dataView.setUint16(byteIndex, DataTrackUserTimestampExtension.tag);
-    byteIndex += U16_LENGTH_BYTES;
+    dataView.setUint8(byteIndex, DataTrackUserTimestampExtension.tag);
+    byteIndex += U8_LENGTH_BYTES;
 
-    const rtpOrientedLength = DataTrackUserTimestampExtension.lengthBytes - 1;
-    dataView.setUint16(byteIndex, rtpOrientedLength);
-    byteIndex += U16_LENGTH_BYTES;
+    dataView.setUint8(byteIndex, DataTrackUserTimestampExtension.lengthBytes);
+    byteIndex += U8_LENGTH_BYTES;
 
     dataView.setBigUint64(byteIndex, this.timestamp);
     byteIndex += U64_LENGTH_BYTES;
@@ -74,9 +73,9 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   static lengthBytes = 13;
 
-  private keyIndex: number;
+  keyIndex: number;
 
-  private iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
+  iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
   constructor(keyIndex: number, iv: Uint8Array) {
     super();
@@ -86,21 +85,18 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   toBinaryLengthBytes(): number {
     return (
-      U16_LENGTH_BYTES /* tag */ +
-      U16_LENGTH_BYTES /* length */ +
-      DataTrackE2eeExtension.lengthBytes
+      U8_LENGTH_BYTES /* tag */ + U8_LENGTH_BYTES /* length */ + DataTrackE2eeExtension.lengthBytes
     );
   }
 
   toBinaryInto(dataView: DataView): Throws<number, never> {
     let byteIndex = 0;
 
-    dataView.setUint16(byteIndex, DataTrackE2eeExtension.tag);
-    byteIndex += U16_LENGTH_BYTES;
+    dataView.setUint8(byteIndex, DataTrackE2eeExtension.tag);
+    byteIndex += U8_LENGTH_BYTES;
 
-    const rtpOrientedLength = DataTrackE2eeExtension.lengthBytes - 1;
-    dataView.setUint16(byteIndex, rtpOrientedLength);
-    byteIndex += U16_LENGTH_BYTES;
+    dataView.setUint8(byteIndex, DataTrackE2eeExtension.lengthBytes);
+    byteIndex += U8_LENGTH_BYTES;
 
     dataView.setUint8(byteIndex, this.keyIndex);
     byteIndex += U8_LENGTH_BYTES;
@@ -194,13 +190,12 @@ export class DataTrackExtensions extends Serializable {
     let e2ee: DataTrackE2eeExtension | undefined;
 
     let byteIndex = 0;
-    while (dataView.byteLength - byteIndex >= U16_LENGTH_BYTES + U16_LENGTH_BYTES) {
-      const tag = dataView.getUint16(byteIndex);
-      byteIndex += U16_LENGTH_BYTES;
+    while (dataView.byteLength - byteIndex >= U8_LENGTH_BYTES + U8_LENGTH_BYTES) {
+      const tag = dataView.getUint8(byteIndex);
+      byteIndex += U8_LENGTH_BYTES;
 
-      const rtpOrientedLength = dataView.getUint16(byteIndex);
-      const lengthBytes = rtpOrientedLength + 1;
-      byteIndex += U16_LENGTH_BYTES;
+      const lengthBytes = dataView.getUint8(byteIndex);
+      byteIndex += U8_LENGTH_BYTES;
 
       if (tag === EXT_TAG_PADDING) {
         // Skip padding

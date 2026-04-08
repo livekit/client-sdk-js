@@ -55,6 +55,8 @@ export default class PCTransport extends EventEmitter {
 
   private offerLock: Mutex;
 
+  private pendingInitialOffer?: RTCSessionDescriptionInit;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -163,6 +165,16 @@ export default class PCTransport extends EventEmitter {
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
+      if (this.pendingInitialOffer) {
+        const initialOffer = this.pendingInitialOffer;
+        this.pendingInitialOffer = undefined;
+        const sdpParsed = parse(initialOffer.sdp ?? '');
+        sdpParsed.media.forEach((media) => {
+          ensureIPAddrMatchVersion(media);
+        });
+        this.log.debug('setting pending initial offer before processing answer', this.logContext);
+        await this.setMungedSDP(initialOffer, write(sdpParsed));
+      }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         const mid = getMidString(media.mid!);
@@ -255,6 +267,31 @@ export default class PCTransport extends EventEmitter {
     }
   }, debounceInterval);
 
+  async createInitialOffer() {
+    const unlock = await this.offerLock.lock();
+    try {
+      if (this.pc.signalingState !== 'stable') {
+        this.log.warn(
+          'signaling state is not stable, cannot create initial offer',
+          this.logContext,
+        );
+        return;
+      }
+      const offerId = this.latestOfferId + 1;
+      this.latestOfferId = offerId;
+      const offer = await this.pc.createOffer();
+      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
+      const sdpParsed = parse(offer.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        ensureIPAddrMatchVersion(media);
+      });
+      offer.sdp = write(sdpParsed);
+      return { offer, offerId };
+    } finally {
+      unlock();
+    }
+  }
+
   async createAndSendOffer(options?: RTCOfferOptions) {
     const unlock = await this.offerLock.lock();
 
@@ -268,7 +305,10 @@ export default class PCTransport extends EventEmitter {
         this.restartingIce = true;
       }
 
-      if (this._pc && this._pc.signalingState === 'have-local-offer') {
+      if (
+        this._pc &&
+        (this._pc.signalingState === 'have-local-offer' || this.pendingInitialOffer)
+      ) {
         // we're waiting for the peer to accept our offer, so we'll just wait
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;

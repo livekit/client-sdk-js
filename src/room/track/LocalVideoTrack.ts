@@ -168,7 +168,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         this.log.debug('reacquiring camera track', this.logContext);
-        await this.restartTrack();
+        await this.restart(undefined, true);
       }
       await super.unmute();
       return this;

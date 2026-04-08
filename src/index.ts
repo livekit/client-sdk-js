@@ -11,10 +11,8 @@ import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
-// FIXME: remove this import in a follow up data track pull request.
-import './room/data-track/depacketizer';
-// FIXME: remove this import in a follow up data track pull request.
-import './room/data-track/outgoing/OutgoingDataTrackManager';
+import LocalDataTrack from './room/data-track/LocalDataTrack';
+import RemoteDataTrack, { type DataTrackSubscribeOptions } from './room/data-track/RemoteDataTrack';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, {
   ConnectionQuality,
@@ -142,6 +140,8 @@ export {
   isVideoTrack,
   isLocalParticipant,
   isRemoteParticipant,
+  LocalDataTrack,
+  RemoteDataTrack,
 };
 export type {
   AudioAnalyserOptions,
@@ -158,6 +158,7 @@ export type {
   RoomEventCallbacks,
   ParticipantEventCallbacks,
   PublicationEventCallbacks,
+  DataTrackSubscribeOptions,
 };
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {
@@ -165,5 +166,6 @@ export {
   type DataTrackUserTimestampExtension,
   type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
+export { type DataChannelKind } from './room/RTCEngine';
 
 export { LocalTrackRecorder } from './room/track/record';

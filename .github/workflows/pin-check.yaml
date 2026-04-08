@@ -1,0 +1,16 @@
+name: Pin Check
+on:
+  workflow_dispatch:
+  pull_request: { paths: [.github/**] }
+permissions:
+    contents: read
+jobs:
+  pin-check:
+    name: Pin Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Pin Check
+        uses: suzuki-shunsuke/pinact-action@cf51507d80d4d6522a07348e3d58790290eaf0b6 # v2.0.0
+        with: { skip_push: true }
