@@ -249,7 +249,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** used to buffer lossy data track packets which arrive quickly so they don't overwhelm the data
    * channel buffer */
-  private lossyBytesWaitBuffer = new Map<DataChannelKind, Array<Future<void, never>>>();
+  private lossyBytesWaitQueue = new Map<DataChannelKind, Array<Future<void, never>>>();
   private lossyBytesMutexByKind = new Map<DataChannelKind, Mutex>();
 
   constructor(private options: InternalRoomOptions) {
@@ -1500,9 +1500,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // drain and go into "low status" before continuing.
           if (!this.isBufferStatusLow(kind)) {
             const future = new Future<void, never>();
-            const entries = this.lossyBytesWaitBuffer.get(kind) ?? [];
+            const entries = this.lossyBytesWaitQueue.get(kind) ?? [];
             entries.push(future);
-            this.lossyBytesWaitBuffer.set(kind, entries);
+            this.lossyBytesWaitQueue.set(kind, entries);
             await future.promise;
           }
           break;
@@ -1560,7 +1560,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       // Now that there is space on the data channel buffer, attempt to fill up the remaining space
       // with bytes ready to be sent.
-      const buffer = this.lossyBytesWaitBuffer.get(kind) ?? [];
+      const buffer = this.lossyBytesWaitQueue.get(kind) ?? [];
       while (this.isBufferStatusLow(kind)) {
         let continueSendingFuture = buffer.shift();
         if (!continueSendingFuture) {
@@ -1569,7 +1569,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         continueSendingFuture.resolve?.();
       }
       if (buffer.length === 0) {
-        this.lossyBytesWaitBuffer.delete(kind);
+        this.lossyBytesWaitQueue.delete(kind);
       }
     }
   };
