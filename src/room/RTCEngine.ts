@@ -1567,6 +1567,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     const unlock = await mutex.lock();
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
+      if (this._isClosed) {
+        reject(new UnexpectedConnectionState('engine closed'));
+      }
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
