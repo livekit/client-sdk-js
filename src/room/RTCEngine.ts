@@ -1567,7 +1567,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     const unlock = await mutex.lock();
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this._isClosed) {
+      if (this.isClosed) {
         reject(new UnexpectedConnectionState('engine closed'));
       }
       if (this.isBufferStatusLow(kind)) {
@@ -1575,11 +1575,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
-        while (!this.dcBufferStatus.get(kind)) {
-          await sleep(10);
-        }
-        this.off(EngineEvent.Closing, onClosing);
-        resolve();
+        this.dataChannelForKind(kind)?.addEventListener(
+          'bufferedamountlow',
+          () => {
+            this.off(EngineEvent.Closing, onClosing);
+            resolve();
+          },
+          {
+            once: true,
+          },
+        );
       }
     }).finally(() => unlock());
   }
