@@ -168,6 +168,16 @@ export const RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR = 'lk.rpc_request_response_tim
 /** @internal */
 export const RPC_REQUEST_VERSION_ATTR = 'lk.rpc_request_version';
 
+/** Initial version of rpc which uses RpcRequest / RpcResponse messages.
+ * @internal
+ **/
+export const RPC_VERSION_V1 = 1;
+
+/** Rpc version backed by data streams instead of RpcRequest / RpcResponse.
+ * @internal
+ **/
+export const RPC_VERSION_V2 = 2;
+
 /**
  * @internal
  */
