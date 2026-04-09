@@ -44,6 +44,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -246,6 +247,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
+
+  private lossyBytesMutexByKind = new Map<DataChannelKind, Mutex>();
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -1557,8 +1560,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  waitForBufferStatusLow(kind: DataChannelKind): TypedPromise<void, UnexpectedConnectionState> {
-    return new TypedPromise(async (resolve, reject) => {
+  async waitForBufferStatusLow(
+    kind: DataChannelKind,
+  ): Promise<Throws<void, UnexpectedConnectionState>> {
+    let mutex = this.lossyBytesMutexByKind.get(kind);
+    if (!mutex) {
+      mutex = new Mutex();
+      this.lossyBytesMutexByKind.set(kind, mutex);
+    }
+    const unlock = await mutex.lock();
+    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
@@ -1570,7 +1581,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.off(EngineEvent.Closing, onClosing);
         resolve();
       }
-    });
+    }).finally(() => unlock());
   }
 
   /**
