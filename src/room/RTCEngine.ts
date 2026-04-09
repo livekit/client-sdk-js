@@ -1560,9 +1560,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  async waitForBufferStatusLow(
-    kind: DataChannelKind,
-  ): Promise<Throws<void, UnexpectedConnectionState>> {
+  async waitForBufferStatusLow(kind: DataChannelKind) {
     let mutex = this.lossyBytesMutexByKind.get(kind);
     if (!mutex) {
       mutex = new Mutex();
