@@ -13,6 +13,7 @@ import {
   RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
   RPC_REQUEST_VERSION_ATTR,
   RPC_RESPONSE_DATA_STREAM_TOPIC,
+  RPC_VERSION_V2,
   RpcError,
   type RpcInvocationData,
   byteLength,
@@ -144,7 +145,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
 
     this.publishRpcAck(callerIdentity, requestId);
 
-    if (version !== 2) {
+    if (version !== RPC_VERSION_V2) {
       this.publishRpcResponsePacket(
         callerIdentity,
         requestId,
