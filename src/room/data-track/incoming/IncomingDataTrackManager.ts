@@ -586,6 +586,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       if (descriptor.subscription.type === 'pending') {
         descriptor.subscription.completionFuture.reject?.(DataTrackSubscribeError.disconnected());
       }
+
+      if (descriptor.subscription.type === 'active') {
+        descriptor.subscription.streamControllers.forEach((controller) => controller.close());
+      }
     }
     this.descriptors.clear();
   }
