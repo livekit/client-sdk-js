@@ -247,7 +247,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
-  private lossyBytesMutexByKind = new Map<DataChannelKind, Mutex>();
+  private lossyBytesMutexByKind = {
+    [DataChannelKind.DATA_TRACK_LOSSY]: new Mutex(),
+    [DataChannelKind.LOSSY]: new Mutex(),
+    [DataChannelKind.RELIABLE]: new Mutex(),
+  } as const;
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -1560,11 +1564,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   async waitForBufferStatusLow(kind: DataChannelKind) {
-    let mutex = this.lossyBytesMutexByKind.get(kind);
-    if (!mutex) {
-      mutex = new Mutex();
-      this.lossyBytesMutexByKind.set(kind, mutex);
-    }
+    let mutex = this.lossyBytesMutexByKind[kind];
     const unlock = await mutex.lock();
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
       if (this.isClosed) {
