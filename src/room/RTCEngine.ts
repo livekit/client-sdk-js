@@ -247,6 +247,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
+  private lossyBytesMutexByKind = {
+    [DataChannelKind.DATA_TRACK_LOSSY]: new Mutex(),
+    [DataChannelKind.LOSSY]: new Mutex(),
+    [DataChannelKind.RELIABLE]: new Mutex(),
+  } as const;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -1557,20 +1563,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  waitForBufferStatusLow(kind: DataChannelKind): TypedPromise<void, UnexpectedConnectionState> {
-    return new TypedPromise(async (resolve, reject) => {
+  async waitForBufferStatusLow(kind: DataChannelKind) {
+    let mutex = this.lossyBytesMutexByKind[kind];
+    const unlock = await mutex.lock();
+    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
+      if (this.isClosed) {
+        reject(new UnexpectedConnectionState('engine closed'));
+      }
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
         const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
-        while (!this.dcBufferStatus.get(kind)) {
-          await sleep(10);
-        }
-        this.off(EngineEvent.Closing, onClosing);
-        resolve();
+        this.dataChannelForKind(kind)?.addEventListener(
+          'bufferedamountlow',
+          () => {
+            this.off(EngineEvent.Closing, onClosing);
+            resolve();
+          },
+          {
+            once: true,
+          },
+        );
       }
-    });
+    }).finally(() => unlock());
   }
 
   /**
