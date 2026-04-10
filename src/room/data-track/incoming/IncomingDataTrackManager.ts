@@ -436,6 +436,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.descriptors.delete(sid);
 
     if (descriptor.subscription.type === 'active') {
+      descriptor.subscription.streamControllers.forEach((controller) => {
+        controller.close();
+      });
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
