@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.18.2
+
+### Patch Changes
+
+- Export CheckStatus as enum, not just type - [#1855](https://github.com/livekit/client-sdk-js/pull/1855) ([@Ludobaka](https://github.com/Ludobaka))
+
+- Close streamcontrollers when datatrack gets unpublished - [#1879](https://github.com/livekit/client-sdk-js/pull/1879) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer stream events until connected - [#1867](https://github.com/livekit/client-sdk-js/pull/1867) ([@lukasIO](https://github.com/lukasIO))
+
+- Moves "connected to Livekit Server" log within RTCEngine.join so it shows up for reconnects as well as connects - [#1873](https://github.com/livekit/client-sdk-js/pull/1873) ([@1egoman](https://github.com/1egoman))
+
 ## 2.18.1
 
 ### Patch Changes
