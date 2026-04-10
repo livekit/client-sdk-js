@@ -169,3 +169,13 @@ export {
 export { type DataChannelKind } from './room/RTCEngine';
 
 export { LocalTrackRecorder } from './room/track/record';
+
+export {
+  type UserFrameMetadata,
+  type PacketTrailerInfo,
+  type PacketTrailerWithRtp,
+  PACKET_TRAILER_MAGIC,
+  PACKET_TRAILER_SIZE,
+  extractPacketTrailer,
+  stripPacketTrailerFromEncodedFrame,
+} from './packet_trailer';
