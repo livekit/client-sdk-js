@@ -12,8 +12,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.44.0
-        version: 1.44.0
+        specifier: 1.45.0
+        version: 1.45.0
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
@@ -1128,8 +1128,8 @@ packages:
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
 
-  '@livekit/protocol@1.44.0':
-    resolution: {integrity: sha512-/vfhDUGcUKO8Q43r6i+5FrDhl5oZjm/X3U4x2Iciqvgn5C8qbj+57YPcWSJ1kyIZm5Cm6AV2nAPjMm3ETD/iyg==}
+  '@livekit/protocol@1.45.0':
+    resolution: {integrity: sha512-z22Ej7RRBFm5uVZpU7kBHOdDwZV6Hz+1crCOrse2g7yx8TcHXG0bKnOKwyN/meD233nEDlU2IHNCoT8Vq8lvtg==}
 
   '@livekit/throws-transformer@0.1.3':
     resolution: {integrity: sha512-PBttE6W6g/2ALGu6kWOunZ5qdrXwP9Ge1An2/62OfE6Rhc0Abd4yp6ex2pWhwUfGxDsSZvFgoB1Ia/5mWAMuKQ==}
@@ -5279,7 +5279,7 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.44.0':
+  '@livekit/protocol@1.45.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 

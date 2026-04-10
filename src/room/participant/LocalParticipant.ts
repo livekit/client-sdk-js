@@ -11,9 +11,6 @@ import {
   ParticipantInfo,
   RequestResponse,
   RequestResponse_Reason,
-  RpcAck,
-  RpcRequest,
-  RpcResponse,
   SimulcastCodec,
   SipDTMF,
   SubscribedQualityUpdate,
@@ -45,11 +42,11 @@ import {
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import {
-  MAX_PAYLOAD_BYTES,
   type PerformRpcParams,
+  RpcClientManager,
   RpcError,
   type RpcInvocationData,
-  byteLength,
+  RpcServerManager,
 } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -85,7 +82,6 @@ import {
 } from '../types';
 import {
   Future,
-  compareVersions,
   isAudioTrack,
   isE2EESimulcastSupported,
   isFireFox,
@@ -151,11 +147,13 @@ export default class LocalParticipant extends Participant {
 
   private firstActiveAgent?: RemoteParticipant;
 
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
-
   private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
 
   private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
+
+  private rpcClientManager: RpcClientManager;
+
+  private rpcServerManager: RpcServerManager;
 
   private pendingSignalRequests: Map<
     number,
@@ -168,25 +166,16 @@ export default class LocalParticipant extends Participant {
 
   private enabledPublishVideoCodecs: Codec[] = [];
 
-  private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
-
-  private pendingResponses = new Map<
-    string,
-    {
-      resolve: (payload: string | null, error: RpcError | null) => void;
-      participantIdentity: string;
-    }
-  >();
-
   /** @internal */
   constructor(
     sid: string,
     identity: string,
     engine: RTCEngine,
     options: InternalRoomOptions,
-    roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
     roomOutgoingDataStreamManager: OutgoingDataStreamManager,
     roomOutgoingDataTrackManager: OutgoingDataTrackManager,
+    rpcClientManager: RpcClientManager,
+    rpcServerManager: RpcServerManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -204,9 +193,10 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
-    this.rpcHandlers = roomRpcHandlers;
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
+    this.rpcClientManager = rpcClientManager;
+    this.rpcServerManager = rpcServerManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -266,8 +256,7 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
-      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
-      .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
   }
 
   private handleReconnecting = () => {
@@ -348,27 +337,6 @@ export default class LocalParticipant extends Participant {
         );
         break;
       }
-    }
-  };
-
-  private handleDataPacket = (packet: DataPacket) => {
-    switch (packet.value.case) {
-      case 'rpcResponse':
-        let rpcResponse = packet.value.value as RpcResponse;
-        let payload: string | null = null;
-        let error: RpcError | null = null;
-
-        if (rpcResponse.value.case === 'payload') {
-          payload = rpcResponse.value.value;
-        } else if (rpcResponse.value.case === 'error') {
-          error = RpcError.fromProto(rpcResponse.value.value);
-        }
-        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
-        break;
-      case 'rpcAck':
-        let rpcAck = packet.value.value as RpcAck;
-        this.handleIncomingRpcAck(rpcAck.requestId);
-        break;
     }
   };
 
@@ -1824,69 +1792,9 @@ export default class LocalParticipant extends Participant {
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-  performRpc({
-    destinationIdentity,
-    method,
-    payload,
-    responseTimeout = 15000,
-  }: PerformRpcParams): TypedPromise<string, RpcError> {
-    const maxRoundTripLatency = 7000;
-    const minEffectiveTimeout = maxRoundTripLatency + 1000;
-
-    return new TypedPromise<string, RpcError>(async (resolve, reject) => {
-      if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
-        reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
-        return;
-      }
-
-      if (
-        this.engine.latestJoinResponse?.serverInfo?.version &&
-        compareVersions(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0') < 0
-      ) {
-        reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
-        return;
-      }
-
-      const effectiveTimeout = Math.max(responseTimeout, minEffectiveTimeout);
-      const id = crypto.randomUUID();
-      await this.publishRpcRequest(destinationIdentity, id, method, payload, effectiveTimeout);
-
-      const ackTimeoutId = setTimeout(() => {
-        this.pendingAcks.delete(id);
-        reject(RpcError.builtIn('CONNECTION_TIMEOUT'));
-        this.pendingResponses.delete(id);
-        clearTimeout(responseTimeoutId);
-      }, maxRoundTripLatency);
-
-      this.pendingAcks.set(id, {
-        resolve: () => {
-          clearTimeout(ackTimeoutId);
-        },
-        participantIdentity: destinationIdentity,
-      });
-
-      const responseTimeoutId = setTimeout(() => {
-        this.pendingResponses.delete(id);
-        reject(RpcError.builtIn('RESPONSE_TIMEOUT'));
-      }, responseTimeout);
-
-      this.pendingResponses.set(id, {
-        resolve: (responsePayload: string | null, responseError: RpcError | null) => {
-          clearTimeout(responseTimeoutId);
-          if (this.pendingAcks.has(id)) {
-            this.log.warn('RPC response received before ack', id);
-            this.pendingAcks.delete(id);
-            clearTimeout(ackTimeoutId);
-          }
-
-          if (responseError) {
-            reject(responseError);
-          } else {
-            resolve(responsePayload ?? '');
-          }
-        },
-        participantIdentity: destinationIdentity,
-      });
+  performRpc(params: PerformRpcParams): TypedPromise<string, RpcError> {
+    return this.rpcClientManager.performRpc(params).then(([_id, completionPromise]) => {
+      return completionPromise;
     });
   }
 
@@ -1894,20 +1802,14 @@ export default class LocalParticipant extends Participant {
    * @deprecated use `room.registerRpcMethod` instead
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    if (this.rpcHandlers.has(method)) {
-      this.log.warn(
-        `you're overriding the RPC handler for method ${method}, in the future this will throw an error`,
-      );
-    }
-
-    this.rpcHandlers.set(method, handler);
+    this.rpcServerManager.registerRpcMethod(method, handler);
   }
 
   /**
    * @deprecated use `room.unregisterRpcMethod` instead
    */
   unregisterRpcMethod(method: string) {
-    this.rpcHandlers.delete(method);
+    this.rpcServerManager.unregisterRpcMethod(method);
   }
 
   /**
@@ -1935,72 +1837,6 @@ export default class LocalParticipant extends Participant {
     this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
     if (!this.engine.client.isDisconnected) {
       this.updateTrackSubscriptionPermissions();
-    }
-  }
-
-  private handleIncomingRpcAck(requestId: string) {
-    const handler = this.pendingAcks.get(requestId);
-    if (handler) {
-      handler.resolve();
-      this.pendingAcks.delete(requestId);
-    } else {
-      console.error('Ack received for unexpected RPC request', requestId);
-    }
-  }
-
-  private handleIncomingRpcResponse(
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const handler = this.pendingResponses.get(requestId);
-    if (handler) {
-      handler.resolve(payload, error);
-      this.pendingResponses.delete(requestId);
-    } else {
-      console.error('Response received for unexpected RPC request', requestId);
-    }
-  }
-
-  /** @internal */
-  private async publishRpcRequest(
-    destinationIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-  ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcRequest',
-        value: new RpcRequest({
-          id: requestId,
-          method,
-          payload,
-          responseTimeoutMs: responseTimeout,
-          version: 1,
-        }),
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
-  }
-
-  /** @internal */
-  handleParticipantDisconnected(participantIdentity: string) {
-    for (const [id, { participantIdentity: pendingIdentity }] of this.pendingAcks) {
-      if (pendingIdentity === participantIdentity) {
-        this.pendingAcks.delete(id);
-      }
-    }
-
-    for (const [id, { participantIdentity: pendingIdentity, resolve }] of this.pendingResponses) {
-      if (pendingIdentity === participantIdentity) {
-        resolve(null, RpcError.builtIn('RECIPIENT_DISCONNECTED'));
-        this.pendingResponses.delete(id);
-      }
     }
   }
 
