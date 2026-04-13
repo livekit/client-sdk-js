@@ -499,6 +499,13 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   async setE2EEEnabled(enabled: boolean) {
+    await Promise.all(this.pendingPublishPromises.values());
+    if (
+      (enabled === true && this.encryptionType === Encryption_Type.GCM) ||
+      (enabled === false && Encryption_Type.NONE)
+    ) {
+      return;
+    }
     this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
     await this.republishAllTracks(undefined, false);
   }

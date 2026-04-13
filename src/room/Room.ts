@@ -187,6 +187,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private e2eeStateMutex: Mutex = new Mutex();
+
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
   private regionUrlProvider?: RegionUrlProvider;
@@ -411,13 +413,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @experimental
    */
   async setE2EEEnabled(enabled: boolean) {
-    if (this.e2eeManager) {
-      await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
-      if (this.localParticipant.identity !== '') {
-        this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+    const unlock = await this.e2eeStateMutex.lock();
+    try {
+      if (this.e2eeManager) {
+        if (this.isE2EEEnabled !== enabled) {
+          await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
+
+          if (this.localParticipant.identity !== '') {
+            this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+          }
+        }
+      } else {
+        throw Error('e2ee not configured, please set e2ee settings within the room options');
       }
-    } else {
-      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    } finally {
+      unlock();
     }
   }
 
