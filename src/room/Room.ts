@@ -416,7 +416,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       if (this.e2eeManager) {
         if (this.isE2EEEnabled !== enabled) {
-          await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
+          await this.localParticipant.setE2EEEnabled(enabled);
 
           if (this.localParticipant.identity !== '') {
             this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
