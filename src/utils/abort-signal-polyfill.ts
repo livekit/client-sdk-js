@@ -1,3 +1,5 @@
+import { createDOMException } from './dom-exception';
+
 /**
  * Implementation of AbortSignal.any
  * Creates a signal that will be aborted when any of the given signals is aborted.
@@ -56,7 +58,7 @@ export function abortSignalTimeout(ms: number): AbortSignal {
   const controller = new AbortController();
 
   setTimeout(() => {
-    controller.abort(new DOMException(`signal timed out after ${ms} ms`, 'TimeoutError'));
+    controller.abort(createDOMException(`signal timed out after ${ms} ms`, 'TimeoutError'));
   }, ms);
 
   return controller.signal;

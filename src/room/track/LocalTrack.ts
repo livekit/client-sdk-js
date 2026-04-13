@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { getBrowser } from '../../utils/browserParser';
+import { isDOMException } from '../../utils/dom-exception';
 import DeviceManager from '../DeviceManager';
 import { debounce } from '../debounce';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
@@ -558,7 +559,7 @@ export default abstract class LocalTrack<
       processorElement.muted = true;
 
       processorElement.play().catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') {
+        if (isDOMException(error, 'AbortError')) {
           // This happens on Safari when the processor is restarted, try again after a delay
           this.log.warn('failed to play processor element, retrying', {
             ...this.logContext,
