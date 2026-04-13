@@ -180,6 +180,18 @@ to v1 packets. This is because:
 
 These behaviors are the same for v1 and v2.
 
+### Recommended Naming
+In existing implementations of this proposal, the entity responsible for the **caller** role(s) in the
+above workflow is called `RpcClientManager`. The entity responsible for the **handler** role(s) in
+the above workflow is called `RpcServerManager`.
+
+Store client protocol versions in constants named `CLIENT_PROTOCOL_DEFAULT` for `0`, and
+`CLIENT_PROTOCOL_DATA_STREAM_RPC` for `1`.
+
+Use these names unless it would be burdensome to do so due to past sdk architecture decisions - if
+you don't use these names, please provide a rationale to the user and make sure they agree before
+continuing.
+
 ## Minimum required test cases
 
 The following tests represent the minimum set that must pass for a conforming implementation. They
