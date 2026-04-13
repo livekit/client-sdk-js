@@ -295,7 +295,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
 
     this.disconnectLock = new Mutex();
-
+    this.log.warn('new local participant being created');
     this.localParticipant = new LocalParticipant(
       '',
       '',
@@ -428,6 +428,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     } finally {
       unlock();
+      this.log.warn('encryption has been set to ', enabled);
     }
   }
 
@@ -460,6 +461,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.EncryptionError, error, participant);
       });
       this.e2eeManager?.setup(this);
+      this.e2eeManager?.setupEngine(this.engine);
     }
   }
 

@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
   AudioTrackFeature,
@@ -143,6 +144,8 @@ export default class LocalParticipant extends Participant {
 
   private encryptionType: Encryption_Type = Encryption_Type.NONE;
 
+  private e2eeStateMutex = new Mutex();
+
   private reconnectFuture?: Future<void, Error>;
 
   private signalConnectedFuture?: Future<void, Error>;
@@ -218,6 +221,7 @@ export default class LocalParticipant extends Participant {
   }
 
   get isE2EEEnabled(): boolean {
+    this.log.warn('reading e2ee Enabled state from local p', this.encryptionType);
     return this.encryptionType !== Encryption_Type.NONE;
   }
 
@@ -499,15 +503,21 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   async setE2EEEnabled(enabled: boolean) {
-    await Promise.all(this.pendingPublishPromises.values());
-    if (
-      (enabled === true && this.encryptionType === Encryption_Type.GCM) ||
-      (enabled === false && Encryption_Type.NONE)
-    ) {
-      return;
+    const unlock = await this.e2eeStateMutex.lock();
+    try {
+      this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
+      this.log.warn(`set local participant encryption type to ${this.encryptionType}`);
+      await Promise.all(this.pendingPublishPromises.values());
+      if (
+        this.trackPublications.size === 0 ||
+        Array.from(this.trackPublications.values()).every((pub) => pub.isEncrypted === enabled)
+      ) {
+        return;
+      }
+      await this.republishAllTracks(undefined, false);
+    } finally {
+      unlock();
     }
-    this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
-    await this.republishAllTracks(undefined, false);
   }
 
   /**
