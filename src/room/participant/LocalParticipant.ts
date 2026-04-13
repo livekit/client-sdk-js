@@ -221,7 +221,6 @@ export default class LocalParticipant extends Participant {
   }
 
   get isE2EEEnabled(): boolean {
-    this.log.warn('reading e2ee Enabled state from local p', this.encryptionType);
     return this.encryptionType !== Encryption_Type.NONE;
   }
 
@@ -506,7 +505,6 @@ export default class LocalParticipant extends Participant {
     const unlock = await this.e2eeStateMutex.lock();
     try {
       this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
-      this.log.warn(`set local participant encryption type to ${this.encryptionType}`);
       await Promise.all(this.pendingPublishPromises.values());
       if (
         this.trackPublications.size === 0 ||

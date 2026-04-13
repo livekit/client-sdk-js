@@ -278,7 +278,6 @@ export class E2EEManager
         keyProvider.getKeys().forEach((keyInfo) => {
           this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
         });
-
         this.setParticipantCryptorEnabled(
           this.room.localParticipant.isE2EEEnabled,
           this.room.localParticipant.identity,
@@ -426,7 +425,6 @@ export class E2EEManager
         participantIdentity: this.room.localParticipant.identity,
       },
     };
-
     this.worker.postMessage(msg);
   }
 
