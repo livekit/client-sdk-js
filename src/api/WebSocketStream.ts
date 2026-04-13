@@ -2,6 +2,7 @@
 import { ConnectionError } from '../room/errors';
 import { sleep } from '../room/utils';
 import TypedPromise from '../utils/TypedPromise';
+import { createDOMException } from '../utils/dom-exception';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readable: ReadableStream<T>;
@@ -44,7 +45,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
   constructor(url: string, options: WebSocketStreamOptions = {}) {
     if (options.signal?.aborted) {
-      throw new DOMException('This operation was aborted', 'AbortError');
+      throw createDOMException('This operation was aborted', 'AbortError');
     }
 
     this.url = url;

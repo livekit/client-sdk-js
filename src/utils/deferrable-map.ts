@@ -3,11 +3,15 @@ import { Future } from '../room/utils';
 
 /** An error which is thrown if a {@link DeferrableMap#getDeferred} call is aborted midway
  * through. */
-export class DeferrableMapAbortError extends DOMException {
+export class DeferrableMapAbortError extends Error {
+  code: number;
+
   reason: unknown;
 
   constructor(message: string, reason?: unknown) {
-    super(message, 'AbortError');
+    super(message);
+    this.name = 'AbortError';
+    this.code = 0;
     this.reason = reason;
   }
 }
