@@ -2,4 +2,4 @@
 "livekit-client": patch
 ---
 
-Close streamcontrollers when datatrack gets unpublished
+chore: listen to dc buffer events instead of sleep-looping
