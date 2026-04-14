@@ -72,7 +72,10 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     const payloadBytes = byteLength(payload);
 
     // Only enforce the legacy size limit when on rpc v1
-    if (payloadBytes > MAX_V1_PAYLOAD_BYTES && remoteClientProtocol < 1) {
+    if (
+      payloadBytes > MAX_V1_PAYLOAD_BYTES &&
+      remoteClientProtocol < CLIENT_PROTOCOL_DATA_STREAM_RPC
+    ) {
       throw RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE');
     }
 
