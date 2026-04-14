@@ -27,7 +27,7 @@ export function appendPacketTrailer(
   userTimestamp: bigint,
   frameId: number,
 ): Uint8Array {
-  const hasTimestamp = userTimestamp !== 0n;
+  const hasTimestamp = userTimestamp !== BigInt(0);
   const hasFrameId = frameId !== 0;
 
   if (!hasTimestamp && !hasFrameId) {
@@ -86,7 +86,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   let offset = trailerStart;
   let foundAny = false;
   const metadata: PacketTrailerMetadata = {
-    userTimestamp: 0n,
+    userTimestamp: BigInt(0),
     frameId: 0,
   };
 
@@ -140,7 +140,7 @@ function readUint64Xor(data: Uint8Array, offset: number): bigint {
       (data[offset + 7] ^ 0xff)) >>>
       0,
   );
-  return (hi << 32n) | lo;
+  return (hi << BigInt(32)) | lo;
 }
 
 function readUint32Xor(data: Uint8Array, offset: number, length: number) {
@@ -152,8 +152,8 @@ function readUint32Xor(data: Uint8Array, offset: number, length: number) {
 }
 
 function writeUint64Xor(target: Uint8Array, offset: number, value: bigint) {
-  const hi = Number((value >> 32n) & 0xffffffffn);
-  const lo = Number(value & 0xffffffffn);
+  const hi = Number((value >> BigInt(32)) & BigInt(0xffffffff));
+  const lo = Number(value & BigInt(0xffffffff));
   target[offset] = (hi >>> 24) ^ 0xff;
   target[offset + 1] = ((hi >>> 16) & 0xff) ^ 0xff;
   target[offset + 2] = ((hi >>> 8) & 0xff) ^ 0xff;
