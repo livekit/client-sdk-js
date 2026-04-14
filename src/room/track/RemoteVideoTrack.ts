@@ -25,8 +25,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
   private lastDimensions?: Track.Dimensions;
 
-  /** @internal */
-  packetTrailerExtractor?: PacketTrailerExtractor;
+  private packetTrailerExtractor?: PacketTrailerExtractor;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -44,14 +43,13 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   }
 
   /**
-   * Look up frame-level metadata (user timestamp, frame ID) for a given RTP timestamp.
+   * Look up frame-level metadata for a given RTP timestamp.
    * Use with the `TrackEvent.TimeSyncUpdate` event to correlate displayed frames
    * with their capture-time metadata.
    *
    * Requires the room to be configured with `packetTrailer: { worker }` and the
    * publishing track to have packet trailer features enabled.
    *
-   * @experimental
    */
   lookupFrameMetadata({
     rtpTimestamp,
