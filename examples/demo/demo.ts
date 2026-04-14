@@ -260,7 +260,7 @@ const appActions = {
               if (meta.userTimestamp) {
                 const now = Date.now();
                 const receiveTime = new Date(now);
-                const publishTime = new Date(meta.userTimestamp / 1000);
+                const publishTime = new Date(Number(meta.userTimestamp / 1000n));
                 if (now - lastLatencyUpdate >= 500) {
                   lastLatencyUpdate = now;
                   latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;

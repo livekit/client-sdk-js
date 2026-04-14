@@ -13,7 +13,7 @@ const TIMESTAMP_TLV_SIZE = 10;
 const FRAME_ID_TLV_SIZE = 6;
 
 export interface PacketTrailerMetadata {
-  userTimestamp: number;
+  userTimestamp: bigint;
   frameId: number;
 }
 
@@ -24,10 +24,10 @@ export interface ExtractPacketTrailerResult {
 
 export function appendPacketTrailer(
   data: Uint8Array,
-  userTimestamp: number,
+  userTimestamp: bigint,
   frameId: number,
 ): Uint8Array {
-  const hasTimestamp = userTimestamp !== 0;
+  const hasTimestamp = userTimestamp !== 0n;
   const hasFrameId = frameId !== 0;
 
   if (!hasTimestamp && !hasFrameId) {
@@ -86,7 +86,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   let offset = trailerStart;
   let foundAny = false;
   const metadata: PacketTrailerMetadata = {
-    userTimestamp: 0,
+    userTimestamp: 0n,
     frameId: 0,
   };
 
@@ -125,23 +125,22 @@ function matchesMagic(data: Uint8Array, offset: number) {
   return true;
 }
 
-// Reads a big-endian XOR-masked 64-bit value by combining two 32-bit halves.
-// Uses bitwise shifts for each half, then a single multiply to join them.
-// Safe for values up to Number.MAX_SAFE_INTEGER (2^53 - 1).
-function readUint64Xor(data: Uint8Array, offset: number) {
-  const hi = (
-    ((data[offset] ^ 0xff) << 24) |
-    ((data[offset + 1] ^ 0xff) << 16) |
-    ((data[offset + 2] ^ 0xff) << 8) |
-    (data[offset + 3] ^ 0xff)
-  ) >>> 0;
-  const lo = (
-    ((data[offset + 4] ^ 0xff) << 24) |
-    ((data[offset + 5] ^ 0xff) << 16) |
-    ((data[offset + 6] ^ 0xff) << 8) |
-    (data[offset + 7] ^ 0xff)
-  ) >>> 0;
-  return hi * 0x100000000 + lo;
+function readUint64Xor(data: Uint8Array, offset: number): bigint {
+  const hi = BigInt(
+    (((data[offset] ^ 0xff) << 24) |
+      ((data[offset + 1] ^ 0xff) << 16) |
+      ((data[offset + 2] ^ 0xff) << 8) |
+      (data[offset + 3] ^ 0xff)) >>>
+      0,
+  );
+  const lo = BigInt(
+    (((data[offset + 4] ^ 0xff) << 24) |
+      ((data[offset + 5] ^ 0xff) << 16) |
+      ((data[offset + 6] ^ 0xff) << 8) |
+      (data[offset + 7] ^ 0xff)) >>>
+      0,
+  );
+  return (hi << 32n) | lo;
 }
 
 function readUint32Xor(data: Uint8Array, offset: number, length: number) {
@@ -152,12 +151,9 @@ function readUint32Xor(data: Uint8Array, offset: number, length: number) {
   return value >>> 0;
 }
 
-// Writes a 64-bit value as 8 big-endian XOR-masked bytes.
-// Splits into high/low 32-bit halves: one integer division to get the
-// upper 32 bits, then pure bitwise shifts for individual bytes.
-function writeUint64Xor(target: Uint8Array, offset: number, value: number) {
-  const hi = (value / 0x100000000) >>> 0;
-  const lo = value >>> 0;
+function writeUint64Xor(target: Uint8Array, offset: number, value: bigint) {
+  const hi = Number((value >> 32n) & 0xffffffffn);
+  const lo = Number(value & 0xffffffffn);
   target[offset] = (hi >>> 24) ^ 0xff;
   target[offset + 1] = ((hi >>> 16) & 0xff) ^ 0xff;
   target[offset + 2] = ((hi >>> 8) & 0xff) ^ 0xff;

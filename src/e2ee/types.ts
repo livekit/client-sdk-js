@@ -157,7 +157,7 @@ export interface PTMetadataFromE2EEMessage extends BaseMessage {
     rtpTimestamp: number;
     ssrc: number;
     metadata: {
-      userTimestamp: number;
+      userTimestamp: bigint;
       frameId: number;
     };
   };
