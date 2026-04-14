@@ -1557,18 +1557,31 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  waitForBufferStatusLow(kind: DataChannelKind): TypedPromise<void, UnexpectedConnectionState> {
-    return new TypedPromise(async (resolve, reject) => {
+  async waitForBufferStatusLow(kind: DataChannelKind) {
+    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
+      if (this.isClosed) {
+        reject(new UnexpectedConnectionState('engine closed'));
+      }
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
         const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
-        while (!this.dcBufferStatus.get(kind)) {
-          await sleep(10);
+        const dc = this.dataChannelForKind(kind);
+        if (!dc) {
+          reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
+          return;
         }
-        this.off(EngineEvent.Closing, onClosing);
-        resolve();
+        dc.addEventListener(
+          'bufferedamountlow',
+          () => {
+            this.off(EngineEvent.Closing, onClosing);
+            resolve();
+          },
+          {
+            once: true,
+          },
+        );
       }
     });
   }
