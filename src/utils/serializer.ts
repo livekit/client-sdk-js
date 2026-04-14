@@ -12,7 +12,7 @@ const SerializerSymbol = Symbol.for('lk.serializer');
  *
  * @beta
  */
-export type Serializer<Input = any, Output = any> = {
+export type Serializer<Input, Output> = {
   symbol: typeof SerializerSymbol;
   parse: (raw: string) => Input;
   serialize: (val: Output) => string;
@@ -38,7 +38,7 @@ function base<Input = any, Output = any>(
  */
 function json<Input = any, Output = any>(): Serializer<Input, Output> {
   return base({
-    parse: (raw: string) => JSON.parse(raw) as Input,
+    parse: (rawString: string) => JSON.parse(rawString) as Input,
     serialize: (val: unknown) => JSON.stringify(val),
   });
 }
@@ -46,7 +46,7 @@ function json<Input = any, Output = any>(): Serializer<Input, Output> {
 /** Raw string serializer — passes payloads through as plain strings with no encoding. */
 function raw() {
   return base({
-    parse: (raw: string) => raw,
+    parse: (rawString: string) => rawString,
     serialize: (val: string) => val,
   });
 }
