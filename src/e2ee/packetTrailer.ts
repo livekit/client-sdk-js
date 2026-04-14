@@ -99,7 +99,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
     }
 
     if (tag === PACKET_TRAILER_TIMESTAMP_TAG && length === 8) {
-      metadata.userTimestamp = readUint64Xor(bytes, offset, length);
+      metadata.userTimestamp = readUint64Xor(bytes, offset);
       foundAny = true;
     } else if (tag === PACKET_TRAILER_FRAME_ID_TAG && length === 4) {
       metadata.frameId = readUint32Xor(bytes, offset, length);
@@ -125,12 +125,23 @@ function matchesMagic(data: Uint8Array, offset: number) {
   return true;
 }
 
-function readUint64Xor(data: Uint8Array, offset: number, length: number) {
-  let value = 0;
-  for (let index = 0; index < length; index += 1) {
-    value = value * 256 + (data[offset + index] ^ 0xff);
-  }
-  return value;
+// Reads a big-endian XOR-masked 64-bit value by combining two 32-bit halves.
+// Uses bitwise shifts for each half, then a single multiply to join them.
+// Safe for values up to Number.MAX_SAFE_INTEGER (2^53 - 1).
+function readUint64Xor(data: Uint8Array, offset: number) {
+  const hi = (
+    ((data[offset] ^ 0xff) << 24) |
+    ((data[offset + 1] ^ 0xff) << 16) |
+    ((data[offset + 2] ^ 0xff) << 8) |
+    (data[offset + 3] ^ 0xff)
+  ) >>> 0;
+  const lo = (
+    ((data[offset + 4] ^ 0xff) << 24) |
+    ((data[offset + 5] ^ 0xff) << 16) |
+    ((data[offset + 6] ^ 0xff) << 8) |
+    (data[offset + 7] ^ 0xff)
+  ) >>> 0;
+  return hi * 0x100000000 + lo;
 }
 
 function readUint32Xor(data: Uint8Array, offset: number, length: number) {
@@ -141,14 +152,20 @@ function readUint32Xor(data: Uint8Array, offset: number, length: number) {
   return value >>> 0;
 }
 
+// Writes a 64-bit value as 8 big-endian XOR-masked bytes.
+// Splits into high/low 32-bit halves: one integer division to get the
+// upper 32 bits, then pure bitwise shifts for individual bytes.
 function writeUint64Xor(target: Uint8Array, offset: number, value: number) {
-  let remaining = value;
-  for (let index = 7; index >= 0; index -= 1) {
-    const shift = 256 ** index;
-    const currentByte = Math.floor(remaining / shift);
-    target[offset + (7 - index)] = currentByte ^ 0xff;
-    remaining -= currentByte * shift;
-  }
+  const hi = (value / 0x100000000) >>> 0;
+  const lo = value >>> 0;
+  target[offset] = (hi >>> 24) ^ 0xff;
+  target[offset + 1] = ((hi >>> 16) & 0xff) ^ 0xff;
+  target[offset + 2] = ((hi >>> 8) & 0xff) ^ 0xff;
+  target[offset + 3] = (hi & 0xff) ^ 0xff;
+  target[offset + 4] = (lo >>> 24) ^ 0xff;
+  target[offset + 5] = ((lo >>> 16) & 0xff) ^ 0xff;
+  target[offset + 6] = ((lo >>> 8) & 0xff) ^ 0xff;
+  target[offset + 7] = (lo & 0xff) ^ 0xff;
 }
 
 function writeUint32Xor(target: Uint8Array, offset: number, value: number) {
