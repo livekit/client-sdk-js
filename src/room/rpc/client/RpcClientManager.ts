@@ -87,15 +87,6 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     const effectiveTimeoutMs = Math.max(responseTimeoutMs, minEffectiveTimeoutMs);
     const id = crypto.randomUUID();
 
-    await this.publishRpcRequest(
-      destinationIdentity,
-      id,
-      method,
-      payload,
-      effectiveTimeoutMs,
-      remoteClientProtocol,
-    );
-
     const completionFuture = new Future<string, RpcError>();
 
     const ackTimeoutId = setTimeout(() => {
@@ -111,6 +102,15 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       },
       participantIdentity: destinationIdentity,
     });
+
+    await this.publishRpcRequest(
+      destinationIdentity,
+      id,
+      method,
+      payload,
+      effectiveTimeoutMs,
+      remoteClientProtocol,
+    );
 
     const responseTimeoutId = setTimeout(() => {
       this.pendingResponses.delete(id);
