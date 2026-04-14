@@ -13,7 +13,7 @@ const TIMESTAMP_TLV_SIZE = 10;
 const FRAME_ID_TLV_SIZE = 6;
 
 export interface PacketTrailerMetadata {
-  userTimestampUs: number;
+  userTimestamp: number;
   frameId: number;
 }
 
@@ -24,22 +24,32 @@ export interface ExtractPacketTrailerResult {
 
 export function appendPacketTrailer(
   data: Uint8Array,
-  userTimestampUs: number,
+  userTimestamp: number,
   frameId: number,
 ): Uint8Array {
+  const hasTimestamp = userTimestamp !== 0;
   const hasFrameId = frameId !== 0;
+
+  if (!hasTimestamp && !hasFrameId) {
+    return data;
+  }
+
   const trailerLength =
-    TIMESTAMP_TLV_SIZE + (hasFrameId ? FRAME_ID_TLV_SIZE : 0) + PACKET_TRAILER_ENVELOPE_SIZE;
+    (hasTimestamp ? TIMESTAMP_TLV_SIZE : 0) +
+    (hasFrameId ? FRAME_ID_TLV_SIZE : 0) +
+    PACKET_TRAILER_ENVELOPE_SIZE;
   const result = new Uint8Array(data.length + trailerLength);
   let offset = 0;
 
   result.set(data, offset);
   offset += data.length;
 
-  result[offset++] = PACKET_TRAILER_TIMESTAMP_TAG ^ 0xff;
-  result[offset++] = 8 ^ 0xff;
-  writeUint64Xor(result, offset, userTimestampUs);
-  offset += 8;
+  if (hasTimestamp) {
+    result[offset++] = PACKET_TRAILER_TIMESTAMP_TAG ^ 0xff;
+    result[offset++] = 8 ^ 0xff;
+    writeUint64Xor(result, offset, userTimestamp);
+    offset += 8;
+  }
 
   if (hasFrameId) {
     result[offset++] = PACKET_TRAILER_FRAME_ID_TAG ^ 0xff;
@@ -76,7 +86,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   let offset = trailerStart;
   let foundAny = false;
   const metadata: PacketTrailerMetadata = {
-    userTimestampUs: 0,
+    userTimestamp: 0,
     frameId: 0,
   };
 
@@ -89,7 +99,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
     }
 
     if (tag === PACKET_TRAILER_TIMESTAMP_TAG && length === 8) {
-      metadata.userTimestampUs = readUint64Xor(bytes, offset, length);
+      metadata.userTimestamp = readUint64Xor(bytes, offset, length);
       foundAny = true;
     } else if (tag === PACKET_TRAILER_FRAME_ID_TAG && length === 4) {
       metadata.frameId = readUint32Xor(bytes, offset, length);

@@ -239,7 +239,7 @@ export class E2EEManager
     trackId: string,
     rtpTimestamp: number,
     ssrc: number,
-    metadata: { userTimestampUs: number; frameId: number },
+    metadata: { userTimestamp: number; frameId: number },
   ) {
     if (!this.room) {
       return;

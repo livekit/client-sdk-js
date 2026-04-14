@@ -9,9 +9,40 @@ describe('packetTrailer', () => {
 
     expect(Array.from(extracted.data)).toEqual(Array.from(payload));
     expect(extracted.metadata).toEqual({
-      userTimestampUs: 1_744_249_600_123_456,
+      userTimestamp: 1_744_249_600_123_456,
       frameId: 42,
     });
+  });
+
+  it('extracts timestamp-only trailer when frameId is 0', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456, 0);
+    const extracted = extractPacketTrailer(trailer);
+
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(extracted.metadata).toEqual({
+      userTimestamp: 1_744_249_600_123_456,
+      frameId: 0,
+    });
+  });
+
+  it('extracts frameId-only trailer when timestamp is 0', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const trailer = appendPacketTrailer(payload, 0, 42);
+    const extracted = extractPacketTrailer(trailer);
+
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(extracted.metadata).toEqual({
+      userTimestamp: 0,
+      frameId: 42,
+    });
+  });
+
+  it('returns data unchanged when both timestamp and frameId are 0', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const result = appendPacketTrailer(payload, 0, 0);
+
+    expect(Array.from(result)).toEqual(Array.from(payload));
   });
 
   it('passes frames through when there is no valid trailer', () => {

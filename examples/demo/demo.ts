@@ -257,10 +257,10 @@ const appActions = {
             const overlayElm = document.getElementById(`pt-overlay-${participant.identity}`);
             if (overlayElm && meta) {
               let text = meta.frameId ? `Frame ID: ${meta.frameId}` : '';
-              if (meta.userTimestampUs) {
+              if (meta.userTimestamp) {
                 const now = Date.now();
                 const receiveTime = new Date(now);
-                const publishTime = new Date(meta.userTimestampUs / 1000);
+                const publishTime = new Date(meta.userTimestamp / 1000);
                 if (now - lastLatencyUpdate >= 500) {
                   lastLatencyUpdate = now;
                   latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;
