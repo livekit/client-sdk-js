@@ -188,10 +188,8 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     const associatedRequestId = attributes[RPC_REQUEST_ID_ATTR];
     if (!associatedRequestId) {
       this.log.warn(`RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} not set.`);
-      this.handleIncomingRpcResponseFailure(
-        associatedRequestId,
-        RpcError.builtIn('APPLICATION_ERROR'),
-      );
+      // NOTE: no response can be sent here, because there's no request id so associate
+      // so logging is the best we can do here.
       return;
     }
 
