@@ -157,16 +157,12 @@ export const RPC_REQUEST_DATA_STREAM_TOPIC = 'lk.rpc_request';
 export const RPC_RESPONSE_DATA_STREAM_TOPIC = 'lk.rpc_response';
 
 /** @internal */
-export const RPC_REQUEST_ID_ATTR = 'lk.rpc_request_id';
-
-/** @internal */
-export const RPC_REQUEST_METHOD_ATTR = 'lk.rpc_request_method';
-
-/** @internal */
-export const RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR = 'lk.rpc_request_response_timeout_ms';
-
-/** @internal */
-export const RPC_REQUEST_VERSION_ATTR = 'lk.rpc_request_version';
+export enum RpcRequestAttrs {
+  RPC_REQUEST_ID = 'lk.rpc_request_id',
+  RPC_REQUEST_METHOD = 'lk.rpc_request_method',
+  RPC_REQUEST_RESPONSE_TIMEOUT_MS = 'lk.rpc_request_response_timeout_ms',
+  RPC_REQUEST_VERSION = 'lk.rpc_request_version',
+}
 
 /** Initial version of rpc which uses RpcRequest / RpcResponse messages.
  * @internal

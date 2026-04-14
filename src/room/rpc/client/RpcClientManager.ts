@@ -11,13 +11,10 @@ import {
   MAX_V1_PAYLOAD_BYTES,
   type PerformRpcParams,
   RPC_REQUEST_DATA_STREAM_TOPIC,
-  RPC_REQUEST_ID_ATTR,
-  RPC_REQUEST_METHOD_ATTR,
-  RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
-  RPC_REQUEST_VERSION_ATTR,
   RPC_VERSION_V1,
   RPC_VERSION_V2,
   RpcError,
+  RpcRequestAttrs,
   byteLength,
 } from '../utils';
 import type { RpcClientManagerCallbacks } from './events';
@@ -149,10 +146,10 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
         topic: RPC_REQUEST_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
         attributes: {
-          [RPC_REQUEST_ID_ATTR]: requestId,
-          [RPC_REQUEST_METHOD_ATTR]: method,
-          [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
-          [RPC_REQUEST_VERSION_ATTR]: `${RPC_VERSION_V2}`,
+          [RpcRequestAttrs.RPC_REQUEST_ID]: requestId,
+          [RpcRequestAttrs.RPC_REQUEST_METHOD]: method,
+          [RpcRequestAttrs.RPC_REQUEST_RESPONSE_TIMEOUT_MS]: `${responseTimeout}`,
+          [RpcRequestAttrs.RPC_REQUEST_VERSION]: `${RPC_VERSION_V2}`,
         },
       });
 
@@ -185,9 +182,9 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
    * @internal
    */
   async handleIncomingDataStream(reader: TextStreamReader, attributes: Record<string, string>) {
-    const associatedRequestId = attributes[RPC_REQUEST_ID_ATTR];
+    const associatedRequestId = attributes[RpcRequestAttrs.RPC_REQUEST_ID];
     if (!associatedRequestId) {
-      this.log.warn(`RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} not set.`);
+      this.log.warn(`RPC data stream malformed: ${RpcRequestAttrs.RPC_REQUEST_ID} not set.`);
       // NOTE: no response can be sent here, because there's no request id so associate
       // so logging is the best we can do here.
       return;

@@ -8,14 +8,11 @@ import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingD
 import type Participant from '../../participant/Participant';
 import {
   MAX_V1_PAYLOAD_BYTES,
-  RPC_REQUEST_ID_ATTR,
-  RPC_REQUEST_METHOD_ATTR,
-  RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
-  RPC_REQUEST_VERSION_ATTR,
   RPC_RESPONSE_DATA_STREAM_TOPIC,
   RPC_VERSION_V2,
   RpcError,
   type RpcInvocationData,
+  RpcRequestAttrs,
   byteLength,
 } from '../utils';
 import type { RpcServerManagerCallbacks } from './events';
@@ -105,7 +102,10 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
           `Uncaught error returned by RPC handler for ${rpcRequest.method}. Returning APPLICATION_ERROR instead.`,
           error,
         );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
+        responseError = RpcError.builtIn(
+          'APPLICATION_ERROR',
+          `Uncaught error: ${(error as Error)?.message ?? error}`,
+        );
       }
 
       this.publishRpcResponsePacket(callerIdentity, rpcRequest.id, null, responseError);
@@ -125,14 +125,17 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
     callerIdentity: Participant['identity'],
     dataStreamAttrs: Record<string, string>,
   ) {
-    const requestId = dataStreamAttrs[RPC_REQUEST_ID_ATTR];
-    const method = dataStreamAttrs[RPC_REQUEST_METHOD_ATTR];
-    const responseTimeout = parseInt(dataStreamAttrs[RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR], 10);
-    const version = parseInt(dataStreamAttrs[RPC_REQUEST_VERSION_ATTR], 10);
+    const requestId = dataStreamAttrs[RpcRequestAttrs.RPC_REQUEST_ID];
+    const method = dataStreamAttrs[RpcRequestAttrs.RPC_REQUEST_METHOD];
+    const responseTimeout = parseInt(
+      dataStreamAttrs[RpcRequestAttrs.RPC_REQUEST_RESPONSE_TIMEOUT_MS],
+      10,
+    );
+    const version = parseInt(dataStreamAttrs[RpcRequestAttrs.RPC_REQUEST_VERSION], 10);
 
     if (!requestId || !method || Number.isNaN(responseTimeout) || Number.isNaN(version)) {
       this.log.warn(
-        `RPC data stream malformed: ${RPC_REQUEST_ID_ATTR} / ${RPC_REQUEST_METHOD_ATTR} / ${RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR} / ${RPC_REQUEST_VERSION_ATTR} not set.`,
+        `RPC data stream malformed: ${RpcRequestAttrs.RPC_REQUEST_ID} / ${RpcRequestAttrs.RPC_REQUEST_METHOD} / ${RpcRequestAttrs.RPC_REQUEST_RESPONSE_TIMEOUT_MS} / ${RpcRequestAttrs.RPC_REQUEST_VERSION} not set.`,
       );
       this.publishRpcResponsePacket(
         callerIdentity,
@@ -262,7 +265,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
       const writer = await this.outgoingDataStreamManager.streamText({
         topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
-        attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
+        attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
       });
       await writer.write(payload);
       await writer.close();

@@ -5,13 +5,7 @@ import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import { sleep } from '../../utils';
-import {
-  RPC_REQUEST_DATA_STREAM_TOPIC,
-  RPC_REQUEST_ID_ATTR,
-  RPC_REQUEST_METHOD_ATTR,
-  RPC_REQUEST_VERSION_ATTR,
-  RpcError,
-} from '../utils';
+import { RPC_REQUEST_DATA_STREAM_TOPIC, RpcError, RpcRequestAttrs } from '../utils';
 import RpcClientManager from './RpcClientManager';
 import type { RpcClientManagerCallbacks } from './events';
 
@@ -183,9 +177,9 @@ describe('RpcClientManager', () => {
           topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
           attributes: expect.objectContaining({
-            [RPC_REQUEST_ID_ATTR]: requestId,
-            [RPC_REQUEST_METHOD_ATTR]: 'test-method',
-            [RPC_REQUEST_VERSION_ATTR]: '2',
+            [RpcRequestAttrs.RPC_REQUEST_ID]: requestId,
+            [RpcRequestAttrs.RPC_REQUEST_METHOD]: 'test-method',
+            [RpcRequestAttrs.RPC_REQUEST_VERSION]: '2',
           }),
         }),
       );
@@ -223,9 +217,9 @@ describe('RpcClientManager', () => {
           topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
           attributes: expect.objectContaining({
-            [RPC_REQUEST_ID_ATTR]: requestId,
-            [RPC_REQUEST_METHOD_ATTR]: 'test-method',
-            [RPC_REQUEST_VERSION_ATTR]: '2',
+            [RpcRequestAttrs.RPC_REQUEST_ID]: requestId,
+            [RpcRequestAttrs.RPC_REQUEST_METHOD]: 'test-method',
+            [RpcRequestAttrs.RPC_REQUEST_VERSION]: '2',
           }),
         }),
       );

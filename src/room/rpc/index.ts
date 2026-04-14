@@ -6,7 +6,7 @@ export {
   type PerformRpcParams,
   RPC_REQUEST_DATA_STREAM_TOPIC,
   RPC_RESPONSE_DATA_STREAM_TOPIC,
-  RPC_REQUEST_ID_ATTR,
+  RpcRequestAttrs,
   RpcError,
   type RpcInvocationData,
   byteLength,
