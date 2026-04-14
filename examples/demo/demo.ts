@@ -256,22 +256,25 @@ const appActions = {
             const meta = track.lookupFrameMetadata({ rtpTimestamp });
             const overlayElm = document.getElementById(`pt-overlay-${participant.identity}`);
             if (overlayElm && meta) {
-              const now = Date.now();
-              const receiveTime = new Date(now);
-              const publishTime = new Date(meta.userTimestampUs / 1000);
-              if (now - lastLatencyUpdate >= 500) {
-                lastLatencyUpdate = now;
-                latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;
+              let text = `Frame ID: ${meta.frameId}`;
+              if (meta.userTimestampUs) {
+                const now = Date.now();
+                const receiveTime = new Date(now);
+                const publishTime = new Date(meta.userTimestampUs / 1000);
+                if (now - lastLatencyUpdate >= 500) {
+                  lastLatencyUpdate = now;
+                  latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;
+                }
+                const fmt = (d: Date) => {
+                  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+                  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}:${pad(d.getMilliseconds(), 4)}`;
+                };
+                text +=
+                  `\nPublish:  ${fmt(publishTime)}` +
+                  `\nReceive:  ${fmt(receiveTime)}` +
+                  `\nLatency:  ${latencyDisplay}`;
               }
-              const fmt = (d: Date) => {
-                const pad = (n: number, w = 2) => String(n).padStart(w, '0');
-                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}:${pad(d.getMilliseconds(), 4)}`;
-              };
-              overlayElm.textContent =
-                `Frame ID: ${meta.frameId}\n` +
-                `Publish:  ${fmt(publishTime)}\n` +
-                `Receive:  ${fmt(receiveTime)}\n` +
-                `Latency:  ${latencyDisplay}`;
+              overlayElm.textContent = text;
             }
           });
         }
