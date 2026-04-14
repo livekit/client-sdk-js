@@ -188,8 +188,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
-  /** @internal */
-  packetTrailerManager: PacketTrailerManager | undefined;
+  private packetTrailerManager: PacketTrailerManager | undefined;
 
   private e2eeStateMutex: Mutex = new Mutex();
 
