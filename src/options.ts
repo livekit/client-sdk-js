@@ -1,4 +1,5 @@
 import type { E2EEOptions } from './e2ee/types';
+import type { PacketTrailerOptions } from './packetTrailer/PacketTrailerManager';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -99,6 +100,13 @@ export interface InternalRoomOptions {
   encryption?: E2EEOptions;
 
   loggerName?: string;
+
+  /**
+   * @experimental
+   * Options for enabling packet trailer extraction on received video tracks.
+   * Packet trailers carry frame-level metadata such as user timestamps and frame IDs.
+   */
+  packetTrailer?: PacketTrailerOptions;
 
   /**
    * will attempt to connect via single peer connection mode.

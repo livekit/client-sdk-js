@@ -37,6 +37,7 @@ import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
+import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
 import type {
   InternalRoomConnectOptions,
   InternalRoomOptions,
@@ -187,6 +188,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  /** @internal */
+  packetTrailerManager: PacketTrailerManager | undefined;
+
   private e2eeStateMutex: Mutex = new Mutex();
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
@@ -304,6 +308,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
     );
+
+    if (this.options.packetTrailer) {
+      this.setupPacketTrailer();
+    }
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -460,6 +468,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       this.e2eeManager?.setup(this);
       this.e2eeManager?.setupEngine(this.engine);
+    }
+  }
+
+  private setupPacketTrailer() {
+    if (this.options.packetTrailer) {
+      this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
+      this.packetTrailerManager.setup(this);
     }
   }
 
@@ -2318,6 +2333,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           } else if (track.kind === Track.Kind.Video) {
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
+          }
+          if (
+            !this.packetTrailerManager &&
+            publication.trackInfo?.packetTrailerFeatures &&
+            publication.trackInfo.packetTrailerFeatures.length > 0
+          ) {
+            this.log.warn(
+              'Track has packet trailer features but no packet trailer worker is configured. ' +
+                'Pass packetTrailer: { worker } in RoomOptions to enable frame metadata extraction.',
+              { ...this.logContext, trackSid: publication.trackSid },
+            );
           }
           this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },

@@ -63,6 +63,8 @@ import {
 import { getBrowser } from './utils/browserParser';
 
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
+export type { PacketTrailerMetadata } from './e2ee/packetTrailer';
+export { PacketTrailerManager, type PacketTrailerOptions } from './packetTrailer/PacketTrailerManager';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';

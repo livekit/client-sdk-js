@@ -745,8 +745,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled) {
-      this.log.debug('E2EE - setting up transports with insertable streams', this.logContext);
+    if (this.signalOpts?.e2eeEnabled || this.options.packetTrailer) {
+      this.log.debug('setting up transports with insertable streams', this.logContext);
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
