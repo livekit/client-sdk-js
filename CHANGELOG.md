@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.18.2
+
+### Patch Changes
+
+- Export CheckStatus as enum, not just type - [#1855](https://github.com/livekit/client-sdk-js/pull/1855) ([@Ludobaka](https://github.com/Ludobaka))
+
+- Add new serializer implementation - [#1885](https://github.com/livekit/client-sdk-js/pull/1885) ([@1egoman](https://github.com/1egoman))
+
+- fix: improve ordering of resolving waitForBufferStatus calls - [#1877](https://github.com/livekit/client-sdk-js/pull/1877) ([@lukasIO](https://github.com/lukasIO))
+
+- Close streamcontrollers when datatrack gets unpublished - [#1879](https://github.com/livekit/client-sdk-js/pull/1879) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer stream events until connected - [#1867](https://github.com/livekit/client-sdk-js/pull/1867) ([@lukasIO](https://github.com/lukasIO))
+
+- Moves "connected to Livekit Server" log within RTCEngine.join so it shows up for reconnects as well as connects - [#1873](https://github.com/livekit/client-sdk-js/pull/1873) ([@1egoman](https://github.com/1egoman))
+
+- Wrap setE2EEEnabled call in a mutex - [#1882](https://github.com/livekit/client-sdk-js/pull/1882) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.1
 
 ### Patch Changes
