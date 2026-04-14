@@ -5,14 +5,7 @@ import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
-import {
-  RPC_REQUEST_ID_ATTR,
-  RPC_REQUEST_METHOD_ATTR,
-  RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR,
-  RPC_REQUEST_VERSION_ATTR,
-  RPC_RESPONSE_DATA_STREAM_TOPIC,
-  RpcError,
-} from '../utils';
+import { RPC_RESPONSE_DATA_STREAM_TOPIC, RpcError, RpcRequestAttrs } from '../utils';
 import RpcServerManager from './RpcServerManager';
 import type { RpcServerManagerCallbacks } from './events';
 
@@ -216,10 +209,10 @@ describe('RpcServerManager', () => {
 
     function makeDataStreamAttrs(requestId: string, method: string, responseTimeout: number) {
       return {
-        [RPC_REQUEST_ID_ATTR]: requestId,
-        [RPC_REQUEST_METHOD_ATTR]: method,
-        [RPC_REQUEST_RESPONSE_TIMEOUT_MS_ATTR]: `${responseTimeout}`,
-        [RPC_REQUEST_VERSION_ATTR]: '2',
+        [RpcRequestAttrs.RPC_REQUEST_ID]: requestId,
+        [RpcRequestAttrs.RPC_REQUEST_METHOD]: method,
+        [RpcRequestAttrs.RPC_REQUEST_RESPONSE_TIMEOUT_MS]: `${responseTimeout}`,
+        [RpcRequestAttrs.RPC_REQUEST_VERSION]: '2',
       };
     }
 
@@ -254,7 +247,7 @@ describe('RpcServerManager', () => {
         expect.objectContaining({
           topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
           destinationIdentities: ['caller-identity'],
-          attributes: { [RPC_REQUEST_ID_ATTR]: requestId },
+          attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
         }),
       );
       expect(mockStreamTextWriter.write).toHaveBeenCalledWith('response payload');
