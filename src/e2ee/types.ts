@@ -150,6 +150,19 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   };
 }
 
+export interface PTMetadataFromE2EEMessage extends BaseMessage {
+  kind: 'packetTrailerMetadata';
+  data: {
+    trackId: string;
+    rtpTimestamp: number;
+    ssrc: number;
+    metadata: {
+      userTimestampUs: number;
+      frameId: number;
+    };
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -166,7 +179,8 @@ export type E2EEWorkerMessage =
   | DecryptDataRequestMessage
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
-  | EncryptDataResponseMessage;
+  | EncryptDataResponseMessage
+  | PTMetadataFromE2EEMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

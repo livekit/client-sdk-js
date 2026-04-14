@@ -20,8 +20,10 @@ export interface PacketTrailerOptions {
  * wires up an Insertable Streams pipeline (via a dedicated worker) to strip
  * the trailer from encoded frames and cache the metadata for lookup.
  *
- * Works independently of E2EE. When both are active, the PT pipeline runs
- * first and provides pre-processed streams that E2EE can consume.
+ * When E2EE is active, the E2EE FrameCryptor worker handles trailer
+ * extraction directly (before decryption), so this manager only creates
+ * the extractor/metadata cache — no separate insertable-streams pipeline
+ * is needed.
  *
  * @experimental
  */
@@ -31,11 +33,6 @@ export class PacketTrailerManager {
   private room?: Room;
 
   private extractors = new Map<string, PacketTrailerExtractor>();
-
-  private preProcessedStreams = new Map<
-    RTCRtpReceiver,
-    { readable: ReadableStream; writable: WritableStream }
-  >();
 
   constructor(options: PacketTrailerOptions) {
     this.worker = options.worker;
@@ -84,6 +81,16 @@ export class PacketTrailerManager {
     this.extractors.set(trackId, extractor);
     track.packetTrailerExtractor = extractor;
 
+    const hasE2EE = !!this.room?.hasE2EESetup;
+
+    if (hasE2EE) {
+      // When E2EE is active, the FrameCryptor worker strips the trailer
+      // inside its decodeFunction before decryption and sends metadata
+      // back via the E2EEManager. No separate pipeline is needed here;
+      // we only create the extractor/cache above.
+      return;
+    }
+
     const receiver = track.receiver;
 
     if (!('createEncodedStreams' in receiver)) {
@@ -95,40 +102,16 @@ export class PacketTrailerManager {
 
     // @ts-ignore -- createEncodedStreams is not in standard typings
     const streams = receiver.createEncodedStreams();
-    const hasE2EE = !!this.room?.hasE2EESetup;
 
-    if (hasE2EE) {
-      const bridge = new TransformStream();
-      const msg: PTDecodeMessage = {
-        kind: 'decode',
-        data: {
-          readableStream: streams.readable,
-          writableStream: bridge.writable,
-          trackId,
-        },
-      };
-      this.worker.postMessage(msg, [streams.readable, bridge.writable]);
-
-      // @ts-ignore
-      receiver.readableStream = bridge.readable;
-      // @ts-ignore
-      receiver.writableStream = streams.writable;
-
-      this.preProcessedStreams.set(receiver, {
-        readable: bridge.readable,
-        writable: streams.writable,
-      });
-    } else {
-      const msg: PTDecodeMessage = {
-        kind: 'decode',
-        data: {
-          readableStream: streams.readable,
-          writableStream: streams.writable,
-          trackId,
-        },
-      };
-      this.worker.postMessage(msg, [streams.readable, streams.writable]);
-    }
+    const msg: PTDecodeMessage = {
+      kind: 'decode',
+      data: {
+        readableStream: streams.readable,
+        writableStream: streams.writable,
+        trackId,
+      },
+    };
+    this.worker.postMessage(msg, [streams.readable, streams.writable]);
 
     // @ts-ignore
     receiver[PACKET_TRAILER_FLAG] = true;
@@ -141,15 +124,14 @@ export class PacketTrailerManager {
       extractor.dispose();
       this.extractors.delete(trackId);
     }
-    if (track.receiver) {
-      this.preProcessedStreams.delete(track.receiver);
-    }
 
-    const msg: PTRemoveTransformMessage = {
-      kind: 'removeTransform',
-      data: { trackId },
-    };
-    this.worker.postMessage(msg);
+    if (!this.room?.hasE2EESetup) {
+      const msg: PTRemoveTransformMessage = {
+        kind: 'removeTransform',
+        data: { trackId },
+      };
+      this.worker.postMessage(msg);
+    }
   }
 
   private onWorkerMessage = (ev: MessageEvent<PTWorkerMessage>) => {
@@ -165,15 +147,4 @@ export class PacketTrailerManager {
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('packet trailer worker encountered an error:', { error: ev.error });
   };
-
-  /**
-   * Returns pre-processed streams for a receiver if the PT pipeline has already
-   * consumed the receiver's encoded streams. Used by E2EE to chain after PT.
-   * @internal
-   */
-  getPreProcessedStreams(
-    receiver: RTCRtpReceiver,
-  ): { readable: ReadableStream; writable: WritableStream } | undefined {
-    return this.preProcessedStreams.get(receiver);
-  }
 }

@@ -7,7 +7,14 @@ import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
+import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../packetTrailer';
+import type {
+  DecodeRatchetOptions,
+  KeyProviderOptions,
+  KeySet,
+  PTMetadataFromE2EEMessage,
+  RatchetResult,
+} from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
@@ -454,6 +461,34 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    if (isVideoFrame(encodedFrame) && encodedFrame.data.byteLength > 0) {
+      try {
+        const ptResult = extractPacketTrailer(encodedFrame.data);
+        if (ptResult.metadata) {
+          const rtpTimestamp = getFrameRtpTimestamp(encodedFrame);
+          const ssrc = getFrameSsrc(encodedFrame);
+          if (rtpTimestamp !== undefined && this.trackId && this.participantIdentity) {
+            const msg: PTMetadataFromE2EEMessage = {
+              kind: 'packetTrailerMetadata',
+              data: {
+                trackId: this.trackId,
+                rtpTimestamp,
+                ssrc,
+                metadata: ptResult.metadata,
+              },
+            };
+            postMessage(msg);
+          }
+          encodedFrame.data = (ptResult.data.buffer as ArrayBuffer).slice(
+            ptResult.data.byteOffset,
+            ptResult.data.byteOffset + ptResult.data.byteLength,
+          );
+        }
+      } catch {
+        // best-effort: never break the media pipeline if trailer parsing fails
+      }
+    }
+
     if (
       !this.isEnabled() ||
       // skip for decryption for empty dtx frames
