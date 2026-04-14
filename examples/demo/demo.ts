@@ -256,7 +256,7 @@ const appActions = {
             const meta = track.lookupFrameMetadata({ rtpTimestamp });
             const overlayElm = document.getElementById(`pt-overlay-${participant.identity}`);
             if (overlayElm && meta) {
-              let text = `Frame ID: ${meta.frameId}`;
+              let text = meta.frameId ? `Frame ID: ${meta.frameId}` : '';
               if (meta.userTimestampUs) {
                 const now = Date.now();
                 const receiveTime = new Date(now);
