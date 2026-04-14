@@ -1567,7 +1567,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
-        this.dataChannelForKind(kind)?.addEventListener(
+        const dc = this.dataChannelForKind(kind);
+        if (!dc) {
+          reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
+          return;
+        }
+        dc.addEventListener(
           'bufferedamountlow',
           () => {
             this.off(EngineEvent.Closing, onClosing);
