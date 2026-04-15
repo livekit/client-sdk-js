@@ -126,15 +126,51 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
 
+    const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort);
+
+      if (!streamController) {
+        log.warn(`ReadableStream subscribed to ${sid} was not started.`);
+        return;
+      }
+      const descriptor = this.descriptors.get(sid);
+      if (!descriptor) {
+        log.warn(`Unknown track ${sid}, skipping cancel...`);
+        return;
+      }
+      if (descriptor.subscription.type !== 'active') {
+        log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
+        return;
+      }
+
+      descriptor.subscription.streamControllers.delete(streamController);
+
+      // If no active stream controllers are left, also unsubscribe on the SFU end.
+      if (descriptor.subscription.streamControllers.size === 0) {
+        this.unSubscribeRequest(descriptor.info.sid);
+      }
+    };
+
+    const onAbort = () => {
+      if (!streamController) {
+        return;
+      }
+      console.log('ABORT');
+      const currentDescriptor = this.descriptors.get(sid);
+      if (currentDescriptor?.subscription.type === 'active') {
+        currentDescriptor.subscription.streamControllers.delete(streamController);
+      }
+
+      streamController.error(DataTrackSubscribeError.cancelled());
+      sfuSubscriptionComplete.reject?.(DataTrackSubscribeError.cancelled());
+
+      cleanup();
+    };
+
     const stream = new ReadableStream<DataTrackFrame>(
       {
         start: (controller) => {
           streamController = controller;
-
-          const onAbort = () => {
-            controller.error(DataTrackSubscribeError.cancelled());
-            sfuSubscriptionComplete.reject?.(DataTrackSubscribeError.cancelled());
-          };
 
           this.subscribeRequest(sid, signal)
             .then(async () => {
@@ -157,31 +193,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
               controller.error(err);
               sfuSubscriptionComplete.reject?.(err);
             })
-            .finally(() => {
-              signal?.removeEventListener('abort', onAbort);
-            });
         },
         cancel: () => {
-          if (!streamController) {
-            log.warn(`ReadableStream subscribed to ${sid} was not started.`);
-            return;
-          }
-          const descriptor = this.descriptors.get(sid);
-          if (!descriptor) {
-            log.warn(`Unknown track ${sid}, skipping cancel...`);
-            return;
-          }
-          if (descriptor.subscription.type !== 'active') {
-            log.warn(`Subscription for track ${sid} is not active, skipping cancel...`);
-            return;
-          }
-
-          descriptor.subscription.streamControllers.delete(streamController);
-
-          // If no active stream controllers are left, also unsubscribe on the SFU end.
-          if (descriptor.subscription.streamControllers.size === 0) {
-            this.unSubscribeRequest(descriptor.info.sid);
-          }
+          cleanup();
         },
       },
       new CountQueuingStrategy({ highWaterMark: bufferSize }),
