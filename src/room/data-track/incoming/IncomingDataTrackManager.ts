@@ -52,7 +52,10 @@ type SubscriptionStateActive = {
   type: 'active';
   subcriptionHandle: DataTrackHandle;
   pipeline: IncomingDataTrackPipeline;
-  streamControllers: Set<ReadableStreamDefaultController<DataTrackFrame>>;
+  /** Map from each downstream ReadableStream's controller to a function that detaches the user's
+   * abort signal listener for that stream. Stored together so that whoever ends the stream
+   * (consumer cancel, user abort, or manager-driven close) can remove the associated listener. */
+  streamControllers: Map<ReadableStreamDefaultController<DataTrackFrame>, () => void>;
 };
 
 type SubscriptionState = SubscriptionStateNone | SubscriptionStatePending | SubscriptionStateActive;
@@ -126,8 +129,12 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
 
-    const cleanup = () => {
+    const detachSignal = () => {
       signal?.removeEventListener('abort', onAbort);
+    };
+
+    const cleanup = () => {
+      detachSignal();
 
       if (!streamController) {
         log.warn(`ReadableStream subscribed to ${sid} was not started.`);
@@ -155,7 +162,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       if (!streamController) {
         return;
       }
-      console.log('ABORT');
       const currentDescriptor = this.descriptors.get(sid);
       if (currentDescriptor?.subscription.type === 'active') {
         currentDescriptor.subscription.streamControllers.delete(streamController);
@@ -174,25 +180,39 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
           this.subscribeRequest(sid, signal)
             .then(async () => {
-              signal?.addEventListener('abort', onAbort);
-
               const descriptor = this.descriptors.get(sid);
               if (!descriptor) {
                 log.error(`Unknown track ${sid}`);
+                const err = DataTrackSubscribeError.disconnected();
+                controller.error(err);
+                sfuSubscriptionComplete.reject?.(err);
                 return;
               }
               if (descriptor.subscription.type !== 'active') {
                 log.error(`Subscription for track ${sid} is not active`);
+                const err = DataTrackSubscribeError.disconnected();
+                controller.error(err);
+                sfuSubscriptionComplete.reject?.(err);
                 return;
               }
 
-              descriptor.subscription.streamControllers.add(controller);
+              // Attach the abort signal, aborting immediately if the abort signal was fired while
+              // subscribeRequest was in flight.
+              if (signal?.aborted) {
+                onAbort();
+                return;
+              }
+              signal?.addEventListener('abort', onAbort);
+
+              descriptor.subscription.streamControllers.set(controller, detachSignal);
               sfuSubscriptionComplete.resolve?.();
             })
             .catch((err) => {
+              // subscribeRequest rejected (cancelled, timed out, disconnected). The signal
+              // listener was never attached in this path, so nothing to detach.
               controller.error(err);
               sfuSubscriptionComplete.reject?.(err);
-            })
+            });
         },
         cancel: () => {
           cleanup();
@@ -362,9 +382,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    for (const controller of descriptor.subscription.streamControllers) {
-      controller.close();
-    }
+    this.closeStreamControllers(descriptor.subscription.streamControllers, sid);
 
     // FIXME: this might be wrong? Shouldn't this only occur if it is the last subscription to
     // terminate?
@@ -373,6 +391,27 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.subscriptionHandles.delete(previousDescriptorSubscription.subcriptionHandle);
 
     this.emit('sfuUpdateSubscription', { sid, subscribe: false });
+  }
+
+  /** Detach abort-signal listeners and close all downstream stream controllers for an active
+   * subscription. Used when the subscription is being torn down by the manager (unsubscribe,
+   * unpublish, or shutdown). */
+  private closeStreamControllers(
+    streamControllers: SubscriptionStateActive['streamControllers'],
+    sid: DataTrackSid,
+  ) {
+    for (const [controller, detachSignal] of streamControllers) {
+      // Detach before close so we don't leak a listener on the user's AbortSignal.
+      detachSignal();
+      try {
+        controller.close();
+      } catch (err) {
+        // Defensive: if the controller has already been errored (e.g. by a racing abort whose
+        // listener removed itself before we got here), close() throws. There's nothing
+        // meaningful to do other than log — the stream is already terminal.
+        log.warn(`Failed to close readable stream for track ${sid}: ${err}`);
+      }
+    }
   }
 
   /** SFU notification that track publications have changed.
@@ -450,9 +489,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.descriptors.delete(sid);
 
     if (descriptor.subscription.type === 'active') {
-      for (const controller of descriptor.subscription.streamControllers) {
-        controller.close();
-      }
+      this.closeStreamControllers(descriptor.subscription.streamControllers, sid);
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
@@ -500,7 +537,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           type: 'active',
           subcriptionHandle: assignedHandle,
           pipeline,
-          streamControllers: new Set(),
+          streamControllers: new Map(),
         };
         this.subscriptionHandles.set(assignedHandle, sid);
 
@@ -543,7 +580,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
 
     // Broadcast to all downstream subscribers
-    for (const controller of descriptor.subscription.streamControllers) {
+    for (const controller of descriptor.subscription.streamControllers.keys()) {
       if (controller.desiredSize !== null && controller.desiredSize <= 0) {
         log.warn(
           `Cannot send frame to subscribers: readable stream is full (desiredSize is ${controller.desiredSize}). To increase this threshold, set a higher 'options.highWaterMark' when calling .subscribe().`,
@@ -602,9 +639,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
 
       if (descriptor.subscription.type === 'active') {
-        for (const controller of descriptor.subscription.streamControllers) {
-          controller.close();
-        }
+        this.closeStreamControllers(descriptor.subscription.streamControllers, descriptor.info.sid);
       }
     }
     this.descriptors.clear();
