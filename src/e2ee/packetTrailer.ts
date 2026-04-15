@@ -187,9 +187,7 @@ export function getFrameRtpTimestamp(
   return undefined;
 }
 
-export function getFrameSsrc(
-  frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-): number {
+export function getFrameSsrc(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
   try {
     const metadata = frame.getMetadata() as Record<string, unknown>;
     if (typeof metadata.synchronizationSource === 'number') {

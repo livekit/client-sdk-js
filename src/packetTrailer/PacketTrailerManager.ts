@@ -2,9 +2,9 @@ import type { TrackInfo } from '@livekit/protocol';
 import log from '../logger';
 import type Room from '../room/Room';
 import { RoomEvent } from '../room/events';
+import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type RemoteVideoTrack from '../room/track/RemoteVideoTrack';
-import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type { PTDecodeMessage, PTRemoveTransformMessage, PTWorkerMessage } from './types';
 
 const PACKET_TRAILER_FLAG = 'lk_pkt_trailer';
@@ -94,9 +94,7 @@ export class PacketTrailerManager {
     const receiver = track.receiver;
 
     if (!('createEncodedStreams' in receiver)) {
-      log.warn(
-        'createEncodedStreams not supported, packet trailer extraction unavailable',
-      );
+      log.warn('createEncodedStreams not supported, packet trailer extraction unavailable');
       return;
     }
 

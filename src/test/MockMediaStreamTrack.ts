@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // @ts-ignore
 export default class MockMediaStreamTrack implements MediaStreamTrack {
   contentHint: string = '';

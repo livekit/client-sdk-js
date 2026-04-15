@@ -37,13 +37,13 @@ import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
-import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
 import type {
   InternalRoomConnectOptions,
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';

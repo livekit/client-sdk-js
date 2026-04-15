@@ -1,8 +1,4 @@
-import {
-  extractPacketTrailer,
-  getFrameRtpTimestamp,
-  getFrameSsrc,
-} from '../../e2ee/packetTrailer';
+import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../../e2ee/packetTrailer';
 import type { PTMetadataMessage, PTWorkerMessage } from '../types';
 
 const activeTransforms = new Map<string, AbortController>();
@@ -28,11 +24,7 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
   }
 };
 
-function setupDecodeTransform(
-  readable: ReadableStream,
-  writable: WritableStream,
-  trackId: string,
-) {
+function setupDecodeTransform(readable: ReadableStream, writable: WritableStream, trackId: string) {
   teardownTransform(trackId);
 
   const abortController = new AbortController();

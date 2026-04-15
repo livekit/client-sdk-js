@@ -1,10 +1,10 @@
-import log from '../../logger';
 import {
+  type PacketTrailerMetadata,
   extractPacketTrailer,
   getFrameRtpTimestamp,
   getFrameSsrc,
-  type PacketTrailerMetadata,
 } from '../../e2ee/packetTrailer';
+import log from '../../logger';
 
 const MAX_ENTRIES = 300;
 const PACKET_TRAILER_FLAG = 'lk_pkt_trailer';
