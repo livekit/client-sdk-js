@@ -301,20 +301,31 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track
       const controller = new AbortController();
-      const subscribeRequestPromise = manager.subscribeRequest(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
       await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
 
-      // 3. Cancel the subscription
+      // 3. Wait for the subscription to be fully established
+      await sfuSubscriptionComplete;
+
+      // 4. Start consuming the readable stream
+      const reader = stream.getReader();
+      const inFlightReadPromise = reader.read();
+
+      // 5. Cancel the subscription
       controller.abort();
-      await expect(subscribeRequestPromise).rejects.toThrowError(
+      await expect(inFlightReadPromise).rejects.toThrowError(
         'Subscription to data track cancelled by caller',
       );
 
-      // 4. Make sure the underlying sfu subscription is also terminated, since nothing needs it
+      // 6. Make sure the underlying sfu subscription is also terminated, since nothing needs it
       // anymore.
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
+
+      // 7. Make sure shutting down the manager doesn't throw errors
+      manager.shutdown();
     });
 
     it('should NOT terminate the sfu subscription if the abortsignal is triggered on one of two active subscriptions', async () => {
@@ -339,17 +350,35 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track twice
       const controllerOne = new AbortController();
-      const subscribeRequestOnePromise = manager.subscribeRequest(sid, controllerOne.signal);
+      const [streamOne, sfuSubscriptionOneComplete] = manager.openSubscriptionStream(sid, controllerOne.signal);
       await managerEvents.waitFor('sfuUpdateSubscription'); // Subscription started
+      manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
+      await sfuSubscriptionOneComplete;
 
       const controllerTwo = new AbortController();
-      manager.subscribeRequest(sid, controllerTwo.signal);
+      const [streamTwo, sfuSubscriptionTwoComplete] = manager.openSubscriptionStream(sid, controllerTwo.signal);
+      // NOTE: no new sfu subscription here, the first stream handled setting this up
+      await sfuSubscriptionTwoComplete;
 
-      // 3. Cancel the first subscription
+      // 3. Start consuming the both subscription's readable streams
+      const readerOne = streamOne.getReader();
+      const inFlightReadOnePromise = readerOne.read();
+
+      const readerTwo = streamTwo.getReader();
+      const inFlightReadTwoPromise = readerTwo.read();
+
+      // 3. Cancel the first subscription, make sure JUST that subscription is cancelled
       controllerOne.abort();
-      await expect(subscribeRequestOnePromise).rejects.toThrowError(
+      await expect(inFlightReadOnePromise).rejects.toThrowError(
         'Subscription to data track cancelled by caller',
       );
+
+      // 4. Make sure the other subscription is still active / was untouched by the first stream
+      // being aborted.
+      await expect(Promise.race([
+        inFlightReadTwoPromise,
+        Promise.resolve('pending')
+      ])).resolves.toStrictEqual('pending');
 
       // 4. Make sure the underlying sfu subscription has not been also cancelled, there still is
       // one data track subscription active
@@ -505,6 +534,51 @@ describe('DataTrackIncomingManager', () => {
 
       // 6. Make sure the in flight stream read was closed
       await reader.closed;
+    });
+
+    it('should terminate ACTIVE sfu subscriptions which have been aborted if the participant disconnects', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const reader = stream.getReader();
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+  
+      // 3. Start an in flight stream read
+      await sfuSubscriptionComplete;
+      const inFlightReadPromise = reader.read();
+
+      // 4. Abort the abort controller, which should abort the in flight stream read
+      controller.abort();
+      await expect(inFlightReadPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 4. Simulate the remote participant disconnecting
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+
+      // 5. Make sure the sfu unsubscribes
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(sid);
+      expect(endEvent.subscribe).toStrictEqual(false);
     });
 
     it('should terminate the sfu subscription once all downstream ReadableStreams are cancelled', async () => {
