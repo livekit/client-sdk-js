@@ -43,7 +43,7 @@ export class DeferrableMap<K, V> extends Map<K, V> {
   }
 
   get [Symbol.toStringTag](): string {
-    return 'WaitableMap';
+    return 'DeferrableMap';
   }
 
   /**
