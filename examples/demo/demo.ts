@@ -1,7 +1,5 @@
 //@ts-ignore
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
-//@ts-ignore
-import PTWorker from '../../src/packetTrailer/worker/packetTrailer.worker?worker';
 import type {
   ChatMessage,
   LocalDataTrack,
@@ -43,8 +41,10 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { TrackEvent } from '../../src/room/events';
+//@ts-ignore
+import PTWorker from '../../src/packetTrailer/worker/packetTrailer.worker?worker';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
+import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
