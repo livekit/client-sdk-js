@@ -25,7 +25,8 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
   private lastDimensions?: Track.Dimensions;
 
-  private packetTrailerExtractor?: PacketTrailerExtractor;
+  /** @internal */
+  packetTrailerExtractor?: PacketTrailerExtractor;
 
   constructor(
     mediaTrack: MediaStreamTrack,
