@@ -81,19 +81,17 @@ export class PacketTrailerExtractor {
 
     // @ts-ignore — createEncodedStreams is not in standard typings
     const streams = receiver.createEncodedStreams();
-    const extractor = this;
-
     const transform = new TransformStream({
-      transform(
+      transform: (
         frame: RTCEncodedVideoFrame,
         controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
-      ) {
+      ) => {
         const result = extractPacketTrailer(frame.data);
         if (result.metadata) {
           const rtpTimestamp = getFrameRtpTimestamp(frame);
           const ssrc = getFrameSsrc(frame);
           if (rtpTimestamp !== undefined) {
-            extractor.storeMetadata(rtpTimestamp, ssrc, result.metadata);
+            this.storeMetadata(rtpTimestamp, ssrc, result.metadata);
           }
           frame.data = result.data.buffer.slice(
             result.data.byteOffset,
