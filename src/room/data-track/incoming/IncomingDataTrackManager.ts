@@ -450,9 +450,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     this.descriptors.delete(sid);
 
     if (descriptor.subscription.type === 'active') {
-      descriptor.subscription.streamControllers.forEach((controller) => {
+      for (const controller of descriptor.subscription.streamControllers) {
         controller.close();
-      });
+      }
       this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
     }
 
@@ -602,7 +602,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
 
       if (descriptor.subscription.type === 'active') {
-        descriptor.subscription.streamControllers.forEach((controller) => controller.close());
+        for (const controller of descriptor.subscription.streamControllers) {
+          controller.close();
+        }
       }
     }
     this.descriptors.clear();
