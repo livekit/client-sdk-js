@@ -1,25 +1,14 @@
-import {
-  type PacketTrailerMetadata,
-  extractPacketTrailer,
-  getFrameRtpTimestamp,
-  getFrameSsrc,
-} from '../../e2ee/packetTrailer';
-import log from '../../logger';
+import type { PacketTrailerMetadata } from '../../e2ee/packetTrailer';
 
 const MAX_ENTRIES = 300;
-const PACKET_TRAILER_FLAG = 'lk_pkt_trailer';
 
 /**
- * Extracts and caches packet trailer metadata from received video frames.
+ * Caches packet trailer metadata extracted from received video frames,
+ * keyed by RTP timestamp so it can be looked up when the frame is displayed.
  *
- * In the non-E2EE path, this sets up an Insertable Streams pipeline on the
- * receiver to strip trailers from encoded frames on the main thread.
- *
- * In the E2EE path, metadata is injected externally after the worker decrypts
- * and strips the trailer.
- *
- * Metadata is stored in an LRU map keyed by RTP timestamp so it can be
- * looked up when the frame is displayed.
+ * Metadata is populated either by the main-thread pipeline installed by
+ * `PacketTrailerManager` (non-E2EE) or by the E2EE FrameCryptor worker
+ * after decryption (E2EE).
  *
  * @experimental
  */
@@ -62,51 +51,6 @@ export class PacketTrailerExtractor {
 
   lookupMetadata(rtpTimestamp: number): PacketTrailerMetadata | undefined {
     return this.metadataMap.get(rtpTimestamp);
-  }
-
-  /**
-   * Sets up an Insertable Streams pipeline on the receiver to extract
-   * packet trailers from encoded video frames on the main thread.
-   * Only used when E2EE is NOT active.
-   */
-  setupReceiver(receiver: RTCRtpReceiver): boolean {
-    if (PACKET_TRAILER_FLAG in receiver) {
-      return true;
-    }
-
-    if (!('createEncodedStreams' in receiver)) {
-      log.debug('createEncodedStreams not supported, packet trailer extraction unavailable');
-      return false;
-    }
-
-    // @ts-ignore — createEncodedStreams is not in standard typings
-    const streams = receiver.createEncodedStreams();
-    const transform = new TransformStream({
-      transform: (
-        frame: RTCEncodedVideoFrame,
-        controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
-      ) => {
-        const result = extractPacketTrailer(frame.data);
-        if (result.metadata) {
-          const rtpTimestamp = getFrameRtpTimestamp(frame);
-          const ssrc = getFrameSsrc(frame);
-          if (rtpTimestamp !== undefined) {
-            this.storeMetadata(rtpTimestamp, ssrc, result.metadata);
-          }
-          frame.data = result.data.buffer.slice(
-            result.data.byteOffset,
-            result.data.byteOffset + result.data.byteLength,
-          );
-        }
-        controller.enqueue(frame);
-      },
-    });
-
-    streams.readable.pipeThrough(transform).pipeTo(streams.writable);
-
-    // @ts-ignore
-    receiver[PACKET_TRAILER_FLAG] = true;
-    return true;
   }
 
   dispose() {

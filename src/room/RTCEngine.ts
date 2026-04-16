@@ -53,7 +53,7 @@ import {
   toProtoSessionDescription,
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
-import { asEncryptablePacket } from '../e2ee/utils';
+import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import TypedPromise from '../utils/TypedPromise';
@@ -601,25 +601,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // this fires after the underlying transceiver is stopped and potentially
       // peer connection closed, so do not bubble up if there are no streams
       if (ev.streams.length === 0) return;
-      if (
-        this.options.packetTrailer &&
-        !this.signalOpts?.e2eeEnabled &&
-        ev.track.kind === 'video' &&
-        'createEncodedStreams' in ev.receiver
-      ) {
-        try {
-          // @ts-ignore
-          const streams = ev.receiver.createEncodedStreams();
-          // @ts-ignore
-          ev.receiver.readableStream = streams.readable;
-          // @ts-ignore
-          ev.receiver.writableStream = streams.writable;
-        } catch {
-          // createEncodedStreams() can only be called once per receiver.
-          // When a receiver is reused for a new track the existing worker
-          // pipeline continues to process frames automatically.
-        }
-      }
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
   }
@@ -764,7 +745,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled || this.options.packetTrailer) {
+    // Always enable encoded insertable streams when supported. E2EE and packet
+    // trailer both rely on it, and enabling the flag is a no-op when nothing
+    // calls `createEncodedStreams()`. Having it always on means subscribers
+    // can automatically handle publishers that advertise packet trailer
+    // features without any explicit RoomOptions configuration.
+    if (isInsertableStreamSupported()) {
       this.log.debug('setting up transports with insertable streams', this.logContext);
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore

@@ -48,8 +48,9 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    * Use with the `TrackEvent.TimeSyncUpdate` event to correlate displayed frames
    * with their capture-time metadata.
    *
-   * Requires the room to be configured with `packetTrailer: { worker }` and the
-   * publishing track to have packet trailer features enabled.
+   * Requires the room to be configured with the `packetTrailer` option
+   * (ideally with a dedicated `worker` for performance) and the publishing
+   * track to have packet trailer features enabled.
    *
    */
   lookupFrameMetadata({

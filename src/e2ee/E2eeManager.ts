@@ -510,15 +510,11 @@ export class E2EEManager
       return;
     }
 
-    // @ts-ignore -- readableStream is set by PacketTrailerManager when it has pre-processed the receiver
-    const ptPreProcessed = !!receiver.readableStream && !!receiver.writableStream;
-
     if (
       isScriptTransformSupported() &&
       // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
       // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased() &&
-      !ptPreProcessed
+      !isChromiumBased()
     ) {
       const options: ScriptTransformOptions = {
         kind: 'decode',

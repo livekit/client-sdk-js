@@ -42,26 +42,31 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
       frame: RTCEncodedVideoFrame,
       controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
     ) {
-      const result = extractPacketTrailer(frame.data);
-      if (result.metadata) {
-        const rtpTimestamp = getFrameRtpTimestamp(frame);
-        const ssrc = getFrameSsrc(frame);
-        if (rtpTimestamp !== undefined) {
-          const msg: PTMetadataMessage = {
-            kind: 'metadata',
-            data: {
-              trackId: state.trackId,
-              rtpTimestamp,
-              ssrc,
-              metadata: result.metadata,
-            },
-          };
-          postMessage(msg);
+      try {
+        const result = extractPacketTrailer(frame.data);
+        if (result.metadata) {
+          const rtpTimestamp = getFrameRtpTimestamp(frame);
+          const ssrc = getFrameSsrc(frame);
+          if (rtpTimestamp !== undefined) {
+            const msg: PTMetadataMessage = {
+              kind: 'metadata',
+              data: {
+                trackId: state.trackId,
+                rtpTimestamp,
+                ssrc,
+                metadata: result.metadata,
+              },
+            };
+            postMessage(msg);
+          }
+          frame.data = result.data.buffer.slice(
+            result.data.byteOffset,
+            result.data.byteOffset + result.data.byteLength,
+          );
         }
-        frame.data = result.data.buffer.slice(
-          result.data.byteOffset,
-          result.data.byteOffset + result.data.byteLength,
-        );
+      } catch {
+        // Never drop frames on trailer-extraction failure — pass through so
+        // video keeps decoding even if metadata is lost for this frame.
       }
       controller.enqueue(frame);
     },

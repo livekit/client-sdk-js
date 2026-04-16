@@ -308,9 +308,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataTrackManager,
     );
 
-    if (this.options.packetTrailer) {
-      this.setupPacketTrailer();
-    }
+    this.setupPacketTrailer();
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -471,10 +469,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private setupPacketTrailer() {
-    if (this.options.packetTrailer) {
-      this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
-      this.packetTrailerManager.setup(this);
-    }
+    // The manager is always created so tracks that advertise packet trailer
+    // features always have their trailers stripped — even if the app didn't
+    // pass `packetTrailer` in RoomOptions. A worker is used when provided for
+    // best performance; otherwise the manager falls back to a main-thread
+    // TransformStream so video still decodes correctly.
+    this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
+    this.packetTrailerManager.setup(this);
   }
 
   private get logContext() {
@@ -2332,17 +2333,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           } else if (track.kind === Track.Kind.Video) {
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
-          }
-          if (
-            !this.packetTrailerManager &&
-            publication.trackInfo?.packetTrailerFeatures &&
-            publication.trackInfo.packetTrailerFeatures.length > 0
-          ) {
-            this.log.warn(
-              'Track has packet trailer features but no packet trailer worker is configured. ' +
-                'Pass packetTrailer: { worker } in RoomOptions to enable frame metadata extraction.',
-              { ...this.logContext, trackSid: publication.trackSid },
-            );
           }
           this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },
