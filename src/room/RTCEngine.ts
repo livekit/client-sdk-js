@@ -340,7 +340,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!useV0Path && isCompressionStreamSupported()) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
-        if (!this.pcManager) {
+        if (!this.pcManager || useV0Path) {
+          this.pcManager?.close();
+          this.pcManager = undefined;
           await this.configure(joinResponse, !useV0Path);
         }
         // create offer
