@@ -92,7 +92,8 @@ export type SimulationScenario =
   | 'disconnect-signal-on-resume'
   | 'disconnect-signal-on-resume-no-messages'
   // instructs the server to send a full reconnect reconnect action to the client
-  | 'leave-full-reconnect';
+  | 'leave-full-reconnect'
+  | 'fail-on-v1-path';
 
 export type LoggerOptions = {
   loggerName?: string;

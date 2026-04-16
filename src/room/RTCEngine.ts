@@ -220,6 +220,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private shouldFailNext: boolean = false;
 
+  private shouldFailOnV1Path: boolean = false;
+
   private regionUrlProvider?: RegionUrlProvider;
 
   private log = log;
@@ -321,9 +323,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
       }
+
       if (abortSignal?.aborted) {
         throw ConnectionError.cancelled('Connection aborted');
       }
+
+      if (!useV0Path && this.shouldFailOnV1Path) {
+        this.shouldFailOnV1Path = false;
+        throw ConnectionError.serviceNotFound('Simulated v1 path failure', 'v0-rtc');
+      }
+      log.warn('joining signal with ', url);
       const joinResponse = await this.client.join(
         url,
         token,
@@ -340,9 +349,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!useV0Path && isCompressionStreamSupported()) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
-        if (!this.pcManager || useV0Path) {
-          this.pcManager?.close();
-          this.pcManager = undefined;
+        if (!this.pcManager) {
           await this.configure(joinResponse, !useV0Path);
         }
         // create offer
@@ -1860,6 +1867,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   failNext() {
     // debugging method to fail the next reconnect/resume attempt
     this.shouldFailNext = true;
+  }
+
+  /* @internal */
+  failNextV1Path() {
+    // debugging method to fail the next connection attempt for /rtc/v1 to trigger the fallback version
+    this.shouldFailOnV1Path = true;
   }
 
   private dataChannelsInfo(): DataChannelInfo[] {

@@ -426,6 +426,7 @@ const appActions = {
       let connElapsed = 0;
       const connectFn = async () => {
         const connStartTime = Date.now();
+        room.simulateScenario('fail-on-v1-path');
         await room.connect(url, token, connectOptions);
         connElapsed = Date.now() - connStartTime;
       };
