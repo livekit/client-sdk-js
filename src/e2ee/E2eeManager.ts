@@ -479,11 +479,16 @@ export class E2EEManager
     if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new TypeError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
+    const hasPacketTrailer =
+      track.kind === 'video' &&
+      !!trackInfo.packetTrailerFeatures &&
+      trackInfo.packetTrailerFeatures.length > 0;
     this.handleReceiver(
       track.receiver,
       track.mediaStreamID,
       remoteId,
       track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
+      hasPacketTrailer,
     );
   }
 
@@ -505,6 +510,7 @@ export class E2EEManager
     trackId: string,
     participantIdentity: string,
     codec?: VideoCodec,
+    hasPacketTrailer?: boolean,
   ) {
     if (!this.worker) {
       return;
@@ -521,6 +527,7 @@ export class E2EEManager
         participantIdentity,
         trackId,
         codec,
+        hasPacketTrailer,
       };
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -563,6 +570,7 @@ export class E2EEManager
           codec,
           participantIdentity: participantIdentity,
           isReuse: E2EE_FLAG in receiver,
+          hasPacketTrailer,
         },
       };
       this.worker.postMessage(msg, [readable, writable]);

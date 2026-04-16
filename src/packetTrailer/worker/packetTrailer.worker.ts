@@ -1,4 +1,4 @@
-import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../packetTrailer';
+import { processPacketTrailer } from '../packetTrailer';
 import type { PTMetadataMessage, PTWorkerMessage } from '../types';
 
 /**
@@ -43,26 +43,13 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
       controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
     ) {
       try {
-        const result = extractPacketTrailer(frame.data);
-        if (result.metadata) {
-          const rtpTimestamp = getFrameRtpTimestamp(frame);
-          const ssrc = getFrameSsrc(frame);
-          if (rtpTimestamp !== undefined) {
-            const msg: PTMetadataMessage = {
-              kind: 'metadata',
-              data: {
-                trackId: state.trackId,
-                rtpTimestamp,
-                ssrc,
-                metadata: result.metadata,
-              },
-            };
-            postMessage(msg);
-          }
-          frame.data = result.data.buffer.slice(
-            result.data.byteOffset,
-            result.data.byteOffset + result.data.byteLength,
-          );
+        const result = processPacketTrailer(frame, state.trackId);
+        if (result.data) {
+          frame.data = result.data;
+        }
+        if (result.payload) {
+          const msg: PTMetadataMessage = { kind: 'metadata', data: result.payload };
+          postMessage(msg);
         }
       } catch {
         // Never drop frames on trailer-extraction failure — pass through so

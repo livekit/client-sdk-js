@@ -1,3 +1,5 @@
+import type { PacketTrailerFramePayload } from './packetTrailer';
+
 export interface PacketTrailerMetadata {
   userTimestamp: bigint;
   frameId: number;
@@ -27,12 +29,7 @@ export interface PTDecodeMessage extends PTBaseMessage {
 
 export interface PTMetadataMessage extends PTBaseMessage {
   kind: 'metadata';
-  data: {
-    trackId: string;
-    rtpTimestamp: number;
-    ssrc: number;
-    metadata: PacketTrailerMetadata;
-  };
+  data: PacketTrailerFramePayload;
 }
 
 export interface PTUpdateTrackIdMessage extends PTBaseMessage {
