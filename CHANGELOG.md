@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.18.3
+
+### Patch Changes
+
+- fixing decodeTokenPayload - [#1889](https://github.com/livekit/client-sdk-js/pull/1889) ([@thomasyuill-livekit](https://github.com/thomasyuill-livekit))
+
 ## 2.18.2
 
 ### Patch Changes
