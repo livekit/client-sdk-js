@@ -60,6 +60,9 @@ export class RpcError extends Error {
 
   data?: string;
 
+  // More info: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
+  cause?: unknown;
+
   /**
    * Creates an error object with the given code and message, plus an optional data payload.
    *
@@ -67,11 +70,15 @@ export class RpcError extends Error {
    *
    * Error codes 1001-1999 are reserved for built-in errors (see RpcError.ErrorCode for their meanings).
    */
-  constructor(code: number, message: string, data?: string) {
+  constructor(code: number, message: string, data?: string, options?: { cause?: unknown }) {
     super(message);
     this.code = code;
     this.message = truncateBytes(message, RpcError.MAX_MESSAGE_BYTES);
     this.data = data ? truncateBytes(data, RpcError.MAX_DATA_BYTES) : undefined;
+
+    if (typeof options?.cause !== 'undefined') {
+      this.cause = options?.cause;
+    }
   }
 
   /**

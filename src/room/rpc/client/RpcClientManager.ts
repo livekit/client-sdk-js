@@ -197,7 +197,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       this.log.warn(`Error reading RPC response payload: ${e}`);
       this.handleIncomingRpcResponseFailure(
         associatedRequestId,
-        RpcError.builtIn('APPLICATION_ERROR'),
+        RpcError.builtIn('APPLICATION_ERROR', 'Error reading RPC response payload', { cause: e }),
       );
       return;
     }
