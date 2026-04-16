@@ -22,13 +22,6 @@ export interface PTDecodeMessage extends PTBaseMessage {
   };
 }
 
-export interface PTRemoveTransformMessage extends PTBaseMessage {
-  kind: 'removeTransform';
-  data: {
-    trackId: string;
-  };
-}
-
 export interface PTMetadataMessage extends PTBaseMessage {
   kind: 'metadata';
   data: {
@@ -39,9 +32,17 @@ export interface PTMetadataMessage extends PTBaseMessage {
   };
 }
 
+export interface PTUpdateTrackIdMessage extends PTBaseMessage {
+  kind: 'updateTrackId';
+  data: {
+    oldTrackId: string;
+    newTrackId: string;
+  };
+}
+
 export type PTWorkerMessage =
   | PTInitMessage
   | PTInitAck
   | PTDecodeMessage
-  | PTRemoveTransformMessage
+  | PTUpdateTrackIdMessage
   | PTMetadataMessage;

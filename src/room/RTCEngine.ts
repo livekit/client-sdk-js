@@ -601,6 +601,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // this fires after the underlying transceiver is stopped and potentially
       // peer connection closed, so do not bubble up if there are no streams
       if (ev.streams.length === 0) return;
+      if (
+        this.options.packetTrailer &&
+        !this.signalOpts?.e2eeEnabled &&
+        ev.track.kind === 'video' &&
+        'createEncodedStreams' in ev.receiver
+      ) {
+        try {
+          // @ts-ignore
+          const streams = ev.receiver.createEncodedStreams();
+          // @ts-ignore
+          ev.receiver.readableStream = streams.readable;
+          // @ts-ignore
+          ev.receiver.writableStream = streams.writable;
+        } catch {
+          // createEncodedStreams() can only be called once per receiver.
+          // When a receiver is reused for a new track the existing worker
+          // pipeline continues to process frames automatically.
+        }
+      }
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
   }
@@ -990,16 +1009,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
+    let sender: RTCRtpSender;
     if (supportsTransceiver()) {
-      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      return sender;
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.warn('using add-track fallback', this.logContext);
-      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
-      return sender;
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+    this.setupSenderPassthrough(sender);
+    return sender;
   }
 
   async createSimulcastSender(
@@ -1008,16 +1028,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    // store RTCRtpSender
+    let sender: RTCRtpSender | undefined;
     if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.debug('using add-track fallback', this.logContext);
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
     }
+    if (sender) {
+      this.setupSenderPassthrough(sender);
+    }
+    return sender;
+  }
 
-    throw new UnexpectedConnectionState('Cannot stream on this device');
+  private setupSenderPassthrough(sender: RTCRtpSender) {
+    if (!this.options.packetTrailer || this.signalOpts?.e2eeEnabled) {
+      return;
+    }
+    if ('createEncodedStreams' in sender) {
+      // @ts-ignore
+      const { readable, writable } = sender.createEncodedStreams();
+      readable.pipeTo(writable);
+    }
   }
 
   private async createTransceiverRTCRtpSender(

@@ -4,10 +4,8 @@ import type Room from '../room/Room';
 import { RoomEvent } from '../room/events';
 import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
-import type RemoteVideoTrack from '../room/track/RemoteVideoTrack';
-import type { PTDecodeMessage, PTRemoveTransformMessage, PTWorkerMessage } from './types';
-
-const PACKET_TRAILER_FLAG = 'lk_pkt_trailer';
+import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
+import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
 
 export interface PacketTrailerOptions {
   worker: Worker;
@@ -33,6 +31,15 @@ export class PacketTrailerManager {
   private room?: Room;
 
   private extractors = new Map<string, PacketTrailerExtractor>();
+
+  /**
+   * Maps each receiver that has had its encoded streams transferred to
+   * the worker to the trackId currently associated with that pipeline.
+   * Used to detect receiver reuse (transceiver recycling) so we can
+   * update the worker's trackId instead of trying to re-transfer the
+   * already-consumed streams.
+   */
+  private receiverPipelines = new Map<RTCRtpReceiver, string>();
 
   constructor(options: PacketTrailerOptions) {
     this.worker = options.worker;
@@ -63,6 +70,9 @@ export class PacketTrailerManager {
       })
       .on(RoomEvent.TrackUnsubscribed, (track) => {
         this.teardownTrack(track);
+      })
+      .on(RoomEvent.Disconnected, () => {
+        this.cleanup();
       });
   }
 
@@ -71,48 +81,60 @@ export class PacketTrailerManager {
       return;
     }
 
-    if (PACKET_TRAILER_FLAG in track.receiver) {
-      return;
-    }
-
     const extractor = new PacketTrailerExtractor();
-    const trackId = track.mediaStreamID;
+    const newTrackId = track.mediaStreamID;
 
-    this.extractors.set(trackId, extractor);
+    this.extractors.set(newTrackId, extractor);
     track.packetTrailerExtractor = extractor;
 
     const hasE2EE = !!this.room?.hasE2EESetup;
 
     if (hasE2EE) {
-      // When E2EE is active, the FrameCryptor worker strips the trailer
-      // inside its decodeFunction before decryption and sends metadata
-      // back via the E2EEManager. No separate pipeline is needed here;
-      // we only create the extractor/cache above.
       return;
     }
 
     const receiver = track.receiver;
+    const existingTrackId = this.receiverPipelines.get(receiver);
 
-    if (!('createEncodedStreams' in receiver)) {
-      log.warn('createEncodedStreams not supported, packet trailer extraction unavailable');
+    if (existingTrackId) {
+      // Receiver is reused (transceiver recycled). The worker already
+      // owns the encoded streams — just remap the trackId so metadata
+      // is keyed correctly and re-activate processing.
+      log.info('PacketTrailerManager: reusing pipeline for receiver', {
+        oldTrackId: existingTrackId,
+        newTrackId,
+      });
+      const msg: PTUpdateTrackIdMessage = {
+        kind: 'updateTrackId',
+        data: { oldTrackId: existingTrackId, newTrackId },
+      };
+      this.worker.postMessage(msg);
+      this.receiverPipelines.set(receiver, newTrackId);
       return;
     }
 
-    // @ts-ignore -- createEncodedStreams is not in standard typings
-    const streams = receiver.createEncodedStreams();
+    // @ts-ignore
+    const readable: ReadableStream | undefined = receiver.readableStream;
+    // @ts-ignore
+    const writable: WritableStream | undefined = receiver.writableStream;
+
+    if (!readable || !writable) {
+      log.warn(
+        'encoded streams not available on receiver — ensure encodedInsertableStreams is enabled',
+      );
+      return;
+    }
 
     const msg: PTDecodeMessage = {
       kind: 'decode',
       data: {
-        readableStream: streams.readable,
-        writableStream: streams.writable,
-        trackId,
+        readableStream: readable,
+        writableStream: writable,
+        trackId: newTrackId,
       },
     };
-    this.worker.postMessage(msg, [streams.readable, streams.writable]);
-
-    // @ts-ignore
-    receiver[PACKET_TRAILER_FLAG] = true;
+    this.worker.postMessage(msg, [readable, writable]);
+    this.receiverPipelines.set(receiver, newTrackId);
   }
 
   private teardownTrack(track: RemoteTrack) {
@@ -123,13 +145,24 @@ export class PacketTrailerManager {
       this.extractors.delete(trackId);
     }
 
-    if (!this.room?.hasE2EESetup) {
-      const msg: PTRemoveTransformMessage = {
-        kind: 'removeTransform',
-        data: { trackId },
-      };
-      this.worker.postMessage(msg);
+    if (track instanceof RemoteVideoTrack) {
+      track.packetTrailerExtractor = undefined;
     }
+
+    // The worker pipeline is intentionally left running on the receiver. If the
+    // receiver is reused for a new track, `setupReceiver` will send an
+    // `updateTrackId` to remap it. If the room disconnects, `cleanup` terminates
+    // the worker entirely. Any metadata posted in the meantime is dropped because
+    // the extractor lookup above has already been removed.
+  }
+
+  private cleanup() {
+    for (const extractor of this.extractors.values()) {
+      extractor.dispose();
+    }
+    this.extractors.clear();
+    this.receiverPipelines.clear();
+    this.worker.terminate();
   }
 
   private onWorkerMessage = (ev: MessageEvent<PTWorkerMessage>) => {

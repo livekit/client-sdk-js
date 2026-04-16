@@ -1,7 +1,16 @@
 import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../../e2ee/packetTrailer';
 import type { PTMetadataMessage, PTWorkerMessage } from '../types';
 
-const activeTransforms = new Map<string, AbortController>();
+/**
+ * Holds the trackId currently associated with a pipeline. A mutable
+ * wrapper is used so the transform closure always reads the latest
+ * trackId after a receiver gets re-bound to a new track.
+ */
+interface PipelineState {
+  trackId: string;
+}
+
+const pipelines = new Map<string, PipelineState>();
 
 onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
   const msg = ev.data;
@@ -15,8 +24,8 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
       setupDecodeTransform(msg.data.readableStream, msg.data.writableStream, msg.data.trackId);
       break;
 
-    case 'removeTransform':
-      teardownTransform(msg.data.trackId);
+    case 'updateTrackId':
+      updateTrackId(msg.data.oldTrackId, msg.data.newTrackId);
       break;
 
     default:
@@ -25,10 +34,8 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
 };
 
 function setupDecodeTransform(readable: ReadableStream, writable: WritableStream, trackId: string) {
-  teardownTransform(trackId);
-
-  const abortController = new AbortController();
-  activeTransforms.set(trackId, abortController);
+  const state: PipelineState = { trackId };
+  pipelines.set(trackId, state);
 
   const transform = new TransformStream({
     transform(
@@ -43,7 +50,7 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
           const msg: PTMetadataMessage = {
             kind: 'metadata',
             data: {
-              trackId,
+              trackId: state.trackId,
               rtpTimestamp,
               ssrc,
               metadata: result.metadata,
@@ -62,16 +69,17 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
 
   readable
     .pipeThrough(transform)
-    .pipeTo(writable, { signal: abortController.signal })
+    .pipeTo(writable)
     .catch(() => {
-      // pipe aborted via teardown -- expected
+      pipelines.delete(state.trackId);
     });
 }
 
-function teardownTransform(trackId: string) {
-  const existing = activeTransforms.get(trackId);
-  if (existing) {
-    existing.abort();
-    activeTransforms.delete(trackId);
+function updateTrackId(oldTrackId: string, newTrackId: string) {
+  const state = pipelines.get(oldTrackId);
+  if (state) {
+    state.trackId = newTrackId;
+    pipelines.delete(oldTrackId);
+    pipelines.set(newTrackId, state);
   }
 }
