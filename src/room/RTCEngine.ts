@@ -392,6 +392,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }
         } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
           this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
+          if (this.pcManager) {
+            this.pcManager.onStateChange = undefined;
+            await this.pcManager.close();
+            this.pcManager = undefined;
+          }
           return this.join(url, token, opts, abortSignal, true);
         }
       }
