@@ -1,11 +1,11 @@
 import type { TrackInfo } from '@livekit/protocol';
-import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from './packetTrailer';
 import log from '../logger';
 import type Room from '../room/Room';
 import { RoomEvent } from '../room/events';
 import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
+import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from './packetTrailer';
 import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
 
 export interface PacketTrailerOptions {
