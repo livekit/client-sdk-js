@@ -274,9 +274,8 @@ describe('DataTrackIncomingManager', () => {
 
     it('should be unable to subscribe to a non existing data track', async () => {
       const manager = new IncomingDataTrackManager();
-      await expect(manager.subscribeRequest('does not exist')).rejects.toThrowError(
-        'Cannot subscribe to unknown track',
-      );
+      const [, subscriptionPromise] = manager.openSubscriptionStream('does not exist');
+      await expect(subscriptionPromise).rejects.toThrowError('Cannot subscribe to unknown track');
     });
 
     it('should terminate the sfu subscription if the abortsignal is triggered on the only subscription', async () => {
@@ -301,7 +300,10 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track
       const controller = new AbortController();
-      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       await managerEvents.waitFor('sfuUpdateSubscription');
       manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
 
@@ -350,13 +352,19 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track twice
       const controllerOne = new AbortController();
-      const [streamOne, sfuSubscriptionOneComplete] = manager.openSubscriptionStream(sid, controllerOne.signal);
+      const [streamOne, sfuSubscriptionOneComplete] = manager.openSubscriptionStream(
+        sid,
+        controllerOne.signal,
+      );
       await managerEvents.waitFor('sfuUpdateSubscription'); // Subscription started
       manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
       await sfuSubscriptionOneComplete;
 
       const controllerTwo = new AbortController();
-      const [streamTwo, sfuSubscriptionTwoComplete] = manager.openSubscriptionStream(sid, controllerTwo.signal);
+      const [streamTwo, sfuSubscriptionTwoComplete] = manager.openSubscriptionStream(
+        sid,
+        controllerTwo.signal,
+      );
       // NOTE: no new sfu subscription here, the first stream handled setting this up
       await sfuSubscriptionTwoComplete;
 
@@ -375,10 +383,9 @@ describe('DataTrackIncomingManager', () => {
 
       // 4. Make sure the other subscription is still active / was untouched by the first stream
       // being aborted.
-      await expect(Promise.race([
-        inFlightReadTwoPromise,
-        Promise.resolve('pending')
-      ])).resolves.toStrictEqual('pending');
+      await expect(
+        Promise.race([inFlightReadTwoPromise, Promise.resolve('pending')]),
+      ).resolves.toStrictEqual('pending');
 
       // 4. Make sure the underlying sfu subscription has not been also cancelled, there still is
       // one data track subscription active
@@ -404,7 +411,7 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(
+      const [, subscribeRequestPromise] = manager.openSubscriptionStream(
         sid,
         AbortSignal.abort(/* already aborted */),
       );
@@ -443,14 +450,14 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Create subscription A
       const controllerA = new AbortController();
-      const subscribeAPromise = manager.subscribeRequest(sid, controllerA.signal);
+      const [, subscribeAPromise] = manager.openSubscriptionStream(sid, controllerA.signal);
       const startEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(startEvent.sid).toStrictEqual(sid);
       expect(startEvent.subscribe).toStrictEqual(true);
 
       // 2. Create subscription B
       const controllerB = new AbortController();
-      const subscribeBPromise = manager.subscribeRequest(sid, controllerB.signal);
+      const [, subscribeBPromise] = manager.openSubscriptionStream(sid, controllerB.signal);
       expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toStrictEqual(false);
 
       // 3. Cancel the subscription A
@@ -485,13 +492,13 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackPublished');
 
       // 2. Begin subscribing to a data track
-      const promise = manager.subscribeRequest(sid);
+      const [, subscriptionCompletePromise] = manager.openSubscriptionStream(sid);
 
       // 3. Simulate the remote participant disconnecting
       manager.handleRemoteParticipantDisconnected(senderIdentity);
 
       // 4. Make sure the pending subscribe was terminated
-      await expect(promise).rejects.toThrowError(
+      await expect(subscriptionCompletePromise).rejects.toThrowError(
         'Cannot subscribe to data track when disconnected',
       );
     });
@@ -555,13 +562,16 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const controller = new AbortController();
-      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       const reader = stream.getReader();
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
-  
+
       // 3. Start an in flight stream read
       await sfuSubscriptionComplete;
       const inFlightReadPromise = reader.read();
@@ -601,7 +611,10 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const controller = new AbortController();
-      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       const reader = stream.getReader();
       await managerEvents.waitFor('sfuUpdateSubscription');
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
@@ -645,7 +658,10 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const controller = new AbortController();
-      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       const reader = stream.getReader();
       await managerEvents.waitFor('sfuUpdateSubscription');
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
@@ -760,9 +776,7 @@ describe('DataTrackIncomingManager', () => {
       await expect(sfuSubscriptionComplete).rejects.toStrictEqual(
         DataTrackSubscribeError.disconnected(),
       );
-      await expect(reader.read()).rejects.toStrictEqual(
-        DataTrackSubscribeError.disconnected(),
-      );
+      await expect(reader.read()).rejects.toStrictEqual(DataTrackSubscribeError.disconnected());
     });
 
     it('should not throw or emit extra events when aborting after a manager-driven close', async () => {
@@ -784,7 +798,10 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
       const controller = new AbortController();
-      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       const reader = stream.getReader();
       await managerEvents.waitFor('sfuUpdateSubscription');
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
