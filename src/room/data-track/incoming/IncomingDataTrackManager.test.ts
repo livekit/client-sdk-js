@@ -630,7 +630,7 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // 5. Unpublish the track - closeStreamControllers must tolerate the already-errored
-      // controller instead of crashing with "Cannot close an errored readable stream"
+      // controller (this used to crashing with "Cannot close an errored readable stream")
       await manager.receiveSfuPublicationUpdates(new Map([[senderIdentity, []]]));
 
       // 6. Make sure the trackUnpublished event fires
@@ -662,20 +662,20 @@ describe('DataTrackIncomingManager', () => {
         sid,
         controller.signal,
       );
-      const reader = stream.getReader();
       await managerEvents.waitFor('sfuUpdateSubscription');
       manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
       await sfuSubscriptionComplete;
 
       // 3. Abort the controller to error the stream's underlying controller
+      const reader = stream.getReader();
       const inFlightReadPromise = reader.read();
       controller.abort();
       await expect(inFlightReadPromise).rejects.toThrowError(
         'Subscription to data track cancelled by caller',
       );
 
-      // 4. Shutdown must not throw even though the controller is already errored
-      expect(() => manager.shutdown()).not.toThrow();
+      // 4. Shutdown the manager, and make sure it doesn't throw
+      manager.shutdown();
 
       // 5. Make sure the trackUnpublished event fires for the descriptor
       const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');
@@ -734,7 +734,7 @@ describe('DataTrackIncomingManager', () => {
       // 5. B's reader closes cleanly
       await readerB.closed;
 
-      // 6. Single unsubscribe event - no double-unsubscribe from A's abort + disconnect
+      // 6. Perform a single unsubscribe event - no double-unsubscribe from A's abort + disconnect
       const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(endEvent.sid).toStrictEqual(sid);
       expect(endEvent.subscribe).toStrictEqual(false);
