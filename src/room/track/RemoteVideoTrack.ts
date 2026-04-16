@@ -1,4 +1,4 @@
-import type { PacketTrailerMetadata } from '../../e2ee/packetTrailer';
+import type { PacketTrailerMetadata } from '../../packetTrailer/types';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';

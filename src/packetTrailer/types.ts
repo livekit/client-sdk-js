@@ -1,4 +1,7 @@
-import type { PacketTrailerMetadata } from '../e2ee/packetTrailer';
+export interface PacketTrailerMetadata {
+  userTimestamp: bigint;
+  frameId: number;
+}
 
 export interface PTBaseMessage {
   kind: string;

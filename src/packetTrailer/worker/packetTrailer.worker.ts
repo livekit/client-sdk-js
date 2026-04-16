@@ -1,4 +1,4 @@
-import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../../e2ee/packetTrailer';
+import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../packetTrailer';
 import type { PTMetadataMessage, PTWorkerMessage } from '../types';
 
 /**

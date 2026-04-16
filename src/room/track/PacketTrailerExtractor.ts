@@ -1,4 +1,4 @@
-import type { PacketTrailerMetadata } from '../../e2ee/packetTrailer';
+import type { PacketTrailerMetadata } from '../../packetTrailer/types';
 
 const MAX_ENTRIES = 300;
 

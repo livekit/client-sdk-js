@@ -6,7 +6,11 @@ import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../packetTrailer';
+import {
+  extractPacketTrailer,
+  getFrameRtpTimestamp,
+  getFrameSsrc,
+} from '../../packetTrailer/packetTrailer';
 import type {
   DecodeRatchetOptions,
   KeyProviderOptions,

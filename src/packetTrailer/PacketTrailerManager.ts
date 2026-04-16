@@ -1,5 +1,5 @@
 import type { TrackInfo } from '@livekit/protocol';
-import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from '../e2ee/packetTrailer';
+import { extractPacketTrailer, getFrameRtpTimestamp, getFrameSsrc } from './packetTrailer';
 import log from '../logger';
 import type Room from '../room/Room';
 import { RoomEvent } from '../room/events';
