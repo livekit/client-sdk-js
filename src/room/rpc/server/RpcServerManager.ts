@@ -105,6 +105,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
         responseError = RpcError.builtIn(
           'APPLICATION_ERROR',
           `Uncaught error: ${(error as Error)?.message ?? error}`,
+          { cause: error },
         );
       }
 
@@ -141,7 +142,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
         callerIdentity,
         requestId,
         null,
-        RpcError.builtIn('APPLICATION_ERROR'),
+        RpcError.builtIn('APPLICATION_ERROR', 'RPC data stream malformed'),
       );
       return;
     }
@@ -167,7 +168,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
         callerIdentity,
         requestId,
         null,
-        RpcError.builtIn('APPLICATION_ERROR'),
+        RpcError.builtIn('APPLICATION_ERROR', 'Error reading RPC request payload', { cause: e }),
       );
       return;
     }
