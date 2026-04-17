@@ -1030,7 +1030,7 @@ export default class LocalParticipant extends Participant {
         );
         this.pendingPublishPromises.delete(track);
         await this.waitForNextEngineRestart();
-        return this.publishOrRepublishTrack(track, options, isRepublish, true);
+        return await this.publishOrRepublishTrack(track, options, isRepublish, true);
       }
       throw e;
     } finally {
