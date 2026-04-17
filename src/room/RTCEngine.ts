@@ -53,7 +53,7 @@ import {
   toProtoSessionDescription,
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
-import { asEncryptablePacket } from '../e2ee/utils';
+import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import TypedPromise from '../utils/TypedPromise';
@@ -758,8 +758,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled) {
-      this.log.debug('E2EE - setting up transports with insertable streams', this.logContext);
+    // Always enable encoded insertable streams when supported. E2EE and packet
+    // trailer both rely on it, and enabling the flag is a no-op when nothing
+    // calls `createEncodedStreams()`. Having it always on means subscribers
+    // can automatically handle publishers that advertise packet trailer
+    // features without any explicit RoomOptions configuration.
+    if (isInsertableStreamSupported()) {
+      this.log.debug('setting up transports with insertable streams', this.logContext);
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
@@ -1003,16 +1008,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
+    let sender: RTCRtpSender;
     if (supportsTransceiver()) {
-      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      return sender;
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.warn('using add-track fallback', this.logContext);
-      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
-      return sender;
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+    this.setupSenderPassthrough(sender);
+    return sender;
   }
 
   async createSimulcastSender(
@@ -1021,16 +1027,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    // store RTCRtpSender
+    let sender: RTCRtpSender | undefined;
     if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.debug('using add-track fallback', this.logContext);
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
     }
+    if (sender) {
+      this.setupSenderPassthrough(sender);
+    }
+    return sender;
+  }
 
-    throw new UnexpectedConnectionState('Cannot stream on this device');
+  private setupSenderPassthrough(sender: RTCRtpSender) {
+    if (!this.options.packetTrailer || this.signalOpts?.e2eeEnabled) {
+      return;
+    }
+    if ('createEncodedStreams' in sender) {
+      // @ts-ignore
+      const { readable, writable } = sender.createEncodedStreams();
+      readable.pipeTo(writable);
+    }
   }
 
   private async createTransceiverRTCRtpSender(

@@ -43,6 +43,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
@@ -187,6 +188,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private packetTrailerManager: PacketTrailerManager | undefined;
+
   private e2eeStateMutex: Mutex = new Mutex();
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
@@ -304,6 +307,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
     );
+
+    this.setupPacketTrailer();
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -461,6 +466,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager?.setup(this);
       this.e2eeManager?.setupEngine(this.engine);
     }
+  }
+
+  private setupPacketTrailer() {
+    // The manager is always created so tracks that advertise packet trailer
+    // features always have their trailers stripped — even if the app didn't
+    // pass `packetTrailer` in RoomOptions. A worker is used when provided for
+    // best performance; otherwise the manager falls back to a main-thread
+    // TransformStream so video still decodes correctly.
+    this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
+    this.packetTrailerManager.setup(this);
   }
 
   private get logContext() {

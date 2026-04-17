@@ -1,3 +1,4 @@
+import type { PacketTrailerMetadata } from '../../packetTrailer/types';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -6,6 +7,7 @@ import CriticalTimers from '../timers';
 import type { LoggerOptions } from '../types';
 import type { ObservableMediaElement } from '../utils';
 import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
+import type { PacketTrailerExtractor } from './PacketTrailerExtractor';
 import RemoteTrack from './RemoteTrack';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
@@ -23,6 +25,9 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
   private lastDimensions?: Track.Dimensions;
 
+  /** @internal */
+  packetTrailerExtractor?: PacketTrailerExtractor;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -36,6 +41,24 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
   get isAdaptiveStream(): boolean {
     return this.adaptiveStreamSettings !== undefined;
+  }
+
+  /**
+   * Look up frame-level metadata for a given RTP timestamp.
+   * Use with the `TrackEvent.TimeSyncUpdate` event to correlate displayed frames
+   * with their capture-time metadata.
+   *
+   * Requires the room to be configured with the `packetTrailer` option
+   * (ideally with a dedicated `worker` for performance) and the publishing
+   * track to have packet trailer features enabled.
+   *
+   */
+  lookupFrameMetadata({
+    rtpTimestamp,
+  }: {
+    rtpTimestamp: number;
+  }): PacketTrailerMetadata | undefined {
+    return this.packetTrailerExtractor?.lookupMetadata(rtpTimestamp);
   }
 
   override setStreamState(value: Track.StreamState) {
