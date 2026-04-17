@@ -137,8 +137,12 @@ export class RpcError extends Error {
    *
    * @internal
    */
-  static builtIn(key: keyof typeof RpcError.ErrorCode, data?: string): RpcError {
-    return new RpcError(RpcError.ErrorCode[key], RpcError.ErrorMessage[key], data);
+  static builtIn(
+    key: keyof typeof RpcError.ErrorCode,
+    data?: string,
+    options?: { cause?: unknown },
+  ): RpcError {
+    return new RpcError(RpcError.ErrorCode[key], RpcError.ErrorMessage[key], data, options);
   }
 }
 
