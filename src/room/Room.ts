@@ -1137,6 +1137,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // @ts-expect-error function is private
         await this.engine.client.handleOnClose('simulate disconnect');
         break;
+      case 'fail-on-v1-path':
+        this.engine.failNextV1Path();
+        break;
       case 'speaker':
         req = new SimulateScenario({
           scenario: {
