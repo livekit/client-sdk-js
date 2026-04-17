@@ -1645,13 +1645,20 @@ export default class LocalParticipant extends Participant {
             negotiationNeeded = true;
           }
         }
-        if (this.engine.removeTrack(trackSender)) {
+        try {
+          negotiationNeeded = this.engine.removeTrack(trackSender);
+        } catch (e) {
+          this.log.warn(e, this.logContext);
           negotiationNeeded = true;
         }
+
         if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              if (this.engine.removeTrack(trackInfo.sender)) {
+              try {
+                negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
+              } catch (e) {
+                this.log.warn(e, this.logContext);
                 negotiationNeeded = true;
               }
               trackInfo.sender = undefined;
