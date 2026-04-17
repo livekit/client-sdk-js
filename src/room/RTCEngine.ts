@@ -469,6 +469,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async cleanupClient() {
     await this.client.close();
     this.client.resetCallbacks();
+    // Any in-flight addTrack requests are orphaned by the signal reconnect — the new session
+    // won't deliver `trackPublishedResponse` for them, so reject the pending resolvers and
+    // clear the map. Otherwise a subsequent `addTrack` call with the same client id (e.g. a
+    // publish retry after a `NegotiationError`) throws `TrackInvalidError`.
+    for (const cid of Object.keys(this.pendingTrackResolvers)) {
+      this.pendingTrackResolvers[cid].reject();
+    }
+    this.pendingTrackResolvers = {};
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
