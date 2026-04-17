@@ -27,6 +27,25 @@ export default class IncomingDataStreamManager {
 
   private textStreamHandlers = new Map<string, TextStreamHandler>();
 
+  private isConnected = false;
+
+  private bufferedPackets: Array<{ packet: DataPacket; encryptionType: Encryption_Type }> = [];
+
+  setConnected(connected: boolean) {
+    this.isConnected = connected;
+    if (connected) {
+      this.flushBufferedPackets();
+    }
+  }
+
+  private flushBufferedPackets() {
+    const packets = this.bufferedPackets;
+    this.bufferedPackets = [];
+    for (const { packet, encryptionType } of packets) {
+      this.handleDataStreamPacket(packet, encryptionType);
+    }
+  }
+
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
     if (this.textStreamHandlers.has(topic)) {
       throw new DataStreamError(
@@ -58,6 +77,7 @@ export default class IncomingDataStreamManager {
   clearControllers() {
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
+    this.bufferedPackets = [];
   }
 
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
@@ -88,7 +108,11 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  async handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
+  handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
+    if (!this.isConnected) {
+      this.bufferedPackets.push({ packet, encryptionType });
+      return;
+    }
     switch (packet.value.case) {
       case 'streamHeader':
         return this.handleStreamHeader(
@@ -105,7 +129,7 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  private async handleStreamHeader(
+  private handleStreamHeader(
     streamHeader: DataStream_Header,
     participantIdentity: string,
     encryptionType: Encryption_Type,

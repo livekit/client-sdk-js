@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
   AudioTrackFeature,
@@ -142,6 +143,8 @@ export default class LocalParticipant extends Participant {
   private roomOptions: InternalRoomOptions;
 
   private encryptionType: Encryption_Type = Encryption_Type.NONE;
+
+  private e2eeStateMutex = new Mutex();
 
   private reconnectFuture?: Future<void, Error>;
 
@@ -499,8 +502,20 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   async setE2EEEnabled(enabled: boolean) {
-    this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
-    await this.republishAllTracks(undefined, false);
+    const unlock = await this.e2eeStateMutex.lock();
+    try {
+      this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
+      await Promise.all(this.pendingPublishPromises.values());
+      if (
+        this.trackPublications.size === 0 ||
+        Array.from(this.trackPublications.values()).every((pub) => pub.isEncrypted === enabled)
+      ) {
+        return;
+      }
+      await this.republishAllTracks(undefined, false);
+    } finally {
+      unlock();
+    }
   }
 
   /**

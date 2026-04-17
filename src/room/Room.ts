@@ -187,6 +187,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private e2eeStateMutex: Mutex = new Mutex();
+
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
   private regionUrlProvider?: RegionUrlProvider;
@@ -293,7 +295,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
 
     this.disconnectLock = new Mutex();
-
     this.localParticipant = new LocalParticipant(
       '',
       '',
@@ -411,13 +412,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @experimental
    */
   async setE2EEEnabled(enabled: boolean) {
-    if (this.e2eeManager) {
-      await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
-      if (this.localParticipant.identity !== '') {
-        this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+    const unlock = await this.e2eeStateMutex.lock();
+    try {
+      if (this.e2eeManager) {
+        if (this.isE2EEEnabled !== enabled) {
+          await this.localParticipant.setE2EEEnabled(enabled);
+
+          if (this.localParticipant.identity !== '') {
+            this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+          }
+        }
+      } else {
+        throw Error('e2ee not configured, please set e2ee settings within the room options');
       }
-    } else {
-      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    } finally {
+      unlock();
     }
   }
 
@@ -450,6 +459,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.EncryptionError, error, participant);
       });
       this.e2eeManager?.setup(this);
+      this.e2eeManager?.setupEngine(this.engine);
     }
   }
 
@@ -880,7 +890,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
   ): Promise<JoinResponse> => {
-    const joinResponse = await engine.join(
+    const { joinResponse, serverInfo } = await engine.join(
       url,
       token,
       {
@@ -895,22 +905,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       !roomOptions.singlePeerConnection,
     );
 
-    let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
-    if (!serverInfo) {
-      serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
-    }
     this.serverInfo = serverInfo;
-
-    this.log.debug(
-      `connected to Livekit Server ${Object.entries(serverInfo)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ')}`,
-      {
-        room: joinResponse.room?.name,
-        roomSid: joinResponse.room?.sid,
-        identity: joinResponse.participant?.identity,
-      },
-    );
 
     if (!serverInfo.version) {
       throw new UnsupportedServer('unknown server version');
@@ -1126,6 +1121,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       case 'signal-reconnect':
         // @ts-expect-error function is private
         await this.engine.client.handleOnClose('simulate disconnect');
+        break;
+      case 'fail-on-v1-path':
+        this.engine.failNextV1Path();
         break;
       case 'speaker':
         req = new SimulateScenario({
@@ -2302,10 +2300,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
-        loggerContextCb: () => this.logContext,
-        loggerName: this.options.loggerName,
-      });
+      participant = RemoteParticipant.fromParticipantInfo(
+        this.engine.client,
+        info,
+        {
+          loggerContextCb: () => this.logContext,
+          loggerName: this.options.loggerName,
+        },
+        this.incomingDataTrackManager,
+      );
     } else {
       participant = new RemoteParticipant(
         this.engine.client,
@@ -2519,6 +2522,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return false;
     }
     this.state = state;
+    this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
     return true;
   }
