@@ -1594,13 +1594,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           return;
         }
         this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        dc.addEventListener(
-          'bufferedamountlow',
-          () => resolve(),
-          {
-            once: true,
-          },
-        );
+        dc.addEventListener('bufferedamountlow', () => resolve(), {
+          once: true,
+        });
       }
     });
   }
