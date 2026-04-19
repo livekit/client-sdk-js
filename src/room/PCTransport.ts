@@ -166,15 +166,15 @@ export default class PCTransport extends EventEmitter {
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
       if (this.pendingInitialOffer) {
-            const initialOffer = this.pendingInitialOffer;
-            this.pendingInitialOffer = undefined;
-            const sdpParsed = parse(initialOffer.sdp ?? '');
-            sdpParsed.media.forEach((media) => {
-              ensureIPAddrMatchVersion(media);
-            });
+        const initialOffer = this.pendingInitialOffer;
+        this.pendingInitialOffer = undefined;
+        const sdpParsed = parse(initialOffer.sdp ?? '');
+        sdpParsed.media.forEach((media) => {
+          ensureIPAddrMatchVersion(media);
+        });
         this.log.debug('setting pending initial offer before processing answer', this.logContext);
-            await this.setMungedSDP(initialOffer, write(sdpParsed));
-          }
+        await this.setMungedSDP(initialOffer, write(sdpParsed));
+      }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         const mid = getMidString(media.mid!);
