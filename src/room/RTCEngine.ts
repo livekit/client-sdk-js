@@ -86,6 +86,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  Future,
   isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
@@ -249,6 +250,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
+  private bufferStatusLowClosingFuture = new Future<void, UnexpectedConnectionState>();
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -282,6 +285,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
+
+    this.on(EngineEvent.Closing, () => {
+      this.bufferStatusLowClosingFuture.reject?.(new UnexpectedConnectionState('engine closed'));
+    });
+    // Swallow the rejection at the source so it doesn't surface as an unhandled promise rejection
+    // when no waitForBufferStatusLow callers are attached.
+    this.bufferStatusLowClosingFuture.promise.catch(() => {});
   }
 
   /** @internal */
@@ -1578,23 +1588,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
-        const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
-        this.once(EngineEvent.Closing, onClosing);
         const dc = this.dataChannelForKind(kind);
         if (!dc) {
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-        dc.addEventListener(
-          'bufferedamountlow',
-          () => {
-            this.off(EngineEvent.Closing, onClosing);
-            resolve();
-          },
-          {
-            once: true,
-          },
-        );
+        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
+        dc.addEventListener('bufferedamountlow', () => resolve(), {
+          once: true,
+        });
       }
     });
   }
