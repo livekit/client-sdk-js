@@ -165,7 +165,7 @@ export default class PCTransport extends EventEmitter {
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
-      if (this.pendingInitialOffer) {
+      if (this.pendingInitialOffer && this._pc) {
         const initialOffer = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
         const sdpParsed = parse(initialOffer.sdp ?? '');
