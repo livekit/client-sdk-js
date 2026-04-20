@@ -1519,7 +1519,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // buffer status to not be low before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind);
+            await this.waitForBufferStatusLow(kind, 'ignore');
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
@@ -1580,9 +1580,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  async waitForBufferStatusLow(kind: DataChannelKind) {
+  async waitForBufferStatusLow(
+    kind: DataChannelKind,
+    engineCloseBehavior: 'throw' | 'ignore' = 'throw',
+  ) {
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this.isClosed) {
+      if (this.isClosed && engineCloseBehavior === 'throw') {
         reject(new UnexpectedConnectionState('engine closed'));
       }
       if (this.isBufferStatusLow(kind)) {
@@ -1593,7 +1596,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
+        if (engineCloseBehavior === 'throw') {
+          this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
+        }
         dc.addEventListener('bufferedamountlow', () => resolve(), {
           once: true,
         });
