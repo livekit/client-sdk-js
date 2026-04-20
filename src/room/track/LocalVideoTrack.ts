@@ -279,6 +279,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     // leave the sender's encoding parameters (scaleResolutionDownBy, maxBitrate, etc.)
     // based on the old dimensions. Recompute them so the encoded output matches the
     // new source.
+    await this.onSenderTrackSwapped();
+  }
+
+  protected override async onSenderTrackSwapped(): Promise<void> {
     await this.refreshSenderEncodings();
   }
 
