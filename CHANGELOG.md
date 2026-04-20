@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.18.4
+
+### Patch Changes
+
+- fix: handle race between `LocalTrackSubscribed` signal and `publishTrack` completion - [#1872](https://github.com/livekit/client-sdk-js/pull/1872) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Harden RemoteParticipant.dataTracks map to work when a data track subscription is processed before the room connect is complete - [#1888](https://github.com/livekit/client-sdk-js/pull/1888) ([@1egoman](https://github.com/1egoman))
+
+- Ensure transport manager is reset before attempting legacy fallback path - [#1893](https://github.com/livekit/client-sdk-js/pull/1893) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.3
 
 ### Patch Changes
