@@ -6,7 +6,9 @@ import type {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
-import type RemoteDataTrack from '../data-track/RemoteDataTrack';
+import RemoteDataTrack from '../data-track/RemoteDataTrack';
+import type IncomingDataTrackManager from '../data-track/incoming/IncomingDataTrackManager';
+import { DataTrackInfo } from '../data-track/types';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -48,6 +50,7 @@ export default class RemoteParticipant extends Participant {
     signalClient: SignalClient,
     pi: ParticipantInfo,
     loggerOptions: LoggerOptions,
+    manager: IncomingDataTrackManager,
   ): RemoteParticipant {
     return new RemoteParticipant(
       signalClient,
@@ -58,6 +61,10 @@ export default class RemoteParticipant extends Participant {
       pi.attributes,
       loggerOptions,
       pi.kind,
+      pi.dataTracks.map((dti) => {
+        const info = DataTrackInfo.from(dti);
+        return new RemoteDataTrack(info, manager, { publisherIdentity: pi.identity });
+      }),
     );
   }
 
@@ -79,13 +86,18 @@ export default class RemoteParticipant extends Participant {
     attributes?: Record<string, string>,
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
+    remoteDataTracks: Array<RemoteDataTrack> = [],
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
     this.trackPublications = new Map();
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
-    this.dataTracks = new DeferrableMap();
+    this.dataTracks = new DeferrableMap(
+      remoteDataTracks.map((remoteDataTrack) => {
+        return [remoteDataTrack.info.name, remoteDataTrack];
+      }),
+    );
     this.volumeMap = new Map();
   }
 

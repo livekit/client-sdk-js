@@ -220,6 +220,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private shouldFailNext: boolean = false;
 
+  private shouldFailOnV1Path: boolean = false;
+
   private regionUrlProvider?: RegionUrlProvider;
 
   private log = log;
@@ -321,9 +323,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
       }
+
       if (abortSignal?.aborted) {
         throw ConnectionError.cancelled('Connection aborted');
       }
+
+      if (!useV0Path && this.shouldFailOnV1Path) {
+        this.shouldFailOnV1Path = false;
+        throw ConnectionError.serviceNotFound('Simulated v1 path failure', 'v0-rtc');
+      }
+      log.warn('joining signal with ', url);
       const joinResponse = await this.client.join(
         url,
         token,
@@ -383,6 +392,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }
         } else if (e.reason === ConnectionErrorReason.ServiceNotFound) {
           this.log.warn(`Initial connection failed: ${e.message} – Retrying`);
+          if (this.pcManager) {
+            this.pcManager.onStateChange = undefined;
+            await this.cleanupPeerConnections();
+          }
           return this.join(url, token, opts, abortSignal, true);
         }
       }
@@ -1557,18 +1570,31 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  waitForBufferStatusLow(kind: DataChannelKind): TypedPromise<void, UnexpectedConnectionState> {
-    return new TypedPromise(async (resolve, reject) => {
+  async waitForBufferStatusLow(kind: DataChannelKind) {
+    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
+      if (this.isClosed) {
+        reject(new UnexpectedConnectionState('engine closed'));
+      }
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
         const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
         this.once(EngineEvent.Closing, onClosing);
-        while (!this.dcBufferStatus.get(kind)) {
-          await sleep(10);
+        const dc = this.dataChannelForKind(kind);
+        if (!dc) {
+          reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
+          return;
         }
-        this.off(EngineEvent.Closing, onClosing);
-        resolve();
+        dc.addEventListener(
+          'bufferedamountlow',
+          () => {
+            this.off(EngineEvent.Closing, onClosing);
+            resolve();
+          },
+          {
+            once: true,
+          },
+        );
       }
     });
   }
@@ -1845,6 +1871,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   failNext() {
     // debugging method to fail the next reconnect/resume attempt
     this.shouldFailNext = true;
+  }
+
+  /* @internal */
+  failNextV1Path() {
+    // debugging method to fail the next connection attempt for /rtc/v1 to trigger the fallback version
+    this.shouldFailOnV1Path = true;
   }
 
   private dataChannelsInfo(): DataChannelInfo[] {

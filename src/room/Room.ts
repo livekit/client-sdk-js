@@ -187,6 +187,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private e2eeStateMutex: Mutex = new Mutex();
+
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
   private regionUrlProvider?: RegionUrlProvider;
@@ -293,7 +295,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
 
     this.disconnectLock = new Mutex();
-
     this.localParticipant = new LocalParticipant(
       '',
       '',
@@ -411,13 +412,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @experimental
    */
   async setE2EEEnabled(enabled: boolean) {
-    if (this.e2eeManager) {
-      await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
-      if (this.localParticipant.identity !== '') {
-        this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+    const unlock = await this.e2eeStateMutex.lock();
+    try {
+      if (this.e2eeManager) {
+        if (this.isE2EEEnabled !== enabled) {
+          await this.localParticipant.setE2EEEnabled(enabled);
+
+          if (this.localParticipant.identity !== '') {
+            this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+          }
+        }
+      } else {
+        throw Error('e2ee not configured, please set e2ee settings within the room options');
       }
-    } else {
-      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    } finally {
+      unlock();
     }
   }
 
@@ -450,6 +459,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.EncryptionError, error, participant);
       });
       this.e2eeManager?.setup(this);
+      this.e2eeManager?.setupEngine(this.engine);
     }
   }
 
@@ -578,22 +588,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
       })
       .on(EngineEvent.LocalTrackSubscribed, (subscribedSid) => {
-        const trackPublication = this.localParticipant
-          .getTrackPublications()
-          .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
-        if (!trackPublication) {
-          this.log.warn(
-            'could not find local track subscription for subscribed event',
-            this.logContext,
-          );
-          return;
-        }
-        this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
-        this.emitWhenConnected(
-          RoomEvent.LocalTrackSubscribed,
-          trackPublication,
-          this.localParticipant,
-        );
+        this.handleLocalTrackSubscribed(subscribedSid);
       })
       .on(EngineEvent.RoomMoved, (roomMoved) => {
         this.log.debug('room moved', roomMoved);
@@ -1127,6 +1122,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // @ts-expect-error function is private
         await this.engine.client.handleOnClose('simulate disconnect');
         break;
+      case 'fail-on-v1-path':
+        this.engine.failNextV1Path();
+        break;
       case 'speaker':
         req = new SimulateScenario({
           scenario: {
@@ -1611,6 +1609,65 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ),
       );
     }
+  }
+
+  private handleLocalTrackSubscribed(subscribedSid: string) {
+    const findPublication = () =>
+      this.localParticipant
+        .getTrackPublications()
+        .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
+
+    const trackPublication = findPublication();
+    if (trackPublication) {
+      this.emitLocalTrackSubscribed(trackPublication);
+      return;
+    }
+
+    // the track publication may not be registered yet if the server signals
+    // the subscription before publishTrack has finished adding the publication.
+    // defer with a timeout until LocalTrackPublished fires for the matching trackSid
+    this.log.debug('deferring LocalTrackSubscribed, publication not yet available', {
+      ...this.logContext,
+      subscribedSid,
+    });
+
+    const TIMEOUT_MS = 10_000;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const onPublished = (pub: LocalTrackPublication) => {
+      if (pub.trackSid === subscribedSid) {
+        cleanup();
+        this.emitLocalTrackSubscribed(pub);
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      this.localParticipant.off(ParticipantEvent.LocalTrackPublished, onPublished);
+      this.off(RoomEvent.Disconnected, cleanup);
+    };
+
+    this.localParticipant.on(ParticipantEvent.LocalTrackPublished, onPublished);
+    this.once(RoomEvent.Disconnected, cleanup);
+
+    timer = setTimeout(() => {
+      cleanup();
+      // final attempt in case the publication was added without emitting the event
+      const pub = findPublication();
+      if (pub) {
+        this.emitLocalTrackSubscribed(pub);
+      } else {
+        this.log.warn(
+          'could not find local track publication for LocalTrackSubscribed event after timeout',
+          { ...this.logContext, subscribedSid },
+        );
+      }
+    }, TIMEOUT_MS);
+  }
+
+  private emitLocalTrackSubscribed(trackPublication: LocalTrackPublication) {
+    this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
+    this.emitWhenConnected(RoomEvent.LocalTrackSubscribed, trackPublication, this.localParticipant);
   }
 
   private handleRestarting = () => {
@@ -2243,10 +2300,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
-        loggerContextCb: () => this.logContext,
-        loggerName: this.options.loggerName,
-      });
+      participant = RemoteParticipant.fromParticipantInfo(
+        this.engine.client,
+        info,
+        {
+          loggerContextCb: () => this.logContext,
+          loggerName: this.options.loggerName,
+        },
+        this.incomingDataTrackManager,
+      );
     } else {
       participant = new RemoteParticipant(
         this.engine.client,

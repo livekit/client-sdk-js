@@ -165,7 +165,7 @@ export default class PCTransport extends EventEmitter {
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
-      if (this.pendingInitialOffer) {
+      if (this.pendingInitialOffer && this._pc) {
         const initialOffer = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
         const sdpParsed = parse(initialOffer.sdp ?? '');
@@ -523,6 +523,7 @@ export default class PCTransport extends EventEmitter {
     if (!this._pc) {
       return;
     }
+    this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
@@ -565,9 +566,9 @@ export default class PCTransport extends EventEmitter {
 
     try {
       if (remote) {
-        await this.pc.setRemoteDescription(sd);
+        await this._pc?.setRemoteDescription(sd);
       } else {
-        await this.pc.setLocalDescription(sd);
+        await this._pc?.setLocalDescription(sd);
       }
     } catch (e) {
       let msg = 'unknown error';
