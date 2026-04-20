@@ -1333,6 +1333,12 @@ export default class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
 
+    // keep publish options on the video track so that it can recompute encoding
+    // parameters when the MediaStreamTrack is restarted (e.g. after switching cameras)
+    if (isLocalVideoTrack(track)) {
+      track.publishOptions = opts;
+    }
+
     this.log.debug(`publishing ${track.kind} with encodings`, {
       ...this.logContext,
       encodings,

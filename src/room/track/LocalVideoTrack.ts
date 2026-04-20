@@ -8,14 +8,19 @@ import {
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
 import { TrackEvent } from '../events';
-import { ScalabilityMode } from '../participant/publishUtils';
+import {
+  ScalabilityMode,
+  computeTrackBackupEncodings,
+  computeVideoEncodings,
+} from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
-import type { VideoCaptureOptions, VideoCodec } from './options';
+import type { TrackPublishOptions, VideoCaptureOptions, VideoCodec } from './options';
+import { isBackupVideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
@@ -60,6 +65,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   private isCpuConstrained: boolean = false;
 
   private optimizeForPerformance: boolean = false;
+
+  /* @internal */
+  publishOptions?: TrackPublishOptions;
 
   get sender(): RTCRtpSender | undefined {
     return this._sender;
@@ -264,6 +272,107 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
         await sc.sender.replaceTrack(sc.mediaStreamTrack);
       }
+    }
+
+    // The new MediaStreamTrack may have different dimensions than the previous one
+    // (e.g. switching between cameras with different native resolutions), which would
+    // leave the sender's encoding parameters (scaleResolutionDownBy, maxBitrate, etc.)
+    // based on the old dimensions. Recompute them so the encoded output matches the
+    // new source.
+    await this.refreshSenderEncodings();
+  }
+
+  /**
+   * Recomputes encoding parameters for this track's senders based on the current
+   * MediaStreamTrack dimensions and reapplies them via setParameters. This is a no-op
+   * if the track hasn't been published yet or if the track is in performance-optimized
+   * mode (which manages its own encodings).
+   */
+  private async refreshSenderEncodings() {
+    if (!this.sender || !this.publishOptions || this.optimizeForPerformance) {
+      return;
+    }
+
+    let dims: Track.Dimensions;
+    try {
+      dims = await this.waitForDimensions();
+    } catch (e) {
+      this.log.warn('could not determine new track dimensions, skipping encoding recompute', {
+        ...this.logContext,
+        error: e,
+      });
+      return;
+    }
+
+    const isScreenShare = this.source === Track.Source.ScreenShare;
+    const newEncodings = computeVideoEncodings(isScreenShare, dims.width, dims.height, {
+      ...this.publishOptions,
+    });
+
+    await this.applyEncodingsToSender(this.sender, newEncodings);
+    this.encodings = newEncodings;
+
+    for (const [codec, sc] of this.simulcastCodecs) {
+      if (!sc.sender || sc.sender.transport?.state === 'closed') {
+        continue;
+      }
+      if (!isBackupVideoCodec(codec)) {
+        continue;
+      }
+      const backupOpts: TrackPublishOptions = { ...this.publishOptions };
+      const backupEncodings = computeTrackBackupEncodings(this, codec, backupOpts);
+      if (!backupEncodings) {
+        continue;
+      }
+      await this.applyEncodingsToSender(sc.sender, backupEncodings);
+      sc.encodings = backupEncodings;
+    }
+  }
+
+  private async applyEncodingsToSender(
+    sender: RTCRtpSender,
+    encodings: RTCRtpEncodingParameters[],
+  ) {
+    const unlock = await this.senderLock.lock();
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length !== encodings.length) {
+        return;
+      }
+      params.encodings.forEach((existing, idx) => {
+        // preserve disabled layers (dynacast / Firefox workaround in
+        // setPublishingLayersForSender set scaleResolutionDownBy/maxBitrate to sentinel
+        // values for disabled layers — don't clobber those).
+        if (existing.active === false) {
+          return;
+        }
+        const next = encodings[idx];
+        if (next.scaleResolutionDownBy !== undefined) {
+          existing.scaleResolutionDownBy = next.scaleResolutionDownBy;
+        }
+        if (next.maxBitrate !== undefined) {
+          existing.maxBitrate = next.maxBitrate;
+        }
+        if (next.maxFramerate !== undefined) {
+          existing.maxFramerate = next.maxFramerate;
+        }
+        if (next.priority !== undefined) {
+          existing.priority = next.priority;
+          existing.networkPriority = next.priority;
+        }
+      });
+      this.log.debug('updating sender encodings after track restart', {
+        ...this.logContext,
+        encodings: params.encodings,
+      });
+      await sender.setParameters(params);
+    } catch (e) {
+      this.log.warn('failed to apply recomputed encodings', {
+        ...this.logContext,
+        error: e,
+      });
+    } finally {
+      unlock();
     }
   }
 
