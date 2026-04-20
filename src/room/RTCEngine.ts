@@ -250,7 +250,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
-  private bufferStatusLowClosingFuture = new Future<void, UnexpectedConnectionState>();
+  private bufferStatusLowClosingFuture = new Future<never, UnexpectedConnectionState>();
 
   constructor(private options: InternalRoomOptions) {
     super();
