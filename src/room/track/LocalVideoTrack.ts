@@ -69,6 +69,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   /* @internal */
   publishOptions?: TrackPublishOptions;
 
+  /* @internal */
+  lastEncodedDimensions?: Track.Dimensions;
+
   get sender(): RTCRtpSender | undefined {
     return this._sender;
   }
@@ -308,6 +311,14 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       return;
     }
 
+    if (
+      this.lastEncodedDimensions &&
+      this.lastEncodedDimensions.width === dims.width &&
+      this.lastEncodedDimensions.height === dims.height
+    ) {
+      return;
+    }
+
     const isScreenShare = this.source === Track.Source.ScreenShare;
     const newEncodings = computeVideoEncodings(isScreenShare, dims.width, dims.height, {
       ...this.publishOptions,
@@ -331,6 +342,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       await this.applyEncodingsToSender(sc.sender, backupEncodings);
       sc.encodings = backupEncodings;
     }
+
+    this.lastEncodedDimensions = dims;
   }
 
   private async applyEncodingsToSender(
