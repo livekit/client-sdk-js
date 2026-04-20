@@ -47,8 +47,8 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import RTCEngine, { DataChannelKind } from './RTCEngine';
-import { RegionUrlProvider } from './RegionUrlProvider';
+import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
+import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -668,6 +668,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           }),
         );
         this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
+      })
+      .on(EngineEvent.TokenRefreshed, (token) => {
+        this.regionUrlProvider?.updateToken(token);
+      })
+      .on(EngineEvent.ServerRegionsReported, (regions) => {
+        this.regionUrlProvider?.setServerReportedRegions({
+          regionSettings: regions,
+          updatedAtInMs: Date.now(),
+          maxAgeInMs: DEFAULT_MAX_AGE_MS,
+        });
       });
 
     if (this.localParticipant) {
@@ -679,6 +689,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.outgoingDataStreamManager) {
       this.outgoingDataStreamManager.setupEngine(this.engine);
     }
+  }
+
+  private createRegionStrategy(): RegionStrategy {
+    return {
+      getNextUrl: async (signal?: AbortSignal) =>
+        this.regionUrlProvider ? this.regionUrlProvider.getNextBestRegionUrl(signal) : null,
+      resetAttempts: () => this.regionUrlProvider?.resetAttempts(),
+    };
   }
 
   /**
@@ -764,10 +782,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
       this.regionUrl = undefined;
       this.regionUrlProvider = undefined;
+      this.engine.setRegionStrategy(undefined);
     }
     if (isCloud(new URL(url))) {
       if (this.regionUrlProvider === undefined) {
         this.regionUrlProvider = new RegionUrlProvider(url, token);
+        this.engine.setRegionStrategy(this.createRegionStrategy());
       } else {
         this.regionUrlProvider.updateToken(token);
       }
@@ -965,7 +985,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.maybeCreateEngine();
     }
     if (this.regionUrlProvider?.isCloud()) {
-      this.engine.setRegionUrlProvider(this.regionUrlProvider);
+      this.engine.setRegionStrategy(this.createRegionStrategy());
     }
 
     this.acquireAudioContext();

@@ -21,6 +21,7 @@ import {
   PublishDataTrackResponse,
   ReconnectReason,
   type ReconnectResponse,
+  type RegionSettings,
   RequestResponse,
   Room as RoomModel,
   RoomMovedResponse,
@@ -62,7 +63,6 @@ import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import { DEFAULT_MAX_AGE_MS, type RegionUrlProvider } from './RegionUrlProvider';
 import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
@@ -222,7 +222,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private shouldFailOnV1Path: boolean = false;
 
-  private regionUrlProvider?: RegionUrlProvider;
+  private regionStrategy?: RegionStrategy;
 
   private log = log;
 
@@ -532,8 +532,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  setRegionUrlProvider(provider: RegionUrlProvider) {
-    this.regionUrlProvider = provider;
+  setRegionStrategy(strategy: RegionStrategy | undefined) {
+    this.regionStrategy = strategy;
   }
 
   private async configure(joinResponse?: JoinResponse, useSinglePeerConnection?: boolean) {
@@ -684,7 +684,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
-      this.regionUrlProvider?.updateToken(token);
+      this.emit(EngineEvent.TokenRefreshed, token);
     };
 
     this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
@@ -726,13 +726,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLeave = (leave: LeaveRequest) => {
       this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
-      if (leave.regions && this.regionUrlProvider) {
+      if (leave.regions) {
         this.log.debug('updating regions', this.logContext);
-        this.regionUrlProvider.setServerReportedRegions({
-          updatedAtInMs: Date.now(),
-          maxAgeInMs: DEFAULT_MAX_AGE_MS,
-          regionSettings: leave.regions,
-        });
+        this.emit(EngineEvent.ServerRegionsReported, leave.regions);
       }
       switch (leave.action) {
         case LeaveRequest_Action.DISCONNECT:
@@ -1137,11 +1133,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.log.debug(`reconnecting in ${delay}ms`, this.logContext);
 
     this.clearReconnectTimeout();
-    if (this.token && this.regionUrlProvider) {
-      // token may have been refreshed, we do not want to recreate the regionUrlProvider
-      // since the current engine may have inherited a regional url
-      this.regionUrlProvider.updateToken(this.token);
-    }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () =>
         this.attemptReconnect(disconnectReason).finally(() => (this.reconnectTimeout = undefined)),
@@ -1273,17 +1264,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new SignalReconnectError('Signal connection got severed during reconnect');
       }
 
-      this.regionUrlProvider?.resetAttempts();
+      this.regionStrategy?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
     } catch (error) {
-      const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
+      const nextRegionUrl = await this.regionStrategy?.getNextUrl();
       if (nextRegionUrl) {
         await this.restartConnection(nextRegionUrl);
         return;
       } else {
         // no more regions to try (or we're not on cloud)
-        this.regionUrlProvider?.resetAttempts();
+        this.regionStrategy?.resetAttempts();
         throw error;
       }
     }
@@ -2023,7 +2014,14 @@ export type EngineEventCallbacks = {
   dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
   dataTrackPacketReceived: (packet: Uint8Array) => void;
   joined: (joinResponse: JoinResponse) => void;
+  tokenRefreshed: (token: string) => void;
+  serverRegionsReported: (regions: RegionSettings) => void;
 };
+
+export interface RegionStrategy {
+  getNextUrl(abortSignal?: AbortSignal): Promise<string | null>;
+  resetAttempts(): void;
+}
 
 function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
   const participantIdentity = newObj.participantIdentity
