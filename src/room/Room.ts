@@ -782,7 +782,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
       this.regionUrl = undefined;
       this.regionUrlProvider = undefined;
-      this.engine.setRegionStrategy(undefined);
+      this.engine?.setRegionStrategy(undefined);
     }
     if (isCloud(new URL(url))) {
       if (this.regionUrlProvider === undefined) {
