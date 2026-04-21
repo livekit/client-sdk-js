@@ -1,4 +1,5 @@
 import type { E2EEOptions } from './e2ee/types';
+import type { DiagnosticsBufferOptions } from './room/DiagnosticsBuffer';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -99,6 +100,16 @@ export interface InternalRoomOptions {
   encryption?: E2EEOptions;
 
   loggerName?: string;
+
+  /**
+   * Retain a bounded ring buffer of recent internal events (logs today,
+   * additional signals like WebRTC stats in the future) so consumers can
+   * snapshot them for bug reports via `room.getRecentDiagnostics()`.
+   *
+   * Pass `false` to disable, or an options object to customise. Defaults
+   * to an enabled buffer at the default capacity.
+   */
+  diagnostics?: DiagnosticsBufferOptions | false;
 
   /**
    * will attempt to connect via single peer connection mode.

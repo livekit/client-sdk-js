@@ -36,7 +36,7 @@ import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
-import log, { LoggerNames, getLogger } from '../logger';
+import log, { LoggerNames, addDiagnosticSink, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
   InternalRoomOptions,
@@ -47,6 +47,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
+import { type DiagnosticEntry, DiagnosticsBuffer } from './DiagnosticsBuffer';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
@@ -199,6 +200,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private log = log;
 
+  private diagnosticsBuffer?: DiagnosticsBuffer;
+
+  private diagnosticSinkDispose?: () => void;
+
   private bufferedEvents: Array<any> = [];
 
   private isResuming: boolean = false;
@@ -234,6 +239,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room, () => this.logContext);
+    if (this.options.diagnostics !== false) {
+      const bufferOptions =
+        typeof this.options.diagnostics === 'object' ? this.options.diagnostics : undefined;
+      this.diagnosticsBuffer = new DiagnosticsBuffer(bufferOptions);
+      const buffer = this.diagnosticsBuffer;
+      this.diagnosticSinkDispose = addDiagnosticSink((level, message, context) => {
+        buffer.push({ type: 'log', timestamp: Date.now(), level, message, context });
+      });
+    }
     this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
@@ -470,6 +484,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       participant: this.localParticipant?.identity,
       participantID: this.localParticipant?.sid,
     };
+  }
+
+  /**
+   * Returns a chronological snapshot of recent internal events retained by
+   * the diagnostics ring buffer. Currently contains log entries; additional
+   * kinds (e.g. WebRTC stats) may be added over time. Returns an empty
+   * array when diagnostics have been disabled via `options.diagnostics: false`.
+   */
+  getRecentDiagnostics(): DiagnosticEntry[] {
+    return this.diagnosticsBuffer?.snapshot() ?? [];
+  }
+
+  /**
+   * Append a custom entry to the diagnostics ring buffer. No-op when
+   * diagnostics are disabled. Useful for surfacing integration-specific
+   * state alongside SDK-internal events in the same bug-report snapshot.
+   */
+  recordDiagnostic(entry: DiagnosticEntry) {
+    this.diagnosticsBuffer?.push(entry);
   }
 
   /**
@@ -1797,6 +1830,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } finally {
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
       this.emit(RoomEvent.Disconnected, reason);
+      // drop the log→buffer hook so repeated Room constructions don't leak
+      // sinks; the buffer itself stays on `this` so getRecentDiagnostics()
+      // still works for post-mortem inspection.
+      this.diagnosticSinkDispose?.();
+      this.diagnosticSinkDispose = undefined;
     }
   }
 
