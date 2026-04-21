@@ -1133,6 +1133,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.log.debug(`reconnecting in ${delay}ms`, this.logContext);
 
     this.clearReconnectTimeout();
+    if (this.token) {
+      // token may have been refreshed, we do not want to recreate the regionUrlProvider
+      // since the current engine may have inherited a regional url
+      this.emit(EngineEvent.TokenRefreshed, this.token);
+    }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () =>
         this.attemptReconnect(disconnectReason).finally(() => (this.reconnectTimeout = undefined)),
