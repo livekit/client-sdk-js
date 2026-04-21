@@ -59,6 +59,9 @@ export abstract class Track<
 
   /** @internal */
   setStreamState(value: Track.StreamState) {
+    if (this._streamState !== value) {
+      this.log.debug(`stream state changed: ${this._streamState} -> ${value}`);
+    }
     this._streamState = value;
   }
 
@@ -89,8 +92,8 @@ export abstract class Track<
     loggerOptions: LoggerOptions = {},
   ) {
     super();
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
     this.loggerContextCb = loggerOptions.loggerContextCb;
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track, () => this.logContext);
 
     this.setMaxListeners(100);
     this.kind = kind;
@@ -184,11 +187,11 @@ export abstract class Track<
           this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
         } else if (e.name === 'AbortError') {
           // commonly triggered by another `play` request, only log for debugging purposes
-          log.debug(
+          this.log.debug(
             `${hasAudio ? 'audio' : 'video'} playback aborted, likely due to new play request`,
           );
         } else {
-          log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, e);
+          this.log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, { error: e });
         }
         // If audio playback isn't allowed make sure we still play back the video
         if (
@@ -251,6 +254,7 @@ export abstract class Track<
   }
 
   stop() {
+    this.log.debug('stopping track');
     this.stopMonitor();
     this._mediaStreamTrack.stop();
   }
@@ -278,11 +282,11 @@ export abstract class Track<
 
   /** @internal */
   updateLoggerOptions(loggerOptions: LoggerOptions) {
-    if (loggerOptions.loggerName) {
-      this.log = getLogger(loggerOptions.loggerName);
-    }
     if (loggerOptions.loggerContextCb) {
       this.loggerContextCb = loggerOptions.loggerContextCb;
+    }
+    if (loggerOptions.loggerName) {
+      this.log = getLogger(loggerOptions.loggerName, () => this.logContext);
     }
   }
 

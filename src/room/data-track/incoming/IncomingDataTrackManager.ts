@@ -526,6 +526,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         return;
       }
       case 'pending': {
+        log.debug(`data track subscription activated`, { sid, handle: assignedHandle });
         const pipeline = new IncomingDataTrackPipeline({
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,

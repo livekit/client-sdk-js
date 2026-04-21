@@ -370,6 +370,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   protected addTrackPublication(publication: TrackPublication) {
+    this.log.debug(`adding track publication`, {
+      trackSid: publication.trackSid,
+      source: publication.source,
+      kind: publication.kind,
+    });
     // forward publication driven events
     publication.on(TrackEvent.Muted, () => {
       this.emit(ParticipantEvent.TrackMuted, publication);
