@@ -39,6 +39,7 @@ import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
   LivekitError,
+  NegotiationError,
   PublishTrackError,
   SignalRequestError,
   TrackInvalidError,
@@ -807,10 +808,42 @@ export default class LocalParticipant extends Participant {
     return this.publishOrRepublishTrack(track, options);
   }
 
+  /**
+   * Waits for the engine's next `Restarted` event. Unlike `engine.waitForRestarted`, this does
+   * not short-circuit when `pcState === Connected` — at the point this is called (right after a
+   * `NegotiationError`) the PC transport is still connected, but `fullReconnectOnNext` has been
+   * set and `attemptReconnect` is queued via setTimeout. We need to wait for that restart to
+   * actually complete (which clears `pendingTrackResolvers` via `cleanupClient`) before retrying.
+   */
+  private waitForNextEngineRestart(timeoutMs = 15_000): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.engine.off(EngineEvent.Restarted, onRestarted);
+        this.engine.off(EngineEvent.Closing, onClosing);
+      };
+      const onRestarted = () => {
+        cleanup();
+        resolve();
+      };
+      const onClosing = () => {
+        cleanup();
+        reject(new Error('engine closed before restart completed'));
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('timed out waiting for engine restart'));
+      }, timeoutMs);
+      this.engine.once(EngineEvent.Restarted, onRestarted);
+      this.engine.once(EngineEvent.Closing, onClosing);
+    });
+  }
+
   private async publishOrRepublishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
     isRepublish = false,
+    hasRetriedAfterNegotiationError = false,
   ): Promise<LocalTrackPublication> {
     if (isLocalAudioTrack(track)) {
       track.setAudioContext(this.audioContext);
@@ -979,6 +1012,15 @@ export default class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
+      if (!hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
+        this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
+          ...this.logContext,
+          error: e,
+        });
+        this.pendingPublishPromises.delete(track);
+        await this.waitForNextEngineRestart();
+        return await this.publishOrRepublishTrack(track, options, isRepublish, true);
+      }
       throw e;
     } finally {
       this.pendingPublishPromises.delete(track);
@@ -1273,7 +1315,11 @@ export default class LocalParticipant extends Participant {
         resolve(ti);
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
-          this.engine.pcManager.publisher.removeTrack(track.sender);
+          try {
+            this.engine.pcManager.publisher.removeTrack(track.sender);
+          } catch (e) {
+            this.log.error(e, this.logContext);
+          }
           await this.engine.negotiate().catch((negotiateErr) => {
             this.log.error(
               'failed to negotiate after removing track due to failed add track request',
@@ -1588,13 +1634,20 @@ export default class LocalParticipant extends Participant {
             negotiationNeeded = true;
           }
         }
-        if (this.engine.removeTrack(trackSender)) {
+        try {
+          negotiationNeeded = this.engine.removeTrack(trackSender);
+        } catch (e) {
+          this.log.warn(e, this.logContext);
           negotiationNeeded = true;
         }
+
         if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              if (this.engine.removeTrack(trackInfo.sender)) {
+              try {
+                negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
+              } catch (e) {
+                this.log.warn(e, this.logContext);
                 negotiationNeeded = true;
               }
               trackInfo.sender = undefined;

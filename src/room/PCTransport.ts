@@ -540,8 +540,8 @@ export default class PCTransport extends EventEmitter {
   };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
+    const originalSdp = sd.sdp;
     if (munged) {
-      const originalSdp = sd.sdp;
       sd.sdp = munged;
       try {
         this.log.debug(
@@ -558,7 +558,8 @@ export default class PCTransport extends EventEmitter {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
           ...this.logContext,
           error: e,
-          sdp: munged,
+          mungedSdp: munged,
+          originalSdp,
         });
         sd.sdp = originalSdp;
       }
@@ -582,6 +583,9 @@ export default class PCTransport extends EventEmitter {
         error: msg,
         sdp: sd.sdp,
       };
+      if (munged && munged !== originalSdp) {
+        fields.mungedSdp = munged;
+      }
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
@@ -610,9 +614,6 @@ export default class PCTransport extends EventEmitter {
       if (this.ddExtID === 0) {
         let maxID = 0;
         sdp.media.forEach((m) => {
-          if (m.type !== 'video') {
-            return;
-          }
           m.ext?.forEach((ext) => {
             if (ext.value > maxID) {
               maxID = ext.value;
