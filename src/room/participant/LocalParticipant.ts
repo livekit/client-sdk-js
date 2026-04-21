@@ -1012,23 +1012,11 @@ export default class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
-      // Workaround for a Chrome regression (observed in 148) where `createOffer` can emit an
-      // SDP that its own `setLocalDescription` then rejects with
-      // `RTP extension ID reassignment not supported`. Once this happens the PeerConnection's
-      // extmap state is permanently wedged, so we rely on `RTCEngine.negotiate` having
-      // already set `fullReconnectOnNext = true` + triggered a disconnect. We wait for the
-      // full restart to complete, which resets `pendingTrackResolvers` via `cleanupClient`,
-      // then retry the publish once on the fresh PC. `hasRetriedAfterNegotiationError` guards
-      // against unbounded recursion if the issue reproduces after the restart.
-      if (
-        !hasRetriedAfterNegotiationError &&
-        e instanceof NegotiationError &&
-        /RTP extension ID reassignment/i.test(e.message)
-      ) {
-        this.log.warn(
-          'publish hit Chrome RTP extension id reassignment bug, retrying after full reconnect',
-          { ...this.logContext, error: e },
-        );
+      if (!hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
+        this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
+          ...this.logContext,
+          error: e,
+        });
         this.pendingPublishPromises.delete(track);
         await this.waitForNextEngineRestart();
         return await this.publishOrRepublishTrack(track, options, isRepublish, true);
