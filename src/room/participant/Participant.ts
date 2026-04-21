@@ -262,7 +262,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       info.state === ParticipantInfo_State.ACTIVE &&
       this.participantInfo?.state !== ParticipantInfo_State.ACTIVE
     ) {
-      this.log.debug('participant became active');
       this.emit(ParticipantEvent.Active);
     }
     if (info.permission) {
@@ -282,7 +281,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.metadata = md;
 
     if (changed) {
-      this.log.debug('metadata changed');
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
   }
@@ -292,7 +290,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.name = name;
 
     if (changed) {
-      this.log.debug(`name changed to ${name}`);
       this.emit(ParticipantEvent.ParticipantNameChanged, name);
     }
   }
@@ -305,7 +302,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this._attributes = attributes;
 
     if (Object.keys(diff).length > 0) {
-      this.log.debug('attributes changed', { changed: Object.keys(diff) });
       this.emit(ParticipantEvent.AttributesChanged, diff);
     }
   }
@@ -327,13 +323,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.permissions = permissions;
 
     if (changed) {
-      this.log.debug('permissions changed', {
-        canPublish: permissions.canPublish,
-        canSubscribe: permissions.canSubscribe,
-        canPublishData: permissions.canPublishData,
-        hidden: permissions.hidden,
-        recorder: permissions.recorder,
-      });
       this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
     }
     return changed;
@@ -356,7 +345,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     const prevQuality = this._connectionQuality;
     this._connectionQuality = qualityFromProto(q);
     if (prevQuality !== this._connectionQuality) {
-      this.log.debug(`connection quality changed: ${prevQuality} -> ${this._connectionQuality}`);
       this.emit(ParticipantEvent.ConnectionQualityChanged, this._connectionQuality);
     }
   }

@@ -166,10 +166,6 @@ export abstract class Track<
     if (!this.attachedElements.includes(element)) {
       this.attachedElements.push(element);
     }
-    this.log.debug('attaching track to element', {
-      elementType,
-      attachedCount: this.attachedElements.length,
-    });
 
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
@@ -236,9 +232,6 @@ export abstract class Track<
           this.recycleElement(element);
           this.emit(TrackEvent.ElementDetached, element);
         }
-        this.log.debug('detached track from element', {
-          attachedCount: this.attachedElements.length,
-        });
         return element;
       }
 
@@ -252,7 +245,6 @@ export abstract class Track<
 
       // remove all tracks
       this.attachedElements = [];
-      this.log.debug('detached track from all elements', { detached: detached.length });
       return detached;
     } finally {
       if (this.attachedElements.length === 0) {

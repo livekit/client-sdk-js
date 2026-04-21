@@ -219,10 +219,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
     combinedSignal.addEventListener('abort', onAbort);
 
-    log.debug(`publishing data track (handle=${handle})`, {
-      name: options.name,
-      usesE2ee: this.e2eeManager !== null,
-    });
     this.emit('sfuPublishRequest', {
       handle,
       name: options.name,
@@ -232,7 +228,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     await descriptor.completionFuture.promise;
     combinedSignal.removeEventListener('abort', onAbort);
 
-    log.debug(`data track published (handle=${handle})`);
     this.emit('trackPublished', {
       track: LocalDataTrack.withExplicitHandle(options, this, handle),
     });
@@ -267,7 +262,6 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
-    log.debug(`unpublishing data track (handle=${handle}, sid=${descriptor.info.sid})`);
     this.emit('sfuUnpublishRequest', { handle });
 
     await descriptor.unpublishingFuture.promise;

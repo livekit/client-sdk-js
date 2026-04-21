@@ -469,12 +469,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       log.error(`Existing descriptor for track ${info.sid}`);
       return;
     }
-    log.debug(`remote data track published`, {
-      sid: info.sid,
-      name: info.name,
-      publisherIdentity,
-      usesE2ee: info.usesE2ee,
-    });
     let descriptor: Descriptor<SubscriptionStateNone> = {
       info,
       publisherIdentity,
@@ -492,10 +486,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       log.error(`Unknown track ${sid}`);
       return;
     }
-    log.debug(`remote data track unpublished`, {
-      sid,
-      publisherIdentity: descriptor.publisherIdentity,
-    });
     this.descriptors.delete(sid);
 
     if (descriptor.subscription.type === 'active') {
