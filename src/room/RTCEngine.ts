@@ -1519,7 +1519,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // buffer status to not be low before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind, 'ignore');
+            try {
+              await this.waitForBufferStatusLow(kind);
+            } catch (err) {
+              // Swallow engine closed errors - if there are lossy packets waiting for the buffer
+              // status to go low and the engine closes, these packets should just be silently
+              // dropped.
+              if (err instanceof UnexpectedConnectionState && err.message === 'engine closed') {
+                return;
+              }
+              throw err;
+            }
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
@@ -1580,12 +1590,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  async waitForBufferStatusLow(
-    kind: DataChannelKind,
-    engineCloseBehavior: 'throw' | 'ignore' = 'throw',
-  ) {
+  async waitForBufferStatusLow(kind: DataChannelKind) {
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this.isClosed && engineCloseBehavior === 'throw') {
+      if (this.isClosed) {
         reject(new UnexpectedConnectionState('engine closed'));
       }
       if (this.isBufferStatusLow(kind)) {
@@ -1596,9 +1603,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-        if (engineCloseBehavior === 'throw') {
-          this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        }
+        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
         dc.addEventListener('bufferedamountlow', () => resolve(), {
           once: true,
         });
