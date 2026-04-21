@@ -322,10 +322,22 @@ export default abstract class LocalTrack<
       if (stopProcessor && this.processor) {
         await this.internalStopProcessor();
       }
-      return this;
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
+    return this;
+  }
+
+  /**
+   * Hook invoked after the MediaStreamTrack on the sender has been swapped
+   * (via replaceTrack, setProcessor, or stopProcessor). Fires outside the
+   * trackChangeLock so subclasses can do asynchronous work such as polling
+   * for new dimensions without blocking other track operations.
+   */
+  protected async onSenderTrackSwapped(): Promise<void> {
+    // base implementation is a no-op; LocalVideoTrack overrides this to
+    // recompute sender encoding parameters.
   }
 
   protected async restart(constraints?: MediaTrackConstraints, isUnmuting?: boolean) {
@@ -589,6 +601,7 @@ export default abstract class LocalTrack<
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
   }
 
   getProcessor() {
@@ -607,6 +620,7 @@ export default abstract class LocalTrack<
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
   }
 
   /**

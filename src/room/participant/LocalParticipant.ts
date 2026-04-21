@@ -1380,6 +1380,17 @@ export default class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
 
+    // keep publish options on the video track so that it can recompute encoding
+    // parameters when the MediaStreamTrack is restarted (e.g. after switching cameras).
+    // Seed the dimensions we encoded at publish time so the first no-op restart
+    // (e.g. unmute with unchanged constraints) can skip the recompute.
+    if (isLocalVideoTrack(track)) {
+      track.publishOptions = opts;
+      if (req.width && req.height) {
+        track.lastEncodedDimensions = { width: req.width, height: req.height };
+      }
+    }
+
     this.log.debug(`publishing ${track.kind} with encodings`, {
       ...this.logContext,
       encodings,
