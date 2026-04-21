@@ -68,6 +68,13 @@ export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';
 export * from './e2ee';
 export type { BaseE2EEManager } from './e2ee/E2eeManager';
+export type {
+  BaseDiagnosticEntry,
+  DiagnosticEntry,
+  DiagnosticsBufferOptions,
+  LogDiagnosticEntry,
+} from './room/DiagnosticsBuffer';
+export { DEFAULT_DIAGNOSTICS_BUFFER_SIZE } from './room/DiagnosticsBuffer';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';

@@ -141,6 +141,39 @@ export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: Logge
 
 export type LogExtension = (level: LogLevel, msg: string, context?: object) => void;
 
+const diagnosticSinks = new Set<LogExtension>();
+let diagnosticSinkDispatcherInstalled = false;
+
+function ensureDiagnosticSinkDispatcher() {
+  if (diagnosticSinkDispatcherInstalled) return;
+  diagnosticSinkDispatcherInstalled = true;
+  setLogExtension((level, msg, context) => {
+    for (const sink of diagnosticSinks) {
+      try {
+        sink(level, msg, context);
+      } catch {
+        // swallow sink errors so a misbehaving consumer can't break logging
+      }
+    }
+  });
+}
+
+/**
+ * Register a callback that receives every internal log entry across all
+ * livekit loggers. Returns an unsubscribe function. Unlike
+ * {@link setLogExtension}, sinks can be added and removed without
+ * permanently layering additional methodFactory wrappers on each call.
+ *
+ * @internal
+ */
+export function addDiagnosticSink(sink: LogExtension): () => void {
+  diagnosticSinks.add(sink);
+  ensureDiagnosticSinkDispatcher();
+  return () => {
+    diagnosticSinks.delete(sink);
+  };
+}
+
 /**
  * use this to hook into the logging function to allow sending internal livekit logs to third party services
  * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)

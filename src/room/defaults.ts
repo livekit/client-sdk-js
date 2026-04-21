@@ -43,6 +43,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   disconnectOnPageLeave: true,
   webAudioMix: false,
   singlePeerConnection: true,
+  diagnostics: {},
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
