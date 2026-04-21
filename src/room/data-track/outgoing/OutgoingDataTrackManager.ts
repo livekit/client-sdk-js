@@ -219,6 +219,10 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     }
     combinedSignal.addEventListener('abort', onAbort);
 
+    log.debug(`publishing data track (handle=${handle})`, {
+      name: options.name,
+      usesE2ee: this.e2eeManager !== null,
+    });
     this.emit('sfuPublishRequest', {
       handle,
       name: options.name,
@@ -228,6 +232,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     await descriptor.completionFuture.promise;
     combinedSignal.removeEventListener('abort', onAbort);
 
+    log.debug(`data track published (handle=${handle})`);
     this.emit('trackPublished', {
       track: LocalDataTrack.withExplicitHandle(options, this, handle),
     });
@@ -262,6 +267,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       return;
     }
 
+    log.debug(`unpublishing data track (handle=${handle}, sid=${descriptor.info.sid})`);
     this.emit('sfuUnpublishRequest', { handle });
 
     await descriptor.unpublishingFuture.promise;
@@ -285,11 +291,13 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       case 'pending': {
         if (result.type === 'ok') {
           const info = result.data;
+          log.debug(`SFU accepted publish request for handle ${handle}`, { sid: info.sid });
           const e2eeManager = info.usesE2ee ? this.e2eeManager : null;
           this.descriptors.set(info.pubHandle, Descriptor.active(info, e2eeManager));
 
           descriptor.completionFuture.resolve?.();
         } else {
+          log.debug(`SFU rejected publish request for handle ${handle}`, { error: result.error });
           descriptor.completionFuture.reject?.(result.error);
         }
         return;

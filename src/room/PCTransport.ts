@@ -47,6 +47,8 @@ export default class PCTransport extends EventEmitter {
 
   private log = log;
 
+  private iceLog = log;
+
   private loggerOptions: LoggerOptions;
 
   private ddExtID = 0;
@@ -87,8 +89,9 @@ export default class PCTransport extends EventEmitter {
 
   constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
     this.loggerOptions = loggerOptions;
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport, () => this.logContext);
+    this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
     this.config = config;
     this._pc = this.createPC();
     this.offerLock = new Mutex();
@@ -99,24 +102,33 @@ export default class PCTransport extends EventEmitter {
 
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
+      this.iceLog.debug('local ICE candidate gathered', { candidate: ev.candidate.candidate });
       this.onIceCandidate?.(ev.candidate);
     };
     pc.onicecandidateerror = (ev) => {
+      this.iceLog.debug('ICE candidate error', { event: ev });
       this.onIceCandidateError?.(ev);
     };
 
     pc.oniceconnectionstatechange = () => {
+      this.iceLog.debug(`ICE connection state: ${pc.iceConnectionState}`);
       this.onIceConnectionStateChange?.(pc.iceConnectionState);
     };
 
     pc.onsignalingstatechange = () => {
+      this.log.debug(`signaling state: ${pc.signalingState}`);
       this.onSignalingStatechange?.(pc.signalingState);
     };
 
     pc.onconnectionstatechange = () => {
+      this.log.debug(`connection state: ${pc.connectionState}`);
       this.onConnectionStateChange?.(pc.connectionState);
     };
     pc.ondatachannel = (ev) => {
+      this.log.debug('data channel opened by peer', {
+        label: ev.channel.label,
+        id: ev.channel.id,
+      });
       this.onDataChannel?.(ev);
     };
     pc.ontrack = (ev) => {
@@ -142,6 +154,9 @@ export default class PCTransport extends EventEmitter {
     if (this.pc.remoteDescription && !this.restartingIce) {
       return this.pc.addIceCandidate(candidate);
     }
+    this.iceLog.debug('queuing remote ICE candidate until remote description applied', {
+      pendingCount: this.pendingCandidates.length + 1,
+    });
     this.pendingCandidates.push(candidate);
   }
 
@@ -153,7 +168,6 @@ export default class PCTransport extends EventEmitter {
       offerId !== this.latestOfferId
     ) {
       this.log.warn('ignoring answer for old offer', {
-        ...this.logContext,
         offerId,
         latestOfferId: this.latestOfferId,
       });
@@ -172,7 +186,7 @@ export default class PCTransport extends EventEmitter {
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
         });
-        this.log.debug('setting pending initial offer before processing answer', this.logContext);
+        this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(initialOffer, write(sdpParsed));
       }
       const sdpParsed = parse(sd.sdp ?? '');
@@ -230,6 +244,11 @@ export default class PCTransport extends EventEmitter {
     }
     await this.setMungedSDP(sd, mungedSDP, true);
 
+    if (this.pendingCandidates.length > 0) {
+      this.iceLog.debug('flushing queued ICE candidates', {
+        count: this.pendingCandidates.length,
+      });
+    }
     this.pendingCandidates.forEach((candidate) => {
       this.pc.addIceCandidate(candidate);
     });
@@ -271,10 +290,7 @@ export default class PCTransport extends EventEmitter {
     const unlock = await this.offerLock.lock();
     try {
       if (this.pc.signalingState !== 'stable') {
-        this.log.warn(
-          'signaling state is not stable, cannot create initial offer',
-          this.logContext,
-        );
+        this.log.warn('signaling state is not stable, cannot create initial offer');
         return;
       }
       const offerId = this.latestOfferId + 1;
@@ -301,7 +317,7 @@ export default class PCTransport extends EventEmitter {
       }
 
       if (options?.iceRestart) {
-        this.log.debug('restarting ICE', this.logContext);
+        this.iceLog.debug('restarting ICE');
         this.restartingIce = true;
       }
 
@@ -318,21 +334,21 @@ export default class PCTransport extends EventEmitter {
           await this._pc.setRemoteDescription(currentSD);
         } else {
           this.renegotiate = true;
-          this.log.debug('requesting renegotiation', { ...this.logContext });
+          this.log.debug('requesting renegotiation');
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
-        this.log.warn('could not createOffer with closed peer connection', this.logContext);
+        this.log.warn('could not createOffer with closed peer connection');
         return;
       }
 
       // actually negotiate
-      this.log.debug('starting to negotiate', this.logContext);
+      this.log.debug('starting to negotiate');
       // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer(options);
-      this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
+      this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -386,7 +402,6 @@ export default class PCTransport extends EventEmitter {
       });
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
-          ...this.logContext,
           latestOfferId: this.latestOfferId,
           offerId,
         });
@@ -523,6 +538,7 @@ export default class PCTransport extends EventEmitter {
     if (!this._pc) {
       return;
     }
+    this.log.debug('closing peer connection');
     this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
@@ -544,10 +560,7 @@ export default class PCTransport extends EventEmitter {
     if (munged) {
       sd.sdp = munged;
       try {
-        this.log.debug(
-          `setting munged ${remote ? 'remote' : 'local'} description`,
-          this.logContext,
-        );
+        this.log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
         if (remote) {
           await this.pc.setRemoteDescription(sd);
         } else {
@@ -556,7 +569,6 @@ export default class PCTransport extends EventEmitter {
         return;
       } catch (e) {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-          ...this.logContext,
           error: e,
           mungedSdp: munged,
           originalSdp,
@@ -589,7 +601,7 @@ export default class PCTransport extends EventEmitter {
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
-      this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
+      this.log.error(`unable to set ${sd.type}`, { fields });
       throw new NegotiationError(msg);
     }
   }

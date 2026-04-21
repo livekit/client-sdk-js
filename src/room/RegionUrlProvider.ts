@@ -1,6 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
-import log from '../logger';
+import { LoggerNames, getLogger } from '../logger';
+
+const log = getLogger(LoggerNames.Region);
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
 
@@ -229,7 +231,7 @@ export class RegionUrlProvider {
     if (regionsLeft.length > 0) {
       const nextRegion = regionsLeft[0];
       this.attemptedRegions.push(nextRegion);
-      log.debug(`next region: ${nextRegion.region}`);
+      log.info(`switching to region: ${nextRegion.region}`, { region: nextRegion.region });
       return nextRegion.url;
     } else {
       return null;
