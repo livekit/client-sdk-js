@@ -332,7 +332,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.shouldFailOnV1Path = false;
         throw ConnectionError.serviceNotFound('Simulated v1 path failure', 'v0-rtc');
       }
-      log.warn('joining signal with ', url);
       const joinResponse = await this.client.join(
         url,
         token,
