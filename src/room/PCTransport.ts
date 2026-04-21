@@ -165,7 +165,7 @@ export default class PCTransport extends EventEmitter {
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
-      if (this.pendingInitialOffer) {
+      if (this.pendingInitialOffer && this._pc) {
         const initialOffer = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
         const sdpParsed = parse(initialOffer.sdp ?? '');
@@ -523,6 +523,7 @@ export default class PCTransport extends EventEmitter {
     if (!this._pc) {
       return;
     }
+    this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
@@ -539,8 +540,8 @@ export default class PCTransport extends EventEmitter {
   };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
+    const originalSdp = sd.sdp;
     if (munged) {
-      const originalSdp = sd.sdp;
       sd.sdp = munged;
       try {
         this.log.debug(
@@ -557,7 +558,8 @@ export default class PCTransport extends EventEmitter {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
           ...this.logContext,
           error: e,
-          sdp: munged,
+          mungedSdp: munged,
+          originalSdp,
         });
         sd.sdp = originalSdp;
       }
@@ -565,9 +567,9 @@ export default class PCTransport extends EventEmitter {
 
     try {
       if (remote) {
-        await this.pc.setRemoteDescription(sd);
+        await this._pc?.setRemoteDescription(sd);
       } else {
-        await this.pc.setLocalDescription(sd);
+        await this._pc?.setLocalDescription(sd);
       }
     } catch (e) {
       let msg = 'unknown error';
@@ -581,6 +583,9 @@ export default class PCTransport extends EventEmitter {
         error: msg,
         sdp: sd.sdp,
       };
+      if (munged && munged !== originalSdp) {
+        fields.mungedSdp = munged;
+      }
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
@@ -609,9 +614,6 @@ export default class PCTransport extends EventEmitter {
       if (this.ddExtID === 0) {
         let maxID = 0;
         sdp.media.forEach((m) => {
-          if (m.type !== 'video') {
-            return;
-          }
           m.ext?.forEach((ext) => {
             if (ext.value > maxID) {
               maxID = ext.value;

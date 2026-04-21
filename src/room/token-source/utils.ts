@@ -31,9 +31,9 @@ export function decodeTokenPayload(token: string) {
   const mappedPayload: TokenPayload = {
     ...rest,
     roomConfig: payload.roomConfig
-      ? (RoomConfiguration.fromJson(
-          payload.roomConfig as Record<string, any>,
-        ) as RoomConfigurationObject)
+      ? (RoomConfiguration.fromJson(payload.roomConfig as Record<string, any>, {
+          ignoreUnknownFields: true,
+        }) as RoomConfigurationObject)
       : undefined,
   };
 

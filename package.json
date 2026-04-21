@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.18.1",
+  "version": "2.18.4",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -66,14 +66,14 @@
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
-    "@livekit/protocol": "1.44.0",
+    "@livekit/protocol": "1.45.3",
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",
-    "webrtc-adapter": "^9.0.1"
+    "webrtc-adapter": "9.0.5"
   },
   "peerDependencies": {
     "@types/dom-mediacapture-record": "^1"

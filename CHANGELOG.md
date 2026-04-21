@@ -1,5 +1,43 @@
 # Change Log
 
+## 2.18.4
+
+### Patch Changes
+
+- fix: handle race between `LocalTrackSubscribed` signal and `publishTrack` completion - [#1872](https://github.com/livekit/client-sdk-js/pull/1872) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Harden RemoteParticipant.dataTracks map to work when a data track subscription is processed before the room connect is complete - [#1888](https://github.com/livekit/client-sdk-js/pull/1888) ([@1egoman](https://github.com/1egoman))
+
+- Update dependency webrtc-adapter to v9.0.5 - [#1858](https://github.com/livekit/client-sdk-js/pull/1858) ([@renovate](https://github.com/apps/renovate))
+
+- Ensure transport manager is reset before attempting legacy fallback path - [#1893](https://github.com/livekit/client-sdk-js/pull/1893) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data tracks related subscript edge cases when the passed abort signal fires across the subscription lifecycle - [#1892](https://github.com/livekit/client-sdk-js/pull/1892) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.3
+
+### Patch Changes
+
+- fixing decodeTokenPayload - [#1889](https://github.com/livekit/client-sdk-js/pull/1889) ([@thomasyuill-livekit](https://github.com/thomasyuill-livekit))
+
+## 2.18.2
+
+### Patch Changes
+
+- Export CheckStatus as enum, not just type - [#1855](https://github.com/livekit/client-sdk-js/pull/1855) ([@Ludobaka](https://github.com/Ludobaka))
+
+- Add new serializer implementation - [#1885](https://github.com/livekit/client-sdk-js/pull/1885) ([@1egoman](https://github.com/1egoman))
+
+- fix: improve ordering of resolving waitForBufferStatus calls - [#1877](https://github.com/livekit/client-sdk-js/pull/1877) ([@lukasIO](https://github.com/lukasIO))
+
+- Close streamcontrollers when datatrack gets unpublished - [#1879](https://github.com/livekit/client-sdk-js/pull/1879) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer stream events until connected - [#1867](https://github.com/livekit/client-sdk-js/pull/1867) ([@lukasIO](https://github.com/lukasIO))
+
+- Moves "connected to Livekit Server" log within RTCEngine.join so it shows up for reconnects as well as connects - [#1873](https://github.com/livekit/client-sdk-js/pull/1873) ([@1egoman](https://github.com/1egoman))
+
+- Wrap setE2EEEnabled call in a mutex - [#1882](https://github.com/livekit/client-sdk-js/pull/1882) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.1
 
 ### Patch Changes
