@@ -657,11 +657,12 @@ export default class LocalParticipant extends Participant {
       if (track && track.track) {
         // screenshare cannot be muted, unpublish instead
         if (source === Track.Source.ScreenShare) {
-          track = await this.unpublishTrack(track.track);
+          const unpublishPromises = [this.unpublishTrack(track.track)];
           const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
           if (screenAudioTrack && screenAudioTrack.track) {
-            this.unpublishTrack(screenAudioTrack.track);
+            unpublishPromises.push(this.unpublishTrack(screenAudioTrack.track));
           }
+          [track] = await Promise.all(unpublishPromises);
         } else {
           await track.mute();
         }

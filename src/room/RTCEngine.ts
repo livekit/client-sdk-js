@@ -21,6 +21,7 @@ import {
   PublishDataTrackResponse,
   ReconnectReason,
   type ReconnectResponse,
+  type RegionSettings,
   RequestResponse,
   Room as RoomModel,
   RoomMovedResponse,
@@ -62,7 +63,6 @@ import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import { DEFAULT_MAX_AGE_MS, type RegionUrlProvider } from './RegionUrlProvider';
 import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
@@ -86,6 +86,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  Future,
   isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
@@ -222,7 +223,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private shouldFailOnV1Path: boolean = false;
 
-  private regionUrlProvider?: RegionUrlProvider;
+  private regionStrategy?: RegionStrategy;
 
   private log = log;
 
@@ -248,6 +249,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
+
+  private bufferStatusLowClosingFuture = new Future<never, UnexpectedConnectionState>();
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -282,6 +285,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
+
+    this.on(EngineEvent.Closing, () => {
+      this.bufferStatusLowClosingFuture.reject?.(new UnexpectedConnectionState('engine closed'));
+    });
+    // Swallow the rejection at the source so it doesn't surface as an unhandled promise rejection
+    // when no waitForBufferStatusLow callers are attached.
+    this.bufferStatusLowClosingFuture.promise.catch(() => {});
   }
 
   /** @internal */
@@ -332,7 +342,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.shouldFailOnV1Path = false;
         throw ConnectionError.serviceNotFound('Simulated v1 path failure', 'v0-rtc');
       }
-      log.warn('joining signal with ', url);
       const joinResponse = await this.client.join(
         url,
         token,
@@ -540,8 +549,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  setRegionUrlProvider(provider: RegionUrlProvider) {
-    this.regionUrlProvider = provider;
+  setRegionStrategy(strategy: RegionStrategy | undefined) {
+    this.regionStrategy = strategy;
   }
 
   private async configure(joinResponse?: JoinResponse, useSinglePeerConnection?: boolean) {
@@ -692,7 +701,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
-      this.regionUrlProvider?.updateToken(token);
+      this.emit(EngineEvent.TokenRefreshed, token);
     };
 
     this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
@@ -734,13 +743,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLeave = (leave: LeaveRequest) => {
       this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
-      if (leave.regions && this.regionUrlProvider) {
+      if (leave.regions) {
         this.log.debug('updating regions', this.logContext);
-        this.regionUrlProvider.setServerReportedRegions({
-          updatedAtInMs: Date.now(),
-          maxAgeInMs: DEFAULT_MAX_AGE_MS,
-          regionSettings: leave.regions,
-        });
+        this.emit(EngineEvent.ServerRegionsReported, leave.regions);
       }
       switch (leave.action) {
         case LeaveRequest_Action.DISCONNECT:
@@ -1145,10 +1150,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.log.debug(`reconnecting in ${delay}ms`, this.logContext);
 
     this.clearReconnectTimeout();
-    if (this.token && this.regionUrlProvider) {
+    if (this.token) {
       // token may have been refreshed, we do not want to recreate the regionUrlProvider
       // since the current engine may have inherited a regional url
-      this.regionUrlProvider.updateToken(this.token);
+      this.emit(EngineEvent.TokenRefreshed, this.token);
     }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () =>
@@ -1281,17 +1286,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new SignalReconnectError('Signal connection got severed during reconnect');
       }
 
-      this.regionUrlProvider?.resetAttempts();
+      this.regionStrategy?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
     } catch (error) {
-      const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
+      const nextRegionUrl = await this.regionStrategy?.getNextUrl();
       if (nextRegionUrl) {
         await this.restartConnection(nextRegionUrl);
         return;
       } else {
         // no more regions to try (or we're not on cloud)
-        this.regionUrlProvider?.resetAttempts();
+        this.regionStrategy?.resetAttempts();
         throw error;
       }
     }
@@ -1586,23 +1591,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
-        const onClosing = () => reject(new UnexpectedConnectionState('engine closed'));
-        this.once(EngineEvent.Closing, onClosing);
         const dc = this.dataChannelForKind(kind);
         if (!dc) {
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-        dc.addEventListener(
-          'bufferedamountlow',
-          () => {
-            this.off(EngineEvent.Closing, onClosing);
-            resolve();
-          },
-          {
-            once: true,
-          },
-        );
+        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
+        dc.addEventListener('bufferedamountlow', () => resolve(), {
+          once: true,
+        });
       }
     });
   }
@@ -2031,7 +2028,14 @@ export type EngineEventCallbacks = {
   dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
   dataTrackPacketReceived: (packet: Uint8Array) => void;
   joined: (joinResponse: JoinResponse) => void;
+  tokenRefreshed: (token: string) => void;
+  serverRegionsReported: (regions: RegionSettings) => void;
 };
+
+export interface RegionStrategy {
+  getNextUrl(abortSignal?: AbortSignal): Promise<string | null>;
+  resetAttempts(): void;
+}
 
 function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
   const participantIdentity = newObj.participantIdentity
