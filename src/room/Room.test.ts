@@ -32,14 +32,14 @@ describe('Active device switch', () => {
 });
 
 describe('Room diagnostics', () => {
-  it('captures internal log entries into the ring buffer', () => {
+  it('captures internal log entries into the ring buffer', async () => {
     setLogLevel(LogLevel.debug, LoggerNames.Room);
     const room = new Room({ diagnostics: { size: 16 } });
     // trigger an internal log at a known level
     (room as unknown as { log: { info: (m: string) => void } }).log.info(
       'diagnostics roundtrip probe',
     );
-    const entries = room.getRecentDiagnostics();
+    const entries = await room.getRecentDiagnostics();
     const probe = entries.find(
       (e): e is LogDiagnosticEntry =>
         e.type === 'log' && (e as LogDiagnosticEntry).message.includes('diagnostics roundtrip probe'),
@@ -49,12 +49,12 @@ describe('Room diagnostics', () => {
     setLogLevel(LogLevel.info);
   });
 
-  it('returns an empty array when diagnostics are disabled', () => {
+  it('returns an empty array when diagnostics are disabled', async () => {
     const room = new Room({ diagnostics: false });
-    expect(room.getRecentDiagnostics()).toEqual([]);
+    expect(await room.getRecentDiagnostics()).toEqual([]);
   });
 
-  it('accepts custom entries via recordDiagnostic', () => {
+  it('accepts custom entries via recordDiagnostic', async () => {
     const room = new Room({ diagnostics: { size: 4 } });
     room.recordDiagnostic({
       type: 'log',
@@ -62,7 +62,7 @@ describe('Room diagnostics', () => {
       level: LogLevel.warn,
       message: 'manual entry',
     });
-    const entries = room.getRecentDiagnostics();
+    const entries = await room.getRecentDiagnostics();
     expect(entries.some((e) => (e as LogDiagnosticEntry).message === 'manual entry')).toBe(true);
   });
 });

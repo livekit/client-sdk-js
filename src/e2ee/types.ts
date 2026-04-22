@@ -105,6 +105,28 @@ export interface EnableMessage extends BaseMessage {
   };
 }
 
+export interface DiagnosticsRequestMessage extends BaseMessage {
+  kind: 'diagnosticsRequest';
+  data: {
+    /** Correlates the response with the awaiting main-thread request. */
+    uuid: string;
+  };
+}
+
+export interface DiagnosticsResponseMessage extends BaseMessage {
+  kind: 'diagnosticsResponse';
+  data: {
+    uuid: string;
+    /**
+     * Snapshot of the worker-side diagnostics ring buffer, in chronological
+     * order. Typed as `unknown[]` here to keep the message type free of a
+     * cross-module dependency on `DiagnosticEntry`; callers on the main
+     * thread cast to `DiagnosticEntry[]`.
+     */
+    entries: unknown[];
+  };
+}
+
 export interface InitAck extends BaseMessage {
   kind: 'initAck';
   data: {
@@ -166,7 +188,9 @@ export type E2EEWorkerMessage =
   | DecryptDataRequestMessage
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
-  | EncryptDataResponseMessage;
+  | EncryptDataResponseMessage
+  | DiagnosticsRequestMessage
+  | DiagnosticsResponseMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

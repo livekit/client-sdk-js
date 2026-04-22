@@ -489,11 +489,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * Returns a chronological snapshot of recent internal events retained by
    * the diagnostics ring buffer. Currently contains log entries; additional
-   * kinds (e.g. WebRTC stats) may be added over time. Returns an empty
-   * array when diagnostics have been disabled via `options.diagnostics: false`.
+   * kinds (e.g. WebRTC stats) may be added over time. When e2ee is active,
+   * the worker-side buffer is fetched on demand and merged into the result.
+   * Returns an empty array when diagnostics have been disabled via
+   * `options.diagnostics: false`.
    */
-  getRecentDiagnostics(): DiagnosticEntry[] {
-    return this.diagnosticsBuffer?.snapshot() ?? [];
+  async getRecentDiagnostics(): Promise<DiagnosticEntry[]> {
+    if (!this.diagnosticsBuffer) {
+      return [];
+    }
+    const mainEntries = this.diagnosticsBuffer.snapshot();
+    const workerEntries = (await this.e2eeManager?.fetchDiagnosticsSnapshot()) ?? [];
+    if (workerEntries.length === 0) {
+      return mainEntries;
+    }
+    // Merge by timestamp so the returned log reads as a single chronological
+    // stream across both threads. `sort` is stable in V8 / WebKit so equal
+    // timestamps preserve insertion order within each source.
+    return [...mainEntries, ...workerEntries].sort((a, b) => a.timestamp - b.timestamp);
   }
 
   /**
