@@ -54,18 +54,7 @@ export default livekitLogger as StructuredLogger;
  * message prefix. Ordering here defines ordering in the rendered prefix.
  * Values that are `undefined` or empty strings are skipped.
  */
-const DISPLAY_KEYS = [
-  'room',
-  'roomID',
-  'participant',
-  'participantID',
-  'trackID',
-  'source',
-  'target',
-  'transport',
-  'reconnectAttempt',
-  'region',
-] as const;
+const DISPLAY_KEYS = [] as const;
 
 /**
  * Render the subset of `ctx` listed in `DISPLAY_KEYS` as a bracketed prefix
@@ -110,15 +99,13 @@ function wrapWithContext(base: StructuredLogger, ctxFn: ContextProvider): Struct
   // Resolve the underlying method on every call so that later
   // setLogExtension installations (which replace the base logger's
   // methods via loglevel's methodFactory) are picked up.
-  const wrap =
-    (method: LogMethod) =>
-    (msg: string, extra?: object) => {
-      const ctx = ctxFn();
-      const prefix = formatDisplayContext(ctx);
-      const finalMsg = prefix ? `${prefix} ${msg}` : msg;
-      const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
-      base[method](finalMsg, merged);
-    };
+  const wrap = (method: LogMethod) => (msg: string, extra?: object) => {
+    const ctx = ctxFn();
+    const prefix = formatDisplayContext(ctx);
+    const finalMsg = prefix ? `${prefix} ${msg}` : msg;
+    const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
+    base[method](finalMsg, merged);
+  };
 
   const proxy = Object.create(base) as StructuredLogger;
   proxy.trace = wrap('trace');

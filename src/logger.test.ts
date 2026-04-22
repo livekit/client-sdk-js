@@ -12,33 +12,12 @@ import {
 } from './logger';
 
 describe('formatDisplayContext', () => {
-  it('returns an empty string for undefined or empty input', () => {
+  // `DISPLAY_KEYS` is intentionally empty by default — the formatter is a
+  // no-op until keys are opted into the bracketed prefix.
+  it('returns an empty string for every input until display keys are configured', () => {
     expect(formatDisplayContext(undefined)).toBe('');
     expect(formatDisplayContext({})).toBe('');
-  });
-
-  it('renders only recognised display keys, skipping undefined/null/empty', () => {
-    const out = formatDisplayContext({
-      room: 'foo',
-      roomID: undefined,
-      participant: 'alice',
-      participantID: '',
-      trackID: null,
-      source: 'camera',
-      irrelevant: 'should-not-show',
-    });
-    expect(out).toBe('[room=foo participant=alice source=camera]');
-  });
-
-  it('preserves the canonical key ordering regardless of input order', () => {
-    const a = formatDisplayContext({ trackID: 'T', room: 'R', participant: 'P' });
-    const b = formatDisplayContext({ participant: 'P', trackID: 'T', room: 'R' });
-    expect(a).toBe(b);
-    expect(a).toBe('[room=R participant=P trackID=T]');
-  });
-
-  it('handles non-string values by stringifying them', () => {
-    expect(formatDisplayContext({ reconnectAttempt: 3 })).toBe('[reconnectAttempt=3]');
+    expect(formatDisplayContext({ room: 'foo', participant: 'alice' })).toBe('');
   });
 });
 
@@ -52,7 +31,7 @@ describe('getLogger with context provider', () => {
     setLogExtension(extension, base);
   };
 
-  it('prepends a context prefix to the message and merges context for extensions', () => {
+  it('merges bound context with per-call extras for extensions', () => {
     const extension = vi.fn<LogExtension>();
     hookBase(LoggerNames.Default, extension);
     setLogLevel(LogLevel.debug, LoggerNames.Default);
@@ -67,11 +46,11 @@ describe('getLogger with context provider', () => {
     expect(debugCalls).toHaveLength(1);
     const [level, msg, ctx] = debugCalls[0];
     expect(level).toBe(LogLevel.debug);
-    expect(msg).toBe('[room=foo participant=alice] hello world');
+    expect(msg).toBe('hello world');
     expect(ctx).toEqual({ room: 'foo', participant: 'alice', extra: 1 });
   });
 
-  it('omits the prefix when the bound context has no display keys', () => {
+  it('passes bound context through when no extras are supplied', () => {
     const extension = vi.fn<LogExtension>();
     hookBase(LoggerNames.Room, extension);
     setLogLevel(LogLevel.info, LoggerNames.Room);
@@ -82,7 +61,7 @@ describe('getLogger with context provider', () => {
     expect(extension).toHaveBeenCalledWith(LogLevel.info, 'plain', { irrelevant: 'x' });
   });
 
-  it('reflects dynamic changes to the bound context on every call', () => {
+  it('re-reads the bound context on every call', () => {
     const extension = vi.fn<LogExtension>();
     hookBase(LoggerNames.Engine, extension);
     setLogLevel(LogLevel.info, LoggerNames.Engine);
@@ -95,8 +74,8 @@ describe('getLogger with context provider', () => {
     log.info('second');
 
     const infos = extension.mock.calls.filter((c) => c[0] === LogLevel.info);
-    expect(infos[0][1]).toBe('[room=r1] first');
-    expect(infos[1][1]).toBe('[room=r2 participant=bob] second');
+    expect(infos[0][2]).toEqual({ room: 'r1' });
+    expect(infos[1][2]).toEqual({ room: 'r2', participant: 'bob' });
   });
 
   it('returns an unwrapped logger when no context provider is supplied', () => {

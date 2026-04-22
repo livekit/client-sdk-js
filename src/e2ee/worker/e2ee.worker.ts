@@ -1,4 +1,5 @@
-import { workerLogger } from '../../logger';
+import { setLogExtension, workerLogger } from '../../logger';
+import { DiagnosticsBuffer } from '../../room/DiagnosticsBuffer';
 import type { VideoCodec } from '../../room/track/options';
 import { AsyncQueue } from '../../utils/AsyncQueue';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
@@ -6,6 +7,7 @@ import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
 import type {
   DecryptDataResponseMessage,
+  DiagnosticsResponseMessage,
   E2EEWorkerMessage,
   EncryptDataResponseMessage,
   ErrorMessage,
@@ -37,6 +39,49 @@ let rtpMap: Map<number, VideoCodec> = new Map();
 
 workerLogger.setDefaultLevel('info');
 
+/**
+ * Worker-side ring buffer of recent log entries. Populated via a
+ * `setLogExtension` sink on `workerLogger` and shipped to the main thread
+ * on demand when a `diagnosticsRequest` arrives. Avoids streaming every
+ * log line across the postMessage boundary.
+ */
+const workerDiagnostics = new DiagnosticsBuffer();
+let workerDiagnosticsSinkInstalled = false;
+
+function installWorkerDiagnosticsSink() {
+  if (workerDiagnosticsSinkInstalled) return;
+  workerDiagnosticsSinkInstalled = true;
+  setLogExtension((level, message, context) => {
+    workerDiagnostics.push({
+      type: 'log',
+      timestamp: Date.now(),
+      level,
+      message,
+      context: context ? sanitizeForPostMessage(context) : undefined,
+    });
+  }, workerLogger);
+}
+
+/**
+ * Strip fields that aren't structured-clone-safe (functions, DOM nodes,
+ * etc.) and coerce Error instances into plain objects so that the buffer
+ * snapshot can be transferred to the main thread via `postMessage` without
+ * throwing when a diagnostics request arrives.
+ */
+function sanitizeForPostMessage(ctx: object): object {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(ctx)) {
+    if (value instanceof Error) {
+      out[key] = { name: value.name, message: value.message, stack: value.stack };
+    } else if (typeof value === 'function') {
+      // skip
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 onmessage = (ev) => {
   messageQueue.run(async () => {
     const { kind, data }: E2EEWorkerMessage = ev.data;
@@ -44,6 +89,7 @@ onmessage = (ev) => {
     switch (kind) {
       case 'init':
         workerLogger.setLevel(data.loglevel);
+        installWorkerDiagnosticsSink();
         workerLogger.info('worker initialized');
         keyProviderOptions = data.keyProviderOptions;
         useSharedKey = !!data.keyProviderOptions.sharedKey;
@@ -94,11 +140,6 @@ onmessage = (ev) => {
           data.payload,
           getParticipantKeyHandler(data.participantIdentity),
         );
-        console.log('encrypted payload', {
-          original: data.payload,
-          encrypted: encryptedPayload,
-          iv,
-        });
         postMessage({
           kind: 'encryptDataResponse',
           data: {
@@ -180,6 +221,12 @@ onmessage = (ev) => {
         break;
       case 'setSifTrailer':
         handleSifTrailer(data.trailer);
+        break;
+      case 'diagnosticsRequest':
+        postMessage({
+          kind: 'diagnosticsResponse',
+          data: { uuid: data.uuid, entries: workerDiagnostics.snapshot() },
+        } satisfies DiagnosticsResponseMessage);
         break;
       default:
         break;

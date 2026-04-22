@@ -239,9 +239,17 @@ export class FrameCryptor extends BaseFrameCryptor {
       .catch((e) => {
         if (e instanceof TypeError && e.message === 'Destination stream closed') {
           // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
-          workerLogger.debug('destination stream closed');
+          workerLogger.debug('destination stream closed', { ...this.logContext, trackId });
         } else {
-          workerLogger.warn('transform error', { error: e, ...this.logContext });
+          // pipeTo rejected — the transform pipeline for this track is torn
+          // down and no further frames will be (de)crypted until it is rebuilt.
+          // Log at error so the main thread / diagnostics buffer can surface it.
+          workerLogger.error('frame cryptor transform pipeline broke', {
+            ...this.logContext,
+            trackId,
+            operation,
+            error: e,
+          });
           this.emit(
             CryptorEvent.Error,
             e instanceof CryptorError
@@ -429,11 +437,23 @@ export class FrameCryptor extends BaseFrameCryptor {
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
-        // TODO: surface this to the app.
-        workerLogger.error(e);
+        workerLogger.error('frame encryption failed', {
+          ...this.logContext,
+          error: e,
+          ssrc: encodedFrame.getMetadata().synchronizationSource,
+        });
+        this.emitThrottledError(
+          e instanceof CryptorError
+            ? e
+            : new CryptorError(
+                `frame encryption failed: ${e?.message ?? e}`,
+                undefined,
+                this.participantIdentity,
+              ),
+        );
       }
     } else {
-      workerLogger.debug('failed to encrypt, emitting error', this.logContext);
+      workerLogger.warn('failed to encrypt, emitting error', this.logContext);
       this.emitThrottledError(
         new CryptorError(
           `encryption key missing for encoding`,
@@ -479,7 +499,13 @@ export class FrameCryptor extends BaseFrameCryptor {
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
     if (this.keys.hasInvalidKeyAtIndex(keyIndex)) {
-      // drop frame
+      // drop frame — key at this index was marked invalid after too many
+      // consecutive decryption failures. Log at debug so the downstream
+      // silence has a traceable cause.
+      workerLogger.debug('dropping frame, key index is marked invalid', {
+        ...this.logContext,
+        keyIndex,
+      });
       return;
     }
 
@@ -490,6 +516,14 @@ export class FrameCryptor extends BaseFrameCryptor {
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
+        // `decryptFrame` resolved without a frame — the only path that hits
+        // this is a ratchet recursion that unwound without producing output.
+        // Previously this was a silent drop which made decryption failures
+        // invisible to the main thread; surface it explicitly here.
+        workerLogger.warn('decryption yielded no frame, dropping', {
+          ...this.logContext,
+          keyIndex,
+        });
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           // emit an error if the key handler thinks we have a valid key
@@ -498,7 +532,7 @@ export class FrameCryptor extends BaseFrameCryptor {
             this.keys.decryptionFailure(keyIndex);
           }
         } else {
-          workerLogger.warn('decoding frame failed', { error });
+          workerLogger.warn('decoding frame failed', { ...this.logContext, keyIndex, error });
         }
       }
     } else {
@@ -627,7 +661,11 @@ export class FrameCryptor extends BaseFrameCryptor {
            * as the key has not been updated on the keyHandler instance
            */
 
-          workerLogger.warn('maximum ratchet attempts exceeded');
+          workerLogger.warn('maximum ratchet attempts exceeded, giving up on frame', {
+            ...this.logContext,
+            keyIndex,
+            attempts: ratchetOpts.ratchetCount,
+          });
           throw new CryptorError(
             `valid key missing for participant ${this.participantIdentity}`,
             CryptorErrorReason.InvalidKey,

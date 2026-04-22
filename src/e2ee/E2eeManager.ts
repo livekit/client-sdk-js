@@ -2,6 +2,7 @@ import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log, { LogLevel, workerLogger } from '../logger';
+import { type DiagnosticEntry } from '../room/DiagnosticsBuffer';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -18,6 +19,7 @@ import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './
 import type {
   DecryptDataRequestMessage,
   DecryptDataResponseMessage,
+  DiagnosticsRequestMessage,
   E2EEManagerOptions,
   E2EEWorkerMessage,
   EnableMessage,
@@ -50,6 +52,11 @@ export interface BaseE2EEManager {
     participantIdentity: string,
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
+  /**
+   * Snapshot the worker-side diagnostics ring buffer. Returns an empty
+   * array if the worker does not respond within `timeoutMs`.
+   */
+  fetchDiagnosticsSnapshot(timeoutMs?: number): Promise<DiagnosticEntry[]>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
 }
 
@@ -73,6 +80,8 @@ export class E2EEManager
 
   private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data'], Error>> =
     new Map();
+
+  private diagnosticsRequests: Map<string, Future<DiagnosticEntry[], Error>> = new Map();
 
   private dataChannelEncryptionEnabled: boolean;
 
@@ -221,6 +230,12 @@ export class E2EEManager
           encryptFuture.resolve(data as EncryptDataResponseMessage['data']);
         }
         break;
+      case 'diagnosticsResponse':
+        {
+          const future = this.diagnosticsRequests.get(data.uuid);
+          future?.resolve?.(data.entries as DiagnosticEntry[]);
+        }
+        break;
       default:
         break;
     }
@@ -334,6 +349,46 @@ export class E2EEManager
     this.encryptDataRequests.set(uuid, future);
     this.worker.postMessage(msg);
     return future!.promise!;
+  }
+
+  /**
+   * Ask the worker for a snapshot of its diagnostics ring buffer. Resolves
+   * to an empty array (and logs a warning) if the worker does not respond
+   * within `timeoutMs`, so callers can safely merge the result without
+   * blocking on a dead worker.
+   */
+  async fetchDiagnosticsSnapshot(timeoutMs: number = 500): Promise<DiagnosticEntry[]> {
+    if (!this.worker) {
+      return [];
+    }
+    const uuid = crypto.randomUUID();
+    const future = new Future<DiagnosticEntry[], Error>();
+    future.onFinally = () => {
+      this.diagnosticsRequests.delete(uuid);
+    };
+    this.diagnosticsRequests.set(uuid, future);
+    const msg: DiagnosticsRequestMessage = {
+      kind: 'diagnosticsRequest',
+      data: { uuid },
+    };
+    this.worker.postMessage(msg);
+
+    const timeout = new Promise<DiagnosticEntry[]>((resolve) => {
+      setTimeout(() => {
+        if (this.diagnosticsRequests.has(uuid)) {
+          log.warn('e2ee worker did not respond to diagnostics request in time', { timeoutMs });
+          this.diagnosticsRequests.delete(uuid);
+          resolve([]);
+        }
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([future.promise, timeout]);
+    } catch (err) {
+      log.warn('failed to fetch e2ee worker diagnostics', { error: err });
+      return [];
+    }
   }
 
   handleEncryptedData(
