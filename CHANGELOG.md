@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.18.6
+
+### Patch Changes
+
+- Fix data tracks extension encoding - [#1913](https://github.com/livekit/client-sdk-js/pull/1913) ([@ladvoc](https://github.com/ladvoc))
+
 ## 2.18.5
 
 ### Patch Changes
