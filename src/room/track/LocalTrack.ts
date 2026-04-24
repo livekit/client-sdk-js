@@ -555,6 +555,7 @@ export default abstract class LocalTrack<
         track: this._mediaStreamTrack,
         element: processorElement,
         audioContext: this.audioContext,
+        localTrack: this,
       };
       await processor.init(processorOptions);
       this.log.debug('processor initialized', this.logContext);
