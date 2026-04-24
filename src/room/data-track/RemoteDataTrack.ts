@@ -66,11 +66,14 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    */
   subscribe(options?: DataTrackSubscribeOptions): ReadableStream<DataTrackFrame> {
     try {
-      const [stream] = this.manager.openSubscriptionStream(
+      const [stream, sfuSubscriptionComplete] = this.manager.openSubscriptionStream(
         this.info.sid,
         options?.signal,
         options?.bufferSize,
       );
+      // Prevent uncaught promise rejections from bubbling up if rejections occur after the
+      // readable stream is discarded.
+      sfuSubscriptionComplete.catch(() => {});
       return stream;
     } catch (err) {
       // NOTE: Rethrow errors to break Throws<...> type boundary
