@@ -194,6 +194,7 @@ export default abstract class LocalTrack<
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
+        localTrack: this,
       });
       processedTrack = this.processor.processedTrack;
     }
