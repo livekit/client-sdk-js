@@ -185,6 +185,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         track: this._mediaStreamTrack,
         // RN won't have or use AudioContext
         audioContext: this.audioContext as AudioContext,
+        localTrack: this,
       };
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 

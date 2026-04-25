@@ -194,6 +194,7 @@ export default abstract class LocalTrack<
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
+        localTrack: this,
       });
       processedTrack = this.processor.processedTrack;
     }
@@ -555,6 +556,7 @@ export default abstract class LocalTrack<
         track: this._mediaStreamTrack,
         element: processorElement,
         audioContext: this.audioContext,
+        localTrack: this,
       };
       await processor.init(processorOptions);
       this.log.debug('processor initialized', this.logContext);
