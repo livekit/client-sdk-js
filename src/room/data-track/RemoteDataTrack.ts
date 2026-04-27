@@ -80,4 +80,15 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
       throw err;
     }
   }
+
+  /** Set the maximum number of in-flight partial frames the depacketizer will track
+   * concurrently for this track. Higher values give more out-of-order tolerance for
+   * high-frequency senders.
+   *
+   * The value applies to all current and future subscribers of this track. May be called
+   * before or after {@link RemoteDataTrack.subscribe}; live subscriptions pick up the new value
+   * immediately. Defaults to 1. */
+  setMaxPartialFrames(n: number): void {
+    this.manager.setTrackMaxPartialFrames(this.info.sid, n);
+  }
 }
