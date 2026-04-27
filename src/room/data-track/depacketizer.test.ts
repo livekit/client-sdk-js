@@ -106,7 +106,7 @@ describe('DataTrackDepacketizer', () => {
       new Uint8Array(8),
     );
 
-    expect(() => depacketizer.push(packetB, { errorOnPartialFrames: true })).toThrowError(
+    expect(() => depacketizer.push(packetB, { throwOnInterruption: true })).toThrowError(
       'Frame 5 dropped: Interrupted by the start of a new frame',
     );
   });
@@ -438,5 +438,218 @@ describe('DataTrackDepacketizer', () => {
     expect(depacketizer.push(finalPacket)!.payload).toStrictEqual(
       new Uint8Array([0x01, 0x02, 0x03]),
     );
+  });
+
+  it('should assemble multiple partial frames concurrently when maxPartialFrames is set', () => {
+    const depacketizer = new DataTrackDepacketizer();
+    const pushOptions = { throwOnInterruption: true, maxPartialFrames: 2 };
+
+    const packetPayload = new Uint8Array(8);
+    const baseHeaderParams = {
+      trackHandle: DataTrackHandle.fromNumber(101),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // Begin frame A
+    const startA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(0),
+        frameNumber: WrapAroundUnsignedInt.u16(1),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startA, pushOptions)).toBeNull();
+
+    // Begin frame B - should not throw because we're under capacity
+    const startB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(100),
+        frameNumber: WrapAroundUnsignedInt.u16(2),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startB, pushOptions)).toBeNull();
+
+    // Complete frame A out of order - should produce a frame
+    const finalA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(1),
+        frameNumber: WrapAroundUnsignedInt.u16(1),
+      }),
+      packetPayload,
+    );
+    const frameA = depacketizer.push(finalA, pushOptions);
+    expect(frameA).not.toBeNull();
+    expect(frameA!.payload.byteLength).toStrictEqual(packetPayload.byteLength * 2);
+
+    // Frame B is still in flight and should still complete cleanly
+    const finalB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Final,
+        sequence: WrapAroundUnsignedInt.u16(101),
+        frameNumber: WrapAroundUnsignedInt.u16(2),
+      }),
+      packetPayload,
+    );
+    const frameB = depacketizer.push(finalB, pushOptions);
+    expect(frameB).not.toBeNull();
+    expect(frameB!.payload.byteLength).toStrictEqual(packetPayload.byteLength * 2);
+  });
+
+  it('should throw when starting a new partial frame would exceed maxPartialFrames', () => {
+    const depacketizer = new DataTrackDepacketizer();
+    const pushOptions = { throwOnInterruption: true, maxPartialFrames: 2 };
+
+    const packetPayload = new Uint8Array(8);
+    const baseHeaderParams = {
+      trackHandle: DataTrackHandle.fromNumber(101),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // Fill the partials map with two in-flight frames
+    const startA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(0),
+        frameNumber: WrapAroundUnsignedInt.u16(1),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startA, pushOptions)).toBeNull();
+
+    const startB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(100),
+        frameNumber: WrapAroundUnsignedInt.u16(2),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startB, pushOptions)).toBeNull();
+
+    // A third in-flight start should throw, naming the oldest evicted frame (1) and the new one (3)
+    const startC = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(200),
+        frameNumber: WrapAroundUnsignedInt.u16(3),
+      }),
+      packetPayload,
+    );
+    expect(() => depacketizer.push(startC, pushOptions)).toThrowError(
+      'Frame 1 dropped: Interrupted by the start of a new frame 3',
+    );
+  });
+
+  it('should throw when a single-packet frame arrives while the partials map is at capacity', () => {
+    const depacketizer = new DataTrackDepacketizer();
+    const pushOptions = { throwOnInterruption: true, maxPartialFrames: 2 };
+
+    const packetPayload = new Uint8Array(8);
+    const baseHeaderParams = {
+      trackHandle: DataTrackHandle.fromNumber(101),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // Fill the partials map with two in-flight frames
+    const startA = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(0),
+        frameNumber: WrapAroundUnsignedInt.u16(1),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startA, pushOptions)).toBeNull();
+
+    const startB = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Start,
+        sequence: WrapAroundUnsignedInt.u16(100),
+        frameNumber: WrapAroundUnsignedInt.u16(2),
+      }),
+      packetPayload,
+    );
+    expect(depacketizer.push(startB, pushOptions)).toBeNull();
+
+    // A single-packet frame arriving at capacity should evict the oldest (frame 1) and throw
+    const singleC = new DataTrackPacket(
+      new DataTrackPacketHeader({
+        ...baseHeaderParams,
+        marker: FrameMarker.Single,
+        sequence: WrapAroundUnsignedInt.u16(200),
+        frameNumber: WrapAroundUnsignedInt.u16(3),
+      }),
+      packetPayload,
+    );
+    expect(() => depacketizer.push(singleC, pushOptions)).toThrowError(
+      'Frame 1 dropped: Interrupted by the start of a new frame 3',
+    );
+  });
+
+  it('should evict the oldest partial frame when start packets exceed maxPartialFrames', () => {
+    const depacketizer = new DataTrackDepacketizer();
+    const pushOptions = { throwOnInterruption: false, maxPartialFrames: 5 };
+    const totalFrames = 10;
+
+    const packetPayload = new Uint8Array(8);
+    const baseHeaderParams = {
+      trackHandle: DataTrackHandle.fromNumber(101),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    // Begin 10 partial frames. Each frame's Start uses sequence i*2; its Final uses i*2 + 1.
+    // After all 10 starts, only frames 6..10 remain in the partials map (oldest evicted first).
+    for (let i = 0; i < totalFrames; i += 1) {
+      const start = new DataTrackPacket(
+        new DataTrackPacketHeader({
+          ...baseHeaderParams,
+          marker: FrameMarker.Start,
+          sequence: WrapAroundUnsignedInt.u16(i * 2),
+          frameNumber: WrapAroundUnsignedInt.u16(i + 1),
+        }),
+        packetPayload,
+      );
+      expect(depacketizer.push(start, pushOptions)).toBeNull();
+    }
+
+    // Send Final for each frame. Frames 1..5 were evicted → unknownFrame; frames 6..10 produce.
+    let producedFrames = 0;
+    let unknownFrameErrors = 0;
+    for (let i = 0; i < totalFrames; i += 1) {
+      const final = new DataTrackPacket(
+        new DataTrackPacketHeader({
+          ...baseHeaderParams,
+          marker: FrameMarker.Final,
+          sequence: WrapAroundUnsignedInt.u16(i * 2 + 1),
+          frameNumber: WrapAroundUnsignedInt.u16(i + 1),
+        }),
+        packetPayload,
+      );
+      try {
+        const frame = depacketizer.push(final, pushOptions);
+        if (frame) {
+          producedFrames += 1;
+        }
+      } catch (err) {
+        expect((err as Error).message).toContain('Initial packet was never received.');
+        unknownFrameErrors += 1;
+      }
+    }
+
+    expect(producedFrames).toStrictEqual(5);
+    expect(unknownFrameErrors).toStrictEqual(5);
   });
 });

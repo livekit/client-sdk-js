@@ -78,13 +78,15 @@ export enum DataTrackDepacketizerDropReason {
 }
 
 type PushOptions = {
-  /** If true, throws an error instead of logging a warning when a new frame would evict a
-   * pre-existing partial frame. */
-  errorOnPartialFrames: boolean;
+  /** If true, throws `DataTrackDepacketizerDropError.interrupted` instead of logging a warning
+   * when a new frame arrives while the partials map is at capacity. */
+  throwOnInterruption: boolean;
 
   /** Maximum number of partial frames the depacketizer will track concurrently. When a new
-   * `Start` packet arrives at capacity, the oldest partial frame is evicted. Defaults to 1. */
-  maximumConcurrentPartialFrames?: number;
+   * frame arrives while the partials map is at capacity, the oldest partial is evicted (or
+   * `DataTrackDepacketizerDropError.interrupted` is thrown when `throwOnInterruption` is set).
+   * Defaults to 1. */
+  maxPartialFrames?: number;
 };
 
 export default class DataTrackDepacketizer {
@@ -140,10 +142,10 @@ export default class DataTrackDepacketizer {
 
     // A `Single` packet is a self-contained frame and doesn't reserve a partials slot, but if
     // the partials map is at capacity, treat it as a signal that the oldest in-flight partial
-    // is stale and evict it (matches `main`'s behavior when `maximumConcurrentPartialFrames`
+    // is stale and evict it (matches `main`'s behavior when `maxPartialFrames`
     // defaults to 1).
-    const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
-    if (this.partials.size >= maximumConcurrentPartialFrames) {
+    const maxPartialFrames = options?.maxPartialFrames ?? 1;
+    if (this.partials.size >= maxPartialFrames) {
       const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
       if (typeof oldestPartialFrameNumber !== 'number') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -151,7 +153,7 @@ export default class DataTrackDepacketizer {
           `Depacketizer.frameFromSingle: no oldest frame number found, but partials.size is ${this.partials.size}.`,
         );
       }
-      if (options?.errorOnPartialFrames) {
+      if (options?.throwOnInterruption) {
         this.partials.delete(oldestPartialFrameNumber);
         throw DataTrackDepacketizerDropError.interrupted(
           oldestPartialFrameNumber,
@@ -186,8 +188,8 @@ export default class DataTrackDepacketizer {
       payloads: new Map([[startSequence.value, packet.payload]]),
     };
 
-    const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
-    if (this.partials.size >= maximumConcurrentPartialFrames) {
+    const maxPartialFrames = options?.maxPartialFrames ?? 1;
+    if (this.partials.size >= maxPartialFrames) {
       const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
       if (typeof oldestPartialFrameNumber !== 'number') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
@@ -197,11 +199,11 @@ export default class DataTrackDepacketizer {
       }
       this.partials.delete(oldestPartialFrameNumber);
 
-      if (options?.errorOnPartialFrames) {
+      if (options?.throwOnInterruption) {
         throw DataTrackDepacketizerDropError.interrupted(oldestPartialFrameNumber, frameNumber);
       }
       log.warn(
-        `Data track partials full (max ${maximumConcurrentPartialFrames}), evicted oldest frame ${oldestPartialFrameNumber} to make room for new frame ${frameNumber}.`,
+        `Data track partials full (max ${maxPartialFrames}), evicted oldest frame ${oldestPartialFrameNumber} to make room for new frame ${frameNumber}.`,
       );
     }
     this.partials.set(frameNumber, partial);
