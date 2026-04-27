@@ -188,14 +188,16 @@ export default class DataTrackDepacketizer {
       payloads: new Map([[startSequence.value, packet.payload]]),
     };
 
+    // Loop in case `maxPartialFrames` shrunk relative to a previous push call - evict the
+    // oldest partials until there is room for the new one. With `throwOnInterruption` set the
+    // throw inside the loop short-circuits on the first eviction, matching the single-eviction
+    // behavior callers expect when they ask to be told about interruptions.
     const maxPartialFrames = options?.maxPartialFrames ?? 1;
-    if (this.partials.size >= maxPartialFrames) {
+    while (this.partials.size >= maxPartialFrames) {
       const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
       if (typeof oldestPartialFrameNumber !== 'number') {
-        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-        throw new Error(
-          `Depacketizer.beginPartial: no oldest frame number found, but partials.size is ${this.partials.size}.`,
-        );
+        // partials map is empty - nothing more to evict
+        break;
       }
       this.partials.delete(oldestPartialFrameNumber);
 
