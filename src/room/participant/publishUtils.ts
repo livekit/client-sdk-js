@@ -15,7 +15,6 @@ import type { LoggerOptions } from '../types';
 import {
   compareVersions,
   getReactNativeOs,
-  isFireFox,
   isReactNative,
   isSVCCodec,
   isSafariBased,
