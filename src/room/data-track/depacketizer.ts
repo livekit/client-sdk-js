@@ -78,21 +78,22 @@ export enum DataTrackDepacketizerDropReason {
 }
 
 type PushOptions = {
-  /** If true, throws an error instead of logging a warning when a new frame is encountered half way
-   * through processing a pre-existing frame. */
+  /** If true, throws an error instead of logging a warning when a new frame would evict a
+   * pre-existing partial frame. */
   errorOnPartialFrames: boolean;
 
-  maximumConcurrentPartialFrames?: number
+  /** Maximum number of partial frames the depacketizer will track concurrently. When a new
+   * `Start` packet arrives at capacity, the oldest partial frame is evicted. Defaults to 1. */
+  maximumConcurrentPartialFrames?: number;
 };
 
 export default class DataTrackDepacketizer {
   /** Maximum number of packets to buffer per frame before dropping. */
   static MAX_BUFFER_PACKETS = 128;
 
-  private partials: Map<
-    number, /* Frame number from the start packet. */
-    { frame: PartialFrame, startedAt: Date }
-  > = new Map();
+  /** Partial frames currently being assembled, keyed by frame number. `Map` preserves insertion
+   * order, so the oldest entry is the first key. */
+  private partials: Map<number, PartialFrame> = new Map();
 
   /** Should be repeatedly called with received {@link DataTrackPacket}s - intermediate calls
    * aggregate the packet's state internally, and return null.
@@ -118,19 +119,16 @@ export default class DataTrackDepacketizer {
     this.partials.clear();
   }
 
-  private peekOldestPartialFrameNumber() {
-    const orderedPartialEntries = Array.from(this.partials.entries()).sort((a, b) => {
-      return a[1].startedAt.getTime() - b[1].startedAt.getTime()
-    });
-    if (orderedPartialEntries.length > 0) {
-      return orderedPartialEntries[0][0];
-    } else {
-      return null;
-    }
+  private peekOldestPartialFrameNumber(): number | null {
+    const first = this.partials.keys().next();
+    return first.done ? null : first.value;
   }
 
-  private frameFromSingle(packet: DataTrackPacket, options?: PushOptions): Throws<
-    DataTrackFrameInternal | null,
+  private frameFromSingle(
+    packet: DataTrackPacket,
+    options?: PushOptions,
+  ): Throws<
+    DataTrackFrameInternal,
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
   > {
     if (packet.header.marker !== FrameMarker.Single) {
@@ -140,29 +138,29 @@ export default class DataTrackDepacketizer {
       );
     }
 
-    // const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
-    // if (this.partials.size < maximumConcurrentPartialFrames) {
-
-    if (this.partials.size > 0 && options?.maximumConcurrentPartialFrames === 1) {
+    // A `Single` packet is a self-contained frame and doesn't reserve a partials slot, but if
+    // the partials map is at capacity, treat it as a signal that the oldest in-flight partial
+    // is stale and evict it (matches `main`'s behavior when `maximumConcurrentPartialFrames`
+    // defaults to 1).
+    const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
+    if (this.partials.size >= maximumConcurrentPartialFrames) {
       const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
-      if (!oldestPartialFrameNumber) {
+      if (typeof oldestPartialFrameNumber !== 'number') {
         // @throws-transformer ignore - this should be treated as a "panic" and not be caught
         throw new Error(
-          `Depacketizer.frameFromSingle: no oldest frame number found, but partials.size is ${this.partials.size}`,
+          `Depacketizer.frameFromSingle: no oldest frame number found, but partials.size is ${this.partials.size}.`,
         );
       }
-
       if (options?.errorOnPartialFrames) {
         this.partials.delete(oldestPartialFrameNumber);
         throw DataTrackDepacketizerDropError.interrupted(
           oldestPartialFrameNumber,
           packet.header.frameNumber.value,
         );
-      } else {
-        log.warn(
-          `Data track frame ${oldestPartialFrameNumber} was interrupted by the start of a new frame, dropping.`,
-        );
       }
+      log.warn(
+        `Data track frame ${oldestPartialFrameNumber} was interrupted by single-packet frame ${packet.header.frameNumber.value}, dropping.`,
+      );
     }
 
     return { payload: packet.payload, extensions: packet.header.extensions };
@@ -190,25 +188,23 @@ export default class DataTrackDepacketizer {
 
     const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
     if (this.partials.size >= maximumConcurrentPartialFrames) {
-      const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber()!;
+      const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
+      if (typeof oldestPartialFrameNumber !== 'number') {
+        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
+        throw new Error(
+          `Depacketizer.beginPartial: no oldest frame number found, but partials.size is ${this.partials.size}.`,
+        );
+      }
       this.partials.delete(oldestPartialFrameNumber);
 
       if (options?.errorOnPartialFrames) {
-        const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
-        if (!oldestPartialFrameNumber) {
-          // @throws-transformer ignore - this should be treated as a "panic" and not be caught
-          throw new Error(
-            `Depacketizer.beginPartial: no oldest frame number found, but partials.size is ${this.partials.size}`,
-          );
-        }
         throw DataTrackDepacketizerDropError.interrupted(oldestPartialFrameNumber, frameNumber);
-      } else {
-        log.warn(
-          `Data track partials (size of ${maximumConcurrentPartialFrames}) didn't have enough room for a new frame ${frameNumber}, dropping.`,
-        );
       }
+      log.warn(
+        `Data track partials full (max ${maximumConcurrentPartialFrames}), evicted oldest frame ${oldestPartialFrameNumber} to make room for new frame ${frameNumber}.`,
+      );
     }
-    this.partials.set(frameNumber, { frame: partial, startedAt: new Date() });
+    this.partials.set(frameNumber, partial);
 
     return null;
   }
@@ -228,12 +224,12 @@ export default class DataTrackDepacketizer {
     const matchingPartial = this.partials.get(packetFrameNumber);
     if (!matchingPartial) {
       this.partials.delete(packetFrameNumber);
-      throw DataTrackDepacketizerDropError.unknownFrame(packet.header.frameNumber.value);
+      throw DataTrackDepacketizerDropError.unknownFrame(packetFrameNumber);
     }
 
     // NOTE: this check will block reprocessing packets with duplicate sequence values if the
     // buffer is full already, which could maybe be problematic for very large frames.
-    if (matchingPartial.frame.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
+    if (matchingPartial.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
       this.partials.delete(packetFrameNumber);
       throw DataTrackDepacketizerDropError.bufferFull(packetFrameNumber);
     }
@@ -241,15 +237,15 @@ export default class DataTrackDepacketizer {
     // Note: receiving a packet with a duplicate `sequence` value is something that likely won't
     // happen in actual use, but even if it does (maybe a low level network retransmission?) the
     // last packet with a given sequence received should always win.
-    if (matchingPartial.frame.payloads.has(packet.header.sequence.value)) {
+    if (matchingPartial.payloads.has(packet.header.sequence.value)) {
       log.warn(
         `Data track frame ${packetFrameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`,
       );
     }
-    matchingPartial.frame.payloads.set(packet.header.sequence.value, packet.payload);
+    matchingPartial.payloads.set(packet.header.sequence.value, packet.payload);
 
     if (packet.header.marker === FrameMarker.Final) {
-      return this.finalize(packetFrameNumber, matchingPartial.frame, packet.header.sequence.value);
+      return this.finalize(packetFrameNumber, matchingPartial, packet.header.sequence.value);
     }
 
     return null;
