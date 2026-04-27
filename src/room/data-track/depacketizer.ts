@@ -189,7 +189,7 @@ export default class DataTrackDepacketizer {
     };
 
     const maximumConcurrentPartialFrames = options?.maximumConcurrentPartialFrames ?? 1;
-    if (this.partials.size > maximumConcurrentPartialFrames) {
+    if (this.partials.size >= maximumConcurrentPartialFrames) {
       const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber()!;
       this.partials.delete(oldestPartialFrameNumber);
 
