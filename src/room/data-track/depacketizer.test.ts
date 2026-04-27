@@ -796,4 +796,79 @@ describe('DataTrackDepacketizer', () => {
     expect(frameThree).not.toBeNull();
     expect(frameThree!.payload).toStrictEqual(new Uint8Array([0xc1, 0xc2, 0xc3]));
   });
+
+  it('should respect maxPartialFrames changing across push calls, both expanding to allow more in-flight frames and shrinking to evict older ones', () => {
+    const depacketizer = new DataTrackDepacketizer();
+
+    const packetPayload = new Uint8Array(8);
+    const baseHeaderParams = {
+      trackHandle: DataTrackHandle.fromNumber(101),
+      timestamp: DataTrackTimestamp.fromRtpTicks(104),
+    };
+
+    const startFor = (frameNumber: number) =>
+      new DataTrackPacket(
+        new DataTrackPacketHeader({
+          ...baseHeaderParams,
+          marker: FrameMarker.Start,
+          sequence: WrapAroundUnsignedInt.u16(frameNumber * 100),
+          frameNumber: WrapAroundUnsignedInt.u16(frameNumber),
+        }),
+        packetPayload,
+      );
+
+    const finalFor = (frameNumber: number) =>
+      new DataTrackPacket(
+        new DataTrackPacketHeader({
+          ...baseHeaderParams,
+          marker: FrameMarker.Final,
+          sequence: WrapAroundUnsignedInt.u16(frameNumber * 100 + 1),
+          frameNumber: WrapAroundUnsignedInt.u16(frameNumber),
+        }),
+        packetPayload,
+      );
+
+    // Fill the partials map exactly with maxPartialFrames=2.
+    expect(
+      depacketizer.push(startFor(1), { throwOnInterruption: true, maxPartialFrames: 2 }),
+    ).toBeNull();
+    expect(
+      depacketizer.push(startFor(2), { throwOnInterruption: true, maxPartialFrames: 2 }),
+    ).toBeNull();
+
+    // Expand maxPartialFrames to 4 mid-stream. Frames 3 and 4 should be added without evicting
+    // anything, and throwOnInterruption: true confirms no interruption fires.
+    expect(
+      depacketizer.push(startFor(3), { throwOnInterruption: true, maxPartialFrames: 4 }),
+    ).toBeNull();
+    expect(
+      depacketizer.push(startFor(4), { throwOnInterruption: true, maxPartialFrames: 4 }),
+    ).toBeNull();
+
+    // Spot-check that frame 1 is still tracked despite the cap changes.
+    expect(
+      depacketizer.push(finalFor(1), { throwOnInterruption: true, maxPartialFrames: 4 }),
+    ).not.toBeNull();
+    // Three partials remain in flight: frames 2, 3, 4.
+
+    // Shrink maxPartialFrames to 2. Adding frame 5 should evict frames 2 and 3 in this single
+    // push call to bring the in-flight count back under the new cap.
+    expect(
+      depacketizer.push(startFor(5), { throwOnInterruption: false, maxPartialFrames: 2 }),
+    ).toBeNull();
+
+    // Only frames 4 and 5 should remain in the map.
+    expect(() =>
+      depacketizer.push(finalFor(2), { throwOnInterruption: false, maxPartialFrames: 2 }),
+    ).toThrowError('Frame 2 dropped: Initial packet was never received.');
+    expect(() =>
+      depacketizer.push(finalFor(3), { throwOnInterruption: false, maxPartialFrames: 2 }),
+    ).toThrowError('Frame 3 dropped: Initial packet was never received.');
+    expect(
+      depacketizer.push(finalFor(4), { throwOnInterruption: false, maxPartialFrames: 2 }),
+    ).not.toBeNull();
+    expect(
+      depacketizer.push(finalFor(5), { throwOnInterruption: false, maxPartialFrames: 2 }),
+    ).not.toBeNull();
+  });
 });
