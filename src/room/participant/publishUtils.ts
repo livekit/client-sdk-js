@@ -15,7 +15,6 @@ import type { LoggerOptions } from '../types';
 import {
   compareVersions,
   getReactNativeOs,
-  isFireFox,
   isReactNative,
   isSVCCodec,
   isSafariBased,
@@ -379,7 +378,8 @@ function encodingsFromPresets(
     if (maxFramerate) {
       encoding.maxFramerate = maxFramerate;
     }
-    const canSetPriority = isFireFox() || idx === 0;
+    const browser = getBrowser();
+    const canSetPriority = (browser?.name === 'Firefox' && browser.os !== 'iOS') || idx === 0;
     if (preset.encoding.priority && canSetPriority) {
       encoding.priority = preset.encoding.priority;
       encoding.networkPriority = preset.encoding.priority;
