@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/livekit-client-sdk-js-badge.png)](https://mseep.ai/app/livekit-client-sdk-js)
+
 <!--BEGIN_BANNER_IMAGE-->
 
 <picture>
