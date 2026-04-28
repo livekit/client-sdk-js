@@ -1,3 +1,5 @@
 minimumReleaseAge: 2880
 minimumReleaseAgeExclude:
   - '@livekit/*'
+  # allow webrtc-adapter 9.0.5, see https://github.com/livekit/client-sdk-js/issues/1806
+  - webrtc-adapter@9.0.5

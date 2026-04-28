@@ -631,6 +631,8 @@ export enum EngineEvent {
   DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
   DataTrackPacketReceived = 'dataTrackPacketReceived',
   Joined = 'joined',
+  TokenRefreshed = 'tokenRefreshed',
+  ServerRegionsReported = 'serverRegionsReported',
 }
 
 export enum TrackEvent {

@@ -49,8 +49,8 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import RTCEngine, { DataChannelKind } from './RTCEngine';
-import { RegionUrlProvider } from './RegionUrlProvider';
+import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
+import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -601,22 +601,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
       })
       .on(EngineEvent.LocalTrackSubscribed, (subscribedSid) => {
-        const trackPublication = this.localParticipant
-          .getTrackPublications()
-          .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
-        if (!trackPublication) {
-          this.log.warn(
-            'could not find local track subscription for subscribed event',
-            this.logContext,
-          );
-          return;
-        }
-        this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
-        this.emitWhenConnected(
-          RoomEvent.LocalTrackSubscribed,
-          trackPublication,
-          this.localParticipant,
-        );
+        this.handleLocalTrackSubscribed(subscribedSid);
       })
       .on(EngineEvent.RoomMoved, (roomMoved) => {
         this.log.debug('room moved', roomMoved);
@@ -696,6 +681,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           }),
         );
         this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
+      })
+      .on(EngineEvent.TokenRefreshed, (token) => {
+        this.regionUrlProvider?.updateToken(token);
+      })
+      .on(EngineEvent.ServerRegionsReported, (regions) => {
+        this.regionUrlProvider?.setServerReportedRegions({
+          regionSettings: regions,
+          updatedAtInMs: Date.now(),
+          maxAgeInMs: DEFAULT_MAX_AGE_MS,
+        });
       });
 
     if (this.localParticipant) {
@@ -707,6 +702,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.outgoingDataStreamManager) {
       this.outgoingDataStreamManager.setupEngine(this.engine);
     }
+  }
+
+  private createRegionStrategy(): RegionStrategy {
+    return {
+      getNextUrl: async (signal?: AbortSignal) =>
+        this.regionUrlProvider ? this.regionUrlProvider.getNextBestRegionUrl(signal) : null,
+      resetAttempts: () => this.regionUrlProvider?.resetAttempts(),
+    };
   }
 
   /**
@@ -996,7 +999,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.maybeCreateEngine();
     }
     if (this.regionUrlProvider?.isCloud()) {
-      this.engine.setRegionUrlProvider(this.regionUrlProvider);
+      this.engine.setRegionStrategy(this.createRegionStrategy());
     }
 
     this.acquireAudioContext();
@@ -1152,6 +1155,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       case 'signal-reconnect':
         // @ts-expect-error function is private
         await this.engine.client.handleOnClose('simulate disconnect');
+        break;
+      case 'fail-on-v1-path':
+        this.engine.failNextV1Path();
         break;
       case 'speaker':
         req = new SimulateScenario({
@@ -1637,6 +1643,65 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ),
       );
     }
+  }
+
+  private handleLocalTrackSubscribed(subscribedSid: string) {
+    const findPublication = () =>
+      this.localParticipant
+        .getTrackPublications()
+        .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
+
+    const trackPublication = findPublication();
+    if (trackPublication) {
+      this.emitLocalTrackSubscribed(trackPublication);
+      return;
+    }
+
+    // the track publication may not be registered yet if the server signals
+    // the subscription before publishTrack has finished adding the publication.
+    // defer with a timeout until LocalTrackPublished fires for the matching trackSid
+    this.log.debug('deferring LocalTrackSubscribed, publication not yet available', {
+      ...this.logContext,
+      subscribedSid,
+    });
+
+    const TIMEOUT_MS = 10_000;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const onPublished = (pub: LocalTrackPublication) => {
+      if (pub.trackSid === subscribedSid) {
+        cleanup();
+        this.emitLocalTrackSubscribed(pub);
+      }
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      this.localParticipant.off(ParticipantEvent.LocalTrackPublished, onPublished);
+      this.off(RoomEvent.Disconnected, cleanup);
+    };
+
+    this.localParticipant.on(ParticipantEvent.LocalTrackPublished, onPublished);
+    this.once(RoomEvent.Disconnected, cleanup);
+
+    timer = setTimeout(() => {
+      cleanup();
+      // final attempt in case the publication was added without emitting the event
+      const pub = findPublication();
+      if (pub) {
+        this.emitLocalTrackSubscribed(pub);
+      } else {
+        this.log.warn(
+          'could not find local track publication for LocalTrackSubscribed event after timeout',
+          { ...this.logContext, subscribedSid },
+        );
+      }
+    }, TIMEOUT_MS);
+  }
+
+  private emitLocalTrackSubscribed(trackPublication: LocalTrackPublication) {
+    this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
+    this.emitWhenConnected(RoomEvent.LocalTrackSubscribed, trackPublication, this.localParticipant);
   }
 
   private handleRestarting = () => {
@@ -2269,10 +2334,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
-        loggerContextCb: () => this.logContext,
-        loggerName: this.options.loggerName,
-      });
+      participant = RemoteParticipant.fromParticipantInfo(
+        this.engine.client,
+        info,
+        {
+          loggerContextCb: () => this.logContext,
+          loggerName: this.options.loggerName,
+        },
+        this.incomingDataTrackManager,
+      );
     } else {
       participant = new RemoteParticipant(
         this.engine.client,

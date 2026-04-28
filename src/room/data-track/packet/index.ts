@@ -65,8 +65,8 @@ export class DataTrackPacketHeader extends Serializable {
 
   private extensionsMetrics() {
     const lengthBytes = this.extensions.toBinaryLengthBytes();
-    const lengthWords = Math.ceil(lengthBytes / 4);
-    const paddingLengthBytes = lengthWords * 4 - lengthBytes;
+    const lengthWords = Math.ceil((EXT_WORDS_INDICATOR_SIZE + lengthBytes) / 4);
+    const paddingLengthBytes = lengthWords * 4 - EXT_WORDS_INDICATOR_SIZE - lengthBytes;
 
     return { lengthBytes, lengthWords, paddingLengthBytes };
   }
@@ -242,7 +242,7 @@ export class DataTrackPacketHeader extends Serializable {
       // potentially unintuitive so I wanted to call it out.
       const extensionWords = rtpOrientedExtensionWords + 1;
 
-      let extensionLengthBytes = 4 * extensionWords;
+      let extensionLengthBytes = 4 * extensionWords - EXT_WORDS_INDICATOR_SIZE;
 
       if (byteIndex + extensionLengthBytes > dataView.byteLength) {
         throw DataTrackDeserializeError.headerOverrun();

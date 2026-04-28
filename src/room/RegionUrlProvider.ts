@@ -189,6 +189,13 @@ export class RegionUrlProvider {
 
   updateToken(token: string) {
     this.token = token;
+    const url = this.getServerUrl();
+    const settings = RegionUrlProvider.cache.get(url.hostname);
+    RegionUrlProvider.scheduleRefetch(
+      this.serverUrl,
+      this.token,
+      settings?.maxAgeInMs ?? DEFAULT_MAX_AGE_MS,
+    );
   }
 
   isCloud() {

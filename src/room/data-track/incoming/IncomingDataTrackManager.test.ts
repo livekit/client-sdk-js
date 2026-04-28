@@ -273,9 +273,8 @@ describe('DataTrackIncomingManager', () => {
 
     it('should be unable to subscribe to a non existing data track', async () => {
       const manager = new IncomingDataTrackManager();
-      await expect(manager.subscribeRequest('does not exist')).rejects.toThrowError(
-        'Cannot subscribe to unknown track',
-      );
+      const [, subscriptionPromise] = manager.openSubscriptionStream('does not exist');
+      await expect(subscriptionPromise).rejects.toThrowError('Cannot subscribe to unknown track');
     });
 
     it('should terminate the sfu subscription if the abortsignal is triggered on the only subscription', async () => {
@@ -300,20 +299,34 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track
       const controller = new AbortController();
-      const subscribeRequestPromise = manager.subscribeRequest(sid, controller.signal);
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
       await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
 
-      // 3. Cancel the subscription
+      // 3. Wait for the subscription to be fully established
+      await sfuSubscriptionComplete;
+
+      // 4. Start consuming the readable stream
+      const reader = stream.getReader();
+      const inFlightReadPromise = reader.read();
+
+      // 5. Cancel the subscription
       controller.abort();
-      await expect(subscribeRequestPromise).rejects.toThrowError(
+      await expect(inFlightReadPromise).rejects.toThrowError(
         'Subscription to data track cancelled by caller',
       );
 
-      // 4. Make sure the underlying sfu subscription is also terminated, since nothing needs it
+      // 6. Make sure the underlying sfu subscription is also terminated, since nothing needs it
       // anymore.
       const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
+
+      // 7. Make sure shutting down the manager doesn't throw errors
+      manager.shutdown();
     });
 
     it('should NOT terminate the sfu subscription if the abortsignal is triggered on one of two active subscriptions', async () => {
@@ -338,17 +351,40 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Subscribe to a data track twice
       const controllerOne = new AbortController();
-      const subscribeRequestOnePromise = manager.subscribeRequest(sid, controllerOne.signal);
+      const [streamOne, sfuSubscriptionOneComplete] = manager.openSubscriptionStream(
+        sid,
+        controllerOne.signal,
+      );
       await managerEvents.waitFor('sfuUpdateSubscription'); // Subscription started
+      manager.receivedSfuSubscriberHandles(new Map([[DataTrackHandle.fromNumber(5), sid]]));
+      await sfuSubscriptionOneComplete;
 
       const controllerTwo = new AbortController();
-      manager.subscribeRequest(sid, controllerTwo.signal);
+      const [streamTwo, sfuSubscriptionTwoComplete] = manager.openSubscriptionStream(
+        sid,
+        controllerTwo.signal,
+      );
+      // NOTE: no new sfu subscription here, the first stream handled setting this up
+      await sfuSubscriptionTwoComplete;
 
-      // 3. Cancel the first subscription
+      // 3. Start consuming the both subscription's readable streams
+      const readerOne = streamOne.getReader();
+      const inFlightReadOnePromise = readerOne.read();
+
+      const readerTwo = streamTwo.getReader();
+      const inFlightReadTwoPromise = readerTwo.read();
+
+      // 3. Cancel the first subscription, make sure JUST that subscription is cancelled
       controllerOne.abort();
-      await expect(subscribeRequestOnePromise).rejects.toThrowError(
+      await expect(inFlightReadOnePromise).rejects.toThrowError(
         'Subscription to data track cancelled by caller',
       );
+
+      // 4. Make sure the other subscription is still active / was untouched by the first stream
+      // being aborted.
+      await expect(
+        Promise.race([inFlightReadTwoPromise, Promise.resolve('pending')]),
+      ).resolves.toStrictEqual('pending');
 
       // 4. Make sure the underlying sfu subscription has not been also cancelled, there still is
       // one data track subscription active
@@ -374,7 +410,7 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // Subscribe to a data track
-      const subscribeRequestPromise = manager.subscribeRequest(
+      const [, subscribeRequestPromise] = manager.openSubscriptionStream(
         sid,
         AbortSignal.abort(/* already aborted */),
       );
@@ -413,14 +449,14 @@ describe('DataTrackIncomingManager', () => {
 
       // 2. Create subscription A
       const controllerA = new AbortController();
-      const subscribeAPromise = manager.subscribeRequest(sid, controllerA.signal);
+      const [, subscribeAPromise] = manager.openSubscriptionStream(sid, controllerA.signal);
       const startEvent = await managerEvents.waitFor('sfuUpdateSubscription');
       expect(startEvent.sid).toStrictEqual(sid);
       expect(startEvent.subscribe).toStrictEqual(true);
 
       // 2. Create subscription B
       const controllerB = new AbortController();
-      const subscribeBPromise = manager.subscribeRequest(sid, controllerB.signal);
+      const [, subscribeBPromise] = manager.openSubscriptionStream(sid, controllerB.signal);
       expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toStrictEqual(false);
 
       // 3. Cancel the subscription A
@@ -455,13 +491,13 @@ describe('DataTrackIncomingManager', () => {
       await managerEvents.waitFor('trackPublished');
 
       // 2. Begin subscribing to a data track
-      const promise = manager.subscribeRequest(sid);
+      const [, subscriptionCompletePromise] = manager.openSubscriptionStream(sid);
 
       // 3. Simulate the remote participant disconnecting
       manager.handleRemoteParticipantDisconnected(senderIdentity);
 
       // 4. Make sure the pending subscribe was terminated
-      await expect(promise).rejects.toThrowError(
+      await expect(subscriptionCompletePromise).rejects.toThrowError(
         'Cannot subscribe to data track when disconnected',
       );
     });
@@ -504,6 +540,285 @@ describe('DataTrackIncomingManager', () => {
 
       // 6. Make sure the in flight stream read was closed
       await reader.closed;
+    });
+
+    it('should terminate ACTIVE sfu subscriptions which have been aborted if the participant disconnects', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
+      const reader = stream.getReader();
+      const sfuUpdateSubscriptionEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(sfuUpdateSubscriptionEvent.sid).toStrictEqual(sid);
+      expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(true);
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 3. Start an in flight stream read
+      await sfuSubscriptionComplete;
+      const inFlightReadPromise = reader.read();
+
+      // 4. Abort the abort controller, which should abort the in flight stream read
+      controller.abort();
+      await expect(inFlightReadPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 4. Simulate the remote participant disconnecting
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+
+      // 5. Make sure the sfu unsubscribes
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(sid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+    });
+
+    it('should terminate ACTIVE sfu subscriptions which have been aborted if the track is unpublished', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+        'trackUnpublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 3. Start an in flight stream read
+      await sfuSubscriptionComplete;
+      const inFlightReadPromise = reader.read();
+
+      // 4. Abort the controller - this errors the stream's underlying controller
+      controller.abort();
+      await expect(inFlightReadPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 5. Unpublish the track - closeStreamControllers must tolerate the already-errored
+      // controller (this used to crashing with "Cannot close an errored readable stream")
+      await manager.receiveSfuPublicationUpdates(new Map([[senderIdentity, []]]));
+
+      // 6. Make sure the trackUnpublished event fires
+      const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');
+      expect(trackUnpublishedEvent.sid).toStrictEqual(sid);
+    });
+
+    it('should not throw when shutting down with an aborted active subscription', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+        'trackUnpublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionComplete;
+
+      // 3. Abort the controller to error the stream's underlying controller
+      const reader = stream.getReader();
+      const inFlightReadPromise = reader.read();
+      controller.abort();
+      await expect(inFlightReadPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 4. Shutdown the manager, and make sure it doesn't throw
+      manager.shutdown();
+
+      // 5. Make sure the trackUnpublished event fires for the descriptor
+      const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');
+      expect(trackUnpublishedEvent.sid).toStrictEqual(sid);
+    });
+
+    it('should close the remaining active stream when one of two active subscriptions is aborted before disconnect', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Open two subscriptions with separate abort controllers
+      const controllerA = new AbortController();
+      const [streamA, sfuSubscriptionACompletePromise] = manager.openSubscriptionStream(
+        sid,
+        controllerA.signal,
+      );
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionACompletePromise;
+
+      const controllerB = new AbortController();
+      const [streamB, sfuSubscriptionBCompletePromise] = manager.openSubscriptionStream(
+        sid,
+        controllerB.signal,
+      );
+      await sfuSubscriptionBCompletePromise;
+
+      const readerA = streamA.getReader();
+      const readerB = streamB.getReader();
+      const inFlightReadAPromise = readerA.read();
+
+      // 3. Abort only A - this errors A's controller
+      controllerA.abort();
+      await expect(inFlightReadAPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+
+      // 4. Disconnect the participant. closeStreamControllers must gracefully close B
+      // without crashing on A's errored controller (which should already have been removed
+      // from the map by onAbort).
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+
+      // 5. B's reader closes cleanly
+      await readerB.closed;
+
+      // 6. Perform a single unsubscribe event - no double-unsubscribe from A's abort + disconnect
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(sid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+      expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toBe(false);
+    });
+
+    it('should error the stream if the descriptor is unpublished between subscribe resolve and post-subscribe setup', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+        'trackUnpublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Start subscribing - the .then handler on subscribeRequest is now pending
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // 3. Acknowledge the SFU handle - this synchronously resolves the completionFuture
+      // and flips the subscription state to 'active', but the .then microtask has not run yet
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+
+      // 4. Synchronously unpublish the track before the .then microtask fires
+      manager.handleTrackUnpublished(sid);
+
+      // 5. When .then runs, the descriptor lookup returns undefined and the handler
+      // must error the stream and reject sfuSubscriptionComplete (instead of hanging)
+      await expect(sfuSubscriptionComplete).rejects.toStrictEqual(
+        DataTrackSubscribeError.disconnected(),
+      );
+      await expect(reader.read()).rejects.toStrictEqual(DataTrackSubscribeError.disconnected());
+    });
+
+    it('should not throw or emit extra events when aborting after a manager-driven close', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      // 1. Make sure the data track publication is registered
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // 2. Subscribe to a data track, and send the handle back as if the SFU acknowledged it
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        sid,
+        controller.signal,
+      );
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionComplete;
+
+      // 3. Manager-driven close via disconnect. detachSignal must have run so that the
+      // user's AbortSignal no longer triggers onAbort.
+      manager.handleRemoteParticipantDisconnected(senderIdentity);
+      await reader.closed;
+
+      // 4. Consume the unsubscribe event
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.subscribe).toBe(false);
+
+      // 5. Aborting after the manager has already closed the stream must be a no-op:
+      // no throw, and no additional sfuUpdateSubscription events
+      expect(() => controller.abort()).not.toThrow();
+      expect(managerEvents.areThereBufferedEvents('sfuUpdateSubscription')).toBe(false);
     });
 
     it('should terminate the sfu subscription once all downstream ReadableStreams are cancelled', async () => {
@@ -549,6 +864,76 @@ describe('DataTrackIncomingManager', () => {
 
       // 8. Make sure the in flight stream is now complete
       await expect(reader.read()).resolves.toStrictEqual({ value: undefined, done: true });
+    });
+
+    it(`should not produce an unhandled promise rejection when RemoteDataTrack.subscribe()'s signal is aborted`, async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const sid = 'data track sid';
+
+      // 1. Register the data track so we can get a RemoteDataTrack via trackPublished.
+      await manager.receiveSfuPublicationUpdates(
+        new Map([
+          [
+            'identity',
+            [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: 'test', usesE2ee: false }],
+          ],
+        ]),
+      );
+      const { track } = await managerEvents.waitFor('trackPublished');
+
+      // 2. Listen for unhandled rejections (coming from sfuSubscriptionComplete) and throw
+      // them so the test will terminate.
+      const onUnhandled = (reason: unknown) => {
+        throw reason;
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const controller = new AbortController();
+        const stream = track.subscribe({ signal: controller.signal });
+
+        // 3. Consume the stream the way a user would, catching the rejection.
+        const caughtByUser: unknown[] = [];
+        const consumerDone = (async () => {
+          try {
+            const reader = stream.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) {
+                return;
+              }
+            }
+          } catch (err) {
+            caughtByUser.push(err);
+          }
+        })();
+
+        // Wait until subscribeRequest has kicked off so we abort during the
+        // 'pending' state — the path that rejects sfuSubscriptionComplete.
+        await managerEvents.waitFor('sfuUpdateSubscription');
+
+        // 4. Abort the subscription
+        controller.abort();
+        await consumerDone;
+
+        // Drain microtasks so any unhandledRejection has a chance to fire.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // 5. Make sure that no `unhandledrejection`s occur and get bubbled up as user
+        // facing errors.
+
+        // But, the error should still get raised by the user so they can catch it / do with it as
+        // they please.
+        expect(caughtByUser).toHaveLength(1);
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
     });
   });
 });

@@ -174,3 +174,10 @@ export {
 export { type DataChannelKind } from './room/RTCEngine';
 
 export { LocalTrackRecorder } from './room/track/record';
+export {
+  type Serializer,
+  isSerializer,
+  type SerializerInput,
+  type SerializerOutput,
+  serializers,
+} from './utils/serializer';

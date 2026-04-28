@@ -1,5 +1,75 @@
 # Change Log
 
+## 2.18.7
+
+### Patch Changes
+
+- Pass optional LocalTrack reference to processors - [#1916](https://github.com/livekit/client-sdk-js/pull/1916) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure priority isn't set on all simulcast layers when using Firefox on iOS - [#1920](https://github.com/livekit/client-sdk-js/pull/1920) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.6
+
+### Patch Changes
+
+- Fix data tracks extension encoding - [#1913](https://github.com/livekit/client-sdk-js/pull/1913) ([@ladvoc](https://github.com/ladvoc))
+
+## 2.18.5
+
+### Patch Changes
+
+- Defer `onEnterPiP` visibility update until after the next microtask and animation frame so Document Picture-in-Picture embedders can append DOM into the PiP window before `isElementInPiP` runs. - [#1868](https://github.com/livekit/client-sdk-js/pull/1868) ([@gparant](https://github.com/gparant))
+
+- Differentiate different 404 responses on validate path - [#1901](https://github.com/livekit/client-sdk-js/pull/1901) ([@lukasIO](https://github.com/lukasIO))
+
+- await screen share audio unpublish before returning setEnabled - [#1899](https://github.com/livekit/client-sdk-js/pull/1899) ([@lukasIO](https://github.com/lukasIO))
+
+- Avoid attaching a new Closing event listener for each waitForBufferStatusLow call - [#1896](https://github.com/livekit/client-sdk-js/pull/1896) ([@1egoman](https://github.com/1egoman))
+
+- Re-compute encoding params after track replace - [#1902](https://github.com/livekit/client-sdk-js/pull/1902) ([@lukasIO](https://github.com/lukasIO))
+
+- Harden extension id computation and retry publishing on negotiation failure - [#1895](https://github.com/livekit/client-sdk-js/pull/1895) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure udpated tokens get set on the regionUrlProvider - [#1900](https://github.com/livekit/client-sdk-js/pull/1900) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.4
+
+### Patch Changes
+
+- fix: handle race between `LocalTrackSubscribed` signal and `publishTrack` completion - [#1872](https://github.com/livekit/client-sdk-js/pull/1872) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Harden RemoteParticipant.dataTracks map to work when a data track subscription is processed before the room connect is complete - [#1888](https://github.com/livekit/client-sdk-js/pull/1888) ([@1egoman](https://github.com/1egoman))
+
+- Update dependency webrtc-adapter to v9.0.5 - [#1858](https://github.com/livekit/client-sdk-js/pull/1858) ([@renovate](https://github.com/apps/renovate))
+
+- Ensure transport manager is reset before attempting legacy fallback path - [#1893](https://github.com/livekit/client-sdk-js/pull/1893) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data tracks related subscript edge cases when the passed abort signal fires across the subscription lifecycle - [#1892](https://github.com/livekit/client-sdk-js/pull/1892) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.3
+
+### Patch Changes
+
+- fixing decodeTokenPayload - [#1889](https://github.com/livekit/client-sdk-js/pull/1889) ([@thomasyuill-livekit](https://github.com/thomasyuill-livekit))
+
+## 2.18.2
+
+### Patch Changes
+
+- Export CheckStatus as enum, not just type - [#1855](https://github.com/livekit/client-sdk-js/pull/1855) ([@Ludobaka](https://github.com/Ludobaka))
+
+- Add new serializer implementation - [#1885](https://github.com/livekit/client-sdk-js/pull/1885) ([@1egoman](https://github.com/1egoman))
+
+- fix: improve ordering of resolving waitForBufferStatus calls - [#1877](https://github.com/livekit/client-sdk-js/pull/1877) ([@lukasIO](https://github.com/lukasIO))
+
+- Close streamcontrollers when datatrack gets unpublished - [#1879](https://github.com/livekit/client-sdk-js/pull/1879) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer stream events until connected - [#1867](https://github.com/livekit/client-sdk-js/pull/1867) ([@lukasIO](https://github.com/lukasIO))
+
+- Moves "connected to Livekit Server" log within RTCEngine.join so it shows up for reconnects as well as connects - [#1873](https://github.com/livekit/client-sdk-js/pull/1873) ([@1egoman](https://github.com/1egoman))
+
+- Wrap setE2EEEnabled call in a mutex - [#1882](https://github.com/livekit/client-sdk-js/pull/1882) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.1
 
 ### Patch Changes
