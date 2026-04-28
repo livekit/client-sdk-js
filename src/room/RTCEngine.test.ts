@@ -4,12 +4,24 @@ import { roomOptionDefaults } from './defaults';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
+  const originalRTCRtpScriptTransform = (window as unknown as { RTCRtpScriptTransform?: unknown })
+    .RTCRtpScriptTransform;
+  const originalUserAgent = navigator.userAgent;
 
   afterEach(() => {
     Object.defineProperty(window, 'RTCRtpSender', {
       configurable: true,
       value: originalRTCRtpSender,
       writable: true,
+    });
+    Object.defineProperty(window, 'RTCRtpScriptTransform', {
+      configurable: true,
+      value: originalRTCRtpScriptTransform,
+      writable: true,
+    });
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
     });
   });
 
@@ -22,6 +34,19 @@ describe('RTCEngine', () => {
       configurable: true,
       value: MockRTCRtpSender,
       writable: true,
+    });
+  }
+
+  function stubScriptTransformSupport() {
+    Object.defineProperty(window, 'RTCRtpScriptTransform', {
+      configurable: true,
+      value: class MockRTCRtpScriptTransform {},
+      writable: true,
+    });
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
     });
   }
 
@@ -56,6 +81,18 @@ describe('RTCEngine', () => {
     expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBe(true);
   });
 
+  it('does not enable encoded insertable streams for packet trailers when script transforms are supported', () => {
+    stubInsertableStreamsSupport();
+    stubScriptTransformSupport();
+
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker: {} as Worker },
+    });
+
+    expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBeUndefined();
+  });
+
   it('enables encoded insertable streams for E2EE', () => {
     stubInsertableStreamsSupport();
 
@@ -83,6 +120,23 @@ describe('RTCEngine', () => {
     const engine = new RTCEngine({
       ...roomOptionDefaults,
       packetTrailer: {} as never,
+    });
+    const createEncodedStreams = vi.fn();
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    setupSenderPassthrough(engine, sender);
+
+    expect(createEncodedStreams).not.toHaveBeenCalled();
+  });
+
+  it('does not create sender passthrough streams for packet trailers when script transforms are supported', () => {
+    stubScriptTransformSupport();
+
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker: {} as Worker },
     });
     const createEncodedStreams = vi.fn();
     const sender = {

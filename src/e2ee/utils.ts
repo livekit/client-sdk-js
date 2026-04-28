@@ -8,11 +8,12 @@ export function isE2EESupported() {
 
 export function isScriptTransformSupported() {
   // @ts-ignore
-  return typeof window.RTCRtpScriptTransform !== 'undefined';
+  return typeof window !== 'undefined' && typeof window.RTCRtpScriptTransform !== 'undefined';
 }
 
 export function isInsertableStreamSupported() {
   return (
+    typeof window !== 'undefined' &&
     typeof window.RTCRtpSender !== 'undefined' &&
     // @ts-ignore
     typeof window.RTCRtpSender.prototype.createEncodedStreams !== 'undefined'

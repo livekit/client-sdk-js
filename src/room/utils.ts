@@ -180,6 +180,18 @@ export function isChromiumBased(): boolean {
   return !!browser && browser.name === 'Chrome' && browser.os !== 'iOS';
 }
 
+export function isScriptTransformSupportedForWorker(): boolean {
+  // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+  // Disabling it for Chrome based browsers until the API has stabilized.
+  // @ts-ignore
+  return (
+    typeof window !== 'undefined' &&
+    // @ts-ignore
+    typeof window.RTCRtpScriptTransform !== 'undefined' &&
+    !isChromiumBased()
+  );
+}
+
 export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
 }

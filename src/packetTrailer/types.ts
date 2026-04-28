@@ -27,6 +27,11 @@ export interface PTDecodeMessage extends PTBaseMessage {
   };
 }
 
+export type PTScriptTransformOptions = {
+  kind: 'decode';
+  trackId: string;
+};
+
 export interface PTMetadataMessage extends PTBaseMessage {
   kind: 'metadata';
   data: PacketTrailerFramePayload;

@@ -12,7 +12,13 @@ import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { Future, isChromiumBased, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
+import {
+  Future,
+  isLocalTrack,
+  isSafariBased,
+  isScriptTransformSupportedForWorker,
+  isVideoTrack,
+} from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -35,7 +41,7 @@ import type {
   SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
-import { isE2EESupported, isScriptTransformSupported } from './utils';
+import { isE2EESupported } from './utils';
 
 export interface BaseE2EEManager {
   setup(room: Room): void;
@@ -516,12 +522,7 @@ export class E2EEManager
       return;
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupportedForWorker()) {
       const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
@@ -594,12 +595,7 @@ export class E2EEManager
       throw TypeError('local identity needs to be known in order to set up encrypted sender');
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupportedForWorker()) {
       log.info('initialize script transform');
       const options = {
         kind: 'encode',

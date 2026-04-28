@@ -45,6 +45,7 @@ import type {
   RoomOptions,
 } from '../options';
 import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
+import { isPacketTrailerSupported } from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
@@ -928,7 +929,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
-        clientInfoCapabilities: roomOptions.packetTrailer?.worker
+        clientInfoCapabilities: isPacketTrailerSupported(roomOptions.packetTrailer)
           ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
           : undefined,
         maxRetries: connectOptions.maxRetries,

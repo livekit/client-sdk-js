@@ -6,6 +6,7 @@ import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
+import { isPacketTrailerSupported, shouldUsePacketTrailerScriptTransform } from './utils';
 
 export interface PacketTrailerOptions {
   /**
@@ -21,8 +22,8 @@ export interface PacketTrailerOptions {
  * Manages packet trailer extraction for received video tracks.
  *
  * When a track's TrackInfo indicates packet trailer features, the manager
- * wires up an Insertable Streams pipeline to strip the trailer from encoded
- * frames and cache the metadata for lookup.
+ * wires up an encoded frame transform to strip the trailer from encoded frames
+ * and cache the metadata for lookup.
  *
  * Packet trailer extraction is worker-only. If no worker is configured, the
  * SDK does not advertise packet trailer support and skips extraction.
@@ -95,8 +96,11 @@ export class PacketTrailerManager {
       return;
     }
 
-    if (!this.worker && !this.room?.hasE2EESetup) {
-      log.warn('packet trailer worker not configured; skipping extraction');
+    if (
+      !isPacketTrailerSupported(this.worker ? { worker: this.worker } : undefined) &&
+      !this.room?.hasE2EESetup
+    ) {
+      log.warn('packet trailer transform not supported; skipping extraction');
       return;
     }
 
@@ -117,6 +121,16 @@ export class PacketTrailerManager {
 
   private setupWorkerReceiver(receiver: RTCRtpReceiver, newTrackId: string) {
     const worker = this.worker!;
+
+    if (shouldUsePacketTrailerScriptTransform()) {
+      // @ts-ignore
+      receiver.transform = new RTCRtpScriptTransform(worker, {
+        kind: 'decode',
+        trackId: newTrackId,
+      });
+      return;
+    }
+
     const existingTrackId = this.workerPipelines.get(receiver);
 
     if (existingTrackId) {

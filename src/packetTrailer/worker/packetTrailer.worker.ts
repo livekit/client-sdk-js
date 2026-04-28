@@ -1,5 +1,5 @@
 import { processPacketTrailer } from '../packetTrailer';
-import type { PTMetadataMessage, PTWorkerMessage } from '../types';
+import type { PTMetadataMessage, PTScriptTransformOptions, PTWorkerMessage } from '../types';
 
 /**
  * Holds the trackId currently associated with a pipeline. A mutable
@@ -74,4 +74,16 @@ function updateTrackId(oldTrackId: string, newTrackId: string) {
     pipelines.delete(oldTrackId);
     pipelines.set(newTrackId, state);
   }
+}
+
+// Operations using RTCRtpScriptTransform.
+// @ts-ignore
+if (self.RTCTransformEvent) {
+  // @ts-ignore
+  self.onrtctransform = (event: RTCTransformEvent) => {
+    // @ts-ignore
+    const transformer = event.transformer;
+    const { trackId } = transformer.options as PTScriptTransformOptions;
+    setupDecodeTransform(transformer.readable, transformer.writable, trackId);
+  };
 }

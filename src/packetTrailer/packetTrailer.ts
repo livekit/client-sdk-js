@@ -181,6 +181,9 @@ export function getFrameRtpTimestamp(
   } catch {
     // getMetadata() might not be available
   }
+  if (typeof frame.timestamp === 'number') {
+    return frame.timestamp;
+  }
   return undefined;
 }
 

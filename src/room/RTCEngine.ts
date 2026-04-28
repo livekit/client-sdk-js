@@ -57,6 +57,7 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
+import { shouldUsePacketTrailerScriptTransform } from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
@@ -771,14 +772,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    // E2EE and packet trailer extraction both rely on encoded insertable
-    // streams. Only opt in when a transform will actually be installed; if no
-    // packet trailer worker is configured, packet trailer support is not
-    // advertised and the SFU strips trailers before forwarding media.
-    if (
-      (this.signalOpts?.e2eeEnabled || this.options.packetTrailer?.worker) &&
-      isInsertableStreamSupported()
-    ) {
+    // E2EE and packet trailer extraction both rely on encoded frame transforms.
+    // Only opt into the createEncodedStreams flavor when that path will be
+    // used; RTCRtpScriptTransform does not need the PeerConnection flag.
+    const needsInsertableStreams =
+      this.signalOpts?.e2eeEnabled ||
+      (this.options.packetTrailer?.worker && !shouldUsePacketTrailerScriptTransform());
+
+    if (needsInsertableStreams && isInsertableStreamSupported()) {
       this.log.debug('setting up transports with insertable streams', this.logContext);
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
@@ -1058,7 +1059,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private setupSenderPassthrough(sender: RTCRtpSender) {
-    if (!this.options.packetTrailer?.worker || this.signalOpts?.e2eeEnabled) {
+    if (
+      !this.options.packetTrailer?.worker ||
+      this.signalOpts?.e2eeEnabled ||
+      shouldUsePacketTrailerScriptTransform()
+    ) {
       return;
     }
     if ('createEncodedStreams' in sender) {
