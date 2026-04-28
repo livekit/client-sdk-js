@@ -745,12 +745,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    // Always enable encoded insertable streams when supported. E2EE and packet
-    // trailer both rely on it, and enabling the flag is a no-op when nothing
-    // calls `createEncodedStreams()`. Having it always on means subscribers
-    // can automatically handle publishers that advertise packet trailer
-    // features without any explicit RoomOptions configuration.
-    if (isInsertableStreamSupported()) {
+    // E2EE and packet trailer extraction both rely on encoded insertable
+    // streams. Only opt in when a transform will actually be installed; if no
+    // packet trailer worker is configured, packet trailer support is not
+    // advertised and the SFU strips trailers before forwarding media.
+    if (
+      (this.signalOpts?.e2eeEnabled || this.options.packetTrailer?.worker) &&
+      isInsertableStreamSupported()
+    ) {
       this.log.debug('setting up transports with insertable streams', this.logContext);
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
@@ -1030,7 +1032,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private setupSenderPassthrough(sender: RTCRtpSender) {
-    if (!this.options.packetTrailer || this.signalOpts?.e2eeEnabled) {
+    if (!this.options.packetTrailer?.worker || this.signalOpts?.e2eeEnabled) {
       return;
     }
     if ('createEncodedStreams' in sender) {
