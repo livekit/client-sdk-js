@@ -257,9 +257,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager
       .on('sfuUpdateSubscription', (event) => {
+        this.log.debug('IncomingDataTrackManager emitted sfuUpdateSubscription:', event);
         this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
       })
       .on('trackPublished', (event) => {
+        this.log.debug('IncomingDataTrackManager emitted trackPublished:', event);
         if (event.track.publisherIdentity === this.localParticipant.identity) {
           // Only advertize tracks from other participants
           return;
@@ -268,6 +270,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
       })
       .on('trackUnpublished', (event) => {
+        this.log.debug('IncomingDataTrackManager emitted trackUnpublished:', event);
         if (event.publisherIdentity === this.localParticipant.identity) {
           // Only advertize tracks from other participants
           return;
@@ -279,18 +282,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.outgoingDataTrackManager
       .on('sfuPublishRequest', (event) => {
+        this.log.debug('OutgoingDataTrackManager emitted sfuPublishRequest:', event);
         this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
       })
       .on('sfuUnpublishRequest', (event) => {
+        this.log.debug('OutgoingDataTrackManager emitted sfuUnpublishRequest:', event);
         this.engine.client.sendUnPublishDataTrackRequest(event.handle);
       })
       .on('trackPublished', (event) => {
+        this.log.debug('OutgoingDataTrackManager emitted trackPublished:', event);
         this.emit(RoomEvent.LocalDataTrackPublished, event.track);
       })
       .on('trackUnpublished', (event) => {
+        this.log.debug('OutgoingDataTrackManager emitted trackUnpublished:', event);
         this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
       })
       .on('packetAvailable', ({ bytes }) => {
+        this.log.debug('OutgoingDataTrackManager emitted packetAvailable:', event);
         this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait');
       });
 
