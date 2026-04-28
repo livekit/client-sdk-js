@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   ChatMessage as ChatMessageModel,
+  ClientInfo_Capability,
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
@@ -470,10 +471,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private setupPacketTrailer() {
     // The manager is always created so tracks that advertise packet trailer
-    // features always have their trailers stripped — even if the app didn't
-    // pass `packetTrailer` in RoomOptions. A worker is used when provided for
-    // best performance; otherwise the manager falls back to a main-thread
-    // TransformStream so video still decodes correctly.
+    // features can be wired up when the app passes a packet trailer worker.
     this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
     this.packetTrailerManager.setup(this);
   }
@@ -927,6 +925,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
+        clientInfoCapabilities: roomOptions.packetTrailer?.worker
+          ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
+          : undefined,
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,

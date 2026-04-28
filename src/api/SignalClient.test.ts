@@ -1,10 +1,14 @@
 import {
+  ClientInfo_Capability,
   DisconnectReason,
+  JoinRequest,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
   SignalRequest,
   SignalResponse,
+  WrappedJoinRequest,
+  WrappedJoinRequest_Compression,
 } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
@@ -60,6 +64,7 @@ interface MockWebSocketStreamOptions {
   connection?: WebSocketConnection;
   opened?: Promise<WebSocketConnection>;
   closed?: Promise<WebSocketCloseInfo>;
+  onUrl?: (url: string) => void;
   readyState?: number;
 }
 
@@ -69,18 +74,19 @@ function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
     opened = connection ? Promise.resolve(connection) : new Promise(() => {}),
     closed = new Promise(() => {}),
     readyState = 1,
+    onUrl,
   } = options;
 
-  return vi.mocked(WebSocketStream).mockImplementationOnce(
-    () =>
-      ({
-        url: 'wss://test.livekit.io',
-        opened,
-        closed,
-        close: vi.fn(),
-        readyState,
-      }) as any,
-  );
+  return vi.mocked(WebSocketStream).mockImplementationOnce((url) => {
+    onUrl?.(url);
+    return {
+      url: 'wss://test.livekit.io',
+      opened,
+      closed,
+      close: vi.fn(),
+      readyState,
+    } as any;
+  });
 }
 
 describe('SignalClient.connect', () => {
@@ -99,6 +105,47 @@ describe('SignalClient.connect', () => {
     signalClient = new SignalClient(false);
   });
 
+  async function decodeJoinRequestFromUrl(url: string): Promise<JoinRequest> {
+    const joinRequestParam = new URL(url).searchParams.get('join_request');
+    expect(joinRequestParam).toBeTruthy();
+
+    const paddedBase64Url = joinRequestParam!.padEnd(
+      joinRequestParam!.length + ((4 - (joinRequestParam!.length % 4)) % 4),
+      '=',
+    );
+    const binaryString = atob(paddedBase64Url.replace(/-/g, '+').replace(/_/g, '/'));
+    const wrappedBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i += 1) {
+      wrappedBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const wrappedJoinRequest = WrappedJoinRequest.fromBinary(wrappedBytes);
+    if (wrappedJoinRequest.compression === WrappedJoinRequest_Compression.NONE) {
+      return JoinRequest.fromBinary(wrappedJoinRequest.joinRequest);
+    }
+
+    const stream = new DecompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    writer.write(wrappedJoinRequest.joinRequest);
+    writer.close();
+
+    const chunks: Uint8Array[] = [];
+    const reader = stream.readable.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    const bytes = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return JoinRequest.fromBinary(bytes);
+  }
+
   describe('Happy Path - Initial Join', () => {
     it('should successfully connect and receive join response', async () => {
       const joinResponse = createJoinResponse();
@@ -112,6 +159,51 @@ describe('SignalClient.connect', () => {
 
       expect(result).toEqual(joinResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+    });
+
+    it('does not advertise packet trailer capability by default', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joinRequest.clientInfo?.capabilities).toEqual([]);
+    });
+
+    it('advertises packet trailer capability when provided', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', {
+        ...defaultOptions,
+        clientInfoCapabilities: [ClientInfo_Capability.CAP_PACKET_TRAILER],
+      });
+
+      const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joinRequest.clientInfo?.capabilities).toEqual([
+        ClientInfo_Capability.CAP_PACKET_TRAILER,
+      ]);
     });
   });
 

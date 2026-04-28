@@ -6,7 +6,7 @@ const MAX_ENTRIES = 300;
  * Caches packet trailer metadata extracted from received video frames,
  * keyed by RTP timestamp so it can be looked up when the frame is displayed.
  *
- * Metadata is populated either by the main-thread pipeline installed by
+ * Metadata is populated either by the packet trailer worker managed by
  * `PacketTrailerManager` (non-E2EE) or by the E2EE FrameCryptor worker
  * after decryption (E2EE).
  *

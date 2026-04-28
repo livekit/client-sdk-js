@@ -1,6 +1,7 @@
 import {
   ChatMessage as ChatMessageModel,
   ClientInfo,
+  ClientInfo_Capability,
   ClientInfo_SDK,
   DisconnectReason,
   Transcription as TranscriptionModel,
@@ -364,8 +365,9 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
-export function getClientInfo(): ClientInfo {
+export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
   const info = new ClientInfo({
+    capabilities,
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
     version,
