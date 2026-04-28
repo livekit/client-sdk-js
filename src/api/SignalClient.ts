@@ -1083,6 +1083,10 @@ export class SignalClient {
 
       switch (resp.status) {
         case 404:
+          const errorMsg = await resp.text();
+          if (errorMsg.includes('requested room does not exist')) {
+            return ConnectionError.notAllowed(errorMsg, resp.status);
+          }
           return ConnectionError.serviceNotFound(
             'v1 RTC path not found. Consider upgrading your LiveKit server version',
             'v0-rtc',

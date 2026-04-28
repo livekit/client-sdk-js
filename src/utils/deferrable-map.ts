@@ -29,7 +29,7 @@ export class DeferrableMap<K, V> extends Map<K, V> {
     super.set(key, value);
 
     // Resolve any futures waiting on this key.
-    const futures = this.pending.get(key);
+    const futures = this.pending?.get(key);
     if (futures) {
       for (const future of futures) {
         if (!future.isResolved) {
@@ -43,7 +43,7 @@ export class DeferrableMap<K, V> extends Map<K, V> {
   }
 
   get [Symbol.toStringTag](): string {
-    return 'WaitableMap';
+    return 'DeferrableMap';
   }
 
   /**

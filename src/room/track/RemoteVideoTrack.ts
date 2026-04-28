@@ -406,8 +406,14 @@ class HTMLElementInfo implements ElementInfo {
 
   private onEnterPiP = () => {
     window.documentPictureInPicture?.window?.addEventListener('pagehide', this.onLeavePiP);
-    this.isPiP = isElementInPiP(this.element);
-    this.handleVisibilityChanged?.();
+    // Document PiP: the browser may fire 'enter' before the app has appended its subtree into
+    // documentPictureInPicture.window. Defer so pipWin.document.contains(video) is reliable.
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        this.isPiP = isElementInPiP(this.element);
+        this.handleVisibilityChanged?.();
+      });
+    });
   };
 
   private onLeavePiP = () => {
