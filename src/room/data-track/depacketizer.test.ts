@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DataTrackDepacketizer from './depacketizer';
 import { DataTrackHandle } from './handle';

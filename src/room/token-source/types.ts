@@ -3,7 +3,7 @@ import type { JWTPayload } from 'jose';
 import type { ValueToSnakeCase } from '../../utils/camelToSnakeCase';
 // The below imports are being linked in tsdoc comments, so they have to be imported even if they
 // aren't being used.
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { TokenSourceCustom, TokenSourceEndpoint, TokenSourceLiteral } from './TokenSource';
 
 export type TokenSourceRequestObject = Required<

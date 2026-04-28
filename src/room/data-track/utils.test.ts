@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
 

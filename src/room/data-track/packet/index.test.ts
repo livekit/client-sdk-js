@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '.';
 import { DataTrackHandle } from '../handle';
