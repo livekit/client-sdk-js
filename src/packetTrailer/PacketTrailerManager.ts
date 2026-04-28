@@ -96,11 +96,7 @@ export class PacketTrailerManager {
     }
 
     if (!this.worker && !this.room?.hasE2EESetup) {
-      log.warn(
-        'subscribed to a track with packet trailer features but no packet trailer worker ' +
-          'is configured; skipping packet trailer extraction. Pass `packetTrailer: { worker }` ' +
-          'in RoomOptions to enable packet trailer support.',
-      );
+      log.warn('packet trailer worker not configured; skipping extraction');
       return;
     }
 
@@ -115,11 +111,6 @@ export class PacketTrailerManager {
       // the extractor via E2eeManager; no pipeline is needed here.
       return;
     }
-
-    log.debug('PacketTrailerManager: installing pipeline', {
-      trackSid: track.sid,
-      mode: 'worker',
-    });
 
     this.setupWorkerReceiver(receiver, trackId);
   }
@@ -142,7 +133,7 @@ export class PacketTrailerManager {
     }
 
     if (!('createEncodedStreams' in receiver)) {
-      log.warn('createEncodedStreams not supported, packet trailer extraction unavailable');
+      log.warn('createEncodedStreams not supported');
       return;
     }
 
@@ -151,7 +142,7 @@ export class PacketTrailerManager {
       // @ts-ignore — createEncodedStreams is not in standard typings
       streams = receiver.createEncodedStreams();
     } catch (err) {
-      log.warn('failed to create encoded streams for packet trailer extraction', { error: err });
+      log.warn('failed to create encoded streams', { error: err });
       return;
     }
 

@@ -15,37 +15,20 @@ const MAX_ENTRIES = 300;
 export class PacketTrailerExtractor {
   private metadataMap = new Map<number, PacketTrailerMetadata>();
 
-  private insertionOrder: number[] = [];
-
   private activeSsrc: number = 0;
 
   storeMetadata(rtpTimestamp: number, ssrc: number, metadata: PacketTrailerMetadata) {
     // Simulcast layer switch: SSRC changed, flush stale entries from old layer.
     if (this.activeSsrc !== 0 && this.activeSsrc !== ssrc) {
-      const keep: number[] = [];
-      for (const ts of this.insertionOrder) {
-        const m = this.metadataMap.get(ts);
-        if (!m || (m as PacketTrailerMetadataInternal).ssrc !== ssrc) {
-          this.metadataMap.delete(ts);
-        } else {
-          keep.push(ts);
-        }
-      }
-      this.insertionOrder = keep;
+      this.metadataMap.clear();
     }
     this.activeSsrc = ssrc;
 
-    const collision = this.metadataMap.has(rtpTimestamp);
-
-    while (this.metadataMap.size >= MAX_ENTRIES && this.insertionOrder.length > 0) {
-      const evicted = this.insertionOrder.shift()!;
+    while (this.metadataMap.size >= MAX_ENTRIES) {
+      const evicted = this.metadataMap.keys().next().value!;
       this.metadataMap.delete(evicted);
     }
 
-    if (!collision) {
-      this.insertionOrder.push(rtpTimestamp);
-    }
-    (metadata as PacketTrailerMetadataInternal).ssrc = ssrc;
     this.metadataMap.set(rtpTimestamp, metadata);
   }
 
@@ -55,12 +38,6 @@ export class PacketTrailerExtractor {
 
   dispose() {
     this.metadataMap.clear();
-    this.insertionOrder.length = 0;
     this.activeSsrc = 0;
   }
-}
-
-/** @internal */
-interface PacketTrailerMetadataInternal extends PacketTrailerMetadata {
-  ssrc?: number;
 }
