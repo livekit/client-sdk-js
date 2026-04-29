@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataTrackPacket, DataTrackPacketHeader, FrameMarker } from '.';
 import { DataTrackHandle } from '../handle';
 import { DataTrackTimestamp, WrapAroundUnsignedInt } from '../utils';
-import { EXT_FLAG_SHIFT } from './constants';
+import { EXT_FLAG_SHIFT, EXT_WORDS_INDICATOR_SIZE } from './constants';
 import {
   DataTrackE2eeExtension,
   DataTrackExtensionTag,
@@ -72,7 +72,7 @@ describe('DataTrackPacket', () => {
 
       const packet = new DataTrackPacket(header, payloadBytes);
 
-      expect(packet.toBinaryLengthBytes()).toStrictEqual(74);
+      expect(packet.toBinaryLengthBytes()).toStrictEqual(72);
       expect(packet.toBinary()).toStrictEqual(
         new Uint8Array([
           0xc, // Version 0, final, extension
@@ -120,8 +120,6 @@ describe('DataTrackPacket', () => {
           17,
 
           0, // Extension padding
-          0,
-          0,
 
           0xfa, // Payload
           0xfa,
@@ -174,7 +172,7 @@ describe('DataTrackPacket', () => {
 
       const packet = new DataTrackPacket(header, payloadBytes);
 
-      expect(packet.toBinaryLengthBytes()).toStrictEqual(62);
+      expect(packet.toBinaryLengthBytes()).toStrictEqual(64);
       expect(packet.toBinary()).toStrictEqual(
         new Uint8Array([
           0x14, // Version 0, start, extension
@@ -190,7 +188,7 @@ describe('DataTrackPacket', () => {
           0,
           104,
           0, // RTP oriented extension words (big endian)
-          3,
+          4,
 
           // E2ee extension
           1, // ID 1
@@ -210,6 +208,8 @@ describe('DataTrackPacket', () => {
           0x3c,
 
           0, // Extension padding
+          0,
+          0,
 
           0xfa, // Payload
           0xfa,
@@ -350,8 +350,8 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // Extension word (big endian)
-        1,
+        0, // Extension word (big endian) — data_budget = (0+1)*4 - 2 = 2, but no data follows
+        0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag - should have ext word indicator here
 
@@ -409,7 +409,7 @@ describe('DataTrackPacket', () => {
         0, // Extension words (big endian)
         extensionWords,
 
-        ...new Array((extensionWords + 1) /* RTP oriented extension words */ * 4).fill(0), // Padding
+        ...new Array((extensionWords + 1) * 4 - EXT_WORDS_INDICATOR_SIZE).fill(0), // Padding
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -423,11 +423,11 @@ describe('DataTrackPacket', () => {
         ...VALID_PACKET_BYTES,
 
         0, // RTP oriented extension words (big endian)
-        3,
+        4,
 
         // E2ee extension
         1, // ID 1
-        12, // Length 12
+        13, // Length 13
         0xfa, // Key index
         0x3c, // Iv array
         0x3c,
@@ -443,6 +443,8 @@ describe('DataTrackPacket', () => {
         0x3c,
 
         0, // Padding
+        0,
+        0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -465,7 +467,7 @@ describe('DataTrackPacket', () => {
 
         // User timestamp extension
         2, // ID 2
-        7, // Length 7
+        8, // Length 8
         0x44, // Timestamp (big endian)
         0x11,
         0x22,
@@ -474,9 +476,6 @@ describe('DataTrackPacket', () => {
         0x11,
         0x88,
         0x11,
-
-        0, // Padding
-        0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 
@@ -505,10 +504,8 @@ describe('DataTrackPacket', () => {
         0x4,
         0x5,
         0x6,
-        0x0,
 
         0x0, // Padding
-        0x0,
         0x0,
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
@@ -525,12 +522,10 @@ describe('DataTrackPacket', () => {
       const packetBytes = new Uint8Array([
         ...VALID_PACKET_BYTES,
 
-        0, // RTP oriented extension words (big endian)
+        0, // RTP oriented extension words (big endian, data_budget = 2)
         0,
 
-        0x0, // Padding, missing one byte
-        0x0,
-        0x0,
+        0x0, // Only 1 byte, but 2 needed
       ]);
       packetBytes[0] |= 1 << EXT_FLAG_SHIFT; // Extension flag
 

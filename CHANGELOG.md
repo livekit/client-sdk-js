@@ -1,5 +1,37 @@
 # Change Log
 
+## 2.18.7
+
+### Patch Changes
+
+- Pass optional LocalTrack reference to processors - [#1916](https://github.com/livekit/client-sdk-js/pull/1916) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure priority isn't set on all simulcast layers when using Firefox on iOS - [#1920](https://github.com/livekit/client-sdk-js/pull/1920) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.6
+
+### Patch Changes
+
+- Fix data tracks extension encoding - [#1913](https://github.com/livekit/client-sdk-js/pull/1913) ([@ladvoc](https://github.com/ladvoc))
+
+## 2.18.5
+
+### Patch Changes
+
+- Defer `onEnterPiP` visibility update until after the next microtask and animation frame so Document Picture-in-Picture embedders can append DOM into the PiP window before `isElementInPiP` runs. - [#1868](https://github.com/livekit/client-sdk-js/pull/1868) ([@gparant](https://github.com/gparant))
+
+- Differentiate different 404 responses on validate path - [#1901](https://github.com/livekit/client-sdk-js/pull/1901) ([@lukasIO](https://github.com/lukasIO))
+
+- await screen share audio unpublish before returning setEnabled - [#1899](https://github.com/livekit/client-sdk-js/pull/1899) ([@lukasIO](https://github.com/lukasIO))
+
+- Avoid attaching a new Closing event listener for each waitForBufferStatusLow call - [#1896](https://github.com/livekit/client-sdk-js/pull/1896) ([@1egoman](https://github.com/1egoman))
+
+- Re-compute encoding params after track replace - [#1902](https://github.com/livekit/client-sdk-js/pull/1902) ([@lukasIO](https://github.com/lukasIO))
+
+- Harden extension id computation and retry publishing on negotiation failure - [#1895](https://github.com/livekit/client-sdk-js/pull/1895) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure udpated tokens get set on the regionUrlProvider - [#1900](https://github.com/livekit/client-sdk-js/pull/1900) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.4
 
 ### Patch Changes
