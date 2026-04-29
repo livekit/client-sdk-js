@@ -251,8 +251,8 @@ describe('PCTransportManager.negotiate', () => {
     });
   });
 
-  // Regression test for the field hang on Windows 11 with slow Camera Frame
-  // Server. With the old design, NegotiationStarted firing faster than
+  // Regression test for publishing call getting stuck
+  // With the old design, NegotiationStarted firing faster than
   // peerConnectionTimeout kept resetting the timer indefinitely while
   // NegotiationComplete was suppressed by an unconverging `renegotiate` cycle,
   // wedging the publishTrack Promise. The offerId-checkpoint design resolves
