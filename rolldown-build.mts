@@ -11,7 +11,7 @@ export function kebabCaseToPascalCase(string = '') {
 const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   rolldown({
     transform: {
-      target: 'ES2017',
+      target: ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'],
     },
     input: 'src/index.ts',
     plugins: [],
