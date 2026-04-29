@@ -1,5 +1,6 @@
 import type { LogLevel } from '../logger';
 import type { PacketTrailerFramePayload } from '../packetTrailer/packetTrailer';
+import type { PacketTrailerPublishOptions } from '../packetTrailer/types';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
@@ -58,6 +59,10 @@ export interface EncodeMessage extends BaseMessage {
      * entirely on decode.
      */
     hasPacketTrailer?: boolean;
+    /**
+     * Packet trailer metadata to append on published video frames.
+     */
+    packetTrailer?: PacketTrailerPublishOptions;
   };
 }
 
@@ -240,4 +245,8 @@ export type ScriptTransformOptions = {
    * entirely on decode.
    */
   hasPacketTrailer?: boolean;
+  /**
+   * Packet trailer metadata to append on published video frames.
+   */
+  packetTrailer?: PacketTrailerPublishOptions;
 };

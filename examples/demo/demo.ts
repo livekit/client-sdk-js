@@ -86,6 +86,27 @@ function updateSearchParams(url: string, token: string, key: string) {
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
+function syncPacketTrailerFeatureControls() {
+  const enabled = (<HTMLInputElement>$('packet-trailer')).checked;
+  const featureControls = $('packet-trailer-features');
+  const timestamp = <HTMLInputElement>$('packet-trailer-timestamp');
+  const frameId = <HTMLInputElement>$('packet-trailer-frame-id');
+
+  featureControls.style.display = enabled ? 'block' : 'none';
+  timestamp.disabled = !enabled;
+  frameId.disabled = !enabled;
+  if (!enabled) {
+    timestamp.checked = false;
+    frameId.checked = false;
+  }
+}
+
+(<HTMLInputElement>$('packet-trailer')).addEventListener(
+  'change',
+  syncPacketTrailerFeatureControls,
+);
+syncPacketTrailerFeatureControls();
+
 // handles actions from the HTML
 const appActions = {
   sendFile: async () => {
@@ -111,6 +132,10 @@ const appActions = {
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const packetTrailerEnabled = (<HTMLInputElement>$('packet-trailer')).checked;
+    const packetTrailerTimestamp =
+      packetTrailerEnabled && (<HTMLInputElement>$('packet-trailer-timestamp')).checked;
+    const packetTrailerFrameId =
+      packetTrailerEnabled && (<HTMLInputElement>$('packet-trailer-frame-id')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
@@ -135,6 +160,10 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
+        packetTrailer:
+          packetTrailerTimestamp || packetTrailerFrameId
+            ? { timestamp: packetTrailerTimestamp, frameId: packetTrailerFrameId }
+            : undefined,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,

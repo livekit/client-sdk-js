@@ -1,5 +1,6 @@
+import { PacketTrailerFeature } from '@livekit/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isPacketTrailerSupported } from './utils';
+import { getPacketTrailerFeatures, isPacketTrailerSupported } from './utils';
 
 describe('packet trailer support', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -63,5 +64,21 @@ describe('packet trailer support', () => {
     );
 
     expect(isPacketTrailerSupported({ worker: {} as Worker })).toBe(false);
+  });
+});
+
+describe('packet trailer publish features', () => {
+  it('maps publish options to protocol features', () => {
+    expect(getPacketTrailerFeatures({ timestamp: true, frameId: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_TIMESTAMP,
+      PacketTrailerFeature.PTF_FRAME_ID,
+    ]);
+    expect(getPacketTrailerFeatures({ timestamp: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_TIMESTAMP,
+    ]);
+    expect(getPacketTrailerFeatures({ frameId: true })).toEqual([
+      PacketTrailerFeature.PTF_FRAME_ID,
+    ]);
+    expect(getPacketTrailerFeatures()).toEqual([]);
   });
 });

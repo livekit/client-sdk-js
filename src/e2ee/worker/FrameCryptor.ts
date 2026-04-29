@@ -2,7 +2,12 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
-import { processPacketTrailer } from '../../packetTrailer/packetTrailer';
+import {
+  appendPacketTrailerToEncodedFrame,
+  hasPacketTrailerPublishOptions,
+  processPacketTrailer,
+} from '../../packetTrailer/packetTrailer';
+import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
@@ -83,6 +88,10 @@ export class FrameCryptor extends BaseFrameCryptor {
    * on decode to avoid unnecessary work on tracks that don't use it.
    */
   private hasPacketTrailer: boolean = false;
+
+  private packetTrailer?: PacketTrailerPublishOptions;
+
+  private packetTrailerFrameId = 0;
 
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
@@ -200,6 +209,11 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.hasPacketTrailer = hasPacketTrailer;
   }
 
+  setPacketTrailer(packetTrailer?: PacketTrailerPublishOptions) {
+    this.packetTrailer = packetTrailer;
+    this.packetTrailerFrameId = 0;
+  }
+
   setupTransform(
     operation: 'encode' | 'decode',
     readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
@@ -207,10 +221,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     trackId: string,
     isReuse: boolean,
     codec?: VideoCodec,
+    packetTrailer?: PacketTrailerPublishOptions,
   ) {
     if (codec) {
       workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
+    }
+    if (operation === 'encode') {
+      this.setPacketTrailer(packetTrailer);
     }
 
     workerLogger.debug('Setting up frame cryptor transform', {
@@ -375,11 +393,13 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    if (
-      !this.isEnabled() ||
-      // skip for encryption for empty dtx frames
-      encodedFrame.data.byteLength === 0
-    ) {
+    // skip for encryption and packet trailer writes for empty dtx frames
+    if (encodedFrame.data.byteLength === 0) {
+      return controller.enqueue(encodedFrame);
+    }
+
+    if (!this.isEnabled()) {
+      this.appendPacketTrailer(encodedFrame);
       return controller.enqueue(encodedFrame);
     }
     const keySet = this.keys.getKeySet();
@@ -448,6 +468,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         newData.set(newDataWithoutHeader, frameHeader.byteLength);
 
         encodedFrame.data = newData.buffer;
+        this.appendPacketTrailer(encodedFrame);
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -464,6 +485,18 @@ export class FrameCryptor extends BaseFrameCryptor {
         ),
       );
     }
+  }
+
+  private appendPacketTrailer(encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame) {
+    if (!hasPacketTrailerPublishOptions(this.packetTrailer) || !isVideoFrame(encodedFrame)) {
+      return;
+    }
+
+    if (this.packetTrailer?.frameId) {
+      this.packetTrailerFrameId =
+        this.packetTrailerFrameId === 0xffffffff ? 1 : this.packetTrailerFrameId + 1;
+    }
+    appendPacketTrailerToEncodedFrame(encodedFrame, this.packetTrailer, this.packetTrailerFrameId);
   }
 
   /**

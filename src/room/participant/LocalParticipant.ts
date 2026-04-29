@@ -9,6 +9,7 @@ import {
   DataPacket_Kind,
   Encryption_Type,
   JoinResponse,
+  PacketTrailerFeature,
   ParticipantInfo,
   RequestResponse,
   RequestResponse_Reason,
@@ -25,6 +26,8 @@ import {
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
+import { hasPacketTrailerPublishOptions } from '../../packetTrailer/packetTrailer';
+import { getPacketTrailerFeatures, isPacketTrailerSupported } from '../../packetTrailer/utils';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -1112,6 +1115,7 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
     const audioFeatures: AudioTrackFeature[] = [];
+    let packetTrailerFeatures: PacketTrailerFeature[] = [];
     const disableDtx = !(opts.dtx ?? true);
 
     const settings = track.getSourceTrackSettings();
@@ -1134,6 +1138,19 @@ export default class LocalParticipant extends Participant {
     if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
       audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
     }
+    if (track.kind === Track.Kind.Video && hasPacketTrailerPublishOptions(opts.packetTrailer)) {
+      if (this.canPublishPacketTrailer()) {
+        packetTrailerFeatures = getPacketTrailerFeatures(opts.packetTrailer);
+      } else {
+        this.log.warn('packet trailer transform not supported; not advertising features', {
+          ...this.logContext,
+          ...getLogContextFromTrack(track),
+        });
+        opts.packetTrailer = undefined;
+      }
+    } else if (track.kind !== Track.Kind.Video) {
+      opts.packetTrailer = undefined;
+    }
 
     // create track publication from track
     const req = new AddTrackRequest({
@@ -1150,6 +1167,7 @@ export default class LocalParticipant extends Participant {
       stream: opts?.stream,
       backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
       audioFeatures,
+      packetTrailerFeatures,
     });
 
     // compute encodings and layers for video
@@ -1266,6 +1284,9 @@ export default class LocalParticipant extends Participant {
       }
 
       track.sender = await this.engine.createSender(track, opts, encodings);
+      if (isLocalVideoTrack(track)) {
+        track.publishOptions = opts;
+      }
       this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
@@ -1483,6 +1504,14 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
+  private canPublishPacketTrailer() {
+    return !!(
+      this.roomOptions.e2ee ||
+      this.roomOptions.encryption ||
+      isPacketTrailerSupported(this.roomOptions.packetTrailer)
+    );
+  }
+
   override get isLocal(): boolean {
     return true;
   }
@@ -1544,6 +1573,9 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       sid: track.sid,
+      packetTrailerFeatures: this.canPublishPacketTrailer()
+        ? getPacketTrailerFeatures(opts.packetTrailer)
+        : [],
       simulcastCodecs: [
         {
           codec: opts.videoCodec,

@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { appendPacketTrailer, extractPacketTrailer, processPacketTrailer } from './packetTrailer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  appendPacketTrailer,
+  appendPacketTrailerToEncodedFrame,
+  extractPacketTrailer,
+  processPacketTrailer,
+} from './packetTrailer';
 
 describe('packetTrailer', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('extracts user timestamp and frame id from packet trailer', () => {
     const payload = Uint8Array.from([1, 2, 3, 4]);
     const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456n, 42);
@@ -75,5 +84,63 @@ describe('packetTrailer', () => {
         frameId: 42,
       },
     });
+  });
+
+  it('appends timestamp-only packet trailer to encoded frames', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-04-10T12:00:00.123Z'));
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    appendPacketTrailerToEncodedFrame(frame, { timestamp: true }, 0);
+    const extracted = extractPacketTrailer(frame.data);
+
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(extracted.metadata).toEqual({
+      userTimestamp: BigInt(Date.now()) * BigInt(1000),
+      frameId: 0,
+    });
+  });
+
+  it('appends frame-id-only packet trailer to encoded frames', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const firstFrame = { data: payload.buffer.slice(0) } as RTCEncodedVideoFrame;
+    const secondFrame = { data: payload.buffer.slice(0) } as RTCEncodedVideoFrame;
+
+    appendPacketTrailerToEncodedFrame(firstFrame, { frameId: true }, 1);
+    appendPacketTrailerToEncodedFrame(secondFrame, { frameId: true }, 2);
+
+    expect(extractPacketTrailer(firstFrame.data).metadata).toEqual({
+      userTimestamp: 0n,
+      frameId: 1,
+    });
+    expect(extractPacketTrailer(secondFrame.data).metadata).toEqual({
+      userTimestamp: 0n,
+      frameId: 2,
+    });
+  });
+
+  it('appends both timestamp and frame id to encoded frames', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-04-10T12:00:00.123Z'));
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    appendPacketTrailerToEncodedFrame(frame, { timestamp: true, frameId: true }, 7);
+
+    expect(extractPacketTrailer(frame.data).metadata).toEqual({
+      userTimestamp: BigInt(Date.now()) * BigInt(1000),
+      frameId: 7,
+    });
+  });
+
+  it('passes encoded frames through when no write features are enabled', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    const changed = appendPacketTrailerToEncodedFrame(frame, {}, 1);
+
+    expect(changed).toBe(false);
+    expect(frame.data).toBe(payload.buffer);
   });
 });
