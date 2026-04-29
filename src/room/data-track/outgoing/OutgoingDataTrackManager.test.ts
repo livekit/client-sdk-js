@@ -718,6 +718,64 @@ describe('DataTrackOutgoingManager', () => {
     expect(flushed).toStrictEqual(true);
   });
 
+  it('should resolve any pending flush() calls when the manager is reset', async () => {
+    const pubHandle = 5;
+    const manager = OutgoingDataTrackManager.withDescriptors(
+      new Map([
+        [
+          DataTrackHandle.fromNumber(pubHandle),
+          Descriptor.active(
+            {
+              sid: 'bogus-sid',
+              pubHandle,
+              name: 'test',
+              usesE2ee: false,
+            },
+            null,
+          ),
+        ],
+      ]),
+    );
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'packetAvailable',
+      'packetsFlushed',
+      'reset',
+    ]);
+    const localDataTrack = LocalDataTrack.withExplicitHandle(
+      { name: 'track name' },
+      manager,
+      pubHandle,
+    );
+
+    // 1. Push a single-packet payload
+    await localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
+    await managerEvents.waitFor('packetAvailable');
+
+    // 2. Call flush() before the in-flight packet is acknowledged -- it should remain
+    // pending because the in-flight counter is still > 0
+    let flushed = false;
+    const flushPromise = localDataTrack.flush().then(() => {
+      flushed = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(flushed).toStrictEqual(false);
+    expect(managerEvents.areThereBufferedEvents('packetsFlushed')).toBe(false);
+
+    // 3. Reset the manager. This simulates a RTCEngine disconnect and should resolve
+    // the pending flush() even though the packet was never acknowledged.
+    await manager.reset();
+    await managerEvents.waitFor('reset');
+
+    // 4. The flush() promise resolves
+    await flushPromise;
+    expect(flushed).toStrictEqual(true);
+
+    // 5. No packetsFlushed event was emitted -- reset short-circuits the flush directly
+    // on the LocalDataTrack rather than going through the in-flight counter.
+    expect(managerEvents.areThereBufferedEvents('packetsFlushed')).toBe(false);
+  });
+
   it('should resolve flush() at the end of a batch of tryPush calls once all packets are acknowledged', async () => {
     const pubHandle = 5;
     const manager = OutgoingDataTrackManager.withDescriptors(
