@@ -1,9 +1,9 @@
 import * as loglevel from 'loglevel';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  type LogExtension,
   LogLevel,
   LoggerNames,
-  type LogExtension,
   type StructuredLogger,
   formatDisplayContext,
   getLogger,
