@@ -38,7 +38,23 @@ class StubPC {
 }
 
 class FakePublisher extends EventEmitter {
+  latestOfferId = 0;
+
+  latestAcknowledgedOfferId = 0;
+
   negotiate = vi.fn(async (_onError?: (e: Error) => void) => {});
+
+  /** Simulate a publisher offer cycle: bump latestOfferId. */
+  startOffer() {
+    this.latestOfferId += 1;
+    return this.latestOfferId;
+  }
+
+  /** Simulate a successful answer for the given offerId. */
+  answer(offerId: number) {
+    this.latestAcknowledgedOfferId = offerId;
+    this.emit(PCEvents.OfferAnswered, offerId);
+  }
 }
 
 describe('PCTransportManager.negotiate', () => {
@@ -58,22 +74,106 @@ describe('PCTransportManager.negotiate', () => {
   function makeManager() {
     const manager = new PCTransportManager('publisher-only', {});
     const fake = new FakePublisher();
-    // swap in the fake publisher so we control the event surface and avoid
-    // exercising any real PeerConnection plumbing
     (manager as unknown as { publisher: FakePublisher }).publisher = fake;
     manager.peerConnectionTimeout = 200;
     return { manager, pub: fake };
   }
 
-  it('resolves when NegotiationComplete fires', async () => {
+  it('resolves when an offer past the checkpoint is answered', async () => {
     const { manager, pub } = makeManager();
-    const ac = new AbortController();
-    const p = manager.negotiate(ac);
-    setTimeout(() => pub.emit(PCEvents.NegotiationComplete), 10);
+    const p = manager.negotiate(new AbortController());
+    setTimeout(() => {
+      const id = pub.startOffer();
+      pub.answer(id);
+    }, 10);
     await expect(p).resolves.toBeUndefined();
   });
 
-  it('rejects when the initial timeout elapses', async () => {
+  it('does not resolve on answers for offers at or before the checkpoint', async () => {
+    const { manager, pub } = makeManager();
+    // Some prior cycle is in flight with id=5 at the moment we capture our
+    // checkpoint. Its answer must NOT satisfy our request — our changes
+    // weren't in offer 5.
+    pub.latestOfferId = 5;
+    const ac = new AbortController();
+    const p = manager.negotiate(ac);
+
+    let settled = false;
+    p.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    pub.answer(5);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(settled).toBe(false);
+
+    ac.abort();
+    await expect(p).rejects.toThrow(/aborted/);
+  });
+
+  it('resolves through the renegotiate-recursion path', async () => {
+    // Reproduces the field shape: we capture checkpoint=N while an offer N is
+    // in flight. The answer for N arrives (renegotiate=true on the publisher,
+    // so it doesn't satisfy us), then a follow-up offer N+1 is created and
+    // answered. We resolve on the second answer.
+    const { manager, pub } = makeManager();
+    pub.latestOfferId = 1;
+    const p = manager.negotiate(new AbortController());
+
+    setTimeout(() => pub.answer(1), 10); // does not satisfy checkpoint=1
+    setTimeout(() => {
+      const id = pub.startOffer(); // 2
+      pub.answer(id);
+    }, 30);
+
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it('resolves immediately when an answer past the checkpoint already arrived', async () => {
+    const { manager, pub } = makeManager();
+    pub.latestOfferId = 3;
+    pub.latestAcknowledgedOfferId = 4;
+    await expect(manager.negotiate(new AbortController())).resolves.toBeUndefined();
+  });
+
+  it('resolves concurrent callers independently at their own checkpoints', async () => {
+    const { manager, pub } = makeManager();
+
+    // A captures checkpoint=0
+    const a = manager.negotiate(new AbortController());
+    let aResolved = false;
+    a.then(() => {
+      aResolved = true;
+    });
+
+    // First cycle starts and answers — A is satisfied (1 > 0)
+    const id1 = pub.startOffer();
+
+    // B captures checkpoint=1 (an offer is now in flight)
+    const b = manager.negotiate(new AbortController());
+    let bResolved = false;
+    b.then(() => {
+      bResolved = true;
+    });
+
+    pub.answer(id1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(aResolved).toBe(true);
+    expect(bResolved).toBe(false);
+
+    // B should resolve only on the next cycle
+    const id2 = pub.startOffer();
+    pub.answer(id2);
+    await b;
+    expect(bResolved).toBe(true);
+  });
+
+  it('rejects when the deadline elapses', async () => {
     const { manager } = makeManager();
     await expect(manager.negotiate(new AbortController())).rejects.toThrow(/timed out/);
   });
@@ -93,89 +193,90 @@ describe('PCTransportManager.negotiate', () => {
     await expect(manager.negotiate(new AbortController())).rejects.toThrow(/publisher boom/);
   });
 
-  it('removes all listeners after NegotiationComplete resolves the promise', async () => {
-    const { manager, pub } = makeManager();
-    const p = manager.negotiate(new AbortController());
-    pub.emit(PCEvents.NegotiationComplete);
-    await p;
-    expect(pub.listenerCount(PCEvents.NegotiationStarted)).toBe(0);
-    expect(pub.listenerCount(PCEvents.NegotiationComplete)).toBe(0);
-  });
-
-  // BUG: the initial setTimeout at PCTransportManager.ts:232-234 rejects without
-  // calling cleanup(), so the NegotiationStarted handler, the abort handler,
-  // and the once(NegotiationComplete) handler all leak after the first timeout.
-  it('removes all listeners after the initial timeout rejects', async () => {
-    const { manager, pub } = makeManager();
-    await expect(manager.negotiate(new AbortController())).rejects.toThrow(/timed out/);
-    expect(pub.listenerCount(PCEvents.NegotiationStarted)).toBe(0);
-    expect(pub.listenerCount(PCEvents.NegotiationComplete)).toBe(0);
-  });
-
-  // BUG: cleanup() at PCTransportManager.ts:236-240 never offs the
-  // once(NegotiationComplete) handler. After abort/cycle-reset timeout/
-  // publisher error, that listener accumulates over repeated negotiate() calls
-  // (matching the "11 negotiationComplete listeners added" warning seen in
-  // production sessions that hit this hang).
-  it('removes the NegotiationComplete listener after the cycle-reset timeout rejects', async () => {
-    const { manager, pub } = makeManager();
-    const p = manager.negotiate(new AbortController());
-    // switch onto the resettable timer path
-    pub.emit(PCEvents.NegotiationStarted);
-    await expect(p).rejects.toThrow(/timed out/);
-    expect(pub.listenerCount(PCEvents.NegotiationComplete)).toBe(0);
-  });
-
-  it('removes the NegotiationComplete listener after abort rejects', async () => {
-    const { manager, pub } = makeManager();
-    const ac = new AbortController();
-    const p = manager.negotiate(ac);
-    setTimeout(() => ac.abort(), 10);
-    await expect(p).rejects.toThrow(/aborted/);
-    expect(pub.listenerCount(PCEvents.NegotiationComplete)).toBe(0);
-  });
-
-  it('removes the NegotiationComplete listener after publisher.negotiate errors', async () => {
-    const { manager, pub } = makeManager();
-    pub.negotiate.mockImplementationOnce(async (onError?: (e: Error) => void) => {
-      onError?.(new Error('publisher boom'));
+  describe('listener cleanup', () => {
+    it('after success', async () => {
+      const { manager, pub } = makeManager();
+      const p = manager.negotiate(new AbortController());
+      const id = pub.startOffer();
+      pub.answer(id);
+      await p;
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
     });
-    await expect(manager.negotiate(new AbortController())).rejects.toThrow(/publisher boom/);
-    expect(pub.listenerCount(PCEvents.NegotiationComplete)).toBe(0);
+
+    it('after non-matching answer (still pending), then abort', async () => {
+      const { manager, pub } = makeManager();
+      pub.latestOfferId = 5;
+      const ac = new AbortController();
+      const p = manager.negotiate(ac);
+      pub.answer(5); // does not satisfy checkpoint=5
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(1);
+      ac.abort();
+      await expect(p).rejects.toThrow(/aborted/);
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
+
+    it('after deadline', async () => {
+      const { manager, pub } = makeManager();
+      await expect(manager.negotiate(new AbortController())).rejects.toThrow(/timed out/);
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
+
+    it('after abort', async () => {
+      const { manager, pub } = makeManager();
+      const ac = new AbortController();
+      const p = manager.negotiate(ac);
+      setTimeout(() => ac.abort(), 10);
+      await expect(p).rejects.toThrow(/aborted/);
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
+
+    it('after publisher.negotiate errors', async () => {
+      const { manager, pub } = makeManager();
+      pub.negotiate.mockImplementationOnce(async (onError?: (e: Error) => void) => {
+        onError?.(new Error('publisher boom'));
+      });
+      await expect(manager.negotiate(new AbortController())).rejects.toThrow(/publisher boom/);
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
+
+    it('does not leak across many sequential negotiate() calls', async () => {
+      const { manager, pub } = makeManager();
+      for (let i = 0; i < 12; i += 1) {
+        const p = manager.negotiate(new AbortController());
+        const id = pub.startOffer();
+        pub.answer(id);
+        await p;
+      }
+      expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
   });
 
-  // ROOT-CAUSE TEST: reproduces the field hang reported on Windows 11 with a
-  // slow Camera Frame Server. Every NegotiationStarted resets the timer
-  // (PCTransportManager.ts:252-261, introduced in PR #1813). If something keeps
-  // emitting NegotiationStarted faster than peerConnectionTimeout — e.g.
-  // ensureDataTransportConnected calling publisher.negotiate() while ICE isn't
-  // up, or repeated server-driven MediaSectionsRequirement updates — the
-  // outer Promise neither resolves nor rejects. publishTrack's
-  // Promise.all([addTrackPromise, negotiate()]) is then wedged forever even
-  // though the underlying PC has already finished offer/answer. The fix is to
-  // bound the resettable cycle with a non-resettable max deadline.
-  it('does not hang when NegotiationStarted keeps resetting the timer', async () => {
+  // Regression test for the field hang on Windows 11 with slow Camera Frame
+  // Server. With the old design, NegotiationStarted firing faster than
+  // peerConnectionTimeout kept resetting the timer indefinitely while
+  // NegotiationComplete was suppressed by an unconverging `renegotiate` cycle,
+  // wedging the publishTrack Promise. The offerId-checkpoint design resolves
+  // on the first answer past the checkpoint, regardless of how many cycles
+  // start in between.
+  it('does not hang when many spurious cycles start without converging on the checkpoint', async () => {
     const { manager, pub } = makeManager();
-    manager.peerConnectionTimeout = 100;
-    const ac = new AbortController();
-    const p = manager.negotiate(ac);
-    // swallow whichever way it eventually settles (or doesn't)
-    p.catch(() => {});
+    manager.peerConnectionTimeout = 1500;
+    pub.latestOfferId = 1; // an unrelated cycle is in flight
+    const p = manager.negotiate(new AbortController());
 
-    const interval = setInterval(() => pub.emit(PCEvents.NegotiationStarted), 30);
+    // Lots of NegotiationStarted noise (not listened to anymore) and a few
+    // answers that don't satisfy the checkpoint.
+    const noise = setInterval(() => pub.emit(PCEvents.NegotiationStarted), 30);
+    setTimeout(() => pub.answer(1), 50); // doesn't satisfy
+    setTimeout(() => {
+      const id = pub.startOffer(); // 2
+      pub.answer(id);
+    }, 200);
 
     try {
-      const settled = await Promise.race([
-        p.then(
-          () => 'resolved' as const,
-          () => 'rejected' as const,
-        ),
-        new Promise<'hung'>((res) => setTimeout(() => res('hung'), 1500)),
-      ]);
-      expect(settled, 'negotiate() never settled — timer keeps resetting').not.toBe('hung');
+      await expect(p).resolves.toBeUndefined();
     } finally {
-      clearInterval(interval);
-      ac.abort();
+      clearInterval(noise);
     }
   });
 });
