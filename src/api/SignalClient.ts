@@ -1184,6 +1184,12 @@ function createConnectionParams(
   if (info.browserVersion) {
     params.set('browser_version', info.browserVersion);
   }
+  if (info.capabilities.length > 0) {
+    params.set(
+      'capabilities',
+      info.capabilities.map((capability) => ClientInfo_Capability[capability]).join(','),
+    );
+  }
 
   if (opts.adaptiveStream) {
     params.set('adaptive_stream', '1');

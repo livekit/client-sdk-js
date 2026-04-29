@@ -205,6 +205,34 @@ describe('SignalClient.connect', () => {
         ClientInfo_Capability.CAP_PACKET_TRAILER,
       ]);
     });
+
+    it('advertises packet trailer capability on the v0 URL path when provided', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        {
+          ...defaultOptions,
+          clientInfoCapabilities: [ClientInfo_Capability.CAP_PACKET_TRAILER],
+        },
+        undefined,
+        true,
+      );
+
+      expect(new URL(capturedUrl).searchParams.get('capabilities')).toBe('CAP_PACKET_TRAILER');
+    });
   });
 
   describe('Happy Path - Reconnect', () => {
