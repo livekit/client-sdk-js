@@ -24,6 +24,7 @@ export interface PTDecodeMessage extends PTBaseMessage {
     readableStream: ReadableStream;
     writableStream: WritableStream;
     trackId: string;
+    hasPacketTrailer: boolean;
   };
 }
 
@@ -42,6 +43,7 @@ export interface PTUpdateTrackIdMessage extends PTBaseMessage {
   data: {
     oldTrackId: string;
     newTrackId: string;
+    hasPacketTrailer: boolean;
   };
 }
 

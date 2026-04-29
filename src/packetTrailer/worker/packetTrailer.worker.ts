@@ -8,6 +8,7 @@ import type { PTMetadataMessage, PTScriptTransformOptions, PTWorkerMessage } fro
  */
 interface PipelineState {
   trackId: string;
+  hasPacketTrailer: boolean;
 }
 
 const pipelines = new Map<string, PipelineState>();
@@ -21,11 +22,16 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
       break;
 
     case 'decode':
-      setupDecodeTransform(msg.data.readableStream, msg.data.writableStream, msg.data.trackId);
+      setupDecodeTransform(
+        msg.data.readableStream,
+        msg.data.writableStream,
+        msg.data.trackId,
+        msg.data.hasPacketTrailer,
+      );
       break;
 
     case 'updateTrackId':
-      updateTrackId(msg.data.oldTrackId, msg.data.newTrackId);
+      updateTrackId(msg.data.oldTrackId, msg.data.newTrackId, msg.data.hasPacketTrailer);
       break;
 
     default:
@@ -33,8 +39,13 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
   }
 };
 
-function setupDecodeTransform(readable: ReadableStream, writable: WritableStream, trackId: string) {
-  const state: PipelineState = { trackId };
+function setupDecodeTransform(
+  readable: ReadableStream,
+  writable: WritableStream,
+  trackId: string,
+  hasPacketTrailer: boolean,
+) {
+  const state: PipelineState = { trackId, hasPacketTrailer };
   pipelines.set(trackId, state);
 
   const transform = new TransformStream({
@@ -43,13 +54,15 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
       controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
     ) {
       try {
-        const result = processPacketTrailer(frame, state.trackId);
-        if (result.data) {
-          frame.data = result.data;
-        }
-        if (result.payload) {
-          const msg: PTMetadataMessage = { kind: 'metadata', data: result.payload };
-          postMessage(msg);
+        if (state.hasPacketTrailer) {
+          const result = processPacketTrailer(frame, state.trackId);
+          if (result.data) {
+            frame.data = result.data;
+          }
+          if (result.payload) {
+            const msg: PTMetadataMessage = { kind: 'metadata', data: result.payload };
+            postMessage(msg);
+          }
         }
       } catch {
         // Never drop frames on trailer-extraction failure — pass through so
@@ -67,10 +80,11 @@ function setupDecodeTransform(readable: ReadableStream, writable: WritableStream
     });
 }
 
-function updateTrackId(oldTrackId: string, newTrackId: string) {
+function updateTrackId(oldTrackId: string, newTrackId: string, hasPacketTrailer: boolean) {
   const state = pipelines.get(oldTrackId);
   if (state) {
     state.trackId = newTrackId;
+    state.hasPacketTrailer = hasPacketTrailer;
     pipelines.delete(oldTrackId);
     pipelines.set(newTrackId, state);
   }
@@ -84,6 +98,6 @@ if (self.RTCTransformEvent) {
     // @ts-ignore
     const transformer = event.transformer;
     const { trackId } = transformer.options as PTScriptTransformOptions;
-    setupDecodeTransform(transformer.readable, transformer.writable, trackId);
+    setupDecodeTransform(transformer.readable, transformer.writable, trackId, true);
   };
 }

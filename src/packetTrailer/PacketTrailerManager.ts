@@ -93,6 +93,9 @@ export class PacketTrailerManager {
     const hasFeatures =
       !!trackInfo?.packetTrailerFeatures && trackInfo.packetTrailerFeatures.length > 0;
     if (!hasFeatures) {
+      if (!this.room?.hasE2EESetup) {
+        this.setupPassthroughReceiver(receiver, track.mediaStreamID);
+      }
       return;
     }
 
@@ -116,11 +119,41 @@ export class PacketTrailerManager {
       return;
     }
 
-    this.setupWorkerReceiver(receiver, trackId);
+    this.setupWorkerReceiver(receiver, trackId, true);
   }
 
-  private setupWorkerReceiver(receiver: RTCRtpReceiver, newTrackId: string) {
-    const worker = this.worker!;
+  private setupPassthroughReceiver(receiver: RTCRtpReceiver, trackId: string) {
+    if (shouldUsePacketTrailerScriptTransform()) {
+      if ('transform' in receiver) {
+        // @ts-ignore
+        receiver.transform = null;
+      }
+      return;
+    }
+
+    if (
+      this.worker &&
+      isPacketTrailerSupported({ worker: this.worker }) &&
+      !this.workerPipelines.has(receiver)
+    ) {
+      this.setupWorkerReceiver(receiver, trackId, false);
+      return;
+    }
+
+    if (this.worker && this.workerPipelines.has(receiver)) {
+      this.setupWorkerReceiver(receiver, trackId, false);
+    }
+  }
+
+  private setupWorkerReceiver(
+    receiver: RTCRtpReceiver,
+    newTrackId: string,
+    hasPacketTrailer = true,
+  ) {
+    const worker = this.worker;
+    if (!worker) {
+      return;
+    }
 
     if (shouldUsePacketTrailerScriptTransform()) {
       // @ts-ignore
@@ -139,7 +172,7 @@ export class PacketTrailerManager {
       // correctly and re-activate processing.
       const msg: PTUpdateTrackIdMessage = {
         kind: 'updateTrackId',
-        data: { oldTrackId: existingTrackId, newTrackId },
+        data: { oldTrackId: existingTrackId, newTrackId, hasPacketTrailer },
       };
       worker.postMessage(msg);
       this.workerPipelines.set(receiver, newTrackId);
@@ -166,6 +199,7 @@ export class PacketTrailerManager {
         readableStream: streams.readable,
         writableStream: streams.writable,
         trackId: newTrackId,
+        hasPacketTrailer,
       },
     };
     worker.postMessage(msg, [streams.readable, streams.writable]);
