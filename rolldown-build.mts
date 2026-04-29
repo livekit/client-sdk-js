@@ -10,13 +10,22 @@ export function kebabCaseToPascalCase(string = '') {
 
 const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   rolldown({
+    transform: {
+      target: 'ES2017',
+    },
     input: 'src/index.ts',
     plugins: [],
   }),
   rolldown({
+    transform: {
+      target: 'ES2017',
+    },
     input: 'src/e2ee/worker/e2ee.worker.ts',
   }),
   rolldown({
+    transform: {
+      target: 'ES2017',
+    },
     input: 'src/index.ts',
     plugins: [
       dts({
@@ -28,6 +37,9 @@ const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
     ],
   }),
   rolldown({
+    transform: {
+      target: 'ES2017',
+    },
     input: 'src/e2ee/worker/e2ee.worker.ts',
     plugins: [
       dts({
