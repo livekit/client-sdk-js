@@ -293,7 +293,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on('packetAvailable', ({ handle, bytes }) => {
         this.engine
           .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
-          .then(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
+          .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
     this.disconnectLock = new Mutex();
