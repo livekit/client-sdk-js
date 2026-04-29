@@ -586,7 +586,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // Shut down the manager
-    const shutdownPromise = manager.shutdown();
+    const shutdownPromise = manager.reset();
 
     // The pending data track should be cancelled
     await expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError(

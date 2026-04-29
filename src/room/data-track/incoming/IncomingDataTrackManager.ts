@@ -626,8 +626,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Shutdown the manager, ending any subscriptions. */
-  shutdown() {
+  /** Resets the manager, ending any subscriptions, and getting it ready for the next room
+   * connection.  */
+  reset() {
     for (const descriptor of this.descriptors.values()) {
       this.emit('trackUnpublished', {
         sid: descriptor.info.sid,
@@ -643,5 +644,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
     }
     this.descriptors.clear();
+    this.subscriptionHandles.clear();
   }
 }

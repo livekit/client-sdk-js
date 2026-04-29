@@ -77,6 +77,9 @@ export type DataTrackOutgoingManagerCallbacks = {
   trackUnpublished: (event: EventTrackUnpublished) => void;
   /** A {@link LocalDataTrack} has had all of its in flight packets sent via the rtc data channel. */
   packetsFlushed: (event: EventPacketsFlushed) => void;
+  /** The manager has been reset and all state has been cleared in preparation for the next room
+   * connection. */
+  reset: () => void;
 };
 
 type OutgoingDataTrackManagerOptions = {
@@ -392,10 +395,13 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /**
-   * Shuts down the manager and all associated tracks.
+   * Reset's the state of the manager and all associated tracks. Run on room disconnect to get
+   * the manager ready for the next room connection.
    * @internal
    **/
-  async shutdown() {
+  async reset() {
+    this.handleAllocator.reset();
+
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
@@ -411,5 +417,9 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       }
     }
     this.descriptors.clear();
+
+    this.inFlightPacketCounter.clear();
+
+    this.emit('reset');
   }
 }

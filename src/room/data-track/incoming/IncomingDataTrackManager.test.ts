@@ -327,7 +327,7 @@ describe('DataTrackIncomingManager', () => {
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
 
       // 7. Make sure shutting down the manager doesn't throw errors
-      manager.shutdown();
+      manager.reset();
     });
 
     it('should NOT terminate the sfu subscription if the abortsignal is triggered on one of two active subscriptions', async () => {
@@ -675,7 +675,7 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // 4. Shutdown the manager, and make sure it doesn't throw
-      manager.shutdown();
+      manager.reset();
 
       // 5. Make sure the trackUnpublished event fires for the descriptor
       const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');

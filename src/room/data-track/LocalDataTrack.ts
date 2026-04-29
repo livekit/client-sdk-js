@@ -39,11 +39,23 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
     this.log = getLogger(LoggerNames.DataTracks);
 
-    this.manager.on('packetsFlushed', () => {
-      this.flushedFuture.resolve?.();
-      this.flushedFuture = new Future();
-    });
+    this.manager.on('packetsFlushed', this.handleManagerPacketsFlushed);
+    this.manager.on('reset', this.handleManagerReset);
   }
+
+  private handleManagerReset = () => {
+    // When the associated manager resets, mark any in flight flushes as complete
+    // There's nothing actionable a user can do to get these to complete so no
+    // error is being thrown.
+    this.handleManagerPacketsFlushed();
+
+    this.manager.off('packetsFlushed', this.handleManagerReset);
+    this.manager.off('reset', this.handleManagerReset);
+  };
+  private handleManagerPacketsFlushed = () => {
+    this.flushedFuture.resolve?.();
+    this.flushedFuture = new Future();
+  };
 
   /** @internal */
   static withExplicitHandle(
