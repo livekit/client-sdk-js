@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import log, { LoggerNames, getLogger } from '../logger';
 import TypedPromise from '../utils/TypedPromise';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -227,7 +228,9 @@ export class PCTransportManager {
     }
   }
 
-  async negotiate(abortController: AbortController) {
+  async negotiate(
+    abortController: AbortController,
+  ): Promise<Throws<void, NegotiationError | Error>> {
     return new TypedPromise<void, NegotiationError | Error>((resolve, reject) => {
       // Capture the publisher's latest offer id at request time. We are done
       // when an offer with a higher id has had its answer successfully

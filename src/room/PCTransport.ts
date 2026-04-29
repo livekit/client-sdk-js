@@ -1,7 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
 import { parse, write } from 'sdp-transform';
-import type { MediaDescription, SessionDescription } from 'sdp-transform';
+import type { MediaAttributes, MediaDescription, SessionDescription } from 'sdp-transform';
+import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
@@ -38,7 +39,7 @@ export const PCEvents = {
 } as const;
 
 /** @internal */
-export default class PCTransport extends EventEmitter {
+export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
   private get pc() {
@@ -752,3 +753,10 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
 function getMidString(mid: string | number) {
   return typeof mid === 'number' ? mid.toFixed(0) : mid;
 }
+
+type PCTransportEventCallbacks = {
+  negotiationStarted: () => void;
+  negotiationComplete: () => void;
+  offerAnswered: (offerId: number) => void;
+  rtpVideoPayloadTypes: (attributes: MediaAttributes['rtp']) => void;
+};
