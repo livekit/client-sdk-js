@@ -1,4 +1,3 @@
-import babel from '@rolldown/plugin-babel';
 import { rolldown } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import packageJson from './package.json' with { type: 'json' };
@@ -12,12 +11,7 @@ export function kebabCaseToPascalCase(string = '') {
 const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   rolldown({
     input: 'src/index.ts',
-    plugins: [
-      babel({
-        plugins: ['@babel/plugin-transform-object-rest-spread'],
-        presets: ['@babel/preset-env', '@babel/preset-typescript'],
-      }),
-    ],
+    plugins: [],
   }),
   rolldown({
     input: 'src/e2ee/worker/e2ee.worker.ts',
