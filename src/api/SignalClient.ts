@@ -3,6 +3,7 @@ import {
   AddTrackRequest,
   AudioTrackFeature,
   ClientInfo,
+  ClientInfo_Capability,
   ConnectionQualityUpdate,
   ConnectionSettings,
   DataTrackSubscriberHandles,
@@ -83,6 +84,7 @@ interface ConnectOpts extends SignalOptions {
 export interface SignalOptions {
   autoSubscribe: boolean;
   adaptiveStream?: boolean;
+  clientInfoCapabilities?: ClientInfo_Capability[];
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
@@ -323,7 +325,7 @@ export class SignalClient {
     this.connectOptions = opts;
     this.useV0SignalPath = useV0Path;
 
-    const clientInfo = getClientInfo();
+    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
     const params = useV0Path
       ? createConnectionParams(token, clientInfo, opts)
       : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);

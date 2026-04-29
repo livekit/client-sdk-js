@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   ChatMessage as ChatMessageModel,
+  ClientInfo_Capability,
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
@@ -43,6 +44,8 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
+import { isPacketTrailerSupported } from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
@@ -187,6 +190,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private packetTrailerManager: PacketTrailerManager | undefined;
+
   private e2eeStateMutex: Mutex = new Mutex();
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
@@ -304,6 +309,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
     );
+
+    this.setupPacketTrailer();
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -461,6 +468,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager?.setup(this);
       this.e2eeManager?.setupEngine(this.engine);
     }
+  }
+
+  private setupPacketTrailer() {
+    // The manager is always created so tracks that advertise packet trailer
+    // features can be wired up when the app passes a packet trailer worker.
+    this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
+    this.packetTrailerManager.setup(this);
   }
 
   private get logContext() {
@@ -915,6 +929,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
+        clientInfoCapabilities: isPacketTrailerSupported(roomOptions.packetTrailer)
+          ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
+          : undefined,
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,

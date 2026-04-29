@@ -23,6 +23,7 @@ import {
   ParticipantEvent,
   RemoteParticipant,
   RemoteTrackPublication,
+  RemoteVideoTrack,
   Room,
   RoomEvent,
   ScreenSharePresets,
@@ -40,7 +41,10 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+//@ts-ignore
+import PTWorker from '../../src/packetTrailer/worker/packetTrailer.worker?worker';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
+import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -106,6 +110,7 @@ const appActions = {
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
+    const packetTrailerEnabled = (<HTMLInputElement>$('packet-trailer')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
@@ -137,6 +142,7 @@ const appActions = {
       encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
+      packetTrailer: packetTrailerEnabled ? { worker: new PTWorker() } : undefined,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
@@ -243,6 +249,35 @@ const appActions = {
         appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
         renderScreenShare(room);
+        if (track instanceof RemoteVideoTrack) {
+          let lastLatencyUpdate = 0;
+          let latencyDisplay = '';
+          track.on(TrackEvent.TimeSyncUpdate, ({ rtpTimestamp }) => {
+            const meta = track.lookupFrameMetadata({ rtpTimestamp });
+            const overlayElm = document.getElementById(`pt-overlay-${participant.identity}`);
+            if (overlayElm && meta) {
+              let text = meta.frameId ? `Frame ID: ${meta.frameId}` : '';
+              if (meta.userTimestamp) {
+                const now = Date.now();
+                const receiveTime = new Date(now);
+                const publishTime = new Date(Number(meta.userTimestamp / 1000n));
+                if (now - lastLatencyUpdate >= 500) {
+                  lastLatencyUpdate = now;
+                  latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;
+                }
+                const fmt = (d: Date) => {
+                  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+                  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}:${pad(d.getMilliseconds(), 3)}`;
+                };
+                text +=
+                  `\nPublish:  ${fmt(publishTime)}` +
+                  `\nReceive:  ${fmt(receiveTime)}` +
+                  `\nLatency:  ${latencyDisplay}`;
+              }
+              overlayElm.textContent = text;
+            }
+          });
+        }
       })
       .on(RoomEvent.TrackUnsubscribed, (_, pub, participant) => {
         appendLog('unsubscribed from track', pub.trackSid);
@@ -850,6 +885,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div.innerHTML = `
       <video id="video-${identity}"></video>
       <audio id="audio-${identity}"></audio>
+      <div id="pt-overlay-${identity}" class="pt-overlay"></div>
       <div class="info-bar">
         <div id="name-${identity}" class="name">
         </div>
