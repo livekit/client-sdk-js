@@ -8,23 +8,25 @@ export function kebabCaseToPascalCase(string = '') {
   );
 }
 
+const target = ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'];
+
 const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   rolldown({
     transform: {
-      target: ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'],
+      target,
     },
     input: 'src/index.ts',
     plugins: [],
   }),
   rolldown({
     transform: {
-      target: 'ES2017',
+      target,
     },
     input: 'src/e2ee/worker/e2ee.worker.ts',
   }),
   rolldown({
     transform: {
-      target: 'ES2017',
+      target,
     },
     input: 'src/index.ts',
     plugins: [
@@ -38,7 +40,7 @@ const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   }),
   rolldown({
     transform: {
-      target: 'ES2017',
+      target,
     },
     input: 'src/e2ee/worker/e2ee.worker.ts',
     plugins: [
