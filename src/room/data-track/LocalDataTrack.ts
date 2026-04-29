@@ -52,6 +52,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
     this.manager.off('packetsFlushed', this.handleManagerReset);
     this.manager.off('reset', this.handleManagerReset);
   };
+
   private handleManagerPacketsFlushed = () => {
     this.flushedFuture.resolve?.();
     this.flushedFuture = new Future();
