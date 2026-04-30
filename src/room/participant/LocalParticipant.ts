@@ -290,7 +290,7 @@ export default class LocalParticipant extends Participant {
     if (this.reconnectFuture) {
       // @throws-transformer ignore - introduced due to adding Throws into Future, investigate this
       // further
-      this.reconnectFuture.promise.catch((e) => this.log.warn(e.message, this.logContext));
+      this.reconnectFuture.promise.catch((e) => this.log.warn(e.message));
       this.reconnectFuture?.reject?.(new Error('Got disconnected during reconnection attempt'));
       this.reconnectFuture = undefined;
     }
@@ -548,7 +548,7 @@ export default class LocalParticipant extends Participant {
     options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ) {
-    this.log.debug('setTrackEnabled', { ...this.logContext, source, enabled });
+    this.log.debug('setTrackEnabled', { source, enabled });
     if (this.republishPromise) {
       await this.republishPromise;
     }
@@ -561,10 +561,7 @@ export default class LocalParticipant extends Participant {
         if (this.pendingPublishing.has(source)) {
           const pendingTrack = await this.waitForPendingPublicationOfSource(source);
           if (!pendingTrack) {
-            this.log.info('waiting for pending publication promise timed out', {
-              ...this.logContext,
-              source,
-            });
+            this.log.info('waiting for pending publication promise timed out', { source });
           }
           await pendingTrack?.unmute();
           return pendingTrack;
@@ -612,9 +609,7 @@ export default class LocalParticipant extends Participant {
             isAudioTrack(localTrack) &&
             opts.preConnectBuffer
           ) {
-            this.log.info('starting preconnect buffer for microphone', {
-              ...this.logContext,
-            });
+            this.log.info('starting preconnect buffer for microphone');
             localTrack.startPreConnectBuffer();
           }
         }
@@ -622,10 +617,7 @@ export default class LocalParticipant extends Participant {
         try {
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
-            this.log.info('publishing track', {
-              ...this.logContext,
-              ...getLogContextFromTrack(localTrack),
-            });
+            this.log.info('publishing track', getLogContextFromTrack(localTrack));
 
             publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
@@ -648,10 +640,7 @@ export default class LocalParticipant extends Participant {
         // if there's no track available yet first wait for pending publishing promises of that source to see if it becomes available
         track = await this.waitForPendingPublicationOfSource(source);
         if (!track) {
-          this.log.info('waiting for pending publication promise timed out', {
-            ...this.logContext,
-            source,
-          });
+          this.log.info('waiting for pending publication promise timed out', { source });
         }
       }
       if (track && track.track) {
@@ -917,10 +906,10 @@ export default class LocalParticipant extends Participant {
     });
 
     if (existingPublication) {
-      this.log.warn('track has already been published, skipping', {
-        ...this.logContext,
-        ...getLogContextFromTrack(existingPublication),
-      });
+      this.log.warn(
+        'track has already been published, skipping',
+        getLogContextFromTrack(existingPublication),
+      );
       return existingPublication;
     }
 
@@ -938,16 +927,13 @@ export default class LocalParticipant extends Participant {
     // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {
       if (opts.dtx === undefined) {
-        this.log.info(
+        this.log.debug(
           `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-          {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-          },
+          getLogContextFromTrack(track),
         );
       }
       if (opts.red === undefined) {
-        this.log.info(
+        this.log.debug(
           `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
         );
       }
@@ -958,9 +944,6 @@ export default class LocalParticipant extends Participant {
     if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
       this.log.info(
         `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
-        {
-          ...this.logContext,
-        },
       );
       opts.simulcast = false;
     }
@@ -972,7 +955,6 @@ export default class LocalParticipant extends Participant {
       try {
         if (this.engine.client.currentState !== SignalConnectionState.CONNECTED) {
           this.log.debug('deferring track publication until signal is connected', {
-            ...this.logContext,
             track: getLogContextFromTrack(track),
           });
 
@@ -1014,7 +996,6 @@ export default class LocalParticipant extends Participant {
     } catch (e) {
       if (!hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
         this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
-          ...this.logContext,
           error: e,
         });
         this.pendingPublishPromises.delete(track);
@@ -1036,10 +1017,7 @@ export default class LocalParticipant extends Participant {
 
   private hasPermissionsToPublish(track: LocalTrack): boolean {
     if (!this.permissions) {
-      this.log.warn('no permissions present for publishing track', {
-        ...this.logContext,
-        ...getLogContextFromTrack(track),
-      });
+      this.log.warn('no permissions present for publishing track', getLogContextFromTrack(track));
       return false;
     }
     const { canPublish, canPublishSources } = this.permissions;
@@ -1050,10 +1028,7 @@ export default class LocalParticipant extends Participant {
     ) {
       return true;
     }
-    this.log.warn('insufficient permissions to publish', {
-      ...this.logContext,
-      ...getLogContextFromTrack(track),
-    });
+    this.log.warn('insufficient permissions to publish', getLogContextFromTrack(track));
     return false;
   }
 
@@ -1065,10 +1040,10 @@ export default class LocalParticipant extends Participant {
       (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
     );
     if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
-      this.log.info(`publishing a second track with the same source: ${track.source}`, {
-        ...this.logContext,
-        ...getLogContextFromTrack(track),
-      });
+      this.log.info(
+        `publishing a second track with the same source: ${track.source}`,
+        getLogContextFromTrack(track),
+      );
     }
     if (opts.stopMicTrackOnMute && isAudioTrack(track)) {
       track.stopOnMute = true;
@@ -1172,7 +1147,6 @@ export default class LocalParticipant extends Participant {
         };
         // log failure
         this.log.error('could not determine track dimensions, using defaults', {
-          ...this.logContext,
           ...getLogContextFromTrack(track),
           dims,
         });
@@ -1194,10 +1168,10 @@ export default class LocalParticipant extends Participant {
             // that we need
             if ('contentHint' in track.mediaStreamTrack) {
               track.mediaStreamTrack.contentHint = 'motion';
-              this.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
-                ...this.logContext,
-                ...getLogContextFromTrack(track),
-              });
+              this.log.debug(
+                'forcing contentHint to motion for screenshare with SVC codecs',
+                getLogContextFromTrack(track),
+              );
             }
           }
           // set scalabilityMode to 'L3T3_KEY' by default
@@ -1318,13 +1292,12 @@ export default class LocalParticipant extends Participant {
           try {
             this.engine.pcManager.publisher.removeTrack(track.sender);
           } catch (e) {
-            this.log.error(e, this.logContext);
+            this.log.error(e);
           }
           await this.engine.negotiate().catch((negotiateErr) => {
             this.log.error(
               'failed to negotiate after removing track due to failed add track request',
               {
-                ...this.logContext,
                 ...getLogContextFromTrack(track),
                 error: negotiateErr,
               },
@@ -1351,7 +1324,6 @@ export default class LocalParticipant extends Participant {
         const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
         if (updatedCodec !== videoCodec) {
           this.log.debug('falling back to server selected codec', {
-            ...this.logContext,
             ...getLogContextFromTrack(track),
             codec: updatedCodec,
           });
@@ -1391,11 +1363,7 @@ export default class LocalParticipant extends Participant {
       }
     }
 
-    this.log.debug(`publishing ${track.kind} with encodings`, {
-      ...this.logContext,
-      encodings,
-      trackInfo: ti,
-    });
+    this.log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
     if (isLocalVideoTrack(track)) {
       track.startMonitor(this.engine.client);
@@ -1417,13 +1385,10 @@ export default class LocalParticipant extends Participant {
       this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
         if (pub.trackSid === ti.sid) {
           if (!track.hasPreConnectBuffer) {
-            this.log.warn('subscribe event came to late, buffer already closed', this.logContext);
+            this.log.warn('subscribe event came to late, buffer already closed');
             return;
           }
-          this.log.debug('finished recording preconnect buffer', {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-          });
+          this.log.debug('finished recording preconnect buffer', getLogContextFromTrack(track));
           track.stopPreConnectBuffer();
         }
       });
@@ -1431,19 +1396,13 @@ export default class LocalParticipant extends Participant {
       if (stream) {
         const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
           try {
-            this.log.debug('waiting for agent', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-            });
+            this.log.debug('waiting for agent', getLogContextFromTrack(track));
             const agentActiveTimeout = setTimeout(() => {
               reject(new Error('agent not active within 10 seconds'));
             }, 10_000);
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
-            this.log.debug('sending preconnect buffer', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-            });
+            this.log.debug('sending preconnect buffer', getLogContextFromTrack(track));
             const writer = await this.streamBytes({
               name: 'preconnect-buffer',
               mimeType,
@@ -1466,14 +1425,10 @@ export default class LocalParticipant extends Participant {
         });
         bufferStreamPromise
           .then(() => {
-            this.log.debug('preconnect buffer sent successfully', {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-            });
+            this.log.debug('preconnect buffer sent successfully', getLogContextFromTrack(track));
           })
           .catch((e) => {
             this.log.error('error sending preconnect buffer', {
-              ...this.logContext,
               ...getLogContextFromTrack(track),
               error: e,
             });
@@ -1527,10 +1482,7 @@ export default class LocalParticipant extends Participant {
     if (!encodings) {
       this.log.info(
         `backup codec has been disabled, ignoring request to add additional codec for track`,
-        {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-        },
+        getLogContextFromTrack(track),
       );
       return;
     }
@@ -1571,7 +1523,6 @@ export default class LocalParticipant extends Participant {
     const ti = rets[0];
 
     this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
-      ...this.logContext,
       encodings,
       trackInfo: ti,
     });
@@ -1584,10 +1535,10 @@ export default class LocalParticipant extends Participant {
     if (isLocalTrack(track)) {
       const publishPromise = this.pendingPublishPromises.get(track);
       if (publishPromise) {
-        this.log.info('awaiting publish promise before attempting to unpublish', {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-        });
+        this.log.debug(
+          'awaiting publish promise before attempting to unpublish',
+          getLogContextFromTrack(track),
+        );
         await publishPromise;
       }
     }
@@ -1596,16 +1547,10 @@ export default class LocalParticipant extends Participant {
 
     const pubLogContext = publication ? getLogContextFromTrack(publication) : undefined;
 
-    this.log.debug('unpublishing track', {
-      ...this.logContext,
-      ...pubLogContext,
-    });
+    this.log.info('unpublishing track', pubLogContext);
 
     if (!publication || !publication.track) {
-      this.log.warn('track was not unpublished because no publication was found', {
-        ...this.logContext,
-        ...pubLogContext,
-      });
+      this.log.warn('track was not unpublished because no publication was found', pubLogContext);
       return undefined;
     }
 
@@ -1648,7 +1593,7 @@ export default class LocalParticipant extends Participant {
         try {
           negotiationNeeded = this.engine.removeTrack(trackSender);
         } catch (e) {
-          this.log.warn(e, this.logContext);
+          this.log.warn(e);
           negotiationNeeded = true;
         }
 
@@ -1658,7 +1603,7 @@ export default class LocalParticipant extends Participant {
               try {
                 negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
               } catch (e) {
-                this.log.warn(e, this.logContext);
+                this.log.warn(e);
                 negotiationNeeded = true;
               }
               trackInfo.sender = undefined;
@@ -1667,11 +1612,7 @@ export default class LocalParticipant extends Participant {
           track.simulcastCodecs.clear();
         }
       } catch (e) {
-        this.log.warn('failed to unpublish track', {
-          ...this.logContext,
-          ...pubLogContext,
-          error: e,
-        });
+        this.log.warn('failed to unpublish track', { ...pubLogContext, error: e });
       }
     }
 
@@ -1734,10 +1675,7 @@ export default class LocalParticipant extends Participant {
             ) {
               // generally we need to restart the track before publishing, often a full reconnect
               // is necessary because computer had gone to sleep.
-              this.log.debug('restarting existing track', {
-                ...this.logContext,
-                track: pub.trackSid,
-              });
+              this.log.debug('restarting existing track', { track: pub.trackSid });
               await track.restartTrack();
             }
             await this.publishOrRepublishTrack(track, pub.options, true);
@@ -2107,7 +2045,6 @@ export default class LocalParticipant extends Participant {
         const mutedOnServer = pub.isMuted || (pub.track?.isUpstreamPaused ?? false);
         if (mutedOnServer !== ti.muted) {
           this.log.debug('updating server mute state after reconcile', {
-            ...this.logContext,
             ...getLogContextFromTrack(pub),
             mutedOnServer,
           });
@@ -2120,7 +2057,6 @@ export default class LocalParticipant extends Participant {
 
   private updateTrackSubscriptionPermissions = () => {
     this.log.debug('updating track subscription permissions', {
-      ...this.logContext,
       allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
       participantTrackPermissions: this.participantTrackPermissions,
     });
@@ -2167,10 +2103,10 @@ export default class LocalParticipant extends Participant {
     }
 
     if (!track.sid) {
-      this.log.error('could not update mute status for unpublished track', {
-        ...this.logContext,
-        ...getLogContextFromTrack(track),
-      });
+      this.log.error(
+        'could not update mute status for unpublished track',
+        getLogContextFromTrack(track),
+      );
       return;
     }
 
@@ -2178,18 +2114,12 @@ export default class LocalParticipant extends Participant {
   };
 
   private onTrackUpstreamPaused = (track: LocalTrack) => {
-    this.log.debug('upstream paused', {
-      ...this.logContext,
-      ...getLogContextFromTrack(track),
-    });
+    this.log.debug('upstream paused', getLogContextFromTrack(track));
     this.onTrackMuted(track, true);
   };
 
   private onTrackUpstreamResumed = (track: LocalTrack) => {
-    this.log.debug('upstream resumed', {
-      ...this.logContext,
-      ...getLogContextFromTrack(track),
-    });
+    this.log.debug('upstream resumed', getLogContextFromTrack(track));
     this.onTrackMuted(track, track.isMuted);
   };
 
@@ -2198,7 +2128,6 @@ export default class LocalParticipant extends Participant {
     if (!pub) {
       this.log.warn(
         `Could not update local audio track settings, missing publication for track ${track.sid}`,
-        this.logContext,
       );
       return;
     }
@@ -2206,10 +2135,7 @@ export default class LocalParticipant extends Participant {
   };
 
   private onTrackCpuConstrained = (track: LocalVideoTrack, publication: LocalTrackPublication) => {
-    this.log.debug('track cpu constrained', {
-      ...this.logContext,
-      ...getLogContextFromTrack(publication),
-    });
+    this.log.debug('track cpu constrained', getLogContextFromTrack(publication));
     this.emit(ParticipantEvent.LocalTrackCpuConstrained, track, publication);
   };
 
@@ -2220,7 +2146,6 @@ export default class LocalParticipant extends Participant {
     const pub = this.videoTrackPublications.get(update.trackSid);
     if (!pub) {
       this.log.warn('received subscribed quality update for unknown track', {
-        ...this.logContext,
         trackSid: update.trackSid,
       });
       return;
@@ -2231,10 +2156,7 @@ export default class LocalParticipant extends Participant {
     const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
     for await (const codec of newCodecs) {
       if (isBackupCodec(codec)) {
-        this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, {
-          ...this.logContext,
-          ...getLogContextFromTrack(pub),
-        });
+        this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, getLogContextFromTrack(pub));
         await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
       }
     }
@@ -2244,7 +2166,6 @@ export default class LocalParticipant extends Participant {
     const track = this.trackPublications.get(unpublished.trackSid);
     if (!track) {
       this.log.warn('received unpublished event for unknown track', {
-        ...this.logContext,
         trackSid: unpublished.trackSid,
       });
       return;
@@ -2257,10 +2178,7 @@ export default class LocalParticipant extends Participant {
       track.source === Track.Source.ScreenShare ||
       track.source === Track.Source.ScreenShareAudio
     ) {
-      this.log.debug('unpublishing local track due to TrackEnded', {
-        ...this.logContext,
-        ...getLogContextFromTrack(track),
-      });
+      this.log.debug('unpublishing local track due to TrackEnded', getLogContextFromTrack(track));
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
       await track.mute();
@@ -2274,10 +2192,10 @@ export default class LocalParticipant extends Participant {
               name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
             });
             if (currentPermissions && currentPermissions.state === 'denied') {
-              this.log.warn(`user has revoked access to ${track.source}`, {
-                ...this.logContext,
-                ...getLogContextFromTrack(track),
-              });
+              this.log.warn(
+                `user has revoked access to ${track.source}`,
+                getLogContextFromTrack(track),
+              );
 
               // detect granted change after permissions were denied to try and resume then
               currentPermissions.onchange = () => {
@@ -2295,10 +2213,10 @@ export default class LocalParticipant extends Participant {
           }
         }
         if (!track.isMuted) {
-          this.log.debug('track ended, attempting to use a different device', {
-            ...this.logContext,
-            ...getLogContextFromTrack(track),
-          });
+          this.log.debug(
+            'track ended, attempting to use a different device',
+            getLogContextFromTrack(track),
+          );
           if (isLocalAudioTrack(track)) {
             // fall back to default device if available
             await track.restartTrack({ deviceId: 'default' });
@@ -2307,10 +2225,7 @@ export default class LocalParticipant extends Participant {
           }
         }
       } catch (e) {
-        this.log.warn(`could not restart track, muting instead`, {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-        });
+        this.log.warn(`could not restart track, muting instead`, getLogContextFromTrack(track));
         await track.mute();
       }
     }
