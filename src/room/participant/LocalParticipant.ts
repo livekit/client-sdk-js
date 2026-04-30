@@ -906,7 +906,10 @@ export default class LocalParticipant extends Participant {
     });
 
     if (existingPublication) {
-      this.log.warn('track has already been published, skipping', getLogContextFromTrack(existingPublication));
+      this.log.warn(
+        'track has already been published, skipping',
+        getLogContextFromTrack(existingPublication),
+      );
       return existingPublication;
     }
 
@@ -1532,7 +1535,10 @@ export default class LocalParticipant extends Participant {
     if (isLocalTrack(track)) {
       const publishPromise = this.pendingPublishPromises.get(track);
       if (publishPromise) {
-        this.log.debug('awaiting publish promise before attempting to unpublish', getLogContextFromTrack(track));
+        this.log.debug(
+          'awaiting publish promise before attempting to unpublish',
+          getLogContextFromTrack(track),
+        );
         await publishPromise;
       }
     }
