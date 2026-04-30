@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.18.8
+
+### Patch Changes
+
+- Add local data track flush method - [#1925](https://github.com/livekit/client-sdk-js/pull/1925) ([@1egoman](https://github.com/1egoman))
+
+- Implement negotiation tracking based on offerId - [#1927](https://github.com/livekit/client-sdk-js/pull/1927) ([@lukasIO](https://github.com/lukasIO))
+
+- Ignore data track promise rejections after a subscription readable stream is discarded - [#1917](https://github.com/livekit/client-sdk-js/pull/1917) ([@1egoman](https://github.com/1egoman))
+
+- chore: improve logging foundation for implicit context retrieval - [#1907](https://github.com/livekit/client-sdk-js/pull/1907) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.7
 
 ### Patch Changes
