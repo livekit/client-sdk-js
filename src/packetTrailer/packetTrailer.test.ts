@@ -137,14 +137,29 @@ describe('packetTrailer', () => {
     });
   });
 
-  it('passes encoded frames through when no write features are enabled', () => {
+  it.each([{}, { timestamp: false, frameId: false }])(
+    'passes encoded frames through when no write features are enabled: %o',
+    (packetTrailer) => {
+      const payload = Uint8Array.from([1, 2, 3, 4]);
+      const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+      const changed = appendPacketTrailerToEncodedFrame(frame, packetTrailer, 1);
+
+      expect(changed).toBe(false);
+      expect(frame.data).toBe(payload.buffer);
+      expect(extractPacketTrailer(frame.data).metadata).toBeUndefined();
+    },
+  );
+
+  it('passes encoded frames through when publish options omit enabled features', () => {
     const payload = Uint8Array.from([1, 2, 3, 4]);
     const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
 
-    const changed = appendPacketTrailerToEncodedFrame(frame, {}, 1);
+    const changed = appendPacketTrailerToEncodedFrame(frame, { timestamp: false }, 1);
 
     expect(changed).toBe(false);
     expect(frame.data).toBe(payload.buffer);
+    expect(extractPacketTrailer(frame.data).metadata).toBeUndefined();
   });
 
   it('passes encoded frames through when publish options are undefined', () => {

@@ -269,6 +269,36 @@ describe('FrameCryptor', () => {
       }
     });
 
+    it('does not append packet trailer after encryption when no trailer features are enabled', async () => {
+      vitest.useFakeTimers();
+      try {
+        const { keys, input, output } = prepareParticipantTestEncoder(
+          participantIdentity,
+          {},
+          { timestamp: false, frameId: false },
+        );
+
+        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+        const frame = mockRTCEncodedVideoFrame(
+          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        );
+
+        input.write(frame);
+        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+        const extracted = extractPacketTrailer(frame.data);
+        expect(extracted.metadata).toBeUndefined();
+        expect(extracted.data.byteLength).toBe(frame.data.byteLength);
+
+        const frameTrailer = new Uint8Array(frame.data.slice(frame.data.byteLength - 2));
+        expect(frameTrailer[0]).toEqual(IV_LENGTH);
+        expect(frameTrailer[1]).toEqual(1);
+      } finally {
+        vitest.useRealTimers();
+      }
+    });
+
     it('appends only timestamp packet trailer metadata after encryption', async () => {
       vitest.useFakeTimers();
       const now = new Date('2025-04-10T12:00:00.123Z');
