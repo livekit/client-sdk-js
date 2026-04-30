@@ -47,41 +47,6 @@ livekitLogger.setDefaultLevel(LogLevel.info);
 export default livekitLogger as StructuredLogger;
 
 /**
- * Keys lifted from a logger's bound context into the human-readable log
- * message prefix. Ordering here defines ordering in the rendered prefix.
- * Values that are `undefined` or empty strings are skipped.
- */
-const DISPLAY_KEYS = [
-  'room',
-  'roomID',
-  'participant',
-  'participantID',
-  'trackID',
-  'source',
-  'target',
-  'transport',
-  'reconnectAttempt',
-  'region',
-] as const;
-
-/**
- * Render the subset of `ctx` listed in `DISPLAY_KEYS` as a bracketed prefix
- * suitable for prepending to a log message. Returns an empty string when
- * no display keys are present. Pure function — safe to unit test directly.
- */
-export function formatDisplayContext(ctx: object | undefined): string {
-  if (!ctx) return '';
-  const parts: string[] = [];
-  const record = ctx as Record<string, unknown>;
-  for (const key of DISPLAY_KEYS) {
-    const value = record[key];
-    if (value === undefined || value === null || value === '') continue;
-    parts.push(`${key}=${String(value)}`);
-  }
-  return parts.length === 0 ? '' : `[${parts.join(' ')}]`;
-}
-
-/**
  * @internal
  *
  * Get a named logger. When `ctxFn` is supplied, every log call
@@ -109,10 +74,8 @@ function wrapWithContext(base: StructuredLogger, ctxFn: ContextProvider): Struct
   // methods via loglevel's methodFactory) are picked up.
   const wrap = (method: LogMethod) => (msg: string, extra?: object) => {
     const ctx = ctxFn();
-    const prefix = formatDisplayContext(ctx);
-    const finalMsg = prefix ? `${prefix} ${msg}` : msg;
     const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
-    base[method](finalMsg, merged);
+    base[method](msg, merged);
   };
 
   const proxy = Object.create(base) as StructuredLogger;
