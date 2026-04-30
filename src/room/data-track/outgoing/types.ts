@@ -47,4 +47,4 @@ export type EventTrackPublished = { track: LocalDataTrack };
 export type EventTrackUnpublished = { sid: DataTrackSid };
 
 /** A track has had all of its in flight packets sent via the rtc data channel. */
-export type EventPacketsFlushed = { handle: DataTrackHandle };
+export type EventPacketsFlushedChange = { handle: DataTrackHandle; isFlushed: boolean };
