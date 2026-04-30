@@ -227,8 +227,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private log = log;
 
-  private reconnectLog = log;
-
   private loggerOptions: LoggerOptions;
 
   private publisherConnectionPromise: Promise<void> | undefined;
@@ -257,7 +255,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
-    this.reconnectLog = getLogger(LoggerNames.Reconnection, () => this.logContext);
     this.loggerOptions = {
       loggerName: options.loggerName,
       loggerContextCb: () => this.logContext,
@@ -1109,14 +1106,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    this.reconnectLog.warn(`${connection} disconnected`);
+    this.log.warn(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
     }
 
     const disconnect = (duration: number) => {
-      this.reconnectLog.warn(
+      this.log.warn(
         `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
       );
       this.emit(EngineEvent.Disconnected);
@@ -1137,7 +1134,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delay = 0;
     }
 
-    this.reconnectLog.debug(`reconnecting in ${delay}ms`);
+    this.log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
     if (this.token) {
@@ -1158,7 +1155,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
-      this.reconnectLog.warn('already attempting reconnect, returning early');
+      this.log.warn('already attempting reconnect, returning early');
       return;
     }
     if (
@@ -1183,7 +1180,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reconnectAttempts += 1;
       let recoverable = true;
       if (e instanceof UnexpectedConnectionState) {
-        this.reconnectLog.debug('received unrecoverable error', { error: e });
+        this.log.debug('received unrecoverable error', { error: e });
         // unrecoverable
         recoverable = false;
       } else if (!(e instanceof SignalReconnectError)) {
@@ -1194,7 +1191,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (recoverable) {
         this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
-        this.reconnectLog.info(
+        this.log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
             Date.now() - this.reconnectStart
           }ms. giving up`,
@@ -1211,7 +1208,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
-      this.reconnectLog.warn('encountered error in reconnect policy', { error: e });
+      this.log.warn('encountered error in reconnect policy', { error: e });
     }
 
     // error in user code with provided reconnect policy, stop reconnecting
@@ -1225,7 +1222,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
       }
 
-      this.reconnectLog.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1237,7 +1234,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let joinResponse: JoinResponse;
       try {
         if (!this.signalOpts) {
-          this.reconnectLog.warn('attempted connection restart, without signal options present');
+          this.log.warn('attempted connection restart, without signal options present');
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
@@ -1298,7 +1295,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
 
-    this.reconnectLog.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
+    this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     this.emit(EngineEvent.Resuming);
     let res: ReconnectResponse | undefined;
     try {
@@ -1308,7 +1305,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (error instanceof Error) {
         message = error.message;
-        this.reconnectLog.error(error.message, { error });
+        this.log.error(error.message, { error });
       }
       if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
@@ -1327,7 +1324,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.latestJoinResponse.serverInfo = res.serverInfo;
       }
     } else {
-      this.reconnectLog.warn('Did not receive reconnect response');
+      this.log.warn('Did not receive reconnect response');
     }
 
     if (this.shouldFailNext) {
@@ -1370,7 +1367,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async waitForPCReconnected() {
     this.pcState = PCState.Reconnecting;
 
-    this.reconnectLog.debug('waiting for peer connection to reconnect');
+    this.log.debug('waiting for peer connection to reconnect');
     try {
       await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
       if (!this.pcManager) {
