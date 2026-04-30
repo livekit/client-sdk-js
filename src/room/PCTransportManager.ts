@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import log, { LoggerNames, getLogger } from '../logger';
 import TypedPromise from '../utils/TypedPromise';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -227,47 +228,60 @@ export class PCTransportManager {
     }
   }
 
-  async negotiate(abortController: AbortController) {
-    return new TypedPromise<void, NegotiationError | Error>(async (resolve, reject) => {
-      let negotiationTimeout = setTimeout(() => {
-        reject(new NegotiationError('negotiation timed out'));
-      }, this.peerConnectionTimeout);
+  async negotiate(
+    abortController: AbortController,
+  ): Promise<Throws<void, NegotiationError | Error>> {
+    return new TypedPromise<void, NegotiationError | Error>((resolve, reject) => {
+      // Capture the publisher's latest offer id at request time. We are done
+      // when an offer with a higher id has had its answer successfully
+      // applied — that offer is the one that includes any transceiver/SDP
+      // changes that motivated this negotiate call. Concurrent callers each
+      // get their own checkpoint and resolve independently.
+      const checkpoint = this.publisher.latestOfferId;
 
+      // Race: an answer past our checkpoint already arrived before we had a
+      // chance to subscribe.
+      if (this.publisher.latestAcknowledgedOfferId > checkpoint) {
+        this.log.debug(
+          `negotiation already handled in more recent acknowledged offer`,
+          this.logContext,
+        );
+        resolve();
+        return;
+      }
+
+      let cleanedUp = false;
       const cleanup = () => {
-        clearTimeout(negotiationTimeout);
-        this.publisher.off(PCEvents.NegotiationStarted, onNegotiationStarted);
-        abortController.signal.removeEventListener('abort', abortHandler);
+        if (cleanedUp) return;
+        cleanedUp = true;
+        clearTimeout(deadlineTimer);
+        this.publisher.off(PCEvents.OfferAnswered, onAnswered);
+        abortController.signal.removeEventListener('abort', onAbort);
       };
 
-      const abortHandler = () => {
+      const onAnswered = (offerId: number) => {
+        if (offerId > checkpoint) {
+          cleanup();
+          resolve();
+        }
+      };
+
+      const onAbort = () => {
         cleanup();
         reject(new NegotiationError('negotiation aborted'));
       };
 
-      // Reset the timeout each time a renegotiation cycle starts. This
-      // prevents premature timeouts when the negotiation machinery is
-      // actively renegotiating (offers going out, answers coming back) but
-      // NegotiationComplete hasn't fired yet because new requirements keep
-      // arriving between offer/answer round-trips.
-      const onNegotiationStarted = () => {
-        if (abortController.signal.aborted) {
-          return;
-        }
-        clearTimeout(negotiationTimeout);
-        negotiationTimeout = setTimeout(() => {
-          cleanup();
-          reject(new NegotiationError('negotiation timed out'));
-        }, this.peerConnectionTimeout);
-      };
-
-      abortController.signal.addEventListener('abort', abortHandler);
-      this.publisher.on(PCEvents.NegotiationStarted, onNegotiationStarted);
-      this.publisher.once(PCEvents.NegotiationComplete, () => {
+      // Single hard deadline as a backstop. Not reset on cycle progress —
+      // progress is tracked via OfferAnswered, not NegotiationStarted.
+      const deadlineTimer = setTimeout(() => {
         cleanup();
-        resolve();
-      });
+        reject(new NegotiationError('negotiation timed out'));
+      }, this.peerConnectionTimeout);
 
-      await this.publisher.negotiate((e) => {
+      abortController.signal.addEventListener('abort', onAbort);
+      this.publisher.on(PCEvents.OfferAnswered, onAnswered);
+
+      this.publisher.negotiate((e) => {
         cleanup();
         if (e instanceof Error) {
           reject(e);

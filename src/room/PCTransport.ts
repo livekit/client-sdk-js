@@ -1,7 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
 import { parse, write } from 'sdp-transform';
-import type { MediaDescription, SessionDescription } from 'sdp-transform';
+import type { MediaAttributes, MediaDescription, SessionDescription } from 'sdp-transform';
+import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
@@ -29,11 +30,16 @@ const debounceInterval = 20;
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
+  // Fired with the offerId for every successful publisher answer application,
+  // including answers that immediately recurse into another offer via
+  // `renegotiate`. Use this rather than NegotiationComplete to know that a
+  // specific offer has been negotiated end-to-end.
+  OfferAnswered: 'offerAnswered',
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
 /** @internal */
-export default class PCTransport extends EventEmitter {
+export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
   private get pc() {
@@ -51,7 +57,9 @@ export default class PCTransport extends EventEmitter {
 
   private ddExtID = 0;
 
-  private latestOfferId: number = 0;
+  latestOfferId: number = 0;
+
+  latestAcknowledgedOfferId: number = 0;
 
   private offerLock: Mutex;
 
@@ -235,6 +243,14 @@ export default class PCTransport extends EventEmitter {
     });
     this.pendingCandidates = [];
     this.restartingIce = false;
+
+    // Fire OfferAnswered for every successfully applied answer, including the
+    // ones that recurse into another offer via `renegotiate`. Callers waiting
+    // on a specific offerId can resolve as soon as their offer's answer is in.
+    if (sd.type === 'answer') {
+      this.latestAcknowledgedOfferId = offerId;
+      this.emit(PCEvents.OfferAnswered, offerId);
+    }
 
     if (this.renegotiate) {
       this.renegotiate = false;
@@ -737,3 +753,10 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
 function getMidString(mid: string | number) {
   return typeof mid === 'number' ? mid.toFixed(0) : mid;
 }
+
+type PCTransportEventCallbacks = {
+  negotiationStarted: () => void;
+  negotiationComplete: () => void;
+  offerAnswered: (offerId: number) => void;
+  rtpVideoPayloadTypes: (attributes: MediaAttributes['rtp']) => void;
+};
