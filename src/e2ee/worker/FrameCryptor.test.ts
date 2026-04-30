@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
-import { extractPacketTrailer } from '../../packetTrailer/packetTrailer';
+import { appendPacketTrailer, extractPacketTrailer } from '../../packetTrailer/packetTrailer';
 import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
@@ -440,6 +440,41 @@ describe('FrameCryptor', () => {
           new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
         );
       } finally {
+        vitest.useRealTimers();
+      }
+    });
+
+    it('posts packet trailer metadata when the advertised trailer path is active', async () => {
+      vitest.useFakeTimers();
+      try {
+        const { cryptor, input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+        const postMessage = vitest.fn();
+        vitest.stubGlobal('postMessage', postMessage);
+        encryptionEnabledMap.set(participantIdentity, false);
+        cryptor.setHasPacketTrailer(true);
+
+        const payload = Uint8Array.from([1, 2, 3, 4]);
+        const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456n, 0);
+        const frame = mockRTCEncodedVideoFrame(trailer);
+
+        input.write(frame);
+        await vitest.advanceTimersToNextTimerAsync();
+
+        expect(new Uint8Array(output.chunks[0].data)).toEqual(payload);
+        expect(postMessage).toHaveBeenCalledWith({
+          kind: 'packetTrailerMetadata',
+          data: {
+            trackId: 'testTrack',
+            rtpTimestamp: frame.timestamp,
+            ssrc: 0,
+            metadata: {
+              userTimestamp: 1_744_249_600_123_456n,
+              frameId: 0,
+            },
+          },
+        });
+      } finally {
+        vitest.unstubAllGlobals();
         vitest.useRealTimers();
       }
     });
