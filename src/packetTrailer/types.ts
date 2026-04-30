@@ -5,6 +5,11 @@ export interface PacketTrailerMetadata {
   frameId: number;
 }
 
+export interface PacketTrailerPublishOptions {
+  timestamp?: boolean;
+  frameId?: boolean;
+}
+
 export interface PTBaseMessage {
   kind: string;
   data?: unknown;
@@ -28,10 +33,24 @@ export interface PTDecodeMessage extends PTBaseMessage {
   };
 }
 
-export type PTScriptTransformOptions = {
-  kind: 'decode';
-  trackId: string;
-};
+export interface PTEncodeMessage extends PTBaseMessage {
+  kind: 'encode';
+  data: {
+    readableStream: ReadableStream;
+    writableStream: WritableStream;
+    packetTrailer?: PacketTrailerPublishOptions;
+  };
+}
+
+export type PTScriptTransformOptions =
+  | {
+      kind: 'decode';
+      trackId: string;
+    }
+  | {
+      kind: 'encode';
+      packetTrailer?: PacketTrailerPublishOptions;
+    };
 
 export interface PTMetadataMessage extends PTBaseMessage {
   kind: 'metadata';
@@ -51,5 +70,6 @@ export type PTWorkerMessage =
   | PTInitMessage
   | PTInitAck
   | PTDecodeMessage
+  | PTEncodeMessage
   | PTUpdateTrackIdMessage
   | PTMetadataMessage;

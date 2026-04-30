@@ -929,9 +929,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
-        clientInfoCapabilities: isPacketTrailerSupported(roomOptions.packetTrailer)
-          ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
-          : undefined,
+        clientInfoCapabilities:
+          isPacketTrailerSupported(roomOptions.packetTrailer) || !!this.e2eeManager
+            ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
+            : undefined,
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,

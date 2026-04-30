@@ -57,7 +57,11 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
-import { shouldUsePacketTrailerScriptTransform } from '../packetTrailer/utils';
+import { hasPacketTrailerPublishOptions } from '../packetTrailer/packetTrailer';
+import {
+  isPacketTrailerSupported,
+  shouldUsePacketTrailerScriptTransform,
+} from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
@@ -1033,7 +1037,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    this.setupSenderPassthrough(sender);
+    this.setupPacketTrailerSender(sender, opts);
     return sender;
   }
 
@@ -1053,22 +1057,55 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('Cannot stream on this device');
     }
     if (sender) {
-      this.setupSenderPassthrough(sender);
+      this.setupPacketTrailerSender(sender, opts);
     }
     return sender;
   }
 
-  private setupSenderPassthrough(sender: RTCRtpSender) {
-    if (
-      !this.options.packetTrailer?.worker ||
-      this.signalOpts?.e2eeEnabled ||
-      shouldUsePacketTrailerScriptTransform()
-    ) {
+  private setupPacketTrailerSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
+    if (!this.options.packetTrailer?.worker || this.signalOpts?.e2eeEnabled) {
       return;
     }
-    if ('createEncodedStreams' in sender) {
-      // @ts-ignore
-      const { readable, writable } = sender.createEncodedStreams();
+
+    const packetTrailer = opts.packetTrailer;
+    const hasPacketTrailer = hasPacketTrailerPublishOptions(packetTrailer);
+
+    if (shouldUsePacketTrailerScriptTransform()) {
+      if (hasPacketTrailer) {
+        // @ts-ignore
+        sender.transform = new RTCRtpScriptTransform(this.options.packetTrailer.worker, {
+          kind: 'encode',
+          packetTrailer,
+        });
+      }
+      return;
+    }
+
+    if (
+      !isPacketTrailerSupported(this.options.packetTrailer) ||
+      !('createEncodedStreams' in sender)
+    ) {
+      if (hasPacketTrailer) {
+        this.log.warn('packet trailer transform not supported; skipping write', this.logContext);
+      }
+      return;
+    }
+
+    // @ts-ignore
+    const { readable, writable } = sender.createEncodedStreams();
+    if (hasPacketTrailer) {
+      this.options.packetTrailer.worker.postMessage(
+        {
+          kind: 'encode',
+          data: {
+            readableStream: readable,
+            writableStream: writable,
+            packetTrailer,
+          },
+        },
+        [readable, writable],
+      );
+    } else {
       readable.pipeTo(writable);
     }
   }

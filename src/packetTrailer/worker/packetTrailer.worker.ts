@@ -1,5 +1,14 @@
-import { processPacketTrailer } from '../packetTrailer';
-import type { PTMetadataMessage, PTScriptTransformOptions, PTWorkerMessage } from '../types';
+import {
+  appendPacketTrailerToEncodedFrame,
+  hasPacketTrailerPublishOptions,
+  processPacketTrailer,
+} from '../packetTrailer';
+import type {
+  PTMetadataMessage,
+  PTScriptTransformOptions,
+  PTWorkerMessage,
+  PacketTrailerPublishOptions,
+} from '../types';
 
 /**
  * Holds the trackId currently associated with a pipeline. A mutable
@@ -27,6 +36,14 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
         msg.data.writableStream,
         msg.data.trackId,
         msg.data.hasPacketTrailer,
+      );
+      break;
+
+    case 'encode':
+      setupEncodeTransform(
+        msg.data.readableStream,
+        msg.data.writableStream,
+        msg.data.packetTrailer,
       );
       break;
 
@@ -80,6 +97,40 @@ function setupDecodeTransform(
     });
 }
 
+function setupEncodeTransform(
+  readable: ReadableStream,
+  writable: WritableStream,
+  packetTrailer?: PacketTrailerPublishOptions,
+) {
+  if (!hasPacketTrailerPublishOptions(packetTrailer)) {
+    readable.pipeTo(writable).catch(() => {});
+    return;
+  }
+
+  let frameId = 0;
+  const transform = new TransformStream({
+    transform(
+      frame: RTCEncodedVideoFrame,
+      controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
+    ) {
+      try {
+        if (packetTrailer?.frameId) {
+          frameId = frameId === 0xffffffff ? 1 : frameId + 1;
+        }
+        appendPacketTrailerToEncodedFrame(frame, packetTrailer, frameId);
+      } catch {
+        // Never drop frames on trailer-write failure.
+      }
+      controller.enqueue(frame);
+    },
+  });
+
+  readable
+    .pipeThrough(transform)
+    .pipeTo(writable)
+    .catch(() => {});
+}
+
 function updateTrackId(oldTrackId: string, newTrackId: string, hasPacketTrailer: boolean) {
   const state = pipelines.get(oldTrackId);
   if (state) {
@@ -97,7 +148,11 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    const { trackId } = transformer.options as PTScriptTransformOptions;
-    setupDecodeTransform(transformer.readable, transformer.writable, trackId, true);
+    const options = transformer.options as PTScriptTransformOptions;
+    if (options.kind === 'encode') {
+      setupEncodeTransform(transformer.readable, transformer.writable, options.packetTrailer);
+    } else {
+      setupDecodeTransform(transformer.readable, transformer.writable, options.trackId, true);
+    }
   };
 }

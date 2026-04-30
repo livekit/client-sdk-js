@@ -10,7 +10,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
-import type { VideoCodec } from '../room/track/options';
+import type { TrackPublishOptions, VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import {
   Future,
@@ -503,7 +503,12 @@ export class E2EEManager
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, track.mediaStreamID, undefined);
+    this.handleSender(
+      sender,
+      track.mediaStreamID,
+      undefined,
+      isVideoTrack(track) ? track.publishOptions?.packetTrailer : undefined,
+    );
   }
 
   /**
@@ -586,7 +591,12 @@ export class E2EEManager
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, trackId: string, codec?: VideoCodec) {
+  private handleSender(
+    sender: RTCRtpSender,
+    trackId: string,
+    codec?: VideoCodec,
+    packetTrailer?: TrackPublishOptions['packetTrailer'],
+  ) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
@@ -602,6 +612,7 @@ export class E2EEManager
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
+        packetTrailer,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -618,6 +629,7 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
+          packetTrailer,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);

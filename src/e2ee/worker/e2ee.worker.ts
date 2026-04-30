@@ -83,6 +83,7 @@ onmessage = (ev) => {
           data.trackId,
           data.isReuse,
           data.codec,
+          data.packetTrailer,
         );
         break;
 
@@ -334,8 +335,8 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    const { kind, participantIdentity, trackId, codec, hasPacketTrailer } =
-      transformer.options as ScriptTransformOptions;
+    const options = transformer.options as ScriptTransformOptions;
+    const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(participantIdentity, trackId);
       cryptor.setHasPacketTrailer(!!hasPacketTrailer);
@@ -347,6 +348,7 @@ if (self.RTCTransformEvent) {
         trackId,
         false,
         codec,
+        kind === 'encode' ? options.packetTrailer : undefined,
       );
     });
   };
