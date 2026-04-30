@@ -3,6 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PCEvents } from './PCTransport';
 import { PCTransportManager } from './PCTransportManager';
 
+/**
+ * Yield to the microtask queue so any then/catch handlers chained to a promise
+ * have a chance to run. Sufficient for "is this promise still pending right
+ * now?" assertions; nothing in these tests depends on real elapsed time.
+ */
+const flushMicrotasks = () => Promise.resolve();
+
 class StubPC {
   iceConnectionState: RTCIceConnectionState = 'new';
 
@@ -82,10 +89,10 @@ describe('PCTransportManager.negotiate', () => {
   it('resolves when an offer past the checkpoint is answered', async () => {
     const { manager, pub } = makeManager();
     const p = manager.negotiate(new AbortController());
-    setTimeout(() => {
-      const id = pub.startOffer();
-      pub.answer(id);
-    }, 10);
+
+    const id = pub.startOffer();
+    pub.answer(id);
+
     await expect(p).resolves.toBeUndefined();
   });
 
@@ -109,7 +116,7 @@ describe('PCTransportManager.negotiate', () => {
     );
 
     pub.answer(5);
-    await new Promise((r) => setTimeout(r, 50));
+    await flushMicrotasks();
     expect(settled).toBe(false);
 
     ac.abort();
@@ -125,11 +132,10 @@ describe('PCTransportManager.negotiate', () => {
     pub.latestOfferId = 1;
     const p = manager.negotiate(new AbortController());
 
-    setTimeout(() => pub.answer(1), 10); // does not satisfy checkpoint=1
-    setTimeout(() => {
-      const id = pub.startOffer(); // 2
-      pub.answer(id);
-    }, 30);
+    pub.answer(1); // does not satisfy checkpoint=1
+
+    const id = pub.startOffer(); // 2
+    pub.answer(id);
 
     await expect(p).resolves.toBeUndefined();
   });
@@ -146,27 +152,22 @@ describe('PCTransportManager.negotiate', () => {
 
     // A captures checkpoint=0
     const a = manager.negotiate(new AbortController());
-    let aResolved = false;
-    a.then(() => {
-      aResolved = true;
-    });
 
-    // First cycle starts and answers — A is satisfied (1 > 0)
+    // First cycle starts; B captures checkpoint=1 (offer now in flight)
     const id1 = pub.startOffer();
-
-    // B captures checkpoint=1 (an offer is now in flight)
     const b = manager.negotiate(new AbortController());
+
     let bResolved = false;
     b.then(() => {
       bResolved = true;
     });
 
+    // The first answer satisfies A (1 > 0) but not B (1 > 1 is false).
     pub.answer(id1);
-    await new Promise((r) => setTimeout(r, 0));
-    expect(aResolved).toBe(true);
+    await a;
     expect(bResolved).toBe(false);
 
-    // B should resolve only on the next cycle
+    // The next cycle's answer satisfies B.
     const id2 = pub.startOffer();
     pub.answer(id2);
     await b;
@@ -181,8 +182,9 @@ describe('PCTransportManager.negotiate', () => {
   it('rejects when the abort signal fires', async () => {
     const { manager } = makeManager();
     const ac = new AbortController();
-    setTimeout(() => ac.abort(), 10);
-    await expect(manager.negotiate(ac)).rejects.toThrow(/aborted/);
+    const p = manager.negotiate(ac);
+    ac.abort();
+    await expect(p).rejects.toThrow(/aborted/);
   });
 
   it('rejects when publisher.negotiate invokes its error callback', async () => {
@@ -225,7 +227,7 @@ describe('PCTransportManager.negotiate', () => {
       const { manager, pub } = makeManager();
       const ac = new AbortController();
       const p = manager.negotiate(ac);
-      setTimeout(() => ac.abort(), 10);
+      ac.abort();
       await expect(p).rejects.toThrow(/aborted/);
       expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
     });
@@ -260,23 +262,20 @@ describe('PCTransportManager.negotiate', () => {
   // start in between.
   it('does not hang when many spurious cycles start without converging on the checkpoint', async () => {
     const { manager, pub } = makeManager();
-    manager.peerConnectionTimeout = 1500;
     pub.latestOfferId = 1; // an unrelated cycle is in flight
     const p = manager.negotiate(new AbortController());
 
-    // Lots of NegotiationStarted noise (not listened to anymore) and a few
-    // answers that don't satisfy the checkpoint.
-    const noise = setInterval(() => pub.emit(PCEvents.NegotiationStarted), 30);
-    setTimeout(() => pub.answer(1), 50); // doesn't satisfy
-    setTimeout(() => {
-      const id = pub.startOffer(); // 2
-      pub.answer(id);
-    }, 200);
+    // NegotiationStarted noise (not listened to anymore) interleaved with an
+    // answer for the in-flight offer that doesn't satisfy our checkpoint.
+    pub.emit(PCEvents.NegotiationStarted);
+    pub.emit(PCEvents.NegotiationStarted);
+    pub.answer(1); // doesn't satisfy checkpoint=1
+    pub.emit(PCEvents.NegotiationStarted);
 
-    try {
-      await expect(p).resolves.toBeUndefined();
-    } finally {
-      clearInterval(noise);
-    }
+    // Eventually a fresh offer is created and answered.
+    const id = pub.startOffer(); // 2
+    pub.answer(id);
+
+    await expect(p).resolves.toBeUndefined();
   });
 });
