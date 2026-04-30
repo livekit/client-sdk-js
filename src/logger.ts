@@ -22,9 +22,6 @@ export enum LoggerNames {
   PCTransport = 'livekit-pc-transport',
   E2EE = 'lk-e2ee',
   DataTracks = 'livekit-data-tracks',
-  Region = 'livekit-region',
-  Reconnection = 'livekit-reconnection',
-  ICE = 'livekit-ice',
 }
 
 type LogLevelString = keyof typeof LogLevel;
@@ -42,7 +39,7 @@ export type StructuredLogger = log.Logger & {
 
 export type ContextProvider = () => object | undefined;
 
-let livekitLogger = log.getLogger('livekit');
+let livekitLogger = log.getLogger(LoggerNames.Default);
 const livekitLoggers = Object.values(LoggerNames).map((name) => log.getLogger(name));
 
 livekitLogger.setDefaultLevel(LogLevel.info);
@@ -167,4 +164,4 @@ export function setLogExtension(extension: LogExtension, logger?: StructuredLogg
   });
 }
 
-export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;
+export const workerLogger = log.getLogger(LoggerNames.E2EE) as StructuredLogger;
