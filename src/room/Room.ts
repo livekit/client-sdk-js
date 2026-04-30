@@ -45,6 +45,7 @@ import type {
 } from '../options';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
+import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
@@ -78,7 +79,14 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
+import {
+  RPC_REQUEST_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
+  RpcClientManager,
+  RpcError,
+  type RpcInvocationData,
+  RpcServerManager,
+} from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -216,7 +224,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private outgoingDataTrackManager: OutgoingDataTrackManager;
 
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
+  private rpcClientManager: RpcClientManager;
+
+  private rpcServerManager: RpcServerManager;
 
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
@@ -296,15 +306,36 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
+    this.registerRpcDataStreamHandler();
+
+    this.rpcClientManager = new RpcClientManager(
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+      () => this.engine.latestJoinResponse?.serverInfo?.version,
+    );
+    this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    });
+    this.rpcServerManager = new RpcServerManager(
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+    );
+    this.rpcServerManager.on('sendDataPacket', ({ packet }) => {
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    });
+
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant(
       '',
       '',
       this.engine,
       this.options,
-      this.rpcHandlers,
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
+      this.rpcClientManager,
+      this.rpcServerManager,
     );
 
     if (this.options.e2ee || this.options.encryption) {
@@ -393,12 +424,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    if (this.rpcHandlers.has(method)) {
-      throw Error(
-        `RPC handler already registered for method ${method}, unregisterRpcMethod before trying to register again`,
-      );
-    }
-    this.rpcHandlers.set(method, handler);
+    this.rpcServerManager.registerRpcMethod(method, handler);
   }
 
   /**
@@ -407,7 +433,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param method - The name of the RPC method to unregister
    */
   unregisterRpcMethod(method: string) {
-    this.rpcHandlers.delete(method);
+    this.rpcServerManager.unregisterRpcMethod(method);
   }
 
   /**
@@ -1855,7 +1881,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
     participant.setDisconnected();
-    this.localParticipant?.handleParticipantDisconnected(participant.identity);
+    this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -1999,14 +2025,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
-      this.handleIncomingRpcRequest(
-        packet.participantIdentity,
-        rpc.id,
-        rpc.method,
-        rpc.payload,
-        rpc.responseTimeoutMs,
-        rpc.version,
-      );
+      this.rpcServerManager.handleIncomingRpcRequest(packet.participantIdentity, rpc);
+    } else if (packet.value.case === 'rpcResponse') {
+      const rpcResponse = packet.value.value;
+      switch (rpcResponse.value.case) {
+        case 'payload':
+          this.rpcClientManager.handleIncomingRpcResponseSuccess(
+            rpcResponse.requestId,
+            rpcResponse.value.value,
+          );
+          break;
+        case 'error':
+          this.rpcClientManager.handleIncomingRpcResponseFailure(
+            rpcResponse.requestId,
+            RpcError.fromProto(rpcResponse.value.value),
+          );
+          break;
+        default:
+          this.log.warn(
+            `Unknown rpcResponse.value.case: ${rpcResponse.value.case}`,
+            this.logContext,
+          );
+          break;
+      }
+    } else if (packet.value.case === 'rpcAck') {
+      this.rpcClientManager.handleIncomingRpcAck(packet.value.value.requestId);
     }
   };
 
@@ -2069,68 +2112,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
     this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
-
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
-    try {
-      const response = await handler({
-        requestId,
-        callerIdentity,
-        payload,
-        responseTimeout,
-      });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
-        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        this.log.warn(`RPC Response payload too large for ${method}`);
-      } else {
-        responsePayload = response;
-      }
-    } catch (error) {
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        this.log.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-    }
-    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
-  }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
@@ -2475,6 +2456,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (identity) {
       return this.remoteParticipants.get(identity);
     }
+  }
+
+  private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
+    return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
+  };
+
+  private registerRpcDataStreamHandler() {
+    this.incomingDataStreamManager.registerTextStreamHandler(
+      RPC_REQUEST_DATA_STREAM_TOPIC,
+      async (reader, { identity }) => {
+        const attributes = reader.info.attributes ?? {};
+        await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
+      },
+    );
+    this.incomingDataStreamManager.registerTextStreamHandler(
+      RPC_RESPONSE_DATA_STREAM_TOPIC,
+      async (reader) => {
+        const attributes = reader.info.attributes ?? {};
+        await this.rpcClientManager.handleIncomingDataStream(reader, attributes);
+      },
+    );
   }
 
   private registerConnectionReconcile() {

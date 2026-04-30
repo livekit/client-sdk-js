@@ -6,6 +6,7 @@ import type {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
+import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import RemoteDataTrack from '../data-track/RemoteDataTrack';
 import type IncomingDataTrackManager from '../data-track/incoming/IncomingDataTrackManager';
 import { DataTrackInfo } from '../data-track/types';
@@ -41,6 +42,11 @@ export default class RemoteParticipant extends Participant {
 
   signalClient: SignalClient;
 
+  /** A version number indicating the set of features that the report participant's client supports.
+   * @internal
+   **/
+  clientProtocol: number;
+
   private volumeMap: Map<Track.Source, number>;
 
   private audioOutput?: AudioOutputOptions;
@@ -65,6 +71,7 @@ export default class RemoteParticipant extends Participant {
         const info = DataTrackInfo.from(dti);
         return new RemoteDataTrack(info, manager, { publisherIdentity: pi.identity });
       }),
+      pi.clientProtocol,
     );
   }
 
@@ -87,6 +94,7 @@ export default class RemoteParticipant extends Participant {
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
     remoteDataTracks: Array<RemoteDataTrack> = [],
+    clientProtocol: number = CLIENT_PROTOCOL_DEFAULT,
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
@@ -99,6 +107,7 @@ export default class RemoteParticipant extends Participant {
       }),
     );
     this.volumeMap = new Map();
+    this.clientProtocol = clientProtocol;
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {
