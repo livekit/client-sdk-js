@@ -290,8 +290,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on('trackUnpublished', (event) => {
         this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
       })
-      .on('packetAvailable', ({ bytes }) => {
-        this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait');
+      .on('packetAvailable', ({ handle, bytes }) => {
+        this.engine
+          .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
+          .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
     this.disconnectLock = new Mutex();
@@ -1730,6 +1732,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
     this.incomingDataStreamManager.clearControllers();
+    this.incomingDataTrackManager.reset();
+    this.outgoingDataTrackManager.reset();
     if (this.state === ConnectionState.Disconnected) {
       return;
     }

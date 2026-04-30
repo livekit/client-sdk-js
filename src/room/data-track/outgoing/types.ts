@@ -34,6 +34,8 @@ export type EventSfuUnpublishRequest = {
 
 /** A serialized packet is ready to be sent over the transport. */
 export type EventPacketAvailable = {
+  /** The handle associated with the data track which this packet bytes belong to. */
+  handle: DataTrackHandle;
   bytes: Uint8Array;
 };
 
@@ -43,3 +45,6 @@ export type EventTrackPublished = { track: LocalDataTrack };
 
 /** A track has been unpublished by a remote participant and can no longer be subscribed to. */
 export type EventTrackUnpublished = { sid: DataTrackSid };
+
+/** A track has had all of its in flight packets sent via the rtc data channel. */
+export type EventPacketsFlushed = { handle: DataTrackHandle };
