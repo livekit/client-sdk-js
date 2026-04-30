@@ -242,6 +242,10 @@ export class PCTransportManager {
       // Race: an answer past our checkpoint already arrived before we had a
       // chance to subscribe.
       if (this.publisher.latestAcknowledgedOfferId > checkpoint) {
+        this.log.debug(
+          `negotiation already handled in more recent acknowledged offer`,
+          this.logContext,
+        );
         resolve();
         return;
       }
