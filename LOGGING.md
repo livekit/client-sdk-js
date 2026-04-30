@@ -28,12 +28,7 @@ named logger (see `LoggerNames`) so users can raise verbosity per area via
 
 Each class passes a structured `logContext` object to every log call so
 consumers wired up via `setLogExtension` receive full metadata for
-ingestion. The display-oriented keys listed in `DISPLAY_KEYS`
-(`room`, `roomID`, `participant`, `participantID`, `trackID`, `source`,
-`target`, `transport`, `reconnectAttempt`, `region`) are additionally
-rendered as a bracketed prefix on the human-readable log message, so
-they remain visible in browser devtools without having to expand the
-structured object.
+ingestion.
 
 ### Binding context to a logger
 
@@ -46,16 +41,11 @@ this.log = getLogger(LoggerNames.Engine, () => this.logContext);
 
 // at call sites
 this.log.debug('got ICE candidate from peer', { candidate, target });
-// devtools: [room=foo participant=alice target=PUBLISHER] got ICE candidate from peer
+// devtools: got ICE candidate from peer, { room: 'foo', participant: 'alice', ..., candidate, target }
 // setLogExtension: { room: 'foo', participant: 'alice', ..., candidate, target }
 ```
 
 The context provider is invoked on every call, so updates to `logContext`
 are reflected automatically.
 
-### Extending `DISPLAY_KEYS`
 
-Add a key to `DISPLAY_KEYS` only when it meaningfully narrows down
-*which* entity a log line refers to (an ID, a transport target, a
-reconnect attempt number). Metrics, timings, and payload details belong
-in the structured context but not in the message prefix.
