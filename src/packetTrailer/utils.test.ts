@@ -1,6 +1,10 @@
 import { PacketTrailerFeature } from '@livekit/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getPacketTrailerFeatures, isPacketTrailerSupported } from './utils';
+import {
+  getPacketTrailerFeatures,
+  getPacketTrailerPublishOptions,
+  isPacketTrailerSupported,
+} from './utils';
 
 describe('packet trailer support', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -80,5 +84,22 @@ describe('packet trailer publish features', () => {
       PacketTrailerFeature.PTF_FRAME_ID,
     ]);
     expect(getPacketTrailerFeatures()).toEqual([]);
+  });
+
+  it('maps protocol features to publish options', () => {
+    expect(
+      getPacketTrailerPublishOptions([
+        PacketTrailerFeature.PTF_USER_TIMESTAMP,
+        PacketTrailerFeature.PTF_FRAME_ID,
+      ]),
+    ).toEqual({ timestamp: true, frameId: true });
+    expect(getPacketTrailerPublishOptions([PacketTrailerFeature.PTF_USER_TIMESTAMP])).toEqual({
+      timestamp: true,
+    });
+    expect(getPacketTrailerPublishOptions([PacketTrailerFeature.PTF_FRAME_ID])).toEqual({
+      frameId: true,
+    });
+    expect(getPacketTrailerPublishOptions()).toBeUndefined();
+    expect(getPacketTrailerPublishOptions([])).toBeUndefined();
   });
 });

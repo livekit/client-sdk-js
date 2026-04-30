@@ -268,6 +268,61 @@ describe('FrameCryptor', () => {
         vitest.useRealTimers();
       }
     });
+
+    it('appends only timestamp packet trailer metadata after encryption', async () => {
+      vitest.useFakeTimers();
+      const now = new Date('2025-04-10T12:00:00.123Z');
+      vitest.setSystemTime(now);
+      try {
+        const { keys, input, output } = prepareParticipantTestEncoder(
+          participantIdentity,
+          {},
+          { timestamp: true },
+        );
+
+        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+        const frame = mockRTCEncodedVideoFrame(
+          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        );
+
+        input.write(frame);
+        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+        const extracted = extractPacketTrailer(frame.data);
+        expect(frame.data.byteLength - extracted.data.byteLength).toBe(15);
+        expect(extracted.metadata?.userTimestamp).toBeGreaterThanOrEqual(
+          BigInt(now.getTime()) * BigInt(1000),
+        );
+        expect(extracted.metadata?.frameId).toBe(0);
+      } finally {
+        vitest.useRealTimers();
+      }
+    });
+
+    it('appends only frame id packet trailer metadata after encryption', async () => {
+      const { keys, input, output } = prepareParticipantTestEncoder(
+        participantIdentity,
+        {},
+        { frameId: true },
+      );
+
+      await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+      const frame = mockRTCEncodedVideoFrame(
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      );
+
+      input.write(frame);
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+      const extracted = extractPacketTrailer(frame.data);
+      expect(frame.data.byteLength - extracted.data.byteLength).toBe(11);
+      expect(extracted.metadata).toEqual({
+        userTimestamp: BigInt(0),
+        frameId: 1,
+      });
+    });
   });
 
   describe('decode', () => {

@@ -26,3 +26,21 @@ export function getPacketTrailerFeatures(
   }
   return features;
 }
+
+export function getPacketTrailerPublishOptions(
+  features?: PacketTrailerFeature[],
+): PacketTrailerPublishOptions | undefined {
+  if (!features || features.length === 0) {
+    return undefined;
+  }
+
+  const options: PacketTrailerPublishOptions = {};
+  if (features.includes(PacketTrailerFeature.PTF_USER_TIMESTAMP)) {
+    options.timestamp = true;
+  }
+  if (features.includes(PacketTrailerFeature.PTF_FRAME_ID)) {
+    options.frameId = true;
+  }
+
+  return options.timestamp || options.frameId ? options : undefined;
+}

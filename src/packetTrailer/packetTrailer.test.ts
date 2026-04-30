@@ -96,6 +96,7 @@ describe('packetTrailer', () => {
     const extracted = extractPacketTrailer(frame.data);
 
     expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(frame.data.byteLength).toBe(payload.byteLength + 15);
     expect(extracted.metadata).toEqual({
       userTimestamp: BigInt(Date.now()) * BigInt(1000),
       frameId: 0,
@@ -110,6 +111,8 @@ describe('packetTrailer', () => {
     appendPacketTrailerToEncodedFrame(firstFrame, { frameId: true }, 1);
     appendPacketTrailerToEncodedFrame(secondFrame, { frameId: true }, 2);
 
+    expect(firstFrame.data.byteLength).toBe(payload.byteLength + 11);
+    expect(secondFrame.data.byteLength).toBe(payload.byteLength + 11);
     expect(extractPacketTrailer(firstFrame.data).metadata).toEqual({
       userTimestamp: 0n,
       frameId: 1,
@@ -139,6 +142,16 @@ describe('packetTrailer', () => {
     const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
 
     const changed = appendPacketTrailerToEncodedFrame(frame, {}, 1);
+
+    expect(changed).toBe(false);
+    expect(frame.data).toBe(payload.buffer);
+  });
+
+  it('passes encoded frames through when publish options are undefined', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    const changed = appendPacketTrailerToEncodedFrame(frame, undefined, 1);
 
     expect(changed).toBe(false);
     expect(frame.data).toBe(payload.buffer);
