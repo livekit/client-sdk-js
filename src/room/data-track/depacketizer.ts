@@ -9,8 +9,6 @@ import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
 const log = getLogger(LoggerNames.DataTracks);
 
 type PartialFrame = {
-  /** Frame number from the start packet. */
-  frameNumber: number;
   /** Sequence of the start packet. */
   startSequence: WrapAroundUnsignedInt<typeof U16_MAX_SIZE>;
   /** Extensions from the start packet. */
@@ -80,16 +78,24 @@ export enum DataTrackDepacketizerDropReason {
 }
 
 type PushOptions = {
-  /** If true, throws an error instead of logging a warning when a new frame is encountered half way
-   * through processing a pre-existing frame. */
-  errorOnPartialFrames: boolean;
+  /** If true, throws `DataTrackDepacketizerDropError.interrupted` instead of logging a warning
+   * when a new frame arrives while the partials map is at capacity. */
+  throwOnInterruption: boolean;
+
+  /** Maximum number of partial frames the depacketizer will track concurrently. When a new
+   * frame arrives while the partials map is at capacity, the oldest partial is evicted (or
+   * `DataTrackDepacketizerDropError.interrupted` is thrown when `throwOnInterruption` is set).
+   * Defaults to 1. */
+  maxPartialFrames?: number;
 };
 
 export default class DataTrackDepacketizer {
   /** Maximum number of packets to buffer per frame before dropping. */
   static MAX_BUFFER_PACKETS = 128;
 
-  private partial: PartialFrame | null = null;
+  /** Partial frames currently being assembled, keyed by frame number. `Map` preserves insertion
+   * order, so the oldest entry is the first key. */
+  private partials: Map<number, PartialFrame> = new Map();
 
   /** Should be repeatedly called with received {@link DataTrackPacket}s - intermediate calls
    * aggregate the packet's state internally, and return null.
@@ -112,14 +118,19 @@ export default class DataTrackDepacketizer {
   }
 
   reset() {
-    this.partial = null;
+    this.partials.clear();
+  }
+
+  private peekOldestPartialFrameNumber(): number | null {
+    const first = this.partials.keys().next();
+    return first.done ? null : first.value;
   }
 
   private frameFromSingle(
     packet: DataTrackPacket,
     options?: PushOptions,
   ): Throws<
-    DataTrackFrameInternal | null,
+    DataTrackFrameInternal,
     DataTrackDepacketizerDropError<DataTrackDepacketizerDropReason.Interrupted>
   > {
     if (packet.header.marker !== FrameMarker.Single) {
@@ -129,21 +140,30 @@ export default class DataTrackDepacketizer {
       );
     }
 
-    if (this.partial) {
-      if (options?.errorOnPartialFrames) {
-        const frameNumber = this.partial.frameNumber;
-        this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(
-          frameNumber,
-          packet.header.frameNumber.value,
-        );
-      } else {
-        log.warn(
-          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame, dropping.`,
+    // A `Single` packet is a self-contained frame and doesn't reserve a partials slot, but if
+    // the partials map is at capacity, treat it as a signal that the oldest in-flight partial
+    // is stale and evict it (matches `main`'s behavior when `maxPartialFrames`
+    // defaults to 1).
+    const maxPartialFrames = options?.maxPartialFrames ?? 1;
+    if (this.partials.size >= maxPartialFrames) {
+      const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
+      if (typeof oldestPartialFrameNumber !== 'number') {
+        // @throws-transformer ignore - this should be treated as a "panic" and not be caught
+        throw new Error(
+          `Depacketizer.frameFromSingle: no oldest frame number found, but partials.size is ${this.partials.size}.`,
         );
       }
+      if (options?.throwOnInterruption) {
+        this.partials.delete(oldestPartialFrameNumber);
+        throw DataTrackDepacketizerDropError.interrupted(
+          oldestPartialFrameNumber,
+          packet.header.frameNumber.value,
+        );
+      }
+      log.warn(
+        `Data track frame ${oldestPartialFrameNumber} was interrupted by single-packet frame ${packet.header.frameNumber.value}, dropping.`,
+      );
     }
-    this.reset();
 
     return { payload: packet.payload, extensions: packet.header.extensions };
   }
@@ -160,30 +180,35 @@ export default class DataTrackDepacketizer {
       );
     }
 
-    if (this.partial) {
-      if (options?.errorOnPartialFrames) {
-        const frameNumber = this.partial.frameNumber;
-        this.reset();
-        throw DataTrackDepacketizerDropError.interrupted(
-          frameNumber,
-          packet.header.frameNumber.value,
-        );
-      } else {
-        log.warn(
-          `Data track frame ${this.partial.frameNumber} was interrupted by the start of a new frame ${packet.header.frameNumber.value}, dropping.`,
-        );
-      }
-    }
-    this.reset();
-
     const startSequence = packet.header.sequence;
-
-    this.partial = {
-      frameNumber: packet.header.frameNumber.value,
+    const frameNumber = packet.header.frameNumber.value;
+    const partial: PartialFrame = {
       startSequence,
       extensions: packet.header.extensions,
       payloads: new Map([[startSequence.value, packet.payload]]),
     };
+
+    // Loop in case `maxPartialFrames` shrunk relative to a previous push call - evict the
+    // oldest partials until there is room for the new one. With `throwOnInterruption` set the
+    // throw inside the loop short-circuits on the first eviction, matching the single-eviction
+    // behavior callers expect when they ask to be told about interruptions.
+    const maxPartialFrames = options?.maxPartialFrames ?? 1;
+    while (this.partials.size >= maxPartialFrames) {
+      const oldestPartialFrameNumber = this.peekOldestPartialFrameNumber();
+      if (typeof oldestPartialFrameNumber !== 'number') {
+        // partials map is empty - nothing more to evict
+        break;
+      }
+      this.partials.delete(oldestPartialFrameNumber);
+
+      if (options?.throwOnInterruption) {
+        throw DataTrackDepacketizerDropError.interrupted(oldestPartialFrameNumber, frameNumber);
+      }
+      log.warn(
+        `Data track partials full (max ${maxPartialFrames}), evicted oldest frame ${oldestPartialFrameNumber} to make room for new frame ${frameNumber}.`,
+      );
+    }
+    this.partials.set(frameNumber, partial);
 
     return null;
   }
@@ -199,40 +224,32 @@ export default class DataTrackDepacketizer {
       );
     }
 
-    if (!this.partial) {
-      this.reset();
-      throw DataTrackDepacketizerDropError.unknownFrame(packet.header.frameNumber.value);
-    }
-
-    if (packet.header.frameNumber.value !== this.partial.frameNumber) {
-      const frameNumber = this.partial.frameNumber;
-      this.reset();
-      throw DataTrackDepacketizerDropError.interrupted(
-        frameNumber,
-        packet.header.frameNumber.value,
-      );
+    const packetFrameNumber = packet.header.frameNumber.value;
+    const matchingPartial = this.partials.get(packetFrameNumber);
+    if (!matchingPartial) {
+      this.partials.delete(packetFrameNumber);
+      throw DataTrackDepacketizerDropError.unknownFrame(packetFrameNumber);
     }
 
     // NOTE: this check will block reprocessing packets with duplicate sequence values if the
     // buffer is full already, which could maybe be problematic for very large frames.
-    if (this.partial.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
-      const frameNumber = this.partial.frameNumber;
-      this.reset();
-      throw DataTrackDepacketizerDropError.bufferFull(frameNumber);
+    if (matchingPartial.payloads.size >= DataTrackDepacketizer.MAX_BUFFER_PACKETS) {
+      this.partials.delete(packetFrameNumber);
+      throw DataTrackDepacketizerDropError.bufferFull(packetFrameNumber);
     }
 
     // Note: receiving a packet with a duplicate `sequence` value is something that likely won't
     // happen in actual use, but even if it does (maybe a low level network retransmission?) the
     // last packet with a given sequence received should always win.
-    if (this.partial.payloads.has(packet.header.sequence.value)) {
+    if (matchingPartial.payloads.has(packet.header.sequence.value)) {
       log.warn(
-        `Data track frame ${this.partial.frameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`,
+        `Data track frame ${packetFrameNumber} received duplicate packet for sequence ${packet.header.sequence.value}, so replacing with newly received packet.`,
       );
     }
-    this.partial.payloads.set(packet.header.sequence.value, packet.payload);
+    matchingPartial.payloads.set(packet.header.sequence.value, packet.payload);
 
     if (packet.header.marker === FrameMarker.Final) {
-      return this.finalize(this.partial, packet.header.sequence.value);
+      return this.finalize(packetFrameNumber, matchingPartial, packet.header.sequence.value);
     }
 
     return null;
@@ -240,6 +257,7 @@ export default class DataTrackDepacketizer {
 
   /** Try to reassemble the complete frame. */
   private finalize(
+    partialFrameNumber: number,
     partial: PartialFrame,
     endSequence: number,
   ): Throws<
@@ -281,13 +299,13 @@ export default class DataTrackDepacketizer {
       }
 
       // The packet is done processing, reset the state so another frame can be processed next.
-      this.reset();
+      this.partials.delete(partialFrameNumber);
       return { payload, extensions: partial.extensions };
     }
 
-    this.reset();
+    this.partials.delete(partialFrameNumber);
     throw DataTrackDepacketizerDropError.incomplete(
-      partial.frameNumber,
+      partialFrameNumber,
       received,
       endSequence - partial.startSequence.value + 1,
     );
