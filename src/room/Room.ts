@@ -348,6 +348,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
       }
     }
+
+    this.setupRPCStream();
   }
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
@@ -1250,6 +1252,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  private setupRPCStream() {
+    this.incomingDataStreamManager.registerTextStreamHandler('lk.rpc_response', async (reader) => {
+      const requestId = reader.info.attributes?.['lk.rpc_request_id'];
+      const payload = await reader.readAll();
+      if (requestId) {
+        this.localParticipant._handleIncomingRpcResponse(requestId, payload, null);
+      }
+    });
+  }
+
   private onPageLeave = async () => {
     this.log.info('Page leave detected, disconnecting');
     await this.disconnect();
@@ -2080,7 +2092,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) {
     await this.engine.publishRpcAck(callerIdentity, requestId);
 
-    if (version !== 1) {
+    const supportedVersions = [1, 2];
+
+    if (!supportedVersions.includes(version)) {
       await this.engine.publishRpcResponse(
         callerIdentity,
         requestId,
@@ -2112,7 +2126,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         payload,
         responseTimeout,
       });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
+      if (byteLength(response) > MAX_PAYLOAD_BYTES && version === 1) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
         this.log.warn(`RPC Response payload too large for ${method}`);
       } else {
@@ -2129,7 +2143,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
     }
-    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
+    if (version === 1 || responseError) {
+      await this.engine.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        responsePayload,
+        responseError,
+      );
+    } else {
+      await this.localParticipant.sendText(responsePayload ?? '', {
+        topic: 'lk.rpc_response',
+        attributes: { 'lk.rpc_request_id': requestId },
+        destinationIdentities: [callerIdentity],
+      });
+    }
   }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
