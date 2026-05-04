@@ -1,4 +1,4 @@
-import { PacketTrailerFeature, type TrackInfo } from '@livekit/protocol';
+import { PacketTrailerFeature } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type LocalTrack from '../track/LocalTrack';
 import { Track } from '../track/Track';
@@ -12,7 +12,6 @@ type PacketTrailerTestParticipant = {
     track: LocalTrack,
     opts: TrackPublishOptions,
   ) => PacketTrailerFeature[];
-  reconcilePublishedPacketTrailerOptions: (opts: TrackPublishOptions, trackInfo: TrackInfo) => void;
 };
 
 function makeParticipant(canPublishPacketTrailer: boolean) {
@@ -78,20 +77,5 @@ describe('LocalParticipant packet trailer publish options', () => {
     expect(features).toEqual([]);
     expect(opts.packetTrailer).toBeUndefined();
     expect(participant.log.warn).toHaveBeenCalledOnce();
-  });
-
-  it('reconciles packet trailer options from published TrackInfo features', () => {
-    const participant = makeParticipant(true);
-    const opts: TrackPublishOptions = { packetTrailer: { timestamp: true, frameId: true } };
-
-    participant.reconcilePublishedPacketTrailerOptions(opts, {
-      packetTrailerFeatures: [PacketTrailerFeature.PTF_USER_TIMESTAMP],
-    } as TrackInfo);
-    expect(opts.packetTrailer).toEqual({ timestamp: true });
-
-    participant.reconcilePublishedPacketTrailerOptions(opts, {
-      packetTrailerFeatures: [],
-    } as unknown as TrackInfo);
-    expect(opts.packetTrailer).toBeUndefined();
   });
 });

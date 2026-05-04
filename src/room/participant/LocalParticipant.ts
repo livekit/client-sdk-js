@@ -1352,7 +1352,6 @@ export default class LocalParticipant extends Participant {
       ti = rets[0];
     } else {
       ti = await addTrackPromise;
-      this.reconcilePublishedPacketTrailerOptions(opts, ti);
       // server might not support the codec the client has requested, in that case, fallback
       // to a supported codec
       let primaryCodecMime: string | undefined;
@@ -1382,8 +1381,6 @@ export default class LocalParticipant extends Participant {
       }
       await negotiate();
     }
-
-    this.reconcilePublishedPacketTrailerOptions(opts, ti);
 
     const publication = new LocalTrackPublication(track.kind, ti, track, {
       loggerName: this.roomOptions.loggerName,
@@ -1527,10 +1524,6 @@ export default class LocalParticipant extends Participant {
     return features;
   }
 
-  private reconcilePublishedPacketTrailerOptions(opts: TrackPublishOptions, trackInfo: TrackInfo) {
-    opts.packetTrailer = getPacketTrailerPublishOptions(trackInfo.packetTrailerFeatures);
-  }
-
   override get isLocal(): boolean {
     return true;
   }
@@ -1586,10 +1579,7 @@ export default class LocalParticipant extends Participant {
     if (!simulcastTrack) {
       return;
     }
-    const packetTrailerFeatures = this.canPublishPacketTrailer()
-      ? getPacketTrailerFeatures(opts.packetTrailer)
-      : [];
-    opts.packetTrailer = getPacketTrailerPublishOptions(packetTrailerFeatures);
+    const packetTrailerFeatures = this.normalizeRequestedPacketTrailerOptions(track, opts);
 
     const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,
@@ -1622,7 +1612,6 @@ export default class LocalParticipant extends Participant {
     };
 
     const ti = await this.engine.addTrack(req);
-    this.reconcilePublishedPacketTrailerOptions(opts, ti);
     await negotiate();
 
     this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
