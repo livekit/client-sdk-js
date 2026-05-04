@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.18.9
+
+### Patch Changes
+
+- Ensure that flush called when there are no in flight data track packets works - [#1929](https://github.com/livekit/client-sdk-js/pull/1929) ([@1egoman](https://github.com/1egoman))
+
 ## 2.18.8
 
 ### Patch Changes
