@@ -1,4 +1,5 @@
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
+import { Future } from '../utils';
 import { type DataTrackFrame, DataTrackFrameInternal } from './frame';
 import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
@@ -28,13 +29,34 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
   protected log: StructuredLogger = log;
 
+  /** Resolves once the data track has sent all pending packets the rtc data channel buffer. */
+  protected flushedFuture = new Future<void, never>();
+
   /** @internal */
   constructor(options: DataTrackOptions, manager: OutgoingDataTrackManager) {
     this.options = options;
     this.manager = manager;
 
     this.log = getLogger(LoggerNames.DataTracks);
+
+    this.manager.on('packetsFlushed', this.handleManagerPacketsFlushed);
+    this.manager.on('reset', this.handleManagerReset);
   }
+
+  private handleManagerReset = () => {
+    // When the associated manager resets, mark any in flight flushes as complete
+    // There's nothing actionable a user can do to get these to complete so no
+    // error is being thrown.
+    this.handleManagerPacketsFlushed();
+
+    this.manager.off('packetsFlushed', this.handleManagerReset);
+    this.manager.off('reset', this.handleManagerReset);
+  };
+
+  private handleManagerPacketsFlushed = () => {
+    this.flushedFuture.resolve?.();
+    this.flushedFuture = new Future();
+  };
 
   /** @internal */
   static withExplicitHandle(
@@ -102,6 +124,35 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
       // propagate upwards into the public interface.
       throw err;
     }
+  }
+
+  /**
+   * When called, waits for all in flight packets to be sent before resolving.
+   *
+   * Use this to:
+   *
+   * 1. Send frames exactly in order:
+   * ```ts
+   * await track.tryPush(/* ... *\/);
+   * await track.flush();
+   * await track.tryPush(/* ... *\/);
+   * await track.flush();
+   * // ... etc ...
+   * ```
+   *
+   * 2. Wait for frames to all be delivered before unpublishing a local data track:
+   *
+   * ```ts
+   * await track.tryPush(/* ... *\/);
+   * await track.tryPush(/* ... *\/);
+   * await track.tryPush(/* ... *\/);
+   * // ... etc ...
+   * await track.flush();
+   * await track.unpublish();
+   * ```
+   **/
+  async flush(): Promise<void> {
+    return this.flushedFuture.promise;
   }
 
   /**
