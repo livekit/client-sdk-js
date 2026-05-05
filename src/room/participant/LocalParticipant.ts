@@ -1610,9 +1610,9 @@ export default class LocalParticipant extends Participant {
 
       await this.engine.negotiate();
     };
-
-    const ti = await this.engine.addTrack(req);
-    await negotiate();
+    
+    const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+    const ti = rets[0];
 
     this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
       ...this.logContext,
