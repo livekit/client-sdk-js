@@ -103,7 +103,7 @@ export interface InternalRoomOptions {
 
   /**
    * @experimental
-   * Options for enabling packet trailer extraction on received video tracks.
+   * Options for enabling packet trailers on video tracks.
    * Packet trailers carry frame-level metadata such as user timestamps and frame IDs.
    */
   packetTrailer?: PacketTrailerOptions;
