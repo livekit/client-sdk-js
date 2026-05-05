@@ -219,12 +219,23 @@ from both the caller and handler perspectives.
    - Simulate the handler sending a `RpcAck` packet and a successful response.
    - Verify the caller resolves with the response payload.
 
-3. **Handler happy path**
+3. **Handler happy path (short payload)**
    - The handler receives a text data stream on topic `lk.rpc_request` with valid attributes.
    - The handler sends a `RpcAck` packet with the request ID.
    - The handler reads the full stream payload and invokes the registered method handler with
      `{ requestId, callerIdentity, payload, responseTimeout }`.
    - The method handler returns a response string.
+   - The handler sends the response as a text data stream on topic `lk.rpc_response` with
+     attribute `lk.rpc_request_id` set to the request ID.
+   - Verify no `RpcResponse` packet is produced - successful v2 responses use data streams.
+
+4. **Handler happy path (large payload > 15KB)**
+   - The handler receives a text data stream on topic `lk.rpc_request` with valid attributes, but
+     with a payload exceeding 15 KB (e.g., 20,000 bytes).
+   - The handler sends a `RpcAck` packet with the request ID.
+   - The handler reads the full stream payload and invokes the registered method handler with
+     `{ requestId, callerIdentity, payload, responseTimeout }`.
+   - The method handler returns a response string with a length exceeding 15kb (ie, 20000 bytes).
    - The handler sends the response as a text data stream on topic `lk.rpc_response` with
      attribute `lk.rpc_request_id` set to the request ID.
    - Verify no `RpcResponse` packet is produced - successful v2 responses use data streams.
@@ -259,6 +270,13 @@ from both the caller and handler perspectives.
    - The caller sends a v2 data stream request.
    - Before any ack or response arrives, the remote participant disconnects.
    - Verify the caller rejects with `RECIPIENT_DISCONNECTED` (code 1503).
+
+9. **Fast remote responding immediately after publish**
+  - The caller sends a v2 data stream request.
+  - Immediately (ie, with no await or similar deferral to let other threads run), a v2 data stream
+    response is sent.
+  - Verify the caller received the response and doesn't have any in flight acks which are being
+    stored.
 
 ### v2 -> v1 (v2 caller, v1 handler)
 
