@@ -1610,6 +1610,7 @@ export default class LocalParticipant extends Participant {
 
       await this.engine.negotiate();
     };
+
     const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
     const ti = rets[0];
 
