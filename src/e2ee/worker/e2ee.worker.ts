@@ -161,11 +161,14 @@ onmessage = (ev) => {
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
-        getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        trackCryptor.setVideoCodec(data.codec);
+        trackCryptor.setHasPacketTrailer(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
           codec: data.codec,
+          hasPacketTrailer: data.hasPacketTrailer,
         });
         break;
       case 'setRTPMap':

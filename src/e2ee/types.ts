@@ -75,6 +75,7 @@ export interface UpdateCodecMessage extends BaseMessage {
     participantIdentity: string;
     trackId: string;
     codec: VideoCodec;
+    hasPacketTrailer: boolean;
   };
 }
 

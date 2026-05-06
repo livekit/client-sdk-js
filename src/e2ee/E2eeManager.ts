@@ -336,6 +336,7 @@ export class E2EEManager
           trackId: publication.track!.mediaStreamID,
           codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
           participantIdentity: this.room!.localParticipant.identity,
+          hasPacketTrailer: false,
         },
       };
 
@@ -534,13 +535,14 @@ export class E2EEManager
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
       if (E2EE_FLAG in receiver && codec) {
-        // only update codec
+        // update track-specific state when the transceiver is reused
         const msg: UpdateCodecMessage = {
           kind: 'updateCodec',
           data: {
             trackId,
             codec,
-            participantIdentity: participantIdentity,
+            participantIdentity,
+            hasPacketTrailer,
           },
         };
         this.worker.postMessage(msg);
