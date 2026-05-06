@@ -64,7 +64,7 @@ onmessage = (ev) => {
         break;
       case 'decode':
         let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-        cryptor.setHasPacketTrailer(!!data.hasPacketTrailer);
+        cryptor.setHasPacketTrailer(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
           data.readableStream,
@@ -76,6 +76,7 @@ onmessage = (ev) => {
         break;
       case 'encode':
         let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        pubCryptor.setHasPacketTrailer(data.hasPacketTrailer);
         pubCryptor.setupTransform(
           kind,
           data.readableStream,
@@ -338,7 +339,7 @@ if (self.RTCTransformEvent) {
       transformer.options as ScriptTransformOptions;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(participantIdentity, trackId);
-      cryptor.setHasPacketTrailer(!!hasPacketTrailer);
+      cryptor.setHasPacketTrailer(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(
         kind,

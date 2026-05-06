@@ -515,8 +515,8 @@ export class E2EEManager
     receiver: RTCRtpReceiver,
     trackId: string,
     participantIdentity: string,
-    codec?: VideoCodec,
-    hasPacketTrailer?: boolean,
+    codec: VideoCodec | undefined,
+    hasPacketTrailer: boolean,
   ) {
     if (!this.worker) {
       return;
@@ -597,11 +597,12 @@ export class E2EEManager
 
     if (isScriptTransformSupportedForWorker()) {
       log.info('initialize script transform');
-      const options = {
+      const options: ScriptTransformOptions = {
         kind: 'encode',
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
+        hasPacketTrailer: false,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -618,6 +619,7 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
+          hasPacketTrailer: false,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
