@@ -57,7 +57,7 @@ export interface EncodeMessage extends BaseMessage {
      * When false, the cryptor skips the per-frame trailer extraction path
      * entirely on decode.
      */
-    hasPacketTrailer?: boolean;
+    hasPacketTrailer: boolean;
   };
 }
 
@@ -239,5 +239,5 @@ export type ScriptTransformOptions = {
    * When false, the cryptor skips the per-frame trailer extraction path
    * entirely on decode.
    */
-  hasPacketTrailer?: boolean;
+  hasPacketTrailer: boolean;
 };
