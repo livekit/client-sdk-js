@@ -336,6 +336,7 @@ export class E2EEManager
           trackId: publication.track!.mediaStreamID,
           codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
           participantIdentity: this.room!.localParticipant.identity,
+          hasPacketTrailer: false,
         },
       };
 
@@ -520,8 +521,8 @@ export class E2EEManager
     receiver: RTCRtpReceiver,
     trackId: string,
     participantIdentity: string,
-    codec?: VideoCodec,
-    hasPacketTrailer?: boolean,
+    codec: VideoCodec | undefined,
+    hasPacketTrailer: boolean,
   ) {
     if (!this.worker) {
       return;
@@ -539,13 +540,14 @@ export class E2EEManager
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
       if (E2EE_FLAG in receiver && codec) {
-        // only update codec
+        // update track-specific state when the transceiver is reused
         const msg: UpdateCodecMessage = {
           kind: 'updateCodec',
           data: {
             trackId,
             codec,
-            participantIdentity: participantIdentity,
+            participantIdentity,
+            hasPacketTrailer,
           },
         };
         this.worker.postMessage(msg);
@@ -607,12 +609,12 @@ export class E2EEManager
 
     if (isScriptTransformSupportedForWorker()) {
       log.info('initialize script transform');
-      const options = {
+      const options: ScriptTransformOptions = {
         kind: 'encode',
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
-        packetTrailer,
+        hasPacketTrailer: false,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -629,7 +631,7 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
-          packetTrailer,
+          hasPacketTrailer: false,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);

@@ -58,7 +58,7 @@ export interface EncodeMessage extends BaseMessage {
      * When false, the cryptor skips the per-frame trailer extraction path
      * entirely on decode.
      */
-    hasPacketTrailer?: boolean;
+    hasPacketTrailer: boolean;
     /**
      * Packet trailer metadata to append on published video frames.
      */
@@ -80,6 +80,7 @@ export interface UpdateCodecMessage extends BaseMessage {
     participantIdentity: string;
     trackId: string;
     codec: VideoCodec;
+    hasPacketTrailer: boolean;
   };
 }
 
@@ -244,7 +245,7 @@ export type ScriptTransformOptions = {
    * When false, the cryptor skips the per-frame trailer extraction path
    * entirely on decode.
    */
-  hasPacketTrailer?: boolean;
+  hasPacketTrailer: boolean;
   /**
    * Packet trailer metadata to append on published video frames.
    */
