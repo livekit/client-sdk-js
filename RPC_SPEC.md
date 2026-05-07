@@ -155,6 +155,10 @@ RPC requests and responses use separate data stream topics:
   responses. Read the `lk.rpc_request_id` attribute to match the response to a pending request,
   then route to the caller-side logic.
 
+Callers MUST validate that an incoming v2 response data stream's sender identity matches the
+destination identity recorded for the pending request. Mismatches MUST be ignored (logged at
+most), not used to resolve the pending request.
+
 ### Version negotiation and backward compatibility
 
 The transport used for a given RPC call depends on what both sides support. The caller decides the
@@ -240,7 +244,18 @@ from both the caller and handler perspectives.
      attribute `lk.rpc_request_id` set to the request ID.
    - Verify no `RpcResponse` packet is produced - successful v2 responses use data streams.
 
-4. **Unhandled error in handler**
+5. **Handler receives a request for an unregistered method**
+   - A v2 data stream arrives on `lk.rpc_request` for a method (e.g., `"unknown-method"`) for
+     which `registerRpcMethod` has not been called.
+   - The handler still sends a `RpcAck` packet for the request ID, so the caller knows the
+     handler is alive.
+   - The handler then sends a v1 `RpcResponse` packet with error code `UNSUPPORTED_METHOD`
+     (1400). No data stream response is opened.
+   - Failure mode this catches: implementations that look up the handler before sending the ack
+     would either drop the request silently or send an ack-less error response, breaking the
+     caller's ack contract.
+
+6. **Unhandled error in handler**
    - The handler receives a v2 data stream request.
    - The handler sends a `RpcAck` packet.
    - The registered method handler throws a non-RpcError exception (e.g., a generic `Error`).
@@ -248,39 +263,81 @@ from both the caller and handler perspectives.
      `APPLICATION_ERROR` (1500).
    - Verify error responses always use packets, even between two v2 clients.
 
-5. **RpcError passthrough in handler**
+7. **RpcError passthrough in handler**
    - The handler receives a v2 data stream request.
    - The handler sends a `RpcAck` packet.
    - The registered method handler throws a `RpcError` with a custom code (e.g., 101) and
      message.
    - The handler sends a `RpcResponse` packet preserving the original error code and message.
 
-6. **Response timeout**
+8. **Response timeout**
    - The caller sends a v2 data stream request with a short response timeout (e.g., 50ms).
    - No `RpcAck` or response arrives.
    - After the timeout elapses, the caller rejects with `RESPONSE_TIMEOUT` (code 1502).
 
-7. **Error response**
+9. **Error response**
    - The caller sends a v2 data stream request.
    - Simulate the handler sending a `RpcAck` packet, then a `RpcResponse` packet with an error
      (e.g., code 101, message "Test error message").
    - Verify the caller rejects with the correct error code and message.
 
-8. **Participant disconnection**
-   - The caller sends a v2 data stream request.
-   - Before any ack or response arrives, the remote participant disconnects.
-   - Verify the caller rejects with `RECIPIENT_DISCONNECTED` (code 1503).
+10. **Participant disconnection**
+    - The caller sends a v2 data stream request.
+    - Before any ack or response arrives, the remote participant disconnects.
+    - Verify the caller rejects with `RECIPIENT_DISCONNECTED` (code 1503).
 
-9. **Fast remote responding immediately after publish**
-  - The caller sends a v2 data stream request.
-  - Immediately (ie, with no await or similar deferral to let other threads run), a v2 data stream
-    response is sent.
-  - Verify the caller received the response and doesn't have any in flight acks which are being
-    stored and would become orphaned.
+11. **Fast remote responding immediately after publish**
+    - The caller sends a v2 data stream request.
+    - Immediately (ie, with no await or similar deferral to let other threads run), a v2 data
+      stream response is sent.
+    - Verify the caller received the response and doesn't have any in flight acks which are
+      being stored and would become orphaned.
+
+12. **Ack / response arrives before caller finishes publishing**
+    - The caller starts a v2 `performRpc`. Before the caller's outgoing publish path has fully
+      settled (i.e., before any post-publish bookkeeping for matching the response runs), the
+      ack and response are delivered for the same request ID.
+    - The exact mechanism for delivering the ack/response at this point in the lifecycle is
+      left to the implementer — what matters is that the test exercises the window between
+      "request ID is generated" and "caller is fully ready to match the response".
+      Implementations may achieve this by holding the publish path on a deferred completion,
+      by inlining synchronous response delivery in the publish call, or by any equivalent
+      technique.
+    - Verify: the caller's promise resolves (eventually) with the response payload — neither
+      the ack nor the response is dropped.
+    - Failure mode this catches: implementations that register response-matching state
+      *after* the publish completes will lose any response delivered during the publish
+      window.
+
+13. **Late response after ack-timeout fires**
+    - The caller sends a v2 data stream request. No ack arrives within the implementation's
+      max-round-trip window (e.g., 7000ms). The caller rejects the completion promise with
+      `CONNECTION_TIMEOUT` and clears its pending state.
+    - Then simulate a delayed `RpcAck` and a v2 response data stream for the same request ID.
+    - Verify: the completion promise was rejected **exactly once** with `CONNECTION_TIMEOUT`;
+      the late ack and response are silently ignored (logged at most); no second resolution,
+      unhandled rejection, or crash occurs.
+
+14. **Response stream from wrong sender identity**
+    - The caller sends a v2 data stream request to identity `"alice"`.
+    - Simulate a v2 data stream on `lk.rpc_response` carrying the matching `lk.rpc_request_id`
+      attribute but with sender identity `"mallory"` (different from the destination).
+    - Verify: the caller does **not** resolve the pending promise. The pending entry remains
+      until the legitimate response arrives (or response timeout fires).
+    - This enforces the sender-identity validation requirement above: `lk.rpc_request_id`
+      alone is not sufficient to match a response to a pending request.
+
+15. **Concurrent `performRpc` calls to the same destination**
+    - Issue 5 `performRpc` calls in parallel (no awaits between them) to the same destination
+      identity.
+    - Verify: 5 distinct request IDs are generated; 5 outgoing v2 request streams are observed
+      (one per call); each request completes independently when its own matching `RpcAck` and
+      v2 response arrive, with the correct payload routed to the correct caller (no cross-talk
+      between the 5 in-flight requests).
 
 ### v1 -> v2 (v1 caller, v2 handler)
 
-10. **Caller happy path (v1 request)**
+16. **Caller happy path (v1 request)**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet (not a data stream) with correct `id`, `method`,
       `payload`, `responseTimeoutMs`, and `version: 1`.
@@ -289,7 +346,7 @@ from both the caller and handler perspectives.
       success payload.
     - Verify the caller resolves with the response payload.
 
-11. **Handler happy path (v1 request)**
+17. **Handler happy path (v1 request)**
     - The handler receives a v1 `RpcRequest` packet with `version: 1`.
     - The handler sends a `RpcAck` packet with the request ID.
     - The handler invokes the registered method handler with `{ requestId, callerIdentity,
@@ -298,39 +355,39 @@ from both the caller and handler perspectives.
     - The handler detects the caller's `clientProtocol` is 0 and sends the response as a v1
       `RpcResponse` packet (not a data stream).
 
-12. **Unhandled error in handler (v1 caller)**
+18. **Unhandled error in handler (v1 caller)**
     - A v1 caller sends a v1 `RpcRequest` packet.
     - The handler sends a `RpcAck` packet.
     - The registered method handler throws a non-RpcError exception (e.g., a generic `Error`).
     - The handler sends a `RpcResponse` packet with error code `APPLICATION_ERROR` (1500).
 
-13. **RpcError passthrough (v1 caller)**
+19. **RpcError passthrough (v1 caller)**
     - A v1 caller sends a v1 `RpcRequest` packet.
     - The handler sends a `RpcAck` packet.
     - The registered method handler throws a `RpcError` with a custom code (e.g., 101) and
       message.
     - The handler sends a `RpcResponse` packet preserving the original error code and message.
 
-14. **Payload too large**
+20. **Payload too large**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller attempts to send a payload exceeding 15 KB.
     - Verify it rejects immediately with `REQUEST_PAYLOAD_TOO_LARGE` (code 1402) without producing
       any packet or data stream.
 
-15. **Response timeout**
+21. **Response timeout**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet with a short response timeout (e.g., 50ms).
     - No `RpcAck` or response arrives.
     - After the timeout elapses, the caller rejects with `RESPONSE_TIMEOUT` (code 1502).
 
-16. **Error response**
+22. **Error response**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet.
     - Simulate the handler sending a `RpcAck` packet, then a `RpcResponse` packet with an
       error (e.g., code 101, message "Test error message").
     - Verify the caller rejects with the correct error code and message.
 
-17. **Participant disconnection**
+23. **Participant disconnection**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet.
     - Before any ack or response arrives, the remote participant disconnects.
