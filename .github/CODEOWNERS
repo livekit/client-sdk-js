@@ -1,0 +1,4 @@
+# CODEOWNERS for client-sdk-js
+# These owners will be requested for review on all PRs
+
+* @lukasIO @1egoman @xianshijing-lk
