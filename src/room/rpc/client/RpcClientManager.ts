@@ -100,6 +100,11 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       participantIdentity: destinationIdentity,
     });
 
+    this.pendingResponses.set(id, {
+      completionFuture,
+      participantIdentity: destinationIdentity,
+    });
+
     await this.publishRpcRequest(
       destinationIdentity,
       id,
@@ -113,11 +118,6 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       this.pendingResponses.delete(id);
       completionFuture.reject?.(RpcError.builtIn('RESPONSE_TIMEOUT'));
     }, responseTimeoutMs);
-
-    this.pendingResponses.set(id, {
-      completionFuture,
-      participantIdentity: destinationIdentity,
-    });
 
     const completionPromise = completionFuture.promise.finally(() => {
       clearTimeout(responseTimeoutId);
