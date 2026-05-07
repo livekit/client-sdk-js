@@ -10,6 +10,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
+import { hasPacketTrailerPublishOptions } from '../packetTrailer/utils';
 import type { TrackPublishOptions, VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import {
@@ -614,7 +615,8 @@ export class E2EEManager
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
-        hasPacketTrailer: false,
+        hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
+        packetTrailer,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -631,7 +633,8 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
-          hasPacketTrailer: false,
+          hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
+          packetTrailer,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
