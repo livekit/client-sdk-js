@@ -4,7 +4,6 @@ import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
-import { sleep } from '../../utils';
 import { RPC_REQUEST_DATA_STREAM_TOPIC, RpcError, RpcRequestAttrs } from '../utils';
 import RpcClientManager from './RpcClientManager';
 import type { RpcClientManagerCallbacks } from './events';
@@ -47,9 +46,7 @@ describe('RpcClientManager', () => {
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
 
       // Asynchronously send a response back
-      await sleep(10);
       rpcClientManager.handleIncomingRpcAck(requestId);
-      await sleep(10);
       rpcClientManager.handleIncomingRpcResponseSuccess(requestId, 'response payload');
 
       // Make sure the response came out the other end
@@ -127,8 +124,6 @@ describe('RpcClientManager', () => {
         payload,
       });
 
-      // Simulate a small delay before disconnection
-      await sleep(200);
       rpcClientManager.handleParticipantDisconnected('remote-identity');
 
       await expect(completionPromise).rejects.toThrow('Recipient disconnected');
@@ -194,9 +189,7 @@ describe('RpcClientManager', () => {
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
 
       // Asynchronously send a response back
-      await sleep(10);
       rpcClientManager.handleIncomingRpcAck(requestId);
-      await sleep(10);
       await rpcClientManager.handleIncomingDataStream(
         mockTextStreamReader('response-payload'),
         'destination-identity',
@@ -294,7 +287,6 @@ describe('RpcClientManager', () => {
         payload: 'disconnectPayload',
       });
 
-      await sleep(200);
       rpcClientManager.handleParticipantDisconnected('remote-identity');
 
       await expect(completionPromise).rejects.toThrow('Recipient disconnected');
