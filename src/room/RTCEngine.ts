@@ -1493,7 +1493,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendLossyBytes(
-    bytes: Uint8Array,
+    bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {

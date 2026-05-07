@@ -16,7 +16,7 @@ type PartialFrame = {
   /** Extensions from the start packet. */
   extensions: DataTrackExtensions;
   /** Mapping between sequence number and packet payload. */
-  payloads: Map<number, Uint8Array>;
+  payloads: Map<number, NonSharedUint8Array>;
 };
 
 /** An error indicating a frame was dropped. */

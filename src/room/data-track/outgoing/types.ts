@@ -36,7 +36,7 @@ export type EventSfuUnpublishRequest = {
 export type EventPacketAvailable = {
   /** The handle associated with the data track which this packet bytes belong to. */
   handle: DataTrackHandle;
-  bytes: Uint8Array;
+  bytes: NonSharedUint8Array;
 };
 
 /** A track has been created by a local participant and is available to be
