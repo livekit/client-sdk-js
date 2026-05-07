@@ -1,14 +1,11 @@
-import {
-  appendPacketTrailerToEncodedFrame,
-  hasPacketTrailerPublishOptions,
-  processPacketTrailer,
-} from '../packetTrailer';
+import { appendPacketTrailerToEncodedFrame, processPacketTrailer } from '../packetTrailer';
 import type {
   PTMetadataMessage,
   PTScriptTransformOptions,
   PTWorkerMessage,
   PacketTrailerPublishOptions,
 } from '../types';
+import { hasPacketTrailerPublishOptions } from '../utils';
 
 /**
  * Holds the trackId currently associated with a pipeline. A mutable

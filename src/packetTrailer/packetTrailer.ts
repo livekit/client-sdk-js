@@ -1,4 +1,5 @@
 import type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './types';
+import { hasPacketTrailerPublishOptions } from './utils';
 
 export const PACKET_TRAILER_MAGIC = Uint8Array.from([
   'L'.charCodeAt(0),
@@ -59,10 +60,6 @@ export function appendPacketTrailer(
   result.set(PACKET_TRAILER_MAGIC, offset);
 
   return result;
-}
-
-export function hasPacketTrailerPublishOptions(options?: PacketTrailerPublishOptions): boolean {
-  return !!(options?.timestamp || options?.frameId);
 }
 
 export function appendPacketTrailerToEncodedFrame(

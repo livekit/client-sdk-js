@@ -26,10 +26,10 @@ import {
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
-import { hasPacketTrailerPublishOptions } from '../../packetTrailer/packetTrailer';
 import {
   getPacketTrailerFeatures,
   getPacketTrailerPublishOptions,
+  hasPacketTrailerPublishOptions,
   isPacketTrailerSupported,
 } from '../../packetTrailer/utils';
 import TypedPromise from '../../utils/TypedPromise';

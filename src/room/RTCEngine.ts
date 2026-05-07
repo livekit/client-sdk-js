@@ -57,8 +57,8 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
-import { hasPacketTrailerPublishOptions } from '../packetTrailer/packetTrailer';
 import {
+  hasPacketTrailerPublishOptions,
   isPacketTrailerSupported,
   shouldUsePacketTrailerScriptTransform,
 } from '../packetTrailer/utils';

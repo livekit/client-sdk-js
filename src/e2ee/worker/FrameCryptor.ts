@@ -4,10 +4,10 @@ import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import {
   appendPacketTrailerToEncodedFrame,
-  hasPacketTrailerPublishOptions,
   processPacketTrailer,
 } from '../../packetTrailer/packetTrailer';
 import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
+import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';

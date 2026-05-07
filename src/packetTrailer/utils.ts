@@ -14,6 +14,10 @@ export function isPacketTrailerSupported(options?: PacketTrailerOptions) {
   );
 }
 
+export function hasPacketTrailerPublishOptions(options?: PacketTrailerPublishOptions): boolean {
+  return !!(options?.timestamp || options?.frameId);
+}
+
 export function getPacketTrailerFeatures(
   options?: PacketTrailerPublishOptions,
 ): PacketTrailerFeature[] {
