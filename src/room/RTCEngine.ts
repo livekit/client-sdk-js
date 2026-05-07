@@ -255,7 +255,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   constructor(private options: InternalRoomOptions) {
     super();
-    this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
+    this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
     this.loggerOptions = {
       loggerName: options.loggerName,
       loggerContextCb: () => this.logContext,
@@ -365,7 +365,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // create offer
         if (!this.subscriberPrimary || joinResponse.fastPublish) {
           this.negotiate().catch((err) => {
-            log.error(err, this.logContext);
+            this.log.error(err);
           });
         }
       }
@@ -378,15 +378,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!serverInfo) {
         serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
       }
-      this.log.debug(
+      this.log.info(
         `connected to Livekit Server ${Object.entries(serverInfo)
           .map(([key, value]) => `${key}: ${value}`)
           .join(', ')}`,
-        {
-          room: joinResponse.room?.name,
-          roomSid: joinResponse.room?.sid,
-          identity: joinResponse.participant?.identity,
-        },
       );
 
       return { joinResponse, serverInfo };
@@ -395,7 +390,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e.reason === ConnectionErrorReason.ServerUnreachable) {
           this.log.warn(
             `Couldn't connect to server, attempt ${this.joinAttempts} of ${this.maxJoinAttempts}`,
-            this.logContext,
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
             return this.join(url, token, opts, abortSignal, useV0Path);
@@ -532,7 +526,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.pcManager!.removeTrack(sender);
       return true;
     } catch (e: unknown) {
-      this.log.warn('failed to remove track', { ...this.logContext, error: e });
+      this.log.warn('failed to remove track', { error: e });
     }
     return false;
   }
@@ -589,7 +583,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.pcManager.onDataChannel = this.handleDataChannel;
     this.pcManager.onStateChange = async (connectionState, publisherState, subscriberState) => {
-      this.log.debug(`primary PC state changed ${connectionState}`, this.logContext);
+      this.log.debug(`primary PC state changed ${connectionState}`);
 
       if (['closed', 'disconnected', 'failed'].includes(publisherState)) {
         // reset publisher connection promise
@@ -643,7 +637,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       this.log.debug('received server answer', {
-        ...this.logContext,
         RTCSdpType: sd.type,
         sdp: sd.sdp,
         midToTrackId,
@@ -657,7 +650,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      this.log.debug('got ICE candidate from peer', { ...this.logContext, candidate, target });
+      this.log.debug('got ICE candidate from peer', { candidate, target });
       this.pcManager.addIceCandidate(candidate, target);
     };
 
@@ -676,15 +669,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       this.log.debug('received trackPublishedResponse', {
-        ...this.logContext,
         cid: res.cid,
         track: res.track?.sid,
       });
       if (!this.pendingTrackResolvers[res.cid]) {
-        this.log.error(`missing track resolver for ${res.cid}`, {
-          ...this.logContext,
-          cid: res.cid,
-        });
+        this.log.error(`missing track resolver for ${res.cid}`, { cid: res.cid });
         return;
       }
       const { resolve } = this.pendingTrackResolvers[res.cid];
@@ -743,9 +732,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onLeave = (leave: LeaveRequest) => {
-      this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
+      this.log.info(`client leave request received (action=${leave?.action})`, {
+        reason: leave?.reason,
+      });
       if (leave.regions) {
-        this.log.debug('updating regions', this.logContext);
+        this.log.debug('updating regions');
         this.emit(EngineEvent.ServerRegionsReported, leave.regions);
       }
       switch (leave.action) {
@@ -780,7 +771,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       (this.options.packetTrailer?.worker && !shouldUsePacketTrailerScriptTransform());
 
     if (needsInsertableStreams && isInsertableStreamSupported()) {
-      this.log.debug('setting up transports with insertable streams', this.logContext);
+      this.log.debug('E2EE - setting up transports with insertable streams');
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
@@ -919,7 +910,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       return;
     }
-    this.log.debug(`on data channel ${channel.id}, ${channel.label}`, this.logContext);
+    this.log.debug(`on data channel ${channel.id}, ${channel.label}`);
     channel.onmessage = handler;
   };
 
@@ -934,7 +925,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else if (message.data instanceof Blob) {
         buffer = await message.data.arrayBuffer();
       } else {
-        this.log.error('unsupported data type', { ...this.logContext, data: message.data });
+        this.log.error('unsupported data type', { data: message.data });
         return;
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
@@ -953,12 +944,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
       } else if (dp.value?.case === 'encryptedPacket') {
         if (!this.e2eeManager) {
-          this.log.error('Received encrypted packet but E2EE not set up', this.logContext);
+          this.log.error('Received encrypted packet but E2EE not set up');
           return;
         }
         const decryptedData = await this.e2eeManager?.handleEncryptedData(
-          dp.value.value.encryptedValue,
-          dp.value.value.iv,
+          dp.value.value.encryptedValue as NonSharedUint8Array,
+          dp.value.value.iv as NonSharedUint8Array,
           dp.participantIdentity,
           dp.value.value.keyIndex,
         );
@@ -993,7 +984,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else if (message.data instanceof Blob) {
       buffer = await message.data.arrayBuffer();
     } else {
-      this.log.error('unsupported data type', { ...this.logContext, data: message.data });
+      this.log.error('unsupported data type', { data: message.data });
       return;
     }
 
@@ -1006,12 +997,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (event instanceof ErrorEvent && event.error) {
       const { error } = event.error;
-      this.log.error(`DataChannel error on ${channelKind}: ${event.message}`, {
-        ...this.logContext,
-        error,
-      });
+      this.log.error(`DataChannel error on ${channelKind}: ${event.message}`, { error });
     } else {
-      this.log.error(`Unknown DataChannel error on ${channelKind}`, { ...this.logContext, event });
+      this.log.error(`Unknown DataChannel error on ${channelKind}`, { event });
     }
   };
 
@@ -1028,7 +1016,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (supportsTransceiver()) {
       sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
     } else if (supportsAddTrack()) {
-      this.log.warn('using add-track fallback', this.logContext);
+      this.log.warn('using add-track fallback');
       sender = await this.createRTCRtpSender(track.mediaStreamTrack);
     } else {
       throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
@@ -1047,7 +1035,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (supportsTransceiver()) {
       sender = await this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     } else if (supportsAddTrack()) {
-      this.log.debug('using add-track fallback', this.logContext);
+      this.log.debug('using add-track fallback');
       sender = await this.createRTCRtpSender(track.mediaStreamTrack);
     } else {
       throw new UnexpectedConnectionState('Cannot stream on this device');
@@ -1145,7 +1133,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    this.log.warn(`${connection} disconnected`, this.logContext);
+    this.log.warn(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
@@ -1154,7 +1142,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const disconnect = (duration: number) => {
       this.log.warn(
         `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
-        this.logContext,
       );
       this.emit(EngineEvent.Disconnected);
       this.close();
@@ -1174,7 +1161,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delay = 0;
     }
 
-    this.log.debug(`reconnecting in ${delay}ms`, this.logContext);
+    this.log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
     if (this.token) {
@@ -1195,7 +1182,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
-      log.warn('already attempting reconnect, returning early', this.logContext);
+      this.log.warn('already attempting reconnect, returning early');
       return;
     }
     if (
@@ -1220,7 +1207,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reconnectAttempts += 1;
       let recoverable = true;
       if (e instanceof UnexpectedConnectionState) {
-        this.log.debug('received unrecoverable error', { ...this.logContext, error: e });
+        this.log.debug('received unrecoverable error', { error: e });
         // unrecoverable
         recoverable = false;
       } else if (!(e instanceof SignalReconnectError)) {
@@ -1235,7 +1222,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
             Date.now() - this.reconnectStart
           }ms. giving up`,
-          this.logContext,
         );
         this.emit(EngineEvent.Disconnected);
         await this.close();
@@ -1249,7 +1235,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
-      this.log.warn('encountered error in reconnect policy', { ...this.logContext, error: e });
+      this.log.warn('encountered error in reconnect policy', { error: e });
     }
 
     // error in user code with provided reconnect policy, stop reconnecting
@@ -1263,7 +1249,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
       }
 
-      this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`, this.logContext);
+      this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1275,10 +1261,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let joinResponse: JoinResponse;
       try {
         if (!this.signalOpts) {
-          this.log.warn(
-            'attempted connection restart, without signal options present',
-            this.logContext,
-          );
+          this.log.warn('attempted connection restart, without signal options present');
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
@@ -1339,7 +1322,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
 
-    this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
+    this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     this.emit(EngineEvent.Resuming);
     let res: ReconnectResponse | undefined;
     try {
@@ -1349,7 +1332,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (error instanceof Error) {
         message = error.message;
-        this.log.error(error.message, { ...this.logContext, error });
+        this.log.error(error.message, { error });
       }
       if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
@@ -1368,7 +1351,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.latestJoinResponse.serverInfo = res.serverInfo;
       }
     } else {
-      this.log.warn('Did not receive reconnect response', this.logContext);
+      this.log.warn('Did not receive reconnect response');
     }
 
     if (this.shouldFailNext) {
@@ -1411,7 +1394,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async waitForPCReconnected() {
     this.pcState = PCState.Reconnecting;
 
-    this.log.debug('waiting for peer connection to reconnect', this.logContext);
+    this.log.debug('waiting for peer connection to reconnect');
     try {
       await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
       if (!this.pcManager) {
@@ -1491,7 +1474,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
       const encryptablePacket = asEncryptablePacket(packet);
       if (encryptablePacket) {
-        const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());
+        const encryptedData = await this.e2eeManager.encryptData(
+          encryptablePacket.toBinary() as NonSharedUint8Array,
+        );
         packet.value = {
           case: 'encryptedPacket',
           value: new EncryptedPacket({
@@ -1508,7 +1493,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDataSequence += 1;
     }
 
-    const msg = packet.toBinary();
+    const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
 
     switch (kind) {
       case DataChannelKind.LOSSY:
@@ -1535,7 +1520,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendLossyBytes(
-    bytes: Uint8Array,
+    bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {
@@ -1558,7 +1543,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             if (this.lossyDataDropCount % 100 === 0) {
               this.log.warn(
                 `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-                this.logContext,
               );
             }
             return;
@@ -1664,7 +1648,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (needNegotiation) {
       // start negotiation
       this.negotiate().catch((err) => {
-        log.error(err, this.logContext);
+        this.log.error(err);
       });
     }
 
@@ -1741,7 +1725,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const handleClosed = () => {
         abortController.abort();
-        this.log.debug('engine disconnected while negotiation was ongoing', this.logContext);
+        this.log.debug('engine disconnected while negotiation was ongoing');
         resolve();
         return;
       };
@@ -1822,7 +1806,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     localDataTrackInfos: Array<DataTrackInfo>,
   ) {
     if (!this.pcManager) {
-      this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
+      this.log.warn('sync state cannot be sent without peer connection setup');
       return;
     }
     const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();

@@ -18,6 +18,7 @@ import DataTrackOutgoingPipeline from './pipeline';
 import {
   type DataTrackOptions,
   type EventPacketAvailable,
+  type EventPacketsFlushedChange,
   type EventSfuPublishRequest,
   type EventSfuUnpublishRequest,
   type EventTrackPublished,
@@ -74,6 +75,11 @@ export type DataTrackOutgoingManagerCallbacks = {
   trackPublished: (event: EventTrackPublished) => void;
   /** A {@link LocalDataTrack} has been unpublished */
   trackUnpublished: (event: EventTrackUnpublished) => void;
+  /** A {@link LocalDataTrack} has had all of its in flight packets sent via the rtc data channel. */
+  packetsFlushedChange: (event: EventPacketsFlushedChange) => void;
+  /** The manager has been reset and all state has been cleared in preparation for the next room
+   * connection. */
+  reset: () => void;
 };
 
 type OutgoingDataTrackManagerOptions = {
@@ -94,6 +100,11 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   private handleAllocator = new DataTrackHandleAllocator();
 
   private descriptors = new Map<DataTrackHandle, Descriptor>();
+
+  /** Number of packets for each data track which have been emitted via the `packetAvailable` event
+   * and which have not yet been sent via the rtc data channel yet. Once this goes to 0, then
+   * all in flight packets have been delivered, and the data tracks is "flushed". */
+  private inFlightPacketCounter = new Map<DataTrackHandle, number>();
 
   constructor(options?: OutgoingDataTrackManagerOptions) {
     super();
@@ -154,12 +165,41 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     try {
       for await (const packet of descriptor.pipeline.processFrame(frame)) {
-        this.emit('packetAvailable', { bytes: packet.toBinary() });
+        const prev = this.inFlightPacketCounter.get(handle) ?? 0;
+        this.inFlightPacketCounter.set(handle, prev + 1);
+        if (prev === 0) {
+          // A new packet has been sent, so there are now packets in the rtc data channel buffer for
+          // this data track frame
+          this.emit('packetsFlushedChange', { handle, isFlushed: false });
+        }
+
+        this.emit('packetAvailable', { handle, bytes: packet.toBinary() });
       }
     } catch (err) {
       // NOTE: In the rust implementation this "dropped" error means something different (not enough room
       // in the track mpsc channel)
       throw DataTrackPushFrameError.dropped(err);
+    }
+  }
+
+  /** The client has sent a packet over the rtc data channel. This signal is used for determining
+   * once all packets are sent and a data track has been "flushed".
+   *
+   * @internal */
+  handlePacketSendComplete(handle: DataTrackHandle) {
+    const prev = this.inFlightPacketCounter.get(handle) ?? 0;
+    let counter = prev - 1;
+
+    if (counter < 0) {
+      log.warn(
+        `OutgoingDataTrackManager.handlePacketSendComplete: inFlightPacketCounter was decremented below 0 (got ${this.inFlightPacketCounter} - resetting to 0. Were more packets send than were emitted?`,
+      );
+      counter = 0;
+    }
+    this.inFlightPacketCounter.set(handle, counter);
+
+    if (counter === 0) {
+      this.emit('packetsFlushedChange', { handle, isFlushed: true });
     }
   }
 
@@ -266,6 +306,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
 
     await descriptor.unpublishingFuture.promise;
 
+    this.inFlightPacketCounter.delete(handle);
     this.emit('trackUnpublished', { sid: descriptor.info.sid });
   }
 
@@ -360,10 +401,13 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
   }
 
   /**
-   * Shuts down the manager and all associated tracks.
+   * Reset's the state of the manager and all associated tracks. Run on room disconnect to get
+   * the manager ready for the next room connection.
    * @internal
    **/
-  async shutdown() {
+  async reset() {
+    this.handleAllocator.reset();
+
     for (const descriptor of this.descriptors.values()) {
       switch (descriptor.type) {
         case 'pending':
@@ -379,5 +423,9 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       }
     }
     this.descriptors.clear();
+
+    this.inFlightPacketCounter.clear();
+
+    this.emit('reset');
   }
 }

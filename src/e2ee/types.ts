@@ -39,7 +39,7 @@ export interface RTPVideoMapMessage extends BaseMessage {
 export interface SifTrailerMessage extends BaseMessage {
   kind: 'setSifTrailer';
   data: {
-    trailer: Uint8Array;
+    trailer: NonSharedUint8Array;
   };
 }
 
@@ -124,8 +124,8 @@ export interface DecryptDataRequestMessage extends BaseMessage {
   kind: 'decryptDataRequest';
   data: {
     uuid: string;
-    payload: Uint8Array;
-    iv: Uint8Array;
+    payload: NonSharedUint8Array;
+    iv: NonSharedUint8Array;
     participantIdentity: string;
     keyIndex: number;
   };
@@ -135,7 +135,7 @@ export interface DecryptDataResponseMessage extends BaseMessage {
   kind: 'decryptDataResponse';
   data: {
     uuid: string;
-    payload: Uint8Array;
+    payload: NonSharedUint8Array;
   };
 }
 
@@ -143,7 +143,7 @@ export interface EncryptDataRequestMessage extends BaseMessage {
   kind: 'encryptDataRequest';
   data: {
     uuid: string;
-    payload: Uint8Array;
+    payload: NonSharedUint8Array;
     participantIdentity: string;
   };
 }
@@ -152,8 +152,8 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   kind: 'encryptDataResponse';
   data: {
     uuid: string;
-    payload: Uint8Array;
-    iv: Uint8Array;
+    payload: NonSharedUint8Array;
+    iv: NonSharedUint8Array;
     keyIndex: number;
   };
 }
