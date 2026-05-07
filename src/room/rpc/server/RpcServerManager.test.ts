@@ -63,7 +63,7 @@ describe('RpcServerManager', () => {
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
     });
 
-    it('should register an RPC method handler', async () => {
+    it('should register a RPC method handler', async () => {
       const managerEvents = subscribeToEvents<RpcServerManagerCallbacks>(rpcServerManager, [
         'sendDataPacket',
       ]);
@@ -220,7 +220,7 @@ describe('RpcServerManager', () => {
       return { readAll: vi.fn().mockResolvedValue(payload) } as any;
     }
 
-    it('should receive a rpc message via data stream from a participant', async () => {
+    it('should receive a small rpc request (< 15kb) and send a small response via data stream from a participant', async () => {
       const managerEvents = subscribeToEvents<RpcServerManagerCallbacks>(rpcServerManager, [
         'sendDataPacket',
       ]);
@@ -251,6 +251,40 @@ describe('RpcServerManager', () => {
         }),
       );
       expect(mockStreamTextWriter.write).toHaveBeenCalledWith('response payload');
+      expect(mockStreamTextWriter.close).toHaveBeenCalled();
+    });
+
+    it('should receive a large rpc request (> 15kb) and send a large response via data stream from a participant', async () => {
+      const managerEvents = subscribeToEvents<RpcServerManagerCallbacks>(rpcServerManager, [
+        'sendDataPacket',
+      ]);
+
+      const handler = async () => new Array(20_000).fill("B").join("");
+      rpcServerManager.registerRpcMethod('test-method', handler);
+
+      const requestId = crypto.randomUUID();
+      const responseTimeoutMs = 10_000;
+      await rpcServerManager.handleIncomingDataStream(
+        mockTextStreamReader(new Array(20_000).fill("A").join("")),
+        'caller-identity',
+        makeDataStreamAttrs(requestId, 'test-method', responseTimeoutMs),
+      );
+
+      // The first event is an acknowledgement of the request
+      const ackEvent = await managerEvents.waitFor('sendDataPacket');
+      assert(ackEvent.packet.value.case === 'rpcAck');
+      expect(ackEvent.packet.value.value.requestId).toStrictEqual(requestId);
+
+      // The response should have been sent via data stream, not packet
+      expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
+      expect(outgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
+          destinationIdentities: ['caller-identity'],
+          attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+        }),
+      );
+      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(new Array(20_000).fill("B").join(""));
       expect(mockStreamTextWriter.close).toHaveBeenCalled();
     });
 
@@ -351,6 +385,36 @@ describe('RpcServerManager', () => {
       expect(errorResponse.code).toStrictEqual(errorCode);
       expect(errorResponse.message).toStrictEqual(errorMessage);
 
+      expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
+    });
+
+    it('should ack and respond with UNSUPPORTED_METHOD for an unregistered method', async () => {
+      const managerEvents = subscribeToEvents<RpcServerManagerCallbacks>(rpcServerManager, [
+        'sendDataPacket',
+      ]);
+
+      // Intentionally do not call registerRpcMethod for "unknown-method".
+
+      const requestId = crypto.randomUUID();
+      await rpcServerManager.handleIncomingDataStream(
+        mockTextStreamReader('request payload'),
+        'caller-identity',
+        makeDataStreamAttrs(requestId, 'unknown-method', 5000),
+      );
+
+      // Ack must be sent first so the caller knows the handler is alive.
+      const ackEvent = await managerEvents.waitFor('sendDataPacket');
+      assert(ackEvent.packet.value.case === 'rpcAck');
+      expect(ackEvent.packet.value.value.requestId).toStrictEqual(requestId);
+
+      // Then a v1 RpcResponse packet with UNSUPPORTED_METHOD - never a data stream.
+      const errorEvent = await managerEvents.waitFor('sendDataPacket');
+      assert(errorEvent.packet.value.case === 'rpcResponse');
+      assert(errorEvent.packet.value.value.value.case === 'error');
+      const errorResponse = errorEvent.packet.value.value.value.value;
+      expect(errorResponse.code).toStrictEqual(RpcError.ErrorCode.UNSUPPORTED_METHOD);
+
+      expect(outgoingDataStreamManager.streamText).not.toHaveBeenCalled();
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
     });
   });

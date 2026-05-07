@@ -160,6 +160,10 @@ describe('RpcClientManager', () => {
       );
     });
 
+    function mockTextStreamReader(payload: string) {
+      return { readAll: vi.fn().mockResolvedValue(payload) } as any;
+    }
+
     it('should send short v2 RPC request via data stream (happy path)', async () => {
       const managerEvents = subscribeToEvents<RpcClientManagerCallbacks>(rpcClientManager, [
         'sendDataPacket',
@@ -193,7 +197,11 @@ describe('RpcClientManager', () => {
       await sleep(10);
       rpcClientManager.handleIncomingRpcAck(requestId);
       await sleep(10);
-      rpcClientManager.handleIncomingRpcResponseSuccess(requestId, 'response-payload');
+      await rpcClientManager.handleIncomingDataStream(
+        mockTextStreamReader('response-payload'),
+        'destination-identity',
+        { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+      );
 
       await expect(completionPromise).resolves.toStrictEqual('response-payload');
     });
@@ -230,7 +238,11 @@ describe('RpcClientManager', () => {
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
 
       rpcClientManager.handleIncomingRpcAck(requestId);
-      rpcClientManager.handleIncomingRpcResponseSuccess(requestId, 'response-payload');
+      await rpcClientManager.handleIncomingDataStream(
+        mockTextStreamReader('response-payload'),
+        'destination-identity',
+        { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+      );
 
       await expect(completionPromise).resolves.toStrictEqual('response-payload');
     });
@@ -286,6 +298,143 @@ describe('RpcClientManager', () => {
       rpcClientManager.handleParticipantDisconnected('remote-identity');
 
       await expect(completionPromise).rejects.toThrow('Recipient disconnected');
+    });
+
+    it('should send V2 RPC request and ensure that a non matching response does not complete the RPC', async () => {
+      // Step 1: send an example rpc request
+      const [_requestId, completionPromise] = await rpcClientManager.performRpc({
+        destinationIdentity: 'destination-identity',
+        method: 'test-method',
+        payload: 'test payload',
+      });
+
+      // Step 2: send an acknowledgement / response for a different rpc
+      rpcClientManager.handleIncomingRpcAck('bogus request id');
+      await rpcClientManager.handleIncomingDataStream(
+        mockTextStreamReader('response-payload'),
+        'destination-identity',
+        { [RpcRequestAttrs.RPC_REQUEST_ID]: 'bogus request id' },
+      );
+
+      // Step 3: Make sure that the completion promise didn't resolve.
+      await expect(Promise.race([
+        completionPromise,
+        Promise.resolve("still pending"),
+      ])).resolves.toStrictEqual('still pending');
+    });
+
+    it('should ensure that many rpc requests generate different request ids', async () => {
+      const requestIds: Array<string> = [];
+      for (let i = 0; i < 5; i += 1) {
+        const [requestId] = await rpcClientManager.performRpc({
+          destinationIdentity: 'destination-identity',
+          method: 'test-method',
+          payload: 'test payload',
+        });
+        requestIds.push(requestId);
+      }
+
+      // Make sure all request ids are unique
+      for (let i = 0; i < requestIds.length; i += 1) {
+        for (let j = 0; j < requestIds.length; j += 1) {
+          if (i === j) { continue; }
+          expect(requestIds[i]).not.toStrictEqual(requestIds[j]);
+        }
+      }
+    });
+
+    it('should not drop ack and response that arrive before publish completes', async () => {
+      // Hold the publish path open by blocking writer.close() until we explicitly resolve it.
+      let resolveClose!: () => void;
+      const closeBlocked = new Promise<void>((resolve) => {
+        resolveClose = resolve;
+      });
+      mockStreamTextWriter.close = vi.fn().mockReturnValue(closeBlocked);
+
+      // Start performRpc but don't await its return yet. The synchronous prefix runs streamText.
+      const performRpcPromise = rpcClientManager.performRpc({
+        destinationIdentity: 'destination-identity',
+        method: 'test-method',
+        payload: 'request-payload',
+        responseTimeout: 200,
+      });
+
+      // streamText was called synchronously; pull the request id out of the attributes.
+      const streamTextCalls = (mockOutgoingDataStreamManager.streamText as ReturnType<typeof vi.fn>).mock
+        .calls;
+      expect(streamTextCalls.length).toBe(1);
+      const requestId = streamTextCalls[0][0].attributes[RpcRequestAttrs.RPC_REQUEST_ID];
+
+      // Deliver ack and response BEFORE close() unblocks - the publish has not yet returned.
+      rpcClientManager.handleIncomingRpcAck(requestId);
+      await rpcClientManager.handleIncomingDataStream(
+        mockTextStreamReader('response-payload'),
+        'destination-identity',
+        { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+      );
+
+      // Now allow the publish path to complete.
+      resolveClose();
+
+      const [, completionPromise] = await performRpcPromise;
+      await expect(completionPromise).resolves.toStrictEqual('response-payload');
+    });
+
+    it('should ignore a late ack and response that arrive after ack-timeout fires', async () => {
+      vi.useFakeTimers();
+
+      try {
+        const [requestId, completionPromise] = await rpcClientManager.performRpc({
+          destinationIdentity: 'remote-identity',
+          method: 'test-method',
+          payload: 'test-payload',
+        });
+
+        // Register the rejection handler before advancing so the rejection is caught.
+        const rejectPromise = expect(completionPromise).rejects.toThrow(/Connection timeout/i);
+
+        // Advance past the ack-timeout window (maxRoundTripLatencyMs = 7000ms).
+        await vi.advanceTimersByTimeAsync(7001);
+
+        await rejectPromise;
+
+        // A delayed ack and response now arrive for the same request id - should be silently
+        // ignored: no throw, no second resolution, no unhandled rejection.
+        expect(() => rpcClientManager.handleIncomingRpcAck(requestId)).not.toThrow();
+        await rpcClientManager.handleIncomingDataStream(
+          mockTextStreamReader('late response'),
+          'remote-identity',
+          { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should not resolve a v2 response stream that comes from a wrong sender identity', async () => {
+      const [requestId, completionPromise] = await rpcClientManager.performRpc({
+        destinationIdentity: 'alice',
+        method: 'test-method',
+        payload: 'test payload',
+      });
+
+      rpcClientManager.handleIncomingRpcAck(requestId);
+
+      // Simulate a v2 response data stream that arrived purportedly from "mallory" rather
+      // than the destination identity "alice".
+      await rpcClientManager.handleIncomingDataStream(
+        mockTextStreamReader('malicious response'),
+        'mallory',
+        { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
+      );
+
+      // The completionPromise must remain pending - the wrong-sender response is ignored.
+      await expect(
+        Promise.race([
+          completionPromise,
+          new Promise<string>((resolve) => setTimeout(() => resolve('still pending'), 50)),
+        ]),
+      ).resolves.toStrictEqual('still pending');
     });
   });
 });
