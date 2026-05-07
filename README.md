@@ -95,6 +95,13 @@ const room = new Room({
   },
 });
 
+// get your url from livekit's dashboard, or point it at a self hosted livekit deployment
+const url = "ws://localhost:7800";
+
+// generate a token by making a request to a endpoint using the livekit server sdk or
+// using a prebuilt TokenSource (documented below)
+const token = "...";
+
 // pre-warm connection, this can be called as early as your page is loaded
 room.prepareConnection(url, token);
 
@@ -107,7 +114,7 @@ room
   .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 // connect to room
-await room.connect('ws://localhost:7800', token);
+await room.connect(url, token);
 console.log('connected to room', room.name);
 
 // publish local camera and mic tracks
@@ -304,6 +311,103 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 });
 ```
 
+### Generating a url/token with `TokenSource`
+
+A TokenSource is a pre-implemented way of fetching credentials. Once a `TokenSource` is constructed, call
+`fetch` to generate a new set of credentials.
+
+There are two types of `TokenSource`'s - fixed and configurable. Configurable token sources can be
+passed options as part of the generation process, allowing you to customize the token that they
+generate. Fixed token sources generate static credentials and don't accept parameters that can
+effect the generated token.
+
+```ts
+// Fixed token sources don't take any parameters as part of `fetch`:
+const fixed: TokenSourceFixed = /* ... */;
+const fixedResponse = await fixed.fetch();
+room.connect(fixedResponse.serverUrl, fixedResponse.participantToken);
+
+// Configurable token sources can optionally take parameters to change what is encoded into the token:
+const configurable: TokenSourceConfigurable = /* ... */;
+const configurableResponse = await configurable.fetch({ agentName: "agent to dispatch" } /* <-- here */);
+room.connect(configurableResponse.serverUrl, configurableResponse.participantToken);
+```
+
+|Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
+|-------------|--|--|--|
+|Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
+|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.sandboxTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
+
+#### TokenSource.Literal
+A fixed token source which returns a static set of credentials or a computed set of credentials
+with no external input required on each call.
+
+Example:
+```ts
+const literal1 = TokenSource.literal({ serverUrl: "ws://localhost:7800", participantToken: "..." });
+await literal1.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+
+const literal2 = TokenSource.literal(async () => ({ serverUrl: "ws://localhost:7800", participantToken: "..." }));
+await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+```
+
+#### TokenSource.Endpoint
+A configurable token source which makes a request to an endpoint to generate credentials. By
+default, a `POST` request with a `Content-Type: application/json` header is made, and the request
+body is expected to follow the [standard token format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server). If
+credentials generation is successful, the endpoint returns a 2xx status code with a body following
+the [standard token response format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server).
+
+Example:
+```ts
+const endpoint1 = TokenSource.endpoint("http://example.com/credentials-endpoint");
+await endpoint1.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+
+const endpoint2 = TokenSource.endpoint("http://example.com/credentials-endpoint", {
+  // For all supported options below, see https://developer.mozilla.org/en-US/docs/Web/API/RequestInit
+  method: "PUT",
+  headers: {
+    "X-Custom-Header": "custom header value",
+  },
+});
+await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+```
+
+#### TokenSource.SandboxTokenServer
+A configurable token source which makes a request to a
+[sandbox token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
+a LiveKit-hosted token generation mechanism.
+
+This token generation mechanism is inherently insecure and should only be used for
+prototyping; do NOT use in production.
+
+One parameter is required - the sandbox id from the dashboard. This is the `token-server-xxxxxx`
+value in `https://token-server-xxxxxx.sandbox.livekit.io`.
+
+Example:
+```ts
+const sandbox = TokenSource.sandboxTokenServer("token-server-xxxxxx");
+await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+```
+
+#### TokenSource.Custom
+A fully custom configurable token source that allows you to consume any end application-specific
+token generation mechanism. Tokens that are generated are cached and used until they expire or the
+options passed into `fetch` change.
+
+Note that it is expected that all options passed into `fetch` will always be encoded into the
+output token. If you'd rather implement a fixed version of this TokenSource, see
+`TokenSource.literal(async () => { /* ... */ })`.
+
+Example:
+```ts
+const sandbox = TokenSource.custom(async (options) => {
+  // generate token info via custom means here
+  return { serverUrl: "...", participantToken: "... options encoded in here ..." };
+});
+await sandbox.fetch({ agentName: "agent to dispatch" });
+```
+
 ### RPC
 
 Perform your own predefined method calls from one participant to another.
@@ -372,11 +476,11 @@ You may throw errors of the type `RpcError` with a string `message` in an RPC me
 
 ### Demo App
 
-[examples/demo](examples/demo/) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm examples:demo`
+[examples/demo](https://github.com/livekit/client-sdk-js/tree/main/examples/demo/) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm examples:demo`
 
 ### RPC Demo
 
-[examples/rpc](examples/rpc/) contains a demo webapp that uses the SDK to showcase the RPC capabilities. Run it with `pnpm install && pnpm dev` from the `examples/rpc` directory.
+[examples/rpc](https://github.com/livekit/client-sdk-js/tree/main/examples/rpc/) contains a demo webapp that uses the SDK to showcase the RPC capabilities. Run it with `pnpm install && pnpm dev` from the `examples/rpc` directory.
 
 ## Browser Support
 
@@ -402,12 +506,14 @@ Also when targeting legacy browsers, older than the ones specified in our browse
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
-<tr><td>LiveKit SDKs</td><td><b>Browser</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS/visionOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a></td></tr><tr></tr>
-<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr><tr></tr>
+<tr><td>Agents SDKs</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a></td></tr><tr></tr>
+<tr><td>LiveKit SDKs</td><td><b>Browser</b> · <a href="https://github.com/livekit/client-sdk-swift">Swift</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a> · <a href="https://github.com/livekit/client-sdk-cpp">C++</a></td></tr><tr></tr>
+<tr><td>Starter Apps</td><td><a href="https://github.com/livekit-examples/agent-starter-python">Python Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-node">TypeScript Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-react">React App</a> · <a href="https://github.com/livekit-examples/agent-starter-swift">SwiftUI App</a> · <a href="https://github.com/livekit-examples/agent-starter-android">Android App</a> · <a href="https://github.com/livekit-examples/agent-starter-flutter">Flutter App</a> · <a href="https://github.com/livekit-examples/agent-starter-react-native">React Native App</a> · <a href="https://github.com/livekit-examples/agent-starter-embed">Web Embed</a></td></tr><tr></tr>
 <tr><td>UI Components</td><td><a href="https://github.com/livekit/components-js">React</a> · <a href="https://github.com/livekit/components-android">Android Compose</a> · <a href="https://github.com/livekit/components-swift">SwiftUI</a> · <a href="https://github.com/livekit/components-flutter">Flutter</a></td></tr><tr></tr>
-<tr><td>Agents Frameworks</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a> · <a href="https://github.com/livekit/agent-playground">Playground</a></td></tr><tr></tr>
-<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
-<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://github.com/livekit-examples">Example apps</a> · <a href="https://livekit.io/cloud">Cloud</a> · <a href="https://docs.livekit.io/home/self-hosting/deployment">Self-hosting</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a></td></tr>
+<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr><tr></tr>
+<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://docs.livekit.io/mcp">Docs MCP Server</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a> · <a href="https://cloud.livekit.io">LiveKit Cloud</a></td></tr><tr></tr>
+<tr><td>LiveKit Server OSS</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
+<tr><td>Community</td><td><a href="https://community.livekit.io">Developer Community</a> · <a href="https://livekit.io/join-slack">Slack</a> · <a href="https://x.com/livekit">X</a> · <a href="https://www.youtube.com/@livekit_io">YouTube</a></td></tr>
 </tbody>
 </table>
 <!--END_REPO_NAV-->

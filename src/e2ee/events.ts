@@ -12,7 +12,7 @@ export enum KeyProviderEvent {
 }
 
 export type KeyProviderCallbacks = {
-  [KeyProviderEvent.SetKey]: (keyInfo: KeyInfo) => void;
+  [KeyProviderEvent.SetKey]: (keyInfo: KeyInfo, updateCurrentKeyIndex: boolean) => void;
   [KeyProviderEvent.RatchetRequest]: (participantIdentity?: string, keyIndex?: number) => void;
   [KeyProviderEvent.KeyRatcheted]: (
     ratchetedResult: RatchetResult,
@@ -45,7 +45,7 @@ export type E2EEManagerCallbacks = {
     enabled: boolean,
     participant: Participant,
   ) => void;
-  [EncryptionEvent.EncryptionError]: (error: Error) => void;
+  [EncryptionEvent.EncryptionError]: (error: Error, participantIdentity?: string) => void;
 };
 
 export type CryptorCallbacks = {

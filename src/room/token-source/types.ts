@@ -78,6 +78,10 @@ export type TokenSourceFetchOptions = {
  */
 export abstract class TokenSourceConfigurable {
   abstract fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject>;
+  abstract fetch(
+    options: TokenSourceFetchOptions,
+    force?: boolean,
+  ): Promise<TokenSourceResponseObject>;
 }
 
 /** A TokenSource is a mechanism for fetching credentials required to connect to a LiveKit Room. */

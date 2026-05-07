@@ -1,4 +1,4 @@
-import { debounce } from 'ts-debounce';
+import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
@@ -40,8 +40,8 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
 
   override setStreamState(value: Track.StreamState) {
     super.setStreamState(value);
-    console.log('setStreamState', value);
-    if (value === Track.StreamState.Active) {
+    this.log.debug('setStreamState', value);
+    if (this.isAdaptiveStream && value === Track.StreamState.Active) {
       // update visibility for adaptive stream tracks when stream state received from server is active
       // this is needed to ensure the track is stopped when there's no element attached to it at all
       this.updateVisibility();
@@ -384,8 +384,14 @@ class HTMLElementInfo implements ElementInfo {
 
   private onEnterPiP = () => {
     window.documentPictureInPicture?.window?.addEventListener('pagehide', this.onLeavePiP);
-    this.isPiP = isElementInPiP(this.element);
-    this.handleVisibilityChanged?.();
+    // Document PiP: the browser may fire 'enter' before the app has appended its subtree into
+    // documentPictureInPicture.window. Defer so pipWin.document.contains(video) is reliable.
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        this.isPiP = isElementInPiP(this.element);
+        this.handleVisibilityChanged?.();
+      });
+    });
   };
 
   private onLeavePiP = () => {

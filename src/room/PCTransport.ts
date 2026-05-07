@@ -1,9 +1,10 @@
 import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
-import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
-import { debounce } from 'ts-debounce';
+import type { MediaAttributes, MediaDescription, SessionDescription } from 'sdp-transform';
+import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../logger';
+import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
 import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
@@ -29,11 +30,16 @@ const debounceInterval = 20;
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
+  // Fired with the offerId for every successful publisher answer application,
+  // including answers that immediately recurse into another offer via
+  // `renegotiate`. Use this rather than NegotiationComplete to know that a
+  // specific offer has been negotiated end-to-end.
+  OfferAnswered: 'offerAnswered',
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
 /** @internal */
-export default class PCTransport extends EventEmitter {
+export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
   private get pc() {
@@ -51,9 +57,13 @@ export default class PCTransport extends EventEmitter {
 
   private ddExtID = 0;
 
-  private latestOfferId: number = 0;
+  latestOfferId: number = 0;
+
+  latestAcknowledgedOfferId: number = 0;
 
   private offerLock: Mutex;
+
+  private pendingInitialOffer?: RTCSessionDescriptionInit;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -163,11 +173,21 @@ export default class PCTransport extends EventEmitter {
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
+      if (this.pendingInitialOffer && this._pc) {
+        const initialOffer = this.pendingInitialOffer;
+        this.pendingInitialOffer = undefined;
+        const sdpParsed = parse(initialOffer.sdp ?? '');
+        sdpParsed.media.forEach((media) => {
+          ensureIPAddrMatchVersion(media);
+        });
+        this.log.debug('setting pending initial offer before processing answer', this.logContext);
+        await this.setMungedSDP(initialOffer, write(sdpParsed));
+      }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         const mid = getMidString(media.mid!);
         if (media.type === 'audio') {
-          // mung sdp for opus bitrate settings
+          // munge sdp for opus bitrate settings
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.transceiver || mid != trackbr.transceiver.mid) {
               return false;
@@ -224,6 +244,14 @@ export default class PCTransport extends EventEmitter {
     this.pendingCandidates = [];
     this.restartingIce = false;
 
+    // Fire OfferAnswered for every successfully applied answer, including the
+    // ones that recurse into another offer via `renegotiate`. Callers waiting
+    // on a specific offerId can resolve as soon as their offer's answer is in.
+    if (sd.type === 'answer') {
+      this.latestAcknowledgedOfferId = offerId;
+      this.emit(PCEvents.OfferAnswered, offerId);
+    }
+
     if (this.renegotiate) {
       this.renegotiate = false;
       await this.createAndSendOffer();
@@ -255,6 +283,31 @@ export default class PCTransport extends EventEmitter {
     }
   }, debounceInterval);
 
+  async createInitialOffer() {
+    const unlock = await this.offerLock.lock();
+    try {
+      if (this.pc.signalingState !== 'stable') {
+        this.log.warn(
+          'signaling state is not stable, cannot create initial offer',
+          this.logContext,
+        );
+        return;
+      }
+      const offerId = this.latestOfferId + 1;
+      this.latestOfferId = offerId;
+      const offer = await this.pc.createOffer();
+      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
+      const sdpParsed = parse(offer.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        ensureIPAddrMatchVersion(media);
+      });
+      offer.sdp = write(sdpParsed);
+      return { offer, offerId };
+    } finally {
+      unlock();
+    }
+  }
+
   async createAndSendOffer(options?: RTCOfferOptions) {
     const unlock = await this.offerLock.lock();
 
@@ -268,7 +321,10 @@ export default class PCTransport extends EventEmitter {
         this.restartingIce = true;
       }
 
-      if (this._pc && this._pc.signalingState === 'have-local-offer') {
+      if (
+        this._pc &&
+        (this._pc.signalingState === 'have-local-offer' || this.pendingInitialOffer)
+      ) {
         // we're waiting for the peer to accept our offer, so we'll just wait
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;
@@ -278,6 +334,7 @@ export default class PCTransport extends EventEmitter {
           await this._pc.setRemoteDescription(currentSD);
         } else {
           this.renegotiate = true;
+          this.log.debug('requesting renegotiation', { ...this.logContext });
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
@@ -297,7 +354,7 @@ export default class PCTransport extends EventEmitter {
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, [], []);
+          ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
@@ -321,9 +378,8 @@ export default class PCTransport extends EventEmitter {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
-            // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
-            // mung sdp for av1 bitrate setting that can't apply by sendEncoding
-            if (trackbr.codec !== 'av1') {
+            // mung sdp for bitrate setting that can't apply by sendEncoding
+            if (!isSVCCodec(trackbr.codec)) {
               return true;
             }
 
@@ -378,6 +434,10 @@ export default class PCTransport extends EventEmitter {
 
   addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
     return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  }
+
+  addTransceiverOfKind(kind: 'audio' | 'video', transceiverInit: RTCRtpTransceiverInit) {
+    return this.pc.addTransceiver(kind, transceiverInit);
   }
 
   addTrack(track: MediaStreamTrack) {
@@ -479,6 +539,7 @@ export default class PCTransport extends EventEmitter {
     if (!this._pc) {
       return;
     }
+    this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
@@ -495,8 +556,8 @@ export default class PCTransport extends EventEmitter {
   };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
+    const originalSdp = sd.sdp;
     if (munged) {
-      const originalSdp = sd.sdp;
       sd.sdp = munged;
       try {
         this.log.debug(
@@ -513,7 +574,8 @@ export default class PCTransport extends EventEmitter {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
           ...this.logContext,
           error: e,
-          sdp: munged,
+          mungedSdp: munged,
+          originalSdp,
         });
         sd.sdp = originalSdp;
       }
@@ -521,9 +583,9 @@ export default class PCTransport extends EventEmitter {
 
     try {
       if (remote) {
-        await this.pc.setRemoteDescription(sd);
+        await this._pc?.setRemoteDescription(sd);
       } else {
-        await this.pc.setLocalDescription(sd);
+        await this._pc?.setLocalDescription(sd);
       }
     } catch (e) {
       let msg = 'unknown error';
@@ -537,6 +599,9 @@ export default class PCTransport extends EventEmitter {
         error: msg,
         sdp: sd.sdp,
       };
+      if (munged && munged !== originalSdp) {
+        fields.mungedSdp = munged;
+      }
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
@@ -565,9 +630,6 @@ export default class PCTransport extends EventEmitter {
       if (this.ddExtID === 0) {
         let maxID = 0;
         sdp.media.forEach((m) => {
-          if (m.type !== 'video') {
-            return;
-          }
           m.ext?.forEach((ext) => {
             if (ext.value > maxID) {
               maxID = ext.value;
@@ -623,7 +685,7 @@ function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(mid)) {
+    if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtp.config.includes('stereo=1')) {
@@ -691,3 +753,10 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
 function getMidString(mid: string | number) {
   return typeof mid === 'number' ? mid.toFixed(0) : mid;
 }
+
+type PCTransportEventCallbacks = {
+  negotiationStarted: () => void;
+  negotiationComplete: () => void;
+  offerAnswered: (offerId: number) => void;
+  rtpVideoPayloadTypes: (attributes: MediaAttributes['rtp']) => void;
+};

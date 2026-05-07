@@ -40,6 +40,7 @@ export default {
       format: 'es',
       strict: true,
       sourcemap: true,
+      compact: true,
     },
     {
       file: `dist/${packageJson.name}.umd.js`,

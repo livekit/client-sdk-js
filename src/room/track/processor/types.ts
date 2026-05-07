@@ -1,4 +1,5 @@
 import type Room from '../../Room';
+import type LocalTrack from '../LocalTrack';
 import type { Track } from '../Track';
 
 /**
@@ -9,11 +10,9 @@ export type ProcessorOptions<T extends Track.Kind> = {
   track: MediaStreamTrack;
   element?: HTMLMediaElement;
   audioContext?: AudioContext;
+  localTrack?: LocalTrack;
 };
 
-/**
- * @experimental
- */
 export interface AudioProcessorOptions extends ProcessorOptions<Track.Kind.Audio> {
   audioContext: AudioContext;
 }
@@ -23,9 +22,6 @@ export interface AudioProcessorOptions extends ProcessorOptions<Track.Kind.Audio
  */
 export interface VideoProcessorOptions extends ProcessorOptions<Track.Kind.Video> {}
 
-/**
- * @experimental
- */
 export interface TrackProcessor<
   T extends Track.Kind,
   U extends ProcessorOptions<T> = ProcessorOptions<T>,

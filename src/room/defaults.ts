@@ -42,6 +42,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
   webAudioMix: false,
+  singlePeerConnection: true,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {

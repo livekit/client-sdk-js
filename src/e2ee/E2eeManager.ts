@@ -11,7 +11,7 @@ import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { Future, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
+import { Future, isChromiumBased, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -68,9 +68,11 @@ export class E2EEManager
 
   private keyProvider: BaseKeyProvider;
 
-  private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data']>> = new Map();
+  private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data'], Error>> =
+    new Map();
 
-  private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data']>> = new Map();
+  private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data'], Error>> =
+    new Map();
 
   private dataChannelEncryptionEnabled: boolean;
 
@@ -144,12 +146,30 @@ export class E2EEManager
     switch (kind) {
       case 'error':
         log.error(data.error.message);
-        this.emit(EncryptionEvent.EncryptionError, data.error);
+
+        // If error has uuid, it's from an async operation (encrypt/decrypt)
+        // Reject the corresponding future
+        if (data.uuid) {
+          const decryptFuture = this.decryptDataRequests.get(data.uuid);
+          if (decryptFuture?.reject) {
+            decryptFuture.reject(data.error);
+            break; // Don't emit general error if it's handled by future
+          }
+
+          const encryptFuture = this.encryptDataRequests.get(data.uuid);
+          if (encryptFuture?.reject) {
+            encryptFuture.reject(data.error);
+            break; // Don't emit general error if it's handled by future
+          }
+        }
+
+        // Emit general error event for unhandled errors
+        this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
         if (data.enabled) {
           this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
+            this.postKey(keyInfo, false);
           });
         }
         break;
@@ -157,7 +177,7 @@ export class E2EEManager
       case 'enable':
         if (data.enabled) {
           this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
+            this.postKey(keyInfo, false);
           });
         }
         if (
@@ -208,7 +228,7 @@ export class E2EEManager
 
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
-    this.emit(EncryptionEvent.EncryptionError, ev.error);
+    this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
   public setupEngine(engine: RTCEngine) {
@@ -254,8 +274,9 @@ export class E2EEManager
         if (!this.room) {
           throw new TypeError(`expected room to be present on signal connect`);
         }
+        const latestKeyIndex = keyProvider.getLatestManuallySetKeyIndex();
         keyProvider.getKeys().forEach((keyInfo) => {
-          this.postKey(keyInfo);
+          this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
         });
         this.setParticipantCryptorEnabled(
           this.room.localParticipant.isE2EEEnabled,
@@ -285,7 +306,9 @@ export class E2EEManager
     });
 
     keyProvider
-      .on(KeyProviderEvent.SetKey, (keyInfo) => this.postKey(keyInfo))
+      .on(KeyProviderEvent.SetKey, (keyInfo, updateCurrentKeyIndex) =>
+        this.postKey(keyInfo, updateCurrentKeyIndex ?? true),
+      )
       .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
         this.postRatchetRequest(participantId, keyIndex),
       );
@@ -304,7 +327,7 @@ export class E2EEManager
         participantIdentity: this.room!.localParticipant.identity,
       },
     };
-    const future = new Future<EncryptDataResponseMessage['data']>();
+    const future = new Future<EncryptDataResponseMessage['data'], Error>();
     future.onFinally = () => {
       this.encryptDataRequests.delete(uuid);
     };
@@ -333,7 +356,7 @@ export class E2EEManager
         keyIndex,
       },
     };
-    const future = new Future<DecryptDataResponseMessage['data']>();
+    const future = new Future<DecryptDataResponseMessage['data'], Error>();
     future.onFinally = () => {
       this.decryptDataRequests.delete(uuid);
     };
@@ -356,7 +379,7 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postKey({ key, participantIdentity, keyIndex }: KeyInfo) {
+  private postKey({ key, participantIdentity, keyIndex }: KeyInfo, updateCurrentKeyIndex: boolean) {
     if (!this.worker) {
       throw Error('could not set key, worker is missing');
     }
@@ -367,6 +390,7 @@ export class E2EEManager
         isPublisher: participantIdentity === this.room?.localParticipant.identity,
         key,
         keyIndex,
+        updateCurrentKeyIndex,
       },
     };
     this.worker.postMessage(msg);
@@ -455,7 +479,12 @@ export class E2EEManager
       return;
     }
 
-    if (isScriptTransformSupported()) {
+    if (
+      isScriptTransformSupported() &&
+      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+      // Disabling it for Chrome based browsers until the API has stabilized
+      !isChromiumBased()
+    ) {
       const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
@@ -526,7 +555,12 @@ export class E2EEManager
       throw TypeError('local identity needs to be known in order to set up encrypted sender');
     }
 
-    if (isScriptTransformSupported()) {
+    if (
+      isScriptTransformSupported() &&
+      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+      // Disabling it for Chrome based browsers until the API has stabilized
+      !isChromiumBased()
+    ) {
       log.info('initialize script transform');
       const options = {
         kind: 'encode',

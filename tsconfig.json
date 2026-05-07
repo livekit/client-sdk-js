@@ -9,7 +9,8 @@
       "DOM.AsyncIterable",
       "ES2017",
       "ES2018.Promise",
-      "ES2021.WeakRef"
+      "ES2021.WeakRef",
+      "ES2022.Error"
     ],
     "rootDir": "./",
     "outDir": "dist",
@@ -24,9 +25,10 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
-    "ignoreDeprecations": "5.0"
+    "ignoreDeprecations": "5.0",
+    "plugins": [{ "name": "@livekit/throws-transformer" }],
   },
-  "exclude": ["dist", "**/*.test.ts", "test/**"],
+  "exclude": ["dist", "**/*.test.ts", "test/**", "src/room/token-source/test-tokens.ts"],
   "include": ["src/**/*.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],

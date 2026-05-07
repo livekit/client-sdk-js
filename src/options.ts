@@ -98,18 +98,15 @@ export interface InternalRoomOptions {
    */
   encryption?: E2EEOptions;
 
-  /**
-   * @experimental
-   */
-
-  // TODO: add this back in for a subsequent release and deprecate `e2ee` above
-  // /**
-  //  * @experimental
-  //  * Options for enabling end-to-end encryption.
-  //  */
-  // encryption?: E2EEOptions;
-
   loggerName?: string;
+
+  /**
+   * will attempt to connect via single peer connection mode.
+   * falls back to dual peer connection mode if not available.
+   *
+   * @default true
+   */
+  singlePeerConnection: boolean;
 }
 
 /**

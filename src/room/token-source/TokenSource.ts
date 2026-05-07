@@ -11,7 +11,7 @@ import {
   TokenSourceFixed,
   type TokenSourceResponseObject,
 } from './types';
-import { decodeTokenPayload, isResponseExpired } from './utils';
+import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenValid } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
  * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
@@ -56,10 +56,10 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     if (!this.cachedResponse) {
       return false;
     }
-    if (isResponseExpired(this.cachedResponse)) {
+    if (!isResponseTokenValid(this.cachedResponse)) {
       return false;
     }
-    if (this.isSameAsCachedFetchOptions(fetchOptions)) {
+    if (!this.isSameAsCachedFetchOptions(fetchOptions)) {
       return false;
     }
     return true;
@@ -72,9 +72,15 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
     return decodeTokenPayload(this.cachedResponse.participantToken);
   }
 
-  async fetch(options: TokenSourceFetchOptions): Promise<TokenSourceResponseObject> {
+  async fetch(
+    options: TokenSourceFetchOptions,
+    force?: boolean,
+  ): Promise<TokenSourceResponseObject> {
     const unlock = await this.fetchMutex.lock();
     try {
+      if (force) {
+        this.cachedResponse = null;
+      }
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
@@ -94,7 +100,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
 type LiteralOrFn =
   | TokenSourceResponseObject
   | (() => TokenSourceResponseObject | Promise<TokenSourceResponseObject>);
-export class TokenSourceLiteral extends TokenSourceFixed {
+class TokenSourceLiteral extends TokenSourceFixed {
   private literalOrFn: LiteralOrFn;
 
   constructor(literalOrFn: LiteralOrFn) {
@@ -114,7 +120,7 @@ export class TokenSourceLiteral extends TokenSourceFixed {
 type CustomFn = (
   options: TokenSourceFetchOptions,
 ) => TokenSourceResponseObject | Promise<TokenSourceResponseObject>;
-export class TokenSourceCustom extends TokenSourceCached {
+class TokenSourceCustom extends TokenSourceCached {
   private customFn: CustomFn;
 
   constructor(customFn: CustomFn) {
@@ -142,7 +148,7 @@ export class TokenSourceCustom extends TokenSourceCached {
 
 export type EndpointOptions = Omit<RequestInit, 'body'>;
 
-export class TokenSourceEndpoint extends TokenSourceCached {
+class TokenSourceEndpoint extends TokenSourceCached {
   private url: string;
 
   private endpointOptions: EndpointOptions;
@@ -231,7 +237,7 @@ export type SandboxTokenServerOptions = {
   baseUrl?: string;
 };
 
-export class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
+class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
   constructor(sandboxId: string, options: SandboxTokenServerOptions) {
     const { baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
 
@@ -243,6 +249,19 @@ export class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
     });
   }
 }
+
+export {
+  /** The return type of {@link TokenSource.literal} */
+  type TokenSourceLiteral,
+  /** The return type of {@link TokenSource.custom} */
+  type TokenSourceCustom,
+  /** The return type of {@link TokenSource.endpoint} */
+  type TokenSourceEndpoint,
+  /** The return type of {@link TokenSource.sandboxTokenServer} */
+  type TokenSourceSandboxTokenServer,
+  decodeTokenPayload,
+  areTokenSourceFetchOptionsEqual,
+};
 
 export const TokenSource = {
   /** TokenSource.literal contains a single, literal set of {@link TokenSourceResponseObject}
@@ -264,7 +283,7 @@ export const TokenSource = {
   /**
    * TokenSource.endpoint creates a token source that fetches credentials from a given URL using
    * the standard endpoint format:
-   * FIXME: add docs link here in the future!
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
    */
   endpoint(url: string, options: EndpointOptions = {}) {
     return new TokenSourceEndpoint(url, options);

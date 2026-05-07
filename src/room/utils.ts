@@ -5,7 +5,10 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
-import { type BrowserDetails, getBrowser } from '../utils/browserParser';
+import { type Throws } from '@livekit/throws-transformer/throws';
+import TypedPromise from '../utils/TypedPromise';
+import { getBrowser } from '../utils/browserParser';
+import type { BrowserDetails } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
@@ -38,8 +41,8 @@ export function unpackStreamId(packed: string): string[] {
   return [packed, ''];
 }
 
-export async function sleep(duration: number): Promise<void> {
-  return new Promise((resolve) => CriticalTimers.setTimeout(resolve, duration));
+export function sleep(duration: number): TypedPromise<void, never> {
+  return new TypedPromise<void, never>((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 /** @internal */
@@ -151,6 +154,15 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   return 'setSinkId' in elm;
 }
 
+/**
+ * Checks whether or not setting an audio output via {@link Room#setActiveDevice}
+ * is supported for the current browser.
+ */
+export function supportsAudioOutputSelection(): boolean {
+  // Note: this is method publicly exported under a user friendly name and currently only proxying `supportsSetSinkId`
+  return supportsSetSinkId();
+}
+
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
     return false;
@@ -163,7 +175,8 @@ export function isFireFox(): boolean {
 }
 
 export function isChromiumBased(): boolean {
-  return getBrowser()?.name === 'Chrome';
+  const browser = getBrowser();
+  return !!browser && browser.name === 'Chrome' && browser.os !== 'iOS';
 }
 
 export function isSafari(): boolean {
@@ -242,6 +255,13 @@ export function isCloud(serverUrl: URL) {
   return (
     serverUrl.hostname.endsWith('.livekit.cloud') || serverUrl.hostname.endsWith('.livekit.run')
   );
+}
+
+export function extractProjectFromUrl(serverUrl: URL): string | null {
+  if (!isCloud(serverUrl)) {
+    return null;
+  }
+  return serverUrl.hostname.split('.')[0];
 }
 
 function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
@@ -418,12 +438,36 @@ export function getEmptyAudioStreamTrack() {
   return emptyAudioStreamTrack.clone();
 }
 
-export class Future<T> {
-  promise: Promise<T>;
+export function getStereoAudioStreamTrack() {
+  const ctx = new AudioContext();
+  const oscLeft = ctx.createOscillator();
+  const oscRight = ctx.createOscillator();
+  oscLeft.frequency.value = 440;
+  oscRight.frequency.value = 220;
+  const merger = ctx.createChannelMerger(2);
+  oscLeft.connect(merger, 0, 0); // left channel
+  oscRight.connect(merger, 0, 1); // right channel
+  const dst = ctx.createMediaStreamDestination();
+  merger.connect(dst);
+  oscLeft.start();
+  oscRight.start();
+  const [stereoTrack] = dst.stream.getAudioTracks();
+  if (!stereoTrack) {
+    throw Error('Could not get stereo media stream audio track');
+  }
+  return stereoTrack;
+}
+
+/** An object that represents a serialized version of a `new Promise((resolve, reject) => {})`
+ * constructor. Wait for a promise resolution with `await future.promise` and explicitly resolve or
+ * reject the inner promise with `future.resolve(...)` or `future.reject(...)`.
+ */
+export class Future<T, E extends Error> {
+  promise: Promise<Throws<T, E>>;
 
   resolve?: (arg: T) => void;
 
-  reject?: (e: any) => void;
+  reject?: (e: E) => void;
 
   onFinally?: () => void;
 
@@ -434,7 +478,7 @@ export class Future<T> {
   private _isResolved: boolean = false;
 
   constructor(
-    futureBase?: (resolve: (arg: T) => void, reject: (e: any) => void) => void,
+    futureBase?: (resolve: (arg: T) => void, reject: (e: E) => void) => void,
     onFinally?: () => void,
   ) {
     this.onFinally = onFinally;
@@ -447,7 +491,7 @@ export class Future<T> {
     }).finally(() => {
       this._isResolved = true;
       this.onFinally?.();
-    });
+    }) as Promise<Throws<T, E>>;
   }
 }
 
@@ -719,4 +763,19 @@ export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
     result.push(encoded);
   }
   return result;
+}
+
+export function extractMaxAgeFromRequestHeaders(headers: Headers): number | undefined {
+  const cacheControl = headers.get('Cache-Control');
+  if (cacheControl) {
+    const maxAge = cacheControl.match(/(?:^|[,\s])max-age=(\d+)/)?.[1];
+    if (maxAge) {
+      return parseInt(maxAge, 10);
+    }
+  }
+  return undefined;
+}
+
+export function isCompressionStreamSupported() {
+  return typeof CompressionStream !== 'undefined';
 }

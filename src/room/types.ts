@@ -1,5 +1,4 @@
 import type { DataStream_Chunk, Encryption_Type } from '@livekit/protocol';
-import type { Future } from './utils';
 
 export type SimulationOptions = {
   publish?: {
@@ -93,7 +92,8 @@ export type SimulationScenario =
   | 'disconnect-signal-on-resume'
   | 'disconnect-signal-on-resume-no-messages'
   // instructs the server to send a full reconnect reconnect action to the client
-  | 'leave-full-reconnect';
+  | 'leave-full-reconnect'
+  | 'fail-on-v1-path';
 
 export type LoggerOptions = {
   loggerName?: string;
@@ -125,7 +125,6 @@ export interface StreamController<T extends DataStream_Chunk> {
   startTime: number;
   endTime?: number;
   sendingParticipantIdentity: string;
-  outOfBandFailureRejectingFuture: Future<never>;
 }
 
 export interface BaseStreamInfo {
@@ -142,4 +141,6 @@ export interface ByteStreamInfo extends BaseStreamInfo {
   name: string;
 }
 
-export interface TextStreamInfo extends BaseStreamInfo {}
+export interface TextStreamInfo extends BaseStreamInfo {
+  attachedStreamIds?: Array<string>;
+}

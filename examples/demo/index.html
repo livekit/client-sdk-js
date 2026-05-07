@@ -11,6 +11,11 @@
       integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2"
       crossorigin="anonymous"
     />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -189,6 +194,8 @@
                 <option value="force-tls">Force TURN/TLS</option>
                 <option value="subscribe-all">Subscribe all</option>
                 <option value="unsubscribe-all">Unsubscribe all</option>
+                <option value="mute-all">Mute all</option>
+                <option value="unmute-all">Unmute all</option>
                 <option value="leave-full-reconnect">Leave Request Full Reconnect</option>
               </select>
               <button
@@ -263,6 +270,20 @@
               </select>
             </div>
           </div>
+
+          <div id="screenshare-area">
+            <div>
+              <span id="screenshare-info"> </span>
+              <span id="screenshare-resolution"> </span>
+            </div>
+            <video id="screenshare-video" autoplay playsinline></video>
+          </div>
+
+          <div id="participants-area"></div>
+
+          <div id="log-area">
+            <textarea id="log"></textarea>
+          </div>
         </div>
         <div class="col-md-4">
           <h3>Chat</h3>
@@ -294,26 +315,40 @@
               class="btn btn-outline-secondary btn-sm"
               type="button"
               onclick="appActions.cancelChatReceive()"
-              style="display: none;"
+              style="display: none"
             >
               Cancel current receive
             </button>
           </div>
+          <br />
+          <h3>Data Tracks</h3>
+
+          <div class="input-group input-group-sm">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="local-data-track-publish-name"
+              placeholder="Name (ie, test)"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="local-data-track-publish-button"
+                onclick="appActions.publishLocalDataTrack()"
+              >
+                Publish Local
+              </button>
+            </div>
+          </div>
+          <div id="data-tracks-local-list">
+            <!-- data track entries dynamically inserted in here -->
+          </div>
+
+          <div id="data-tracks-remote-list">
+            <!-- data track entries dynamically inserted in here -->
+          </div>
         </div>
-      </div>
-
-      <div id="screenshare-area">
-        <div>
-          <span id="screenshare-info"> </span>
-          <span id="screenshare-resolution"> </span>
-        </div>
-        <video id="screenshare-video" autoplay playsinline></video>
-      </div>
-
-      <div id="participants-area"></div>
-
-      <div id="log-area">
-        <textarea id="log"></textarea>
       </div>
     </div>
     <script src="./demo.ts" type="module"></script>

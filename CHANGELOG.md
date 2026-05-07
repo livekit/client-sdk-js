@@ -1,5 +1,325 @@
 # Change Log
 
+## 2.18.9
+
+### Patch Changes
+
+- Ensure that flush called when there are no in flight data track packets works - [#1929](https://github.com/livekit/client-sdk-js/pull/1929) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.8
+
+### Patch Changes
+
+- Add local data track flush method - [#1925](https://github.com/livekit/client-sdk-js/pull/1925) ([@1egoman](https://github.com/1egoman))
+
+- Implement negotiation tracking based on offerId - [#1927](https://github.com/livekit/client-sdk-js/pull/1927) ([@lukasIO](https://github.com/lukasIO))
+
+- Ignore data track promise rejections after a subscription readable stream is discarded - [#1917](https://github.com/livekit/client-sdk-js/pull/1917) ([@1egoman](https://github.com/1egoman))
+
+- chore: improve logging foundation for implicit context retrieval - [#1907](https://github.com/livekit/client-sdk-js/pull/1907) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.7
+
+### Patch Changes
+
+- Pass optional LocalTrack reference to processors - [#1916](https://github.com/livekit/client-sdk-js/pull/1916) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure priority isn't set on all simulcast layers when using Firefox on iOS - [#1920](https://github.com/livekit/client-sdk-js/pull/1920) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.6
+
+### Patch Changes
+
+- Fix data tracks extension encoding - [#1913](https://github.com/livekit/client-sdk-js/pull/1913) ([@ladvoc](https://github.com/ladvoc))
+
+## 2.18.5
+
+### Patch Changes
+
+- Defer `onEnterPiP` visibility update until after the next microtask and animation frame so Document Picture-in-Picture embedders can append DOM into the PiP window before `isElementInPiP` runs. - [#1868](https://github.com/livekit/client-sdk-js/pull/1868) ([@gparant](https://github.com/gparant))
+
+- Differentiate different 404 responses on validate path - [#1901](https://github.com/livekit/client-sdk-js/pull/1901) ([@lukasIO](https://github.com/lukasIO))
+
+- await screen share audio unpublish before returning setEnabled - [#1899](https://github.com/livekit/client-sdk-js/pull/1899) ([@lukasIO](https://github.com/lukasIO))
+
+- Avoid attaching a new Closing event listener for each waitForBufferStatusLow call - [#1896](https://github.com/livekit/client-sdk-js/pull/1896) ([@1egoman](https://github.com/1egoman))
+
+- Re-compute encoding params after track replace - [#1902](https://github.com/livekit/client-sdk-js/pull/1902) ([@lukasIO](https://github.com/lukasIO))
+
+- Harden extension id computation and retry publishing on negotiation failure - [#1895](https://github.com/livekit/client-sdk-js/pull/1895) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure udpated tokens get set on the regionUrlProvider - [#1900](https://github.com/livekit/client-sdk-js/pull/1900) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.4
+
+### Patch Changes
+
+- fix: handle race between `LocalTrackSubscribed` signal and `publishTrack` completion - [#1872](https://github.com/livekit/client-sdk-js/pull/1872) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Harden RemoteParticipant.dataTracks map to work when a data track subscription is processed before the room connect is complete - [#1888](https://github.com/livekit/client-sdk-js/pull/1888) ([@1egoman](https://github.com/1egoman))
+
+- Update dependency webrtc-adapter to v9.0.5 - [#1858](https://github.com/livekit/client-sdk-js/pull/1858) ([@renovate](https://github.com/apps/renovate))
+
+- Ensure transport manager is reset before attempting legacy fallback path - [#1893](https://github.com/livekit/client-sdk-js/pull/1893) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data tracks related subscript edge cases when the passed abort signal fires across the subscription lifecycle - [#1892](https://github.com/livekit/client-sdk-js/pull/1892) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.3
+
+### Patch Changes
+
+- fixing decodeTokenPayload - [#1889](https://github.com/livekit/client-sdk-js/pull/1889) ([@thomasyuill-livekit](https://github.com/thomasyuill-livekit))
+
+## 2.18.2
+
+### Patch Changes
+
+- Export CheckStatus as enum, not just type - [#1855](https://github.com/livekit/client-sdk-js/pull/1855) ([@Ludobaka](https://github.com/Ludobaka))
+
+- Add new serializer implementation - [#1885](https://github.com/livekit/client-sdk-js/pull/1885) ([@1egoman](https://github.com/1egoman))
+
+- fix: improve ordering of resolving waitForBufferStatus calls - [#1877](https://github.com/livekit/client-sdk-js/pull/1877) ([@lukasIO](https://github.com/lukasIO))
+
+- Close streamcontrollers when datatrack gets unpublished - [#1879](https://github.com/livekit/client-sdk-js/pull/1879) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer stream events until connected - [#1867](https://github.com/livekit/client-sdk-js/pull/1867) ([@lukasIO](https://github.com/lukasIO))
+
+- Moves "connected to Livekit Server" log within RTCEngine.join so it shows up for reconnects as well as connects - [#1873](https://github.com/livekit/client-sdk-js/pull/1873) ([@1egoman](https://github.com/1egoman))
+
+- Wrap setE2EEEnabled call in a mutex - [#1882](https://github.com/livekit/client-sdk-js/pull/1882) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.1
+
+### Patch Changes
+
+- Adds data tracks support - [#1820](https://github.com/livekit/client-sdk-js/pull/1820) ([@1egoman](https://github.com/1egoman))
+
+- Send publisher offer with join request to accelerate connection - [#1846](https://github.com/livekit/client-sdk-js/pull/1846) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Enable E2EE key-size configuration via ExternalE2EEKeyProvider options - [#1841](https://github.com/livekit/client-sdk-js/pull/1841) ([@MariusBernhardt](https://github.com/MariusBernhardt))
+
+## 2.18.0
+
+### Minor Changes
+
+- Rename pID to participantID in log context - [#1842](https://github.com/livekit/client-sdk-js/pull/1842) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure freshly created RTCEngine isn't recreated on join - [#1843](https://github.com/livekit/client-sdk-js/pull/1843) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix shouldReturnCachedValueFromFetch check for cached options - [#1837](https://github.com/livekit/client-sdk-js/pull/1837) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data stream header length field - [#1847](https://github.com/livekit/client-sdk-js/pull/1847) ([@ladvoc](https://github.com/ladvoc))
+
+- Add token fetch force option to skip TokenSource cache - [#1839](https://github.com/livekit/client-sdk-js/pull/1839) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.17.3
+
+### Patch Changes
+
+- Update happy-dom dependency version - [#1821](https://github.com/livekit/client-sdk-js/pull/1821) ([@renovate](https://github.com/apps/renovate))
+
+- e2ee: ensure current key index isn't unintentionally updated - [#1830](https://github.com/livekit/client-sdk-js/pull/1830) ([@lukasIO](https://github.com/lukasIO))
+
+- Prevent unmute -> mute -> unmute cycle for track restarts that happen during unmute - [#1793](https://github.com/livekit/client-sdk-js/pull/1793) ([@mfairley](https://github.com/mfairley))
+
+- Use controller.error to signal unexpected errors mid data stream - [#1834](https://github.com/livekit/client-sdk-js/pull/1834) ([@lukasIO](https://github.com/lukasIO))
+
+- Signal leave on failed connection attempts if signalling is connected - [#1817](https://github.com/livekit/client-sdk-js/pull/1817) ([@lukasIO](https://github.com/lukasIO))
+
+- Vendored ts-debounce and added critical timers to debounce function - [#1800](https://github.com/livekit/client-sdk-js/pull/1800) ([@mfairley](https://github.com/mfairley))
+
+- Ensure cryptor setup respects async queue in worker - [#1833](https://github.com/livekit/client-sdk-js/pull/1833) ([@lukasIO](https://github.com/lukasIO))
+
+- Adds new OutgoingDataTrackManager to manage sending data track payloads - [#1810](https://github.com/livekit/client-sdk-js/pull/1810) ([@1egoman](https://github.com/1egoman))
+
+## 2.17.2
+
+### Patch Changes
+
+- Ensure connection state mismatches aren't triggered for ongoing PC connection attempts - [#1807](https://github.com/livekit/client-sdk-js/pull/1807) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix unnecessary track restarts on unmute when using ideal device constraints - [#1794](https://github.com/livekit/client-sdk-js/pull/1794) ([@mfairley](https://github.com/mfairley))
+
+- Prevent ongoing renegotiations from declaring the negotiation as timed out - [#1813](https://github.com/livekit/client-sdk-js/pull/1813) ([@lukasIO](https://github.com/lukasIO))
+
+- Add data track packetizer and depacketizer implementations - [#1798](https://github.com/livekit/client-sdk-js/pull/1798) ([@1egoman](https://github.com/1egoman))
+
+- Add missing type exports required by `@livekit/components-core` - [#1815](https://github.com/livekit/client-sdk-js/pull/1815) ([@1egoman](https://github.com/1egoman))
+
+## 2.17.1
+
+### Patch Changes
+
+- Add data track packet serialization + deserialization logic - [#1792](https://github.com/livekit/client-sdk-js/pull/1792) ([@1egoman](https://github.com/1egoman))
+
+- Update docs to clarify other client HKDF support - [#1796](https://github.com/livekit/client-sdk-js/pull/1796) ([@1egoman](https://github.com/1egoman))
+
+- Add attachedStreamIds as text stream metadata - [#1805](https://github.com/livekit/client-sdk-js/pull/1805) ([@1egoman](https://github.com/1egoman))
+
+## 2.17.0
+
+### Minor Changes
+
+- Add new rtc path that defaults to single peer connection mode and falls back to legacy dual pc - [#1785](https://github.com/livekit/client-sdk-js/pull/1785) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Use TypedPromise for typesafe errors - [#1770](https://github.com/livekit/client-sdk-js/pull/1770) ([@lukasIO](https://github.com/lukasIO))
+
+- e2ee: ensure frame cryptor transform setup works for rapid subscription changes - [#1789](https://github.com/livekit/client-sdk-js/pull/1789) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.16.1
+
+### Patch Changes
+
+- export type RoomEventCallbacks - [#1599](https://github.com/livekit/client-sdk-js/pull/1599) ([@shincurry](https://github.com/shincurry))
+
+- Remove experimental tag on some stabilized features - [#1777](https://github.com/livekit/client-sdk-js/pull/1777) ([@lukasIO](https://github.com/lukasIO))
+
+- Tag errors by name - [#1764](https://github.com/livekit/client-sdk-js/pull/1764) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix connection check issues with pinned regions - [#1775](https://github.com/livekit/client-sdk-js/pull/1775) ([@lukasIO](https://github.com/lukasIO))
+
+- Control latency of lossy data channel - [#1754](https://github.com/livekit/client-sdk-js/pull/1754) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Add docs comments making it clear TokenSource-prefixed exported types shouldn't be used for TokenSource construction - [#1776](https://github.com/livekit/client-sdk-js/pull/1776) ([@1egoman](https://github.com/1egoman))
+
+- Fix leaking memory by removing event listener from correct scope - [#1768](https://github.com/livekit/client-sdk-js/pull/1768) ([@wuhkuh](https://github.com/wuhkuh))
+
+## 2.16.0
+
+### Minor Changes
+
+- Expose new encryption option field - [#1750](https://github.com/livekit/client-sdk-js/pull/1750) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Wait for dc buffer status low for all published packets - [#1691](https://github.com/livekit/client-sdk-js/pull/1691) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix message loss during resuming/migration - [#1757](https://github.com/livekit/client-sdk-js/pull/1757) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Cancel region refresh on invalid tokens - [#1755](https://github.com/livekit/client-sdk-js/pull/1755) ([@lukasIO](https://github.com/lukasIO))
+
+- Add connectionCount tracking and stop auto refetching after timeout - [#1756](https://github.com/livekit/client-sdk-js/pull/1756) ([@lukasIO](https://github.com/lukasIO))
+
+- Add explicit error types for future helper - [#1753](https://github.com/livekit/client-sdk-js/pull/1753) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(LocalTrackAudio): prevent overwriting constraint flags - [#1744](https://github.com/livekit/client-sdk-js/pull/1744) ([@itamayo](https://github.com/itamayo))
+
+## 2.15.16
+
+### Patch Changes
+
+- Fix slow start on vp9 - [#1740](https://github.com/livekit/client-sdk-js/pull/1740) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep text / byte stream handlers between room disconnects - [#1741](https://github.com/livekit/client-sdk-js/pull/1741) ([@1egoman](https://github.com/1egoman))
+
+- Export RoomEventCallbacks - [#1738](https://github.com/livekit/client-sdk-js/pull/1738) ([@haydenbr](https://github.com/haydenbr))
+
+- Speed up network switch recovery - [#1745](https://github.com/livekit/client-sdk-js/pull/1745) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure unexpected websocket disconnects trigger reconnect flow - [#1748](https://github.com/livekit/client-sdk-js/pull/1748) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.15
+
+### Patch Changes
+
+- Add exponential backoff strategy in case of connection failures - [#1715](https://github.com/livekit/client-sdk-js/pull/1715) ([@lukasIO](https://github.com/lukasIO))
+
+- Add participant as an optional parameter to EncryptionError events emitted on room level - [#1723](https://github.com/livekit/client-sdk-js/pull/1723) ([@CSantosM](https://github.com/CSantosM))
+
+- fix(e2ee): propagate worker data decryption errors and reject corresponding promises - [#1729](https://github.com/livekit/client-sdk-js/pull/1729) ([@CSantosM](https://github.com/CSantosM))
+
+- Fix potential undefined access while disconnecting - [#1734](https://github.com/livekit/client-sdk-js/pull/1734) ([@lukasIO](https://github.com/lukasIO))
+
+- Add new areTokenSourceFetchOptionsEqual function - [#1733](https://github.com/livekit/client-sdk-js/pull/1733) ([@1egoman](https://github.com/1egoman))
+
+- Ensure publication isn't attempted after timeout rejected the promise - [#1725](https://github.com/livekit/client-sdk-js/pull/1725) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.14
+
+### Patch Changes
+
+- Apply server supplied cache control settings for region url provider - [#1669](https://github.com/livekit/client-sdk-js/pull/1669) ([@lukasIO](https://github.com/lukasIO))
+
+- Only export types for TokenSource variants to try to push users to use the TokenSource.foo static constructors instead - [#1707](https://github.com/livekit/client-sdk-js/pull/1707) ([@1egoman](https://github.com/1egoman))
+
+- Add check to ensure track visibility update only happens when `adaptiveStream` is enabled - [#1712](https://github.com/livekit/client-sdk-js/pull/1712) ([@1egoman](https://github.com/1egoman))
+
+- Cache region settings per project - [#1709](https://github.com/livekit/client-sdk-js/pull/1709) ([@lukasIO](https://github.com/lukasIO))
+
+- Export decodeTokenPayload from package - [#1710](https://github.com/livekit/client-sdk-js/pull/1710) ([@1egoman](https://github.com/1egoman))
+
+## 2.15.13
+
+### Patch Changes
+
+- Disable ScriptTransform for Chromium based browsers - [#1703](https://github.com/livekit/client-sdk-js/pull/1703) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.12
+
+### Patch Changes
+
+- Remove AbortSignal.any usage - [#1700](https://github.com/livekit/client-sdk-js/pull/1700) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.11
+
+### Patch Changes
+
+- Fix abort race resulting in multiple code paths trying to close the ws connection - [#1695](https://github.com/livekit/client-sdk-js/pull/1695) ([@lukasIO](https://github.com/lukasIO))
+
+- fix the RPC comment and clam the timeout if the provided value is less than 8s - [#1694](https://github.com/livekit/client-sdk-js/pull/1694) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+- Fix track mapping when single peer connectionis used - [#1696](https://github.com/livekit/client-sdk-js/pull/1696) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.10
+
+### Patch Changes
+
+- Ensure leave requests can be sent before join response is received - [#1687](https://github.com/livekit/client-sdk-js/pull/1687) ([@lukasIO](https://github.com/lukasIO))
+
+- Increase RPC total timeout to 15s and connection timeout to 7s for better reliability under network latency. - [#1692](https://github.com/livekit/client-sdk-js/pull/1692) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+- Add sdp to answer debug log - [#1689](https://github.com/livekit/client-sdk-js/pull/1689) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.9
+
+### Patch Changes
+
+- Populate participant identity when receiving encrypted e2ee packets - [#1679](https://github.com/livekit/client-sdk-js/pull/1679) ([@lukasIO](https://github.com/lukasIO))
+
+- Export supportsAudioOutputSelection helper - [#1676](https://github.com/livekit/client-sdk-js/pull/1676) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix bug in isResponseExpired token expiry checking logic - [#1683](https://github.com/livekit/client-sdk-js/pull/1683) ([@1egoman](https://github.com/1egoman))
+
+- Use WebSocketStream for sequential signal processing - [#1638](https://github.com/livekit/client-sdk-js/pull/1638) ([@lukasIO](https://github.com/lukasIO))
+
+- Support for data channel encryption on React-Native - [#1678](https://github.com/livekit/client-sdk-js/pull/1678) ([@davidliu](https://github.com/davidliu))
+
+- Single peer connection support - [#1682](https://github.com/livekit/client-sdk-js/pull/1682) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.8
+
+### Patch Changes
+
+- Add preliminary support for data message decryption - [#1595](https://github.com/livekit/client-sdk-js/pull/1595) ([@lukasIO](https://github.com/lukasIO))
+
+- Add video autoplay attributes to PublishVideoCheck - [#1648](https://github.com/livekit/client-sdk-js/pull/1648) ([@Doomann](https://github.com/Doomann))
+
+- Ensure handleDisconnect is called also when already in Reconnecting state - [#1671](https://github.com/livekit/client-sdk-js/pull/1671) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix TS 5.9 generic Uint8Array declaration when inferred - [#1668](https://github.com/livekit/client-sdk-js/pull/1668) ([@lukasIO](https://github.com/lukasIO))
+
+- Properly clean up event listeners in getNewAudioContext() - [#1660](https://github.com/livekit/client-sdk-js/pull/1660) ([@indexds](https://github.com/indexds))
+
+- Avoid uncaught errors related to send/disconnect races - [#1674](https://github.com/livekit/client-sdk-js/pull/1674) ([@bryfox](https://github.com/bryfox))
+
+- Register online listener in engine's join - [#1658](https://github.com/livekit/client-sdk-js/pull/1658) ([@lukasIO](https://github.com/lukasIO))
+
+- add TokenSource token fetching abstraction - [#1645](https://github.com/livekit/client-sdk-js/pull/1645) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.7
 
 ### Patch Changes

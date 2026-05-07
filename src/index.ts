@@ -9,10 +9,16 @@ import {
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
-import Room, { ConnectionState } from './room/Room';
+import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
+import LocalDataTrack from './room/data-track/LocalDataTrack';
+import RemoteDataTrack, { type DataTrackSubscribeOptions } from './room/data-track/RemoteDataTrack';
 import LocalParticipant from './room/participant/LocalParticipant';
-import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
+import Participant, {
+  ConnectionQuality,
+  type ParticipantEventCallbacks,
+  ParticipantKind,
+} from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import type {
@@ -31,8 +37,8 @@ import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
-import { TrackPublication } from './room/track/TrackPublication';
-import type { LiveKitReactNativeInfo } from './room/types';
+import { type PublicationEventCallbacks, TrackPublication } from './room/track/TrackPublication';
+import type { LiveKitReactNativeInfo, TextStreamInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
   compareVersions,
@@ -50,6 +56,7 @@ import {
   isVideoTrack,
   supportsAV1,
   supportsAdaptiveStream,
+  supportsAudioOutputSelection,
   supportsDynacast,
   supportsVP9,
 } from './room/utils';
@@ -121,6 +128,7 @@ export {
   setLogLevel,
   supportsAV1,
   supportsAdaptiveStream,
+  supportsAudioOutputSelection,
   supportsDynacast,
   supportsVP9,
   Mutex,
@@ -132,11 +140,14 @@ export {
   isVideoTrack,
   isLocalParticipant,
   isRemoteParticipant,
+  LocalDataTrack,
+  RemoteDataTrack,
 };
 export type {
   AudioAnalyserOptions,
   ElementInfo,
   LiveKitReactNativeInfo,
+  TextStreamInfo,
   ParticipantTrackPermission,
   AudioReceiverStats,
   AudioSenderStats,
@@ -144,6 +155,24 @@ export type {
   VideoSenderStats,
   ReconnectContext,
   ReconnectPolicy,
+  RoomEventCallbacks,
+  ParticipantEventCallbacks,
+  PublicationEventCallbacks,
+  DataTrackSubscribeOptions,
 };
+export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
+export {
+  type DataTrackExtensions,
+  type DataTrackUserTimestampExtension,
+  type DataTrackE2eeExtension,
+} from './room/data-track/packet/extensions';
+export { type DataChannelKind } from './room/RTCEngine';
 
 export { LocalTrackRecorder } from './room/track/record';
+export {
+  type Serializer,
+  isSerializer,
+  type SerializerInput,
+  type SerializerOutput,
+  serializers,
+} from './utils/serializer';

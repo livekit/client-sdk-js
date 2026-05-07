@@ -34,7 +34,7 @@ export enum RoomEvent {
 
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
-   * when an unrecoverable connection issue had occured.
+   * when an unrecoverable connection issue had occurred.
    *
    * DisconnectReason can be used to determine why the participant was disconnected. Notable reasons are
    * - DUPLICATE_IDENTITY: another client with the same identity has joined the room
@@ -332,7 +332,7 @@ export enum RoomEvent {
   EncryptionError = 'encryptionError',
   /**
    * Emits whenever the current buffer status of a data channel changes
-   * args: (isLow: boolean, kind: [[DataPacket_Kind]])
+   * args: (isLow: boolean, kind: [[DataChannelKind]])
    */
   DCBufferStatusChanged = 'dcBufferStatusChanged',
 
@@ -352,6 +352,26 @@ export enum RoomEvent {
    * fired when the client receives connection metrics from other participants
    */
   MetricsReceived = 'metricsReceived',
+
+  /**
+   * Emits when a new data track has been published by a downstream participant.
+   */
+  DataTrackPublished = 'dataTrackPublished',
+
+  /**
+   * Emits when a new data track has been unpublished by a downstream participant.
+   */
+  DataTrackUnpublished = 'dataTrackUnpublished',
+
+  /**
+   * Emits when a new data track has been published locally.
+   */
+  LocalDataTrackPublished = 'localDataTrackPublished',
+
+  /**
+   * Emits when a new data track has been unpublished locally.
+   */
+  LocalDataTrackUnpublished = 'localDataTrackUnpublished',
 }
 
 export enum ParticipantEvent {
@@ -606,6 +626,13 @@ export enum EngineEvent {
   SignalRequestResponse = 'signalRequestResponse',
   SignalConnected = 'signalConnected',
   RoomMoved = 'roomMoved',
+  PublishDataTrackResponse = 'publishDataTrackResponse',
+  UnPublishDataTrackResponse = 'unPublishDataTrackResponse',
+  DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
+  DataTrackPacketReceived = 'dataTrackPacketReceived',
+  Joined = 'joined',
+  TokenRefreshed = 'tokenRefreshed',
+  ServerRegionsReported = 'serverRegionsReported',
 }
 
 export enum TrackEvent {

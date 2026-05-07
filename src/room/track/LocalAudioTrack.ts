@@ -3,7 +3,7 @@ import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isReactNative, isWeb, unwrapConstraint } from '../utils';
+import { isReactNative, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
@@ -74,18 +74,15 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         return this;
       }
 
-      const deviceHasChanged =
-        this._constraints.deviceId &&
-        this._mediaStreamTrack.getSettings().deviceId !==
-          unwrapConstraint(this._constraints.deviceId);
-
       if (
         this.source === Track.Source.Microphone &&
-        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended' || deviceHasChanged) &&
+        (this.stopOnMute ||
+          this._mediaStreamTrack.readyState === 'ended' ||
+          this.pendingDeviceChange) &&
         !this.isUserProvided
       ) {
         this.log.debug('reacquiring mic track', this.logContext);
-        await this.restartTrack();
+        await this.restart(undefined, true);
       }
       await super.unmute();
 
@@ -106,8 +103,11 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     await this.restart(constraints);
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<typeof this> {
-    const track = await super.restart(constraints);
+  protected async restart(
+    constraints?: MediaTrackConstraints,
+    isUnmuting?: boolean,
+  ): Promise<typeof this> {
+    const track = await super.restart(constraints, isUnmuting);
     this.checkForSilence();
     return track;
   }
@@ -185,6 +185,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         track: this._mediaStreamTrack,
         // RN won't have or use AudioContext
         audioContext: this.audioContext as AudioContext,
+        localTrack: this,
       };
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 

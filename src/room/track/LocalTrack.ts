@@ -1,7 +1,7 @@
 import { Mutex } from '@livekit/mutex';
-import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
+import { debounce } from '../debounce';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
@@ -64,6 +64,8 @@ export default abstract class LocalTrack<
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
   protected trackChangeLock: Mutex;
+
+  protected pendingDeviceChange: boolean = false;
 
   /**
    *
@@ -145,7 +147,11 @@ export default abstract class LocalTrack<
     return this._mediaStreamTrack.getSettings();
   }
 
-  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+  private async setMediaStreamTrack(
+    newTrack: MediaStreamTrack,
+    force?: boolean,
+    isUnmuting?: boolean,
+  ) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
@@ -188,6 +194,7 @@ export default abstract class LocalTrack<
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
+        localTrack: this,
       });
       processedTrack = this.processor.processedTrack;
     }
@@ -202,7 +209,8 @@ export default abstract class LocalTrack<
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
       // sync muted state with the enabled state of the newly provided track
-      this._mediaStreamTrack.enabled = !this.isMuted;
+      // if restarting as part of an unmute, set enabled to true directly to avoid mute cycling
+      this._mediaStreamTrack.enabled = isUnmuting ? true : !this.isMuted;
       // when a valid track is replace, we'd want to start producing
       await this.resumeUpstream();
       this.attachedElements.forEach((el) => {
@@ -246,6 +254,7 @@ export default abstract class LocalTrack<
     // when track is muted, underlying media stream track is stopped and
     // will be restarted later
     if (this.isMuted) {
+      this.pendingDeviceChange = true;
       return true;
     }
 
@@ -314,13 +323,25 @@ export default abstract class LocalTrack<
       if (stopProcessor && this.processor) {
         await this.internalStopProcessor();
       }
-      return this;
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
+    return this;
   }
 
-  protected async restart(constraints?: MediaTrackConstraints) {
+  /**
+   * Hook invoked after the MediaStreamTrack on the sender has been swapped
+   * (via replaceTrack, setProcessor, or stopProcessor). Fires outside the
+   * trackChangeLock so subclasses can do asynchronous work such as polling
+   * for new dimensions without blocking other track operations.
+   */
+  protected async onSenderTrackSwapped(): Promise<void> {
+    // base implementation is a no-op; LocalVideoTrack overrides this to
+    // recompute sender encoding parameters.
+  }
+
+  protected async restart(constraints?: MediaTrackConstraints, isUnmuting?: boolean) {
     this.manuallyStopped = false;
     const unlock = await this.trackChangeLock.lock();
 
@@ -363,8 +384,9 @@ export default abstract class LocalTrack<
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
-      await this.setMediaStreamTrack(newTrack);
+      await this.setMediaStreamTrack(newTrack, false, isUnmuting);
       this._constraints = constraints;
+      this.pendingDeviceChange = false;
       this.emit(TrackEvent.Restarted, this);
       if (this.manuallyStopped) {
         this.log.warn(
@@ -518,8 +540,6 @@ export default abstract class LocalTrack<
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   *
    * @param processor
    * @param showProcessedStreamLocally
    * @returns
@@ -536,6 +556,7 @@ export default abstract class LocalTrack<
         track: this._mediaStreamTrack,
         element: processorElement,
         audioContext: this.audioContext,
+        localTrack: this,
       };
       await processor.init(processorOptions);
       this.log.debug('processor initialized', this.logContext);
@@ -582,6 +603,7 @@ export default abstract class LocalTrack<
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
   }
 
   getProcessor() {
@@ -592,8 +614,6 @@ export default abstract class LocalTrack<
    * Stops the track processor
    * See https://github.com/livekit/track-processors-js for example usage
    *
-   * @experimental
-   * @returns
    */
   async stopProcessor(keepElement = true) {
     const unlock = await this.trackChangeLock.lock();
@@ -602,6 +622,7 @@ export default abstract class LocalTrack<
     } finally {
       unlock();
     }
+    await this.onSenderTrackSwapped();
   }
 
   /**

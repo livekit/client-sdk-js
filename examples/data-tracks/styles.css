@@ -1,0 +1,384 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: #fff;
+  color: #333;
+  line-height: 1.6;
+  margin: 0;
+  padding: 30px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+h1 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.subtitle {
+  text-align: center;
+  color: #7f8c8d;
+  margin-bottom: 24px;
+  font-size: 0.85rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Three-column layout: publisher | room | subscriber */
+.columns {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+  align-items: start;
+}
+
+.column {
+  min-width: 0;
+}
+
+/* Participant box */
+.participant-box {
+  border: 2px solid #dce1e6;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fafbfc;
+}
+
+.participant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.participant-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.participant-label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #2c3e50;
+}
+
+.identity-badge {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #7f8c8d;
+  background: #ecf0f1;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* Room box (center column) */
+.room-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 20px 0;
+  position: relative;
+}
+
+.room-column::before,
+.room-column::after {
+  content: '';
+  position: absolute;
+  top: 36px;
+  width: 20px;
+  height: 2px;
+  background: #bdc3c7;
+}
+
+.room-column::before {
+  left: 0;
+}
+
+.room-column::after {
+  right: 0;
+}
+
+.room-box {
+  border: 2px solid #bdc3c7;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: #f5f6f7;
+  text-align: center;
+  width: 120px;
+  box-sizing: border-box;
+}
+
+.room-label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: #7f8c8d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.room-name {
+  font-size: 0.7rem;
+  color: #95a5a6;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s, opacity 0.2s;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+.btn-success {
+  background-color: #27ae60;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #219a52;
+}
+
+.btn-warning {
+  background-color: #f39c12;
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #d68910;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c0392b;
+}
+
+.btn-outline-danger {
+  background: transparent;
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+
+.btn-outline-danger:hover:not(:disabled) {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 1rem;
+  color: #7f8c8d;
+  border-radius: 4px;
+}
+
+.btn-icon:hover {
+  background: #ecf0f1;
+  color: #2c3e50;
+}
+
+/* Publish controls */
+.publish-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.publish-controls input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 0.85rem;
+}
+
+.publish-controls input.is-invalid {
+  border-color: #e74c3c;
+}
+
+/* Track cards */
+.track-card {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.track-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.track-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-meta {
+  font-size: 0.7rem;
+  color: #95a5a6;
+  font-family: monospace;
+  margin-bottom: 8px;
+}
+
+.track-meta span {
+  background: #ecf0f1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+
+.badge-live {
+  font-size: 0.7rem;
+  background: #27ae60;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+/* Slider */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-row input[type='range'] {
+  flex: 1;
+}
+
+.slider-value {
+  min-width: 3em;
+  text-align: right;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+/* Chart */
+.chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.chart-container svg {
+  width: 100%;
+  height: auto;
+  background: #1a1a2e;
+  border-radius: 6px;
+}
+
+.chart-placeholder {
+  position: absolute;
+  font-size: 0.8rem;
+  text-align: center;
+  color: #95a5a6;
+}
+
+/* Subscription buttons */
+.subscription-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Empty state */
+.empty-state {
+  color: #95a5a6;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Fullscreen overlay */
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #0d0d1a;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreen-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #95a5a6;
+  font-size: 2rem;
+  cursor: pointer;
+  z-index: 1001;
+  line-height: 1;
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.fullscreen-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+#fullscreen-content {
+  width: 100%;
+  height: 100%;
+}

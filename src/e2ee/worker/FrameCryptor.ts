@@ -23,7 +23,8 @@ export interface TransformerInfo {
   readable: ReadableStream;
   writable: WritableStream;
   transformer: TransformStream;
-  abortController: AbortController;
+  trackId: string;
+  symbol: symbol;
 }
 
 export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
@@ -68,7 +69,20 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private detectedCodec?: VideoCodec;
 
-  private isTransformActive: boolean = false;
+  private currentTransform?: TransformerInfo;
+
+  /**
+   * Throttling mechanism for decryption errors to prevent memory leaks
+   */
+  private lastErrorTimestamp: Map<string, number> = new Map();
+
+  private errorCounts: Map<string, number> = new Map();
+
+  private readonly ERROR_THROTTLE_MS = 1000; // Emit error at most once per second
+
+  private readonly MAX_ERRORS_PER_MINUTE = 5; // Maximum errors to emit per minute per key
+
+  private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
@@ -102,23 +116,34 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     workerLogger.debug('setting new participant on cryptor', {
       ...this.logContext,
-      participant: id,
+      newParticipant: id,
+      hadPreviousParticipant: !!this.participantIdentity,
     });
-    if (this.participantIdentity) {
-      workerLogger.error(
-        'cryptor has already a participant set, participant should have been unset before',
-        {
-          ...this.logContext,
-        },
-      );
+
+    if (this.participantIdentity && this.participantIdentity !== id) {
+      workerLogger.warn('cryptor has already a participant set, cleaning up before switching', {
+        oldParticipant: this.participantIdentity,
+        newParticipant: id,
+        trackId: this.trackId,
+      });
+      // Clean up state from previous participant
+      this.unsetParticipant();
     }
+
     this.participantIdentity = id;
     this.keys = keys;
   }
 
   unsetParticipant() {
     workerLogger.debug('unsetting participant', this.logContext);
+
+    if (this.currentTransform) {
+      this.currentTransform = undefined;
+    }
+
     this.participantIdentity = undefined;
+    this.lastErrorTimestamp = new Map();
+    this.errorCounts = new Map();
   }
 
   isEnabled() {
@@ -170,44 +195,136 @@ export class FrameCryptor extends BaseFrameCryptor {
       operation,
       passedTrackId: trackId,
       codec,
+      isReuse,
+      hasCurrentTransform: !!this.currentTransform,
       ...this.logContext,
     });
 
-    if (isReuse && this.isTransformActive) {
-      workerLogger.debug('reuse transform', {
+    // Always update trackId, even on reuse
+    this.trackId = trackId;
+
+    // If we're reusing and have an active transform skip setup
+    if (
+      isReuse &&
+      this.currentTransform &&
+      readable === this.currentTransform.readable &&
+      writable === this.currentTransform.writable
+    ) {
+      workerLogger.debug('reusing existing transform', {
         ...this.logContext,
+        trackId,
       });
       return;
     }
+
+    const symbol = Symbol('transform');
 
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
     });
 
-    this.isTransformActive = true;
+    // Store transform info before starting the pipe
+    this.currentTransform = {
+      readable,
+      writable,
+      transformer: transformStream,
+      trackId,
+      symbol,
+    };
 
     readable
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        workerLogger.warn(e);
-        this.emit(
-          CryptorEvent.Error,
-          e instanceof CryptorError
-            ? e
-            : new CryptorError(e.message, undefined, this.participantIdentity),
-        );
+        if (e instanceof TypeError && e.message === 'Destination stream closed') {
+          // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
+          workerLogger.debug('destination stream closed');
+        } else {
+          workerLogger.warn('transform error', { error: e, ...this.logContext });
+          this.emit(
+            CryptorEvent.Error,
+            e instanceof CryptorError
+              ? e
+              : new CryptorError(e.message, undefined, this.participantIdentity),
+          );
+        }
       })
       .finally(() => {
-        this.isTransformActive = false;
+        // Only clear currentTransform if it's still the same one we started
+        if (this.currentTransform?.symbol === symbol) {
+          workerLogger.debug('transform completed', {
+            ...this.logContext,
+            trackId,
+          });
+          this.currentTransform = undefined;
+        }
       });
-    this.trackId = trackId;
   }
 
   setSifTrailer(trailer: NonSharedUint8Array) {
     workerLogger.debug('setting SIF trailer', { ...this.logContext, trailer });
     this.sifTrailer = trailer;
+  }
+
+  /**
+   * Checks if we should emit an error based on throttling rules to prevent memory leaks
+   * @param errorKey - unique key identifying the error context
+   * @returns true if the error should be emitted, false otherwise
+   */
+  private shouldEmitError(errorKey: string): boolean {
+    const now = Date.now();
+    const lastErrorTime = this.lastErrorTimestamp.get(errorKey) ?? 0;
+    const errorCount = this.errorCounts.get(errorKey) ?? 0;
+
+    // Reset count if we're in a new time window
+    if (now - lastErrorTime > this.ERROR_WINDOW_MS) {
+      this.errorCounts.set(errorKey, 0);
+      this.lastErrorTimestamp.set(errorKey, now);
+      return true;
+    }
+
+    // Check if we've exceeded the throttle time
+    if (now - lastErrorTime < this.ERROR_THROTTLE_MS) {
+      return false;
+    }
+
+    // Check if we've exceeded the max errors per window
+    if (errorCount >= this.MAX_ERRORS_PER_MINUTE) {
+      // Only log a warning once when hitting the limit
+      if (errorCount === this.MAX_ERRORS_PER_MINUTE) {
+        workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
+          ...this.logContext,
+          errorKey,
+        });
+        this.errorCounts.set(errorKey, errorCount + 1);
+      }
+      return false;
+    }
+
+    // Update tracking
+    this.lastErrorTimestamp.set(errorKey, now);
+    this.errorCounts.set(errorKey, errorCount + 1);
+    return true;
+  }
+
+  /**
+   * Emits a throttled error to prevent memory leaks from repeated decryption failures
+   * @param error - the CryptorError to emit
+   */
+  private emitThrottledError(error: CryptorError) {
+    const errorKey = `${this.participantIdentity}-${error.reason}-decrypt`;
+
+    if (this.shouldEmitError(errorKey)) {
+      const errorCount = this.errorCounts.get(errorKey) ?? 0;
+      if (errorCount > 1) {
+        workerLogger.debug(`Decryption error (${errorCount} occurrences in window)`, {
+          ...this.logContext,
+          reason: CryptorErrorReason[error.reason],
+        });
+      }
+      this.emit(CryptorEvent.Error, error);
+    }
   }
 
   /**
@@ -245,8 +362,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const keySet = this.keys.getKeySet();
     if (!keySet) {
-      this.emit(
-        CryptorEvent.Error,
+      this.emitThrottledError(
         new CryptorError(
           `key set not found for ${
             this.participantIdentity
@@ -318,8 +434,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     } else {
       workerLogger.debug('failed to encrypt, emitting error', this.logContext);
-      this.emit(
-        CryptorEvent.Error,
+      this.emitThrottledError(
         new CryptorError(
           `encryption key missing for encoding`,
           CryptorErrorReason.MissingKey,
@@ -379,7 +494,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           // emit an error if the key handler thinks we have a valid key
           if (this.keys.hasValidKey) {
-            this.emit(CryptorEvent.Error, error);
+            this.emitThrottledError(error);
             this.keys.decryptionFailure(keyIndex);
           }
         } else {
@@ -389,8 +504,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     } else {
       // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
       workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
-      this.emit(
-        CryptorEvent.Error,
+      this.emitThrottledError(
         new CryptorError(
           `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
           CryptorErrorReason.MissingKey,
@@ -493,10 +607,7 @@ export class FrameCryptor extends BaseFrameCryptor {
             // if not, it might be that a different frame has already ratcheted and we try with that one first
             ratchetResult = await this.keys.ratchetKey(keyIndex, false);
 
-            ratchetedKeySet = await deriveKeys(
-              ratchetResult.cryptoKey,
-              this.keyProviderOptions.ratchetSalt,
-            );
+            ratchetedKeySet = await deriveKeys(ratchetResult.cryptoKey, this.keyProviderOptions);
           }
 
           const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
