@@ -181,12 +181,24 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
    * Handle an incoming data stream containing an RPC response payload.
    * @internal
    */
-  async handleIncomingDataStream(reader: TextStreamReader, attributes: Record<string, string>) {
+  async handleIncomingDataStream(
+    reader: TextStreamReader,
+    senderIdentity: Participant['identity'],
+    attributes: Record<string, string>,
+  ) {
     const associatedRequestId = attributes[RpcRequestAttrs.RPC_REQUEST_ID];
     if (!associatedRequestId) {
       this.log.warn(`RPC data stream malformed: ${RpcRequestAttrs.RPC_REQUEST_ID} not set.`);
       // NOTE: no response can be sent here, because there's no request id so associate
       // so logging is the best we can do here.
+      return;
+    }
+
+    const pending = this.pendingResponses.get(associatedRequestId);
+    if (pending && pending.participantIdentity !== senderIdentity) {
+      this.log.warn(
+        `RPC response stream for ${associatedRequestId} arrived from unexpected sender ${senderIdentity}, expected ${pending.participantIdentity}. Ignoring.`,
+      );
       return;
     }
 
