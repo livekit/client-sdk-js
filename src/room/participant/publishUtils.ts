@@ -194,7 +194,7 @@ export function computeVideoEncodings(
     return [videoEncoding];
   }
 
-  let presets: Array<VideoPreset> = [];
+  let presets: Array<VideoPreset>;
   if (isScreenShare) {
     presets =
       sortPresets(options?.screenShareSimulcastLayers) ??

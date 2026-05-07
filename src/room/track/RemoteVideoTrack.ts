@@ -140,12 +140,11 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   detach(): HTMLMediaElement[];
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
-    let detachedElements: HTMLMediaElement[] = [];
     if (element) {
       this.stopObservingElement(element);
       return super.detach(element);
     }
-    detachedElements = super.detach();
+    const detachedElements = super.detach();
 
     for (const e of detachedElements) {
       this.stopObservingElement(e);

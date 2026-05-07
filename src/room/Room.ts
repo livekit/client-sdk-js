@@ -1825,7 +1825,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleParticipantDisconnected(info.identity, remoteParticipant);
       } else {
         // create participant if doesn't exist
-        remoteParticipant = this.getOrCreateParticipant(info.identity, info);
+        this.getOrCreateParticipant(info.identity, info);
       }
     }
 

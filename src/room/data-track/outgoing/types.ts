@@ -17,7 +17,8 @@ export type SfuPublishResponseResult =
         | DataTrackPublishError<DataTrackPublishErrorReason.NotAllowed>
         | DataTrackPublishError<DataTrackPublishErrorReason.DuplicateName>
         | DataTrackPublishError<DataTrackPublishErrorReason.InvalidName>
-        | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>;
+        | DataTrackPublishError<DataTrackPublishErrorReason.LimitReached>
+        | DataTrackPublishError<DataTrackPublishErrorReason.Unknown>;
     };
 
 /** Request sent to the SFU to publish a track. */
