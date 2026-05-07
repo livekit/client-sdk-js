@@ -15,7 +15,7 @@ function mockEncryptedRTCEncodedVideoFrame(keyIndex: number): RTCEncodedVideoFra
   return mockRTCEncodedVideoFrame(data);
 }
 
-function mockRTCEncodedVideoFrame(data: Uint8Array): RTCEncodedVideoFrame {
+function mockRTCEncodedVideoFrame(data: NonSharedUint8Array): RTCEncodedVideoFrame {
   return {
     data: data.buffer,
     timestamp: vitest.getMockedSystemTime()?.getTime() ?? 0,
@@ -26,7 +26,7 @@ function mockRTCEncodedVideoFrame(data: Uint8Array): RTCEncodedVideoFrame {
   };
 }
 
-function mockFrameTrailer(keyIndex: number): Uint8Array {
+function mockFrameTrailer(keyIndex: number): NonSharedUint8Array {
   const frameTrailer = new Uint8Array(2);
 
   frameTrailer[0] = IV_LENGTH;

@@ -300,9 +300,9 @@ export enum FrameMarker {
 export class DataTrackPacket extends Serializable {
   header: DataTrackPacketHeader;
 
-  payload: Uint8Array;
+  payload: NonSharedUint8Array;
 
-  constructor(header: DataTrackPacketHeader, payload: Uint8Array) {
+  constructor(header: DataTrackPacketHeader, payload: NonSharedUint8Array) {
     super();
     this.header = header;
     this.payload = payload;
@@ -349,10 +349,10 @@ export class DataTrackPacket extends Serializable {
       dataView.byteOffset + dataView.byteLength,
     );
 
-    return [new DataTrackPacket(header, new Uint8Array(payload)), dataView.byteLength] as [
-      DataTrackPacket,
-      number,
-    ];
+    return [
+      new DataTrackPacket(header, new Uint8Array(payload) as NonSharedUint8Array),
+      dataView.byteLength,
+    ] as [DataTrackPacket, number];
   }
 
   toJSON() {

@@ -140,8 +140,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   ) {
     super();
 
-    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
     this.loggerOptions = loggerOptions;
+    this.log = getLogger(
+      loggerOptions?.loggerName ?? LoggerNames.Participant,
+      () => this.logContext,
+    );
 
     this.setMaxListeners(100);
     this.sid = sid;
@@ -410,7 +413,7 @@ export type ParticipantEventCallbacks = {
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (
-    payload: Uint8Array,
+    payload: NonSharedUint8Array,
     kind: DataPacket_Kind,
     encryptionType?: Encryption_Type,
   ) => void;

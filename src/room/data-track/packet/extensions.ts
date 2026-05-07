@@ -75,9 +75,9 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   keyIndex: number;
 
-  iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
+  iv: NonSharedUint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
-  constructor(keyIndex: number, iv: Uint8Array) {
+  constructor(keyIndex: number, iv: NonSharedUint8Array) {
     super();
     this.keyIndex = keyIndex;
     this.iv = iv;

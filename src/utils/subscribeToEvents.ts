@@ -8,10 +8,13 @@ export function subscribeToEvents<
   Callbacks extends EventMap,
   EventNames extends keyof Callbacks = keyof Callbacks,
 >(eventEmitter: TypedEventEmitter<Callbacks>, eventNames: Array<EventNames>) {
-  const nextEventListeners = new Map<EventNames, Array<Future<unknown, never>>>(
+  // Wrap buffered events in a `{ event }` envelope so that no-payload events (like
+  // `reset: () => void`) survive the `if (earliestBufferedEvent)` check in waitFor --
+  // an `undefined` payload would otherwise look the same as an empty buffer.
+  const nextEventListeners = new Map<EventNames, Array<Future<{ event: unknown }, never>>>(
     eventNames.map((eventName) => [eventName, []]),
   );
-  const buffers = new Map<EventNames, Array<unknown>>(
+  const buffers = new Map<EventNames, Array<{ event: unknown }>>(
     eventNames.map((eventName) => [eventName, []]),
   );
 
@@ -20,11 +23,11 @@ export function subscribeToEvents<
       const listeners = nextEventListeners.get(eventName)!;
       if (listeners.length > 0) {
         for (const listener of listeners) {
-          listener.resolve?.(event);
+          listener.resolve?.({ event });
         }
         nextEventListeners.set(eventName, []);
       } else {
-        buffers.get(eventName)!.push(event);
+        buffers.get(eventName)!.push({ event });
       }
     }) as Callbacks[keyof Callbacks];
     return [eventName, onEvent] as [keyof Callbacks, Callbacks[keyof Callbacks]];
@@ -48,14 +51,14 @@ export function subscribeToEvents<
       }
       const earliestBufferedEvent = buffer.shift();
       if (earliestBufferedEvent) {
-        return earliestBufferedEvent as EventPayload;
+        return earliestBufferedEvent.event as EventPayload;
       }
 
       // Otherwise wait for the next event to come in.
-      const future = new Future<unknown, never>();
+      const future = new Future<{ event: unknown }, never>();
       nextEventListeners.get(eventName)!.push(future);
-      const nextEvent = await future.promise;
-      return nextEvent as EventPayload;
+      const { event } = await future.promise;
+      return event as EventPayload;
     },
     /** Are there events of the given name which are waiting to be processed? Use this to assert
      * that no unexpected events have been emitted. */

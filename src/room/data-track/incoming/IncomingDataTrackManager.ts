@@ -92,7 +92,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
    *
    * This is an index that allows track descriptors to be looked up
    * by subscriber handle in O(1) time, to make routing incoming packets
-   * a (hot code path) faster.
+   * (a hot code path) faster.
    */
   private subscriptionHandles = new Map<DataTrackHandle, DataTrackSid>();
 
@@ -626,8 +626,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Shutdown the manager, ending any subscriptions. */
-  shutdown() {
+  /** Resets the manager, ending any subscriptions, and getting it ready for the next room
+   * connection.  */
+  reset() {
     for (const descriptor of this.descriptors.values()) {
       this.emit('trackUnpublished', {
         sid: descriptor.info.sid,
@@ -643,5 +644,6 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
     }
     this.descriptors.clear();
+    this.subscriptionHandles.clear();
   }
 }

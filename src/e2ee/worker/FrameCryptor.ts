@@ -76,7 +76,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   /**
    * used for detecting server injected unencrypted frames
    */
-  private sifTrailer: Uint8Array;
+  private sifTrailer: NonSharedUint8Array;
 
   private detectedCodec?: VideoCodec;
 
@@ -110,7 +110,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     keys: ParticipantKeyHandler;
     participantIdentity: string;
     keyProviderOptions: KeyProviderOptions;
-    sifTrailer?: Uint8Array;
+    sifTrailer?: NonSharedUint8Array;
   }) {
     super();
     this.sendCounts = new Map();
@@ -302,7 +302,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       });
   }
 
-  setSifTrailer(trailer: Uint8Array) {
+  setSifTrailer(trailer: NonSharedUint8Array) {
     workerLogger.debug('setting SIF trailer', { ...this.logContext, trailer });
     this.sifTrailer = trailer;
   }
@@ -452,7 +452,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
         );
 
-        let newDataWithoutHeader = new Uint8Array(
+        let newDataWithoutHeader: NonSharedUint8Array = new Uint8Array(
           cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
         );
         newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
@@ -613,8 +613,12 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
-      var encryptedData = new Uint8Array(
+      const frameHeader: NonSharedUint8Array = new Uint8Array(
+        encodedFrame.data,
+        0,
+        frameInfo.unencryptedBytes,
+      );
+      var encryptedData: NonSharedUint8Array = new Uint8Array(
         encodedFrame.data,
         frameHeader.length,
         encodedFrame.data.byteLength - frameHeader.length,
@@ -831,7 +835,10 @@ export class FrameCryptor extends BaseFrameCryptor {
  * by the livekit server and thus to be treated as unencrypted
  * @internal
  */
-export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
+export function isFrameServerInjected(
+  frameData: ArrayBuffer,
+  trailerBytes: NonSharedUint8Array,
+): boolean {
   if (trailerBytes.byteLength === 0) {
     return false;
   }

@@ -1,5 +1,5 @@
 export interface DataPacketItem {
-  data: Uint8Array;
+  data: NonSharedUint8Array;
   sequence: number;
 }
 
