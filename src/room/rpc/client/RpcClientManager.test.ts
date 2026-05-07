@@ -309,10 +309,9 @@ describe('RpcClientManager', () => {
       );
 
       // Step 3: Make sure that the completion promise didn't resolve.
-      await expect(Promise.race([
-        completionPromise,
-        Promise.resolve("still pending"),
-      ])).resolves.toStrictEqual('still pending');
+      await expect(
+        Promise.race([completionPromise, Promise.resolve('still pending')]),
+      ).resolves.toStrictEqual('still pending');
     });
 
     it('should ensure that many rpc requests generate different request ids', async () => {
@@ -329,7 +328,9 @@ describe('RpcClientManager', () => {
       // Make sure all request ids are unique
       for (let i = 0; i < requestIds.length; i += 1) {
         for (let j = 0; j < requestIds.length; j += 1) {
-          if (i === j) { continue; }
+          if (i === j) {
+            continue;
+          }
           expect(requestIds[i]).not.toStrictEqual(requestIds[j]);
         }
       }
@@ -352,8 +353,8 @@ describe('RpcClientManager', () => {
       });
 
       // streamText was called synchronously; pull the request id out of the attributes.
-      const streamTextCalls = (mockOutgoingDataStreamManager.streamText as ReturnType<typeof vi.fn>).mock
-        .calls;
+      const streamTextCalls = (mockOutgoingDataStreamManager.streamText as ReturnType<typeof vi.fn>)
+        .mock.calls;
       expect(streamTextCalls.length).toBe(1);
       const requestId = streamTextCalls[0][0].attributes[RpcRequestAttrs.RPC_REQUEST_ID];
 

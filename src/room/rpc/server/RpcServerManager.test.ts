@@ -259,13 +259,13 @@ describe('RpcServerManager', () => {
         'sendDataPacket',
       ]);
 
-      const handler = async () => new Array(20_000).fill("B").join("");
+      const handler = async () => new Array(20_000).fill('B').join('');
       rpcServerManager.registerRpcMethod('test-method', handler);
 
       const requestId = crypto.randomUUID();
       const responseTimeoutMs = 10_000;
       await rpcServerManager.handleIncomingDataStream(
-        mockTextStreamReader(new Array(20_000).fill("A").join("")),
+        mockTextStreamReader(new Array(20_000).fill('A').join('')),
         'caller-identity',
         makeDataStreamAttrs(requestId, 'test-method', responseTimeoutMs),
       );
@@ -284,7 +284,7 @@ describe('RpcServerManager', () => {
           attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
         }),
       );
-      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(new Array(20_000).fill("B").join(""));
+      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(new Array(20_000).fill('B').join(''));
       expect(mockStreamTextWriter.close).toHaveBeenCalled();
     });
 
