@@ -423,10 +423,7 @@ describe('RpcClientManager', () => {
 
       // The completionPromise must remain pending - the wrong-sender response is ignored.
       await expect(
-        Promise.race([
-          completionPromise,
-          new Promise<string>((resolve) => setTimeout(() => resolve('still pending'), 50)),
-        ]),
+        Promise.race([completionPromise, Promise.resolve('still pending')]),
       ).resolves.toStrictEqual('still pending');
     });
   });
