@@ -276,15 +276,15 @@ from both the caller and handler perspectives.
   - Immediately (ie, with no await or similar deferral to let other threads run), a v2 data stream
     response is sent.
   - Verify the caller received the response and doesn't have any in flight acks which are being
-    stored.
+    stored and would become orphaned.
 
-### v2 -> v1 (v2 caller, v1 handler)
+### v1 -> v2 (v1 caller, v2 handler)
 
-10. **Caller happy path (request fallback)**
+10. **Caller happy path (v1 request)**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet (not a data stream) with correct `id`, `method`,
       `payload`, `responseTimeoutMs`, and `version: 1`.
-    - Verify no data stream is opened.
+    - Verify no data stream is opened by the caller.
     - Simulate the handler sending a `RpcAck` packet, then a `RpcResponse` packet with a
       success payload.
     - Verify the caller resolves with the response payload.
@@ -298,53 +298,43 @@ from both the caller and handler perspectives.
     - The handler detects the caller's `clientProtocol` is 0 and sends the response as a v1
       `RpcResponse` packet (not a data stream).
 
-12. **Payload too large**
+12. **Unhandled error in handler (v1 caller)**
+    - A v1 caller sends a v1 `RpcRequest` packet.
+    - The handler sends a `RpcAck` packet.
+    - The registered method handler throws a non-RpcError exception (e.g., a generic `Error`).
+    - The handler sends a `RpcResponse` packet with error code `APPLICATION_ERROR` (1500).
+
+13. **RpcError passthrough (v1 caller)**
+    - A v1 caller sends a v1 `RpcRequest` packet.
+    - The handler sends a `RpcAck` packet.
+    - The registered method handler throws a `RpcError` with a custom code (e.g., 101) and
+      message.
+    - The handler sends a `RpcResponse` packet preserving the original error code and message.
+
+14. **Payload too large**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller attempts to send a payload exceeding 15 KB.
     - Verify it rejects immediately with `REQUEST_PAYLOAD_TOO_LARGE` (code 1402) without producing
       any packet or data stream.
 
-13. **Response timeout**
+15. **Response timeout**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet with a short response timeout (e.g., 50ms).
     - No `RpcAck` or response arrives.
     - After the timeout elapses, the caller rejects with `RESPONSE_TIMEOUT` (code 1502).
 
-14. **Error response**
+16. **Error response**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet.
     - Simulate the handler sending a `RpcAck` packet, then a `RpcResponse` packet with an
       error (e.g., code 101, message "Test error message").
     - Verify the caller rejects with the correct error code and message.
 
-15. **Participant disconnection**
+17. **Participant disconnection**
     - The caller detects the remote's `clientProtocol` is 0.
     - The caller sends a v1 `RpcRequest` packet.
     - Before any ack or response arrives, the remote participant disconnects.
     - Verify the caller rejects with `RECIPIENT_DISCONNECTED` (code 1503).
-
-### v1 -> v2 (v1 caller, v2 handler)
-
-16. **Handler happy path (response fallback)**
-    - A v1 caller sends a v1 `RpcRequest` packet with `version: 1`.
-    - The v2-capable handler receives it and sends a `RpcAck` packet.
-    - The handler invokes the registered method handler, which returns a response string.
-    - The handler detects the caller's `clientProtocol` is 0 and sends the response as a v1
-      `RpcResponse` packet (not a data stream), even though it supports v2.
-    - Verify no data stream is opened for the response.
-
-17. **Unhandled error in handler (v1 caller)**
-    - A v1 caller sends a v1 `RpcRequest` packet.
-    - The handler sends a `RpcAck` packet.
-    - The registered method handler throws a non-RpcError exception (e.g., a generic `Error`).
-    - The handler sends a `RpcResponse` packet with error code `APPLICATION_ERROR` (1500).
-
-18. **RpcError passthrough (v1 caller)**
-    - A v1 caller sends a v1 `RpcRequest` packet.
-    - The handler sends a `RpcAck` packet.
-    - The registered method handler throws a `RpcError` with a custom code (e.g., 101) and
-      message.
-    - The handler sends a `RpcResponse` packet preserving the original error code and message.
 
 ---
 
