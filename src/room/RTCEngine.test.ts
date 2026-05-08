@@ -56,10 +56,12 @@ describe('RTCEngine', () => {
     ).makeRTCConfiguration();
   }
 
-  function setupSenderPassthrough(engine: RTCEngine, sender: RTCRtpSender) {
+  function setupPacketTrailerSender(engine: RTCEngine, sender: RTCRtpSender, opts = {}) {
     (
-      engine as unknown as { setupSenderPassthrough: (sender: RTCRtpSender) => void }
-    ).setupSenderPassthrough(sender);
+      engine as unknown as {
+        setupPacketTrailerSender: (sender: RTCRtpSender, opts?: unknown) => void;
+      }
+    ).setupPacketTrailerSender(sender, opts);
   }
 
   it('does not enable encoded insertable streams without E2EE or a packet trailer worker', () => {
@@ -126,7 +128,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupSenderPassthrough(engine, sender);
+    setupPacketTrailerSender(engine, sender);
 
     expect(createEncodedStreams).not.toHaveBeenCalled();
   });
@@ -143,8 +145,75 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupSenderPassthrough(engine, sender);
+    setupPacketTrailerSender(engine, sender);
 
+    expect(createEncodedStreams).not.toHaveBeenCalled();
+  });
+
+  it('posts sender encode streams to the packet trailer worker when write features are enabled', () => {
+    stubInsertableStreamsSupport();
+
+    const worker = { postMessage: vi.fn() } as unknown as Worker;
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker },
+    });
+    const readable = {} as ReadableStream;
+    const writable = {} as WritableStream;
+    const createEncodedStreams = vi.fn(() => ({ readable, writable }));
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true, frameId: true } });
+
+    expect(createEncodedStreams).toHaveBeenCalledTimes(1);
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      {
+        kind: 'encode',
+        data: {
+          readableStream: readable,
+          writableStream: writable,
+          packetTrailer: { timestamp: true, frameId: true },
+        },
+      },
+      [readable, writable],
+    );
+  });
+
+  it('uses RTCRtpScriptTransform for sender packet trailer writes when supported', () => {
+    stubScriptTransformSupport();
+
+    const transform = {};
+    const RTCRtpScriptTransform = vi.fn(() => transform);
+    Object.defineProperty(window, 'RTCRtpScriptTransform', {
+      configurable: true,
+      value: RTCRtpScriptTransform,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, 'RTCRtpScriptTransform', {
+      configurable: true,
+      value: RTCRtpScriptTransform,
+      writable: true,
+    });
+
+    const worker = {} as Worker;
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker },
+    });
+    const createEncodedStreams = vi.fn();
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true } });
+
+    expect(RTCRtpScriptTransform).toHaveBeenCalledWith(worker, {
+      kind: 'encode',
+      packetTrailer: { timestamp: true },
+    });
+    expect((sender as unknown as { transform: unknown }).transform).toBe(transform);
     expect(createEncodedStreams).not.toHaveBeenCalled();
   });
 });

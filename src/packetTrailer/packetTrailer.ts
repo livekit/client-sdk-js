@@ -1,4 +1,5 @@
-import type { PacketTrailerMetadata } from './types';
+import type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './types';
+import { hasPacketTrailerPublishOptions } from './utils';
 
 export const PACKET_TRAILER_MAGIC = Uint8Array.from([
   'L'.charCodeAt(0),
@@ -59,6 +60,31 @@ export function appendPacketTrailer(
   result.set(PACKET_TRAILER_MAGIC, offset);
 
   return result;
+}
+
+export function appendPacketTrailerToEncodedFrame(
+  frame: RTCEncodedVideoFrame,
+  options: PacketTrailerPublishOptions | undefined,
+  frameId: number,
+): boolean {
+  if (!hasPacketTrailerPublishOptions(options) || frame.data.byteLength === 0) {
+    return false;
+  }
+
+  const userTimestamp = options?.timestamp ? BigInt(Date.now()) * BigInt(1000) : BigInt(0);
+  const packetTrailerFrameId = options?.frameId ? frameId : 0;
+  const data = new Uint8Array(frame.data);
+  const result = appendPacketTrailer(data, userTimestamp, packetTrailerFrameId);
+
+  if (result.byteLength === data.byteLength) {
+    return false;
+  }
+
+  frame.data = result.buffer.slice(
+    result.byteOffset,
+    result.byteOffset + result.byteLength,
+  ) as ArrayBuffer;
+  return true;
 }
 
 export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPacketTrailerResult {

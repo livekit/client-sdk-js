@@ -1,5 +1,10 @@
+import { PacketTrailerFeature } from '@livekit/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isPacketTrailerSupported } from './utils';
+import {
+  getPacketTrailerFeatures,
+  getPacketTrailerPublishOptions,
+  isPacketTrailerSupported,
+} from './utils';
 
 describe('packet trailer support', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -63,5 +68,38 @@ describe('packet trailer support', () => {
     );
 
     expect(isPacketTrailerSupported({ worker: {} as Worker })).toBe(false);
+  });
+});
+
+describe('packet trailer publish features', () => {
+  it('maps publish options to protocol features', () => {
+    expect(getPacketTrailerFeatures({ timestamp: true, frameId: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_TIMESTAMP,
+      PacketTrailerFeature.PTF_FRAME_ID,
+    ]);
+    expect(getPacketTrailerFeatures({ timestamp: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_TIMESTAMP,
+    ]);
+    expect(getPacketTrailerFeatures({ frameId: true })).toEqual([
+      PacketTrailerFeature.PTF_FRAME_ID,
+    ]);
+    expect(getPacketTrailerFeatures()).toEqual([]);
+  });
+
+  it('maps protocol features to publish options', () => {
+    expect(
+      getPacketTrailerPublishOptions([
+        PacketTrailerFeature.PTF_USER_TIMESTAMP,
+        PacketTrailerFeature.PTF_FRAME_ID,
+      ]),
+    ).toEqual({ timestamp: true, frameId: true });
+    expect(getPacketTrailerPublishOptions([PacketTrailerFeature.PTF_USER_TIMESTAMP])).toEqual({
+      timestamp: true,
+    });
+    expect(getPacketTrailerPublishOptions([PacketTrailerFeature.PTF_FRAME_ID])).toEqual({
+      frameId: true,
+    });
+    expect(getPacketTrailerPublishOptions()).toBeUndefined();
+    expect(getPacketTrailerPublishOptions([])).toBeUndefined();
   });
 });

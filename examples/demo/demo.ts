@@ -37,6 +37,7 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isVideoTrack,
   setLogLevel,
   supportsAV1,
   supportsVP9,
@@ -86,6 +87,61 @@ function updateSearchParams(url: string, token: string, key: string) {
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
+function getPacketTrailerPublishOptions() {
+  const enabled = (<HTMLInputElement>$('packet-trailer')).checked;
+  const timestamp = enabled && (<HTMLInputElement>$('packet-trailer-timestamp')).checked;
+  const frameId = enabled && (<HTMLInputElement>$('packet-trailer-frame-id')).checked;
+
+  return timestamp || frameId ? { timestamp, frameId } : undefined;
+}
+
+function syncPacketTrailerPublishOptions(room = currentRoom) {
+  const packetTrailer = getPacketTrailerPublishOptions();
+  if (!room) {
+    return packetTrailer;
+  }
+
+  room.options.publishDefaults.packetTrailer = packetTrailer;
+  room.localParticipant.trackPublications.forEach((pub) => {
+    if (pub.kind !== Track.Kind.Video) {
+      return;
+    }
+    pub.options = { ...pub.options, packetTrailer };
+    if (pub.track && isVideoTrack(pub.track)) {
+      pub.track.publishOptions = { ...pub.track.publishOptions, packetTrailer };
+    }
+  });
+  return packetTrailer;
+}
+
+function syncPacketTrailerFeatureControls() {
+  const enabled = (<HTMLInputElement>$('packet-trailer')).checked;
+  const featureControls = $('packet-trailer-features');
+  const timestamp = <HTMLInputElement>$('packet-trailer-timestamp');
+  const frameId = <HTMLInputElement>$('packet-trailer-frame-id');
+
+  featureControls.style.display = enabled ? 'block' : 'none';
+  timestamp.disabled = !enabled;
+  frameId.disabled = !enabled;
+  if (!enabled) {
+    timestamp.checked = false;
+    frameId.checked = false;
+  }
+  syncPacketTrailerPublishOptions();
+}
+
+(<HTMLInputElement>$('packet-trailer')).addEventListener(
+  'change',
+  syncPacketTrailerFeatureControls,
+);
+(<HTMLInputElement>$('packet-trailer-timestamp')).addEventListener('change', () =>
+  syncPacketTrailerPublishOptions(),
+);
+(<HTMLInputElement>$('packet-trailer-frame-id')).addEventListener('change', () =>
+  syncPacketTrailerPublishOptions(),
+);
+syncPacketTrailerFeatureControls();
+
 // handles actions from the HTML
 const appActions = {
   sendFile: async () => {
@@ -111,6 +167,7 @@ const appActions = {
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const packetTrailerEnabled = (<HTMLInputElement>$('packet-trailer')).checked;
+    const packetTrailer = getPacketTrailerPublishOptions();
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
@@ -135,6 +192,7 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
+        packetTrailer,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -498,6 +556,7 @@ const appActions = {
     // read and set current key from input
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     state.e2eeKeyProvider.setKey(cryptoKey);
+    syncPacketTrailerPublishOptions(currentRoom);
 
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },
@@ -575,7 +634,10 @@ const appActions = {
     } else {
       appendLog('enabling video');
     }
-    await currentRoom.localParticipant.setCameraEnabled(!enabled);
+    const publishOptions = syncPacketTrailerPublishOptions(currentRoom);
+    await currentRoom.localParticipant.setCameraEnabled(!enabled, undefined, {
+      packetTrailer: publishOptions,
+    });
     setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);
 
