@@ -85,7 +85,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
       return;
     }
 
-    let response: string | null = null;
+    let response;
     try {
       response = await handler({
         requestId: rpcRequest.id,
@@ -185,7 +185,7 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
       return;
     }
 
-    let response: string | null = null;
+    let response;
     try {
       response = await handler({
         requestId,

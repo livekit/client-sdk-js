@@ -294,7 +294,7 @@ describe('RpcClientManager', () => {
 
     it('should send V2 RPC request and ensure that a non matching response does not complete the RPC', async () => {
       // Step 1: send an example rpc request
-      const [_requestId, completionPromise] = await rpcClientManager.performRpc({
+      const [, completionPromise] = await rpcClientManager.performRpc({
         destinationIdentity: 'destination-identity',
         method: 'test-method',
         payload: 'test payload',
