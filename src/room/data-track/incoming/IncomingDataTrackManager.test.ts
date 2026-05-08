@@ -954,7 +954,7 @@ describe('DataTrackIncomingManager', () => {
       const trackPublishedEvent = await managerEvents.waitFor('trackPublished');
 
       // Configure the track BEFORE any subscribe.
-      trackPublishedEvent.track.setMaxPartialFrames(3);
+      trackPublishedEvent.track.setPipelineOptions({ maxPartialFrames: 3 });
 
       const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
       const reader = stream.getReader();
@@ -1008,7 +1008,7 @@ describe('DataTrackIncomingManager', () => {
       await sfuSubscriptionComplete;
 
       // Subscription is now active; flip the cap on the live pipeline.
-      trackPublishedEvent.track.setMaxPartialFrames(3);
+      trackPublishedEvent.track.setPipelineOptions({ maxPartialFrames: 3 });
 
       pushInterleavedTwoFramePair(manager, handle, {
         frameOneNumber: 1,

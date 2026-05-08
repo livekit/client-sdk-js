@@ -28,7 +28,7 @@ export default class IncomingDataTrackPipeline {
 
   private depacketizer: DataTrackDepacketizer;
 
-  private maxPartialFrames?: number;
+  private maxPartialFrames: number | null;
 
   /**
    * Creates a new pipeline with the given options.
@@ -47,14 +47,14 @@ export default class IncomingDataTrackPipeline {
     this.publisherIdentity = options.publisherIdentity;
     this.e2eeManager = options.e2eeManager ?? null;
     this.depacketizer = depacketizer;
-    this.maxPartialFrames = options.maxPartialFrames;
+    this.maxPartialFrames = options.maxPartialFrames ?? null;
   }
 
   updateE2eeManager(e2eeManager: BaseE2EEManager | null) {
     this.e2eeManager = e2eeManager;
   }
 
-  setMaxPartialFrames(n: number): void {
+  setMaxPartialFrames(n: number | null): void {
     this.maxPartialFrames = n;
   }
 
@@ -84,7 +84,7 @@ export default class IncomingDataTrackPipeline {
     try {
       frame = this.depacketizer.push(packet, {
         throwOnInterruption: false,
-        maxPartialFrames: this.maxPartialFrames,
+        maxPartialFrames: this.maxPartialFrames ?? undefined,
       });
     } catch (err) {
       // In a future version, use this to maintain drop statistics.

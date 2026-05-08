@@ -68,7 +68,7 @@ type Descriptor<S extends SubscriptionState> = {
   /** Per-track override for the depacketizer's `maxPartialFrames`. Set via
    * {@link RemoteDataTrack.setMaxPartialFrames}. Read at pipeline construction time and pushed
    * live to an active pipeline if changed afterwards. */
-  maxPartialFrames?: number;
+  maxPartialFrames: number | null;
 };
 
 type IncomingDataTrackManagerOptions = {
@@ -122,7 +122,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
    * an active pipeline if there is one.
    *
    * @internal */
-  setTrackMaxPartialFrames(sid: DataTrackSid, n: number): void {
+  setTrackMaxPartialFrames(sid: DataTrackSid, n: number | null): void {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
       log.warn(`Unknown track ${sid}, cannot set maxPartialFrames.`);
@@ -494,6 +494,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       info,
       publisherIdentity,
       subscription: { type: 'none' },
+      maxPartialFrames: null,
     };
     this.descriptors.set(descriptor.info.sid, descriptor);
 
@@ -551,7 +552,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,
           e2eeManager: this.e2eeManager,
-          maxPartialFrames: descriptor.maxPartialFrames,
+          maxPartialFrames: descriptor.maxPartialFrames ?? undefined,
         });
 
         const previousDescriptorSubscription = descriptor.subscription;

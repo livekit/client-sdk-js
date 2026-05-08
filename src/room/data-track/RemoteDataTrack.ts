@@ -21,6 +21,14 @@ export type DataTrackSubscribeOptions = {
   bufferSize?: number;
 };
 
+export type RemoteDataTrackPipelineOptions = {
+  /** Set the maximum number of in-flight partial frames the depacketizer will track
+   * concurrently for this track. Higher values give more out-of-order tolerance for
+   * high-frequency senders. Defaults to 1.
+   */
+  maxPartialFrames?: number;
+};
+
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
   readonly trackSymbol = TrackSymbol;
 
@@ -81,14 +89,10 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
     }
   }
 
-  /** Set the maximum number of in-flight partial frames the depacketizer will track
-   * concurrently for this track. Higher values give more out-of-order tolerance for
-   * high-frequency senders.
-   *
-   * The value applies to all current and future subscribers of this track. May be called
-   * before or after {@link RemoteDataTrack.subscribe}; live subscriptions pick up the new value
-   * immediately. Defaults to 1. */
-  setMaxPartialFrames(n: number): void {
-    this.manager.setTrackMaxPartialFrames(this.info.sid, n);
+  /** Configure how incoming frames for this track are processed before they are handed out to
+   * subscribers (the "pipeline"). These options apply to all current and future subscriptions
+   * of this track, and may be set at any time. */
+  setPipelineOptions(options: RemoteDataTrackPipelineOptions): void {
+    this.manager.setTrackMaxPartialFrames(this.info.sid, options.maxPartialFrames ?? null);
   }
 }
