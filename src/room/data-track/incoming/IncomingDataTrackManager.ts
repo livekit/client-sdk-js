@@ -13,7 +13,11 @@ import { DataTrackDepacketizerDropError } from '../depacketizer';
 import { type DataTrackFrame, DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
-import { type DataTrackInfo, type DataTrackSid } from '../types';
+import {
+  type DataTrackInfo,
+  type DataTrackSid,
+  type RemoteDataTrackPipelineOptions,
+} from '../types';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
 import {
@@ -65,10 +69,7 @@ type Descriptor<S extends SubscriptionState> = {
   info: DataTrackInfo;
   publisherIdentity: Participant['identity'];
   subscription: S;
-  /** Per-track override for the depacketizer's `maxPartialFrames`. Set via
-   * {@link RemoteDataTrack.setMaxPartialFrames}. Read at pipeline construction time and pushed
-   * live to an active pipeline if changed afterwards. */
-  maxPartialFrames: number | null;
+  pipelineOptions: RemoteDataTrackPipelineOptions;
 };
 
 type IncomingDataTrackManagerOptions = {
@@ -117,20 +118,16 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     }
   }
 
-  /** Set the per-track `maxPartialFrames` value used by the depacketizer. Stored on the
-   * descriptor so it survives subscription teardown/recreation, and forwarded immediately to
-   * an active pipeline if there is one.
-   *
-   * @internal */
-  setTrackMaxPartialFrames(sid: DataTrackSid, n: number | null): void {
+  /** @internal */
+  setPipelineOptions(sid: DataTrackSid, options: RemoteDataTrackPipelineOptions): void {
     const descriptor = this.descriptors.get(sid);
     if (!descriptor) {
-      log.warn(`Unknown track ${sid}, cannot set maxPartialFrames.`);
+      log.warn(`Unknown track ${sid}, cannot set pipeline options.`);
       return;
     }
-    descriptor.maxPartialFrames = n;
+    descriptor.pipelineOptions = options;
     if (descriptor.subscription.type === 'active') {
-      descriptor.subscription.pipeline.setMaxPartialFrames(n);
+      descriptor.subscription.pipeline.setOptions(options);
     }
   }
 
@@ -494,7 +491,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       info,
       publisherIdentity,
       subscription: { type: 'none' },
-      maxPartialFrames: null,
+      pipelineOptions: {},
     };
     this.descriptors.set(descriptor.info.sid, descriptor);
 
@@ -552,7 +549,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,
           e2eeManager: this.e2eeManager,
-          maxPartialFrames: descriptor.maxPartialFrames ?? undefined,
+          pipelineOptions: descriptor.pipelineOptions,
         });
 
         const previousDescriptorSubscription = descriptor.subscription;

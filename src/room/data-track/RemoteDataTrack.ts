@@ -7,7 +7,7 @@ import {
   type IRemoteTrack,
   TrackSymbol,
 } from './track-interfaces';
-import { type DataTrackInfo } from './types';
+import { type DataTrackInfo, type RemoteDataTrackPipelineOptions } from './types';
 
 type RemoteDataTrackOptions = {
   publisherIdentity: Participant['identity'];
@@ -19,14 +19,6 @@ export type DataTrackSubscribeOptions = {
   /** The number of {@link DataTrackFrame}s to hold in the ReadableStream before disgarding extra
    * frames. Defaults to 16, but this may not be good enough for especially high frequency data. */
   bufferSize?: number;
-};
-
-export type RemoteDataTrackPipelineOptions = {
-  /** Set the maximum number of in-flight partial frames the depacketizer will track
-   * concurrently for this track. Higher values give more out-of-order tolerance for
-   * high-frequency senders. Defaults to 1.
-   */
-  maxPartialFrames?: number;
 };
 
 export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
@@ -93,6 +85,6 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
    * subscribers (the "pipeline"). These options apply to all current and future subscriptions
    * of this track, and may be set at any time. */
   setPipelineOptions(options: RemoteDataTrackPipelineOptions): void {
-    this.manager.setTrackMaxPartialFrames(this.info.sid, options.maxPartialFrames ?? null);
+    this.manager.setPipelineOptions(this.info.sid, options);
   }
 }
