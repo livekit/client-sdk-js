@@ -18,7 +18,7 @@ import DataTrackOutgoingPipeline from './pipeline';
 import {
   type DataTrackOptions,
   type EventPacketAvailable,
-  type EventPacketsFlushed,
+  type EventPacketsFlushedChange,
   type EventSfuPublishRequest,
   type EventSfuUnpublishRequest,
   type EventTrackPublished,
@@ -76,7 +76,7 @@ export type DataTrackOutgoingManagerCallbacks = {
   /** A {@link LocalDataTrack} has been unpublished */
   trackUnpublished: (event: EventTrackUnpublished) => void;
   /** A {@link LocalDataTrack} has had all of its in flight packets sent via the rtc data channel. */
-  packetsFlushed: (event: EventPacketsFlushed) => void;
+  packetsFlushedChange: (event: EventPacketsFlushedChange) => void;
   /** The manager has been reset and all state has been cleared in preparation for the next room
    * connection. */
   reset: () => void;
@@ -167,6 +167,12 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       for await (const packet of descriptor.pipeline.processFrame(frame)) {
         const prev = this.inFlightPacketCounter.get(handle) ?? 0;
         this.inFlightPacketCounter.set(handle, prev + 1);
+        if (prev === 0) {
+          // A new packet has been sent, so there are now packets in the rtc data channel buffer for
+          // this data track frame
+          this.emit('packetsFlushedChange', { handle, isFlushed: false });
+        }
+
         this.emit('packetAvailable', { handle, bytes: packet.toBinary() });
       }
     } catch (err) {
@@ -193,7 +199,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     this.inFlightPacketCounter.set(handle, counter);
 
     if (counter === 0) {
-      this.emit('packetsFlushed', { handle });
+      this.emit('packetsFlushedChange', { handle, isFlushed: true });
     }
   }
 

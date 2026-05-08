@@ -771,7 +771,7 @@ export class SignalClient {
       if (this.useJSON) {
         await this.streamWriter.write(req.toJsonString());
       } else {
-        await this.streamWriter.write(req.toBinary());
+        await this.streamWriter.write((req.toBinary() as NonSharedUint8Array).buffer);
       }
     } catch (e) {
       this.log.error('error sending signal message', { error: e });

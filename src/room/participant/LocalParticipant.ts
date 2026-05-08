@@ -343,7 +343,7 @@ export default class LocalParticipant extends Participant {
             break;
           default:
             error = DataTrackPublishError.unknown(response.reason, response.message);
-            return;
+            break;
         }
 
         this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
@@ -1130,10 +1130,7 @@ export default class LocalParticipant extends Participant {
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
-      let dims: Track.Dimensions = {
-        width: 0,
-        height: 0,
-      };
+      let dims: Track.Dimensions;
       try {
         dims = await track.waitForDimensions();
       } catch (e) {
@@ -1703,7 +1700,7 @@ export default class LocalParticipant extends Participant {
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
    * @param options optionally specify a `reliable`, `topic` and `destination`
    */
-  async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
+  async publishData(data: NonSharedUint8Array, options: DataPublishOptions = {}): Promise<void> {
     const kind = options.reliable ? DataChannelKind.RELIABLE : DataChannelKind.LOSSY;
     const dataPacketKind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
     const destinationIdentities = options.destinationIdentities;

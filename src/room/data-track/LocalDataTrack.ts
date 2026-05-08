@@ -4,7 +4,7 @@ import { type DataTrackFrame, DataTrackFrameInternal } from './frame';
 import type { DataTrackHandle } from './handle';
 import type OutgoingDataTrackManager from './outgoing/OutgoingDataTrackManager';
 import { DataTrackPushFrameError } from './outgoing/errors';
-import type { DataTrackOptions } from './outgoing/types';
+import type { DataTrackOptions, EventPacketsFlushedChange } from './outgoing/types';
 import {
   DataTrackSymbol,
   type IDataTrack,
@@ -32,6 +32,8 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
   /** Resolves once the data track has sent all pending packets the rtc data channel buffer. */
   protected flushedFuture = new Future<void, never>();
 
+  protected isFlushed = true;
+
   /** @internal */
   constructor(options: DataTrackOptions, manager: OutgoingDataTrackManager) {
     this.options = options;
@@ -39,7 +41,7 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
 
     this.log = getLogger(LoggerNames.DataTracks);
 
-    this.manager.on('packetsFlushed', this.handleManagerPacketsFlushed);
+    this.manager.on('packetsFlushedChange', this.handleManagerPacketsFlushedChange);
     this.manager.on('reset', this.handleManagerReset);
   }
 
@@ -47,15 +49,18 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
     // When the associated manager resets, mark any in flight flushes as complete
     // There's nothing actionable a user can do to get these to complete so no
     // error is being thrown.
-    this.handleManagerPacketsFlushed();
+    this.flushedFuture.resolve?.();
 
-    this.manager.off('packetsFlushed', this.handleManagerReset);
+    this.manager.off('packetsFlushedChange', this.handleManagerPacketsFlushedChange);
     this.manager.off('reset', this.handleManagerReset);
   };
 
-  private handleManagerPacketsFlushed = () => {
-    this.flushedFuture.resolve?.();
-    this.flushedFuture = new Future();
+  private handleManagerPacketsFlushedChange = (event: EventPacketsFlushedChange) => {
+    this.isFlushed = event.isFlushed;
+    if (event.isFlushed) {
+      this.flushedFuture.resolve?.();
+      this.flushedFuture = new Future();
+    }
   };
 
   /** @internal */
@@ -152,6 +157,9 @@ export default class LocalDataTrack implements ILocalTrack, IDataTrack {
    * ```
    **/
   async flush(): Promise<void> {
+    if (this.isFlushed) {
+      return;
+    }
     return this.flushedFuture.promise;
   }
 

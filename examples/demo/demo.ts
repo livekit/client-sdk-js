@@ -967,19 +967,19 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       micPub?.audioTrack?.attach(audioElm);
     }
     micElm.className = 'mic-on';
-    micElm.innerHTML = '<i class="fas fa-microphone"></i>';
+    micElm.innerHTML = '<i class="ph-fill ph-microphone"></i>';
   } else {
     micElm.className = 'mic-off';
-    micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    micElm.innerHTML = '<i class="ph-fill ph-microphone-slash"></i>';
   }
 
   const e2eeElm = container.querySelector(`#e2ee-${identity}`)!;
   if (participant.isEncrypted) {
     e2eeElm.className = 'e2ee-on';
-    e2eeElm.innerHTML = '<i class="fas fa-lock"></i>';
+    e2eeElm.innerHTML = '<i class="ph-fill ph-lock-simple"></i>';
   } else {
     e2eeElm.className = 'e2ee-off';
-    e2eeElm.innerHTML = '<i class="fas fa-unlock"></i>';
+    e2eeElm.innerHTML = '';
   }
 
   switch (participant.connectionQuality) {
@@ -987,7 +987,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     case ConnectionQuality.Good:
     case ConnectionQuality.Poor:
       signalElm.className = `connection-${participant.connectionQuality}`;
-      signalElm.innerHTML = '<i class="fas fa-circle"></i>';
+      signalElm.innerHTML = '<i class="ph-fill ph-circle"></i>';
       break;
     default:
       signalElm.innerHTML = '';

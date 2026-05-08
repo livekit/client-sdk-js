@@ -946,7 +946,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.e2eeManager) {
       try {
-        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer as NonSharedUint8Array);
       } catch (e: any) {
         this.log.error(e instanceof Error ? e.message : 'Could not set SifTrailer', {
           error: e,
@@ -1825,7 +1825,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleParticipantDisconnected(info.identity, remoteParticipant);
       } else {
         // create participant if doesn't exist
-        remoteParticipant = this.getOrCreateParticipant(info.identity, info);
+        this.getOrCreateParticipant(info.identity, info);
       }
     }
 
@@ -2018,7 +2018,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     this.emit(
       RoomEvent.DataReceived,
-      userPacket.payload,
+      userPacket.payload as NonSharedUint8Array,
       participant,
       kind,
       userPacket.topic,
@@ -2026,7 +2026,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
 
     // also emit on the participant
-    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind, encryptionType);
+    participant?.emit(
+      ParticipantEvent.DataReceived,
+      userPacket.payload as NonSharedUint8Array,
+      kind,
+      encryptionType,
+    );
   };
 
   private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
@@ -2874,7 +2879,7 @@ export type RoomEventCallbacks = {
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
   roomMetadataChanged: (metadata: string) => void;
   dataReceived: (
-    payload: Uint8Array,
+    payload: NonSharedUint8Array,
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
     topic?: string,

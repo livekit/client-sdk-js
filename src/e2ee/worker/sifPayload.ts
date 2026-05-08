@@ -2,29 +2,31 @@ import type { VideoCodec } from '../..';
 
 //  Payload definitions taken from https://github.com/livekit/livekit/blob/master/pkg/sfu/downtrack.go#L104
 
-export const VP8KeyFrame8x8: Uint8Array = new Uint8Array([
+export const VP8KeyFrame8x8: NonSharedUint8Array = new Uint8Array([
   0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a, 0x08, 0x00, 0x08, 0x00, 0x00, 0x47, 0x08, 0x85, 0x85, 0x88,
   0x85, 0x84, 0x88, 0x02, 0x02, 0x00, 0x0c, 0x0d, 0x60, 0x00, 0xfe, 0xff, 0xab, 0x50, 0x80,
 ]);
 
-export const H264KeyFrame2x2SPS: Uint8Array = new Uint8Array([
+export const H264KeyFrame2x2SPS: NonSharedUint8Array = new Uint8Array([
   0x67, 0x42, 0xc0, 0x1f, 0x0f, 0xd9, 0x1f, 0x88, 0x88, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04, 0x00,
   0x00, 0x03, 0x00, 0xc8, 0x3c, 0x60, 0xc9, 0x20,
 ]);
 
-export const H264KeyFrame2x2PPS: Uint8Array = new Uint8Array([0x68, 0x87, 0xcb, 0x83, 0xcb, 0x20]);
+export const H264KeyFrame2x2PPS: NonSharedUint8Array = new Uint8Array([
+  0x68, 0x87, 0xcb, 0x83, 0xcb, 0x20,
+]);
 
-export const H264KeyFrame2x2IDR: Uint8Array = new Uint8Array([
+export const H264KeyFrame2x2IDR: NonSharedUint8Array = new Uint8Array([
   0x65, 0x88, 0x84, 0x0a, 0xf2, 0x62, 0x80, 0x00, 0xa7, 0xbe,
 ]);
 
-export const H264KeyFrame2x2: Uint8Array[] = [
+export const H264KeyFrame2x2: NonSharedUint8Array[] = [
   H264KeyFrame2x2SPS,
   H264KeyFrame2x2PPS,
   H264KeyFrame2x2IDR,
 ];
 
-export const OpusSilenceFrame: Uint8Array = new Uint8Array([
+export const OpusSilenceFrame: NonSharedUint8Array = new Uint8Array([
   0xf8, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -35,7 +37,7 @@ export const OpusSilenceFrame: Uint8Array = new Uint8Array([
 /**
  * Create a crypto hash using Web Crypto API for secure comparison operations
  */
-async function cryptoHash(data: Uint8Array | ArrayBuffer): Promise<string> {
+async function cryptoHash(data: NonSharedUint8Array | ArrayBuffer): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = new Uint8Array(hashBuffer);
   return Array.from(hashArray)
@@ -58,7 +60,7 @@ export const CryptoHashes = {
  * Check if a byte array matches any of the known SIF payload frame types using secure crypto hashes
  */
 export async function identifySifPayload(
-  data: Uint8Array | ArrayBuffer,
+  data: NonSharedUint8Array | ArrayBuffer,
 ): Promise<VideoCodec | 'opus' | null> {
   const hash = await cryptoHash(data);
 

@@ -21,11 +21,11 @@ export class DataCryptor {
   }
 
   static async encrypt(
-    data: Uint8Array,
+    data: NonSharedUint8Array,
     keys: ParticipantKeyHandler,
   ): Promise<{
-    payload: Uint8Array;
-    iv: Uint8Array;
+    payload: NonSharedUint8Array;
+    iv: NonSharedUint8Array;
     keyIndex: number;
   }> {
     const iv = DataCryptor.makeIV(performance.now());
@@ -51,14 +51,14 @@ export class DataCryptor {
   }
 
   static async decrypt(
-    data: Uint8Array,
-    iv: Uint8Array,
+    data: NonSharedUint8Array,
+    iv: NonSharedUint8Array,
     keys: ParticipantKeyHandler,
     keyIndex: number = 0,
     initialMaterial?: KeySet,
     ratchetOpts: DecodeRatchetOptions = { ratchetCount: 0 },
   ): Promise<{
-    payload: Uint8Array;
+    payload: NonSharedUint8Array;
   }> {
     const keySet = await keys.getKeySet(keyIndex);
     if (!keySet) {
