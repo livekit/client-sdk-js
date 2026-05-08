@@ -1,4 +1,4 @@
-import { rolldown } from 'rolldown';
+import { type TransformOptions, rolldown } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import packageJson from './package.json' with { type: 'json' };
 
@@ -8,44 +8,37 @@ export function kebabCaseToPascalCase(string = '') {
   );
 }
 
-const target = ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'];
+const transform: TransformOptions = {
+  target: ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'],
+};
 
 const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
   rolldown({
-    transform: {
-      target,
-    },
+    transform,
     input: 'src/index.ts',
     plugins: [],
   }),
   rolldown({
-    transform: {
-      target,
-    },
+    transform,
     input: 'src/e2ee/worker/e2ee.worker.ts',
   }),
   rolldown({
-    transform: {
-      target,
-    },
+    transform,
     input: 'src/index.ts',
     plugins: [
       dts({
         tsconfig: 'tsconfig.json',
-        parallel: true,
         emitDtsOnly: true,
         tsgo: false,
       }),
     ],
   }),
   rolldown({
-    transform: {
-      target,
-    },
+    transform,
     input: 'src/e2ee/worker/e2ee.worker.ts',
     plugins: [
       dts({
-        tsconfig: 'tsconfig.json',
+        tsconfig: 'src/e2ee/worker/tsconfig.json',
         emitDtsOnly: true,
         tsgo: false,
       }),
