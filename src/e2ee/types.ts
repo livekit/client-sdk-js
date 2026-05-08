@@ -1,4 +1,6 @@
 import type { LogLevel } from '../logger';
+import type { PacketTrailerFramePayload } from '../packetTrailer/packetTrailer';
+import type { PacketTrailerPublishOptions } from '../packetTrailer/types';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
@@ -51,6 +53,16 @@ export interface EncodeMessage extends BaseMessage {
     trackId: string;
     codec?: VideoCodec;
     isReuse: boolean;
+    /**
+     * Whether the published track advertises packet trailer features.
+     * When false, the cryptor skips the per-frame trailer extraction path
+     * entirely on decode.
+     */
+    hasPacketTrailer: boolean;
+    /**
+     * Packet trailer metadata to append on published video frames.
+     */
+    packetTrailer?: PacketTrailerPublishOptions;
   };
 }
 
@@ -68,6 +80,7 @@ export interface UpdateCodecMessage extends BaseMessage {
     participantIdentity: string;
     trackId: string;
     codec: VideoCodec;
+    hasPacketTrailer: boolean;
   };
 }
 
@@ -150,6 +163,11 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   };
 }
 
+export interface PTMetadataFromE2EEMessage extends BaseMessage {
+  kind: 'packetTrailerMetadata';
+  data: PacketTrailerFramePayload;
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -166,7 +184,8 @@ export type E2EEWorkerMessage =
   | DecryptDataRequestMessage
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
-  | EncryptDataResponseMessage;
+  | EncryptDataResponseMessage
+  | PTMetadataFromE2EEMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
@@ -221,4 +240,14 @@ export type ScriptTransformOptions = {
   participantIdentity: string;
   trackId: string;
   codec?: VideoCodec;
+  /**
+   * Whether the published track advertises packet trailer features.
+   * When false, the cryptor skips the per-frame trailer extraction path
+   * entirely on decode.
+   */
+  hasPacketTrailer: boolean;
+  /**
+   * Packet trailer metadata to append on published video frames.
+   */
+  packetTrailer?: PacketTrailerPublishOptions;
 };

@@ -64,6 +64,7 @@ onmessage = (ev) => {
         break;
       case 'decode':
         let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        cryptor.setHasPacketTrailer(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
           data.readableStream,
@@ -75,6 +76,7 @@ onmessage = (ev) => {
         break;
       case 'encode':
         let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        pubCryptor.setHasPacketTrailer(data.hasPacketTrailer);
         pubCryptor.setupTransform(
           kind,
           data.readableStream,
@@ -82,6 +84,7 @@ onmessage = (ev) => {
           data.trackId,
           data.isReuse,
           data.codec,
+          data.packetTrailer,
         );
         break;
 
@@ -159,11 +162,14 @@ onmessage = (ev) => {
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
-        getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        trackCryptor.setVideoCodec(data.codec);
+        trackCryptor.setHasPacketTrailer(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
           codec: data.codec,
+          hasPacketTrailer: data.hasPacketTrailer,
         });
         break;
       case 'setRTPMap':
@@ -333,10 +339,11 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    const { kind, participantIdentity, trackId, codec } =
-      transformer.options as ScriptTransformOptions;
+    const options = transformer.options as ScriptTransformOptions;
+    const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(participantIdentity, trackId);
+      cryptor.setHasPacketTrailer(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(
         kind,
@@ -345,6 +352,7 @@ if (self.RTCTransformEvent) {
         trackId,
         false,
         codec,
+        kind === 'encode' ? options.packetTrailer : undefined,
       );
     });
   };

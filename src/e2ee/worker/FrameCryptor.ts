@@ -1,13 +1,24 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
+import {
+  appendPacketTrailerToEncodedFrame,
+  processPacketTrailer,
+} from '../../packetTrailer/packetTrailer';
+import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
+import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
+import type {
+  DecodeRatchetOptions,
+  KeyProviderOptions,
+  KeySet,
+  PTMetadataFromE2EEMessage,
+  RatchetResult,
+} from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
@@ -70,6 +81,17 @@ export class FrameCryptor extends BaseFrameCryptor {
   private detectedCodec?: VideoCodec;
 
   private currentTransform?: TransformerInfo;
+
+  /**
+   * Whether the subscribed track advertises packet trailer features.
+   * When false, we skip the per-frame trailer extraction path entirely
+   * on decode to avoid unnecessary work on tracks that don't use it.
+   */
+  private hasPacketTrailer: boolean = false;
+
+  private packetTrailer?: PacketTrailerPublishOptions;
+
+  private packetTrailerFrameId = 0;
 
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
@@ -178,6 +200,20 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.rtpMap = map;
   }
 
+  /**
+   * Sets whether the track associated with this cryptor carries packet
+   * trailer data. When false, {@link decodeFunction} skips the per-frame
+   * trailer extraction branch entirely.
+   */
+  setHasPacketTrailer(hasPacketTrailer: boolean) {
+    this.hasPacketTrailer = hasPacketTrailer;
+  }
+
+  setPacketTrailer(packetTrailer?: PacketTrailerPublishOptions) {
+    this.packetTrailer = packetTrailer;
+    this.packetTrailerFrameId = 0;
+  }
+
   setupTransform(
     operation: 'encode' | 'decode',
     readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
@@ -185,10 +221,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     trackId: string,
     isReuse: boolean,
     codec?: VideoCodec,
+    packetTrailer?: PacketTrailerPublishOptions,
   ) {
     if (codec) {
       workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
+    }
+    if (operation === 'encode') {
+      this.setPacketTrailer(packetTrailer);
     }
 
     workerLogger.debug('Setting up frame cryptor transform', {
@@ -353,11 +393,13 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    if (
-      !this.isEnabled() ||
-      // skip for encryption for empty dtx frames
-      encodedFrame.data.byteLength === 0
-    ) {
+    // skip for encryption and packet trailer writes for empty dtx frames
+    if (encodedFrame.data.byteLength === 0) {
+      return controller.enqueue(encodedFrame);
+    }
+
+    if (!this.isEnabled()) {
+      this.appendPacketTrailer(encodedFrame);
       return controller.enqueue(encodedFrame);
     }
     const keySet = this.keys.getKeySet();
@@ -426,6 +468,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         newData.set(newDataWithoutHeader, frameHeader.byteLength);
 
         encodedFrame.data = newData.buffer;
+        this.appendPacketTrailer(encodedFrame);
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -444,6 +487,18 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
   }
 
+  private appendPacketTrailer(encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame) {
+    if (!hasPacketTrailerPublishOptions(this.packetTrailer) || !isVideoFrame(encodedFrame)) {
+      return;
+    }
+
+    if (this.packetTrailer?.frameId) {
+      this.packetTrailerFrameId =
+        this.packetTrailerFrameId === 0xffffffff ? 1 : this.packetTrailerFrameId + 1;
+    }
+    appendPacketTrailerToEncodedFrame(encodedFrame, this.packetTrailer, this.packetTrailerFrameId);
+  }
+
   /**
    * Function that will be injected in a stream and will decrypt the given encoded frames.
    *
@@ -454,6 +509,24 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    if (this.hasPacketTrailer && isVideoFrame(encodedFrame)) {
+      try {
+        const ptResult = processPacketTrailer(encodedFrame, this.trackId);
+        if (ptResult.data) {
+          encodedFrame.data = ptResult.data;
+        }
+        if (ptResult.payload && this.participantIdentity) {
+          const msg: PTMetadataFromE2EEMessage = {
+            kind: 'packetTrailerMetadata',
+            data: ptResult.payload,
+          };
+          postMessage(msg);
+        }
+      } catch {
+        // best-effort: never break the media pipeline if trailer parsing fails
+      }
+    }
+
     if (
       !this.isEnabled() ||
       // skip for decryption for empty dtx frames
