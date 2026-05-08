@@ -153,8 +153,8 @@ export default class DataTrackDepacketizer {
           `Depacketizer.frameFromSingle: no oldest frame number found, but partials.size is ${this.partials.size}.`,
         );
       }
+      this.partials.delete(oldestPartialFrameNumber);
       if (options?.throwOnInterruption) {
-        this.partials.delete(oldestPartialFrameNumber);
         throw DataTrackDepacketizerDropError.interrupted(
           oldestPartialFrameNumber,
           packet.header.frameNumber.value,
