@@ -2,6 +2,7 @@ import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log, { LogLevel, workerLogger } from '../logger';
+import { hasPacketTrailerPublishOptions } from '../packetTrailer/utils';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -10,7 +11,6 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
-import { hasPacketTrailerPublishOptions } from '../packetTrailer/utils';
 import type { TrackPublishOptions, VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import {

@@ -1094,7 +1094,6 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
     const audioFeatures: AudioTrackFeature[] = [];
-    let packetTrailerFeatures: PacketTrailerFeature[] = [];
     const disableDtx = !(opts.dtx ?? true);
 
     const settings = track.getSourceTrackSettings();
@@ -1117,7 +1116,8 @@ export default class LocalParticipant extends Participant {
     if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
       audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
     }
-    packetTrailerFeatures = this.normalizeRequestedPacketTrailerOptions(track, opts);
+    const packetTrailerFeatures: PacketTrailerFeature[] =
+      this.normalizeRequestedPacketTrailerOptions(track, opts);
 
     // create track publication from track
     const req = new AddTrackRequest({
