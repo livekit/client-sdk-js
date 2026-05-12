@@ -366,6 +366,84 @@
           <div id="data-tracks-remote-list">
             <!-- data track entries dynamically inserted in here -->
           </div>
+
+          <h3 class="mt-4">RPC</h3>
+
+          <div class="input-group input-group-sm">
+            <select
+              class="form-control text-monospace"
+              id="rpc-send-destination"
+            >
+              <option value="">(no remote participants)</option>
+            </select>
+          </div>
+          <div class="input-group input-group-sm mt-1">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-send-topic"
+              placeholder="Topic (method)"
+            />
+          </div>
+          <div class="input-group input-group-sm mt-1">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-send-payload"
+              placeholder="Payload"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                onclick="appActions.fillRpcPreset('rpc-send-payload','hello')"
+              >
+                Hello
+              </button>
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                onclick="appActions.fillRpcPreset('rpc-send-payload','20k')"
+              >
+                20k
+              </button>
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="rpc-send-button"
+                onclick="appActions.sendRpc()"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+          <div
+            id="rpc-send-result"
+            class="text-monospace mt-1"
+            style="font-size: 0.75rem;"
+          ></div>
+
+          <div class="input-group input-group-sm mt-3">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-handler-topic"
+              placeholder="Topic (method)"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="rpc-handler-register-button"
+                onclick="appActions.registerRpcHandler()"
+              >
+                Register Handler
+              </button>
+            </div>
+          </div>
+          <div id="rpc-handlers-list">
+            <!-- rpc handler cards dynamically inserted in here -->
+          </div>
         </div>
       </div>
     </div>
