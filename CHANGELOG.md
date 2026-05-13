@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.19.0
+
+### Minor Changes
+
+- Add new RPC protocol updates to support infinite payload length in requests / responses - [#1832](https://github.com/livekit/client-sdk-js/pull/1832) ([@1egoman](https://github.com/1egoman))
+
 ## 2.18.10
 
 ### Patch Changes
