@@ -6,6 +6,7 @@ import type {
   RemoteDataTrack,
   RoomConnectOptions,
   RoomOptions,
+  RpcInvocationData,
   ScalabilityMode,
   SimulationScenario,
   VideoCaptureOptions,
@@ -26,6 +27,7 @@ import {
   RemoteVideoTrack,
   Room,
   RoomEvent,
+  RpcError,
   ScreenSharePresets,
   Track,
   TrackPublication,
@@ -69,6 +71,19 @@ let streamReaderAbortController: AbortController | undefined;
 
 let localDataTracks: Array<LocalDataTrack> = [];
 let remoteDataTracks: Array<RemoteDataTrack> = [];
+
+type RpcHandlerEntry = {
+  topic: string;
+  reply: string;
+  invocationCount: number;
+};
+const rpcHandlers: Map<string, RpcHandlerEntry> = new Map();
+
+const RPC_PRESETS = {
+  hello: 'hello world',
+  '20k': 'X'.repeat(20_000),
+} as const;
+type RpcPresetKey = keyof typeof RPC_PRESETS;
 
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
@@ -824,6 +839,74 @@ const appActions = {
       button.removeAttribute('disabled');
     }
   },
+
+  fillRpcPreset: (inputId: string, key: RpcPresetKey) => {
+    const input = <HTMLInputElement>$(inputId);
+    input.value = RPC_PRESETS[key];
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  },
+
+  sendRpc: async () => {
+    const destinationIdentity = (<HTMLSelectElement>$('rpc-send-destination')).value;
+    const method = (<HTMLInputElement>$('rpc-send-topic')).value.trim();
+    const payload = (<HTMLInputElement>$('rpc-send-payload')).value;
+    const result = $('rpc-send-result');
+    const button = <HTMLButtonElement>$('rpc-send-button');
+    if (!currentRoom) {
+      result.textContent = '✕ Not connected';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    if (!destinationIdentity) {
+      result.textContent = '✕ Choose a destination';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    if (!method) {
+      result.textContent = '✕ Topic is required';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    result.textContent = `→ ${destinationIdentity} ${method}...`;
+    result.className = 'text-monospace mt-1 text-muted';
+    button.disabled = true;
+    try {
+      const response = await currentRoom.localParticipant.performRpc({
+        destinationIdentity,
+        method,
+        payload,
+      });
+      const preview =
+        response.length > 20 ? `${response.slice(0, 20)}... (${response.length}B)` : response;
+      result.textContent = `✓ ${preview}`;
+      result.className = 'text-monospace mt-1 text-success';
+    } catch (err) {
+      const msg = err instanceof RpcError ? `${err.code}: ${err.message}` : String(err);
+      result.textContent = `✕ ${msg}`;
+      result.className = 'text-monospace mt-1 text-danger';
+    } finally {
+      button.disabled = false;
+    }
+  },
+
+  registerRpcHandler: () => {
+    const topicInput = <HTMLInputElement>$('rpc-handler-topic');
+    const topic = topicInput.value.trim();
+    if (!currentRoom || !topic || rpcHandlers.has(topic)) {
+      topicInput.classList.add('is-invalid');
+      return;
+    }
+    topicInput.classList.remove('is-invalid');
+    const entry: RpcHandlerEntry = { topic, reply: '', invocationCount: 0 };
+    rpcHandlers.set(topic, entry);
+    currentRoom.registerRpcMethod(topic, async (data: RpcInvocationData) => {
+      entry.invocationCount += 1;
+      appendRpcInvocation(topic, entry.invocationCount, data.callerIdentity, data.payload);
+      return entry.reply;
+    });
+    topicInput.value = '';
+    renderRpcHandlers();
+  },
 };
 
 declare global {
@@ -878,12 +961,14 @@ async function participantConnected(participant: Participant) {
     .on(ParticipantEvent.ConnectionQualityChanged, () => {
       renderParticipant(participant);
     });
+  refreshRpcDestinations();
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
   appendLog('participant', participant.sid, 'disconnected');
 
   renderParticipant(participant, true);
+  refreshRpcDestinations();
 }
 
 function handleRoomDisconnect(reason?: DisconnectReason) {
@@ -901,6 +986,11 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
 
   remoteDataTracks = [];
   renderRemoteDataTracks();
+
+  rpcHandlers.clear();
+  renderRpcHandlers();
+  $('rpc-send-result').textContent = '';
+  refreshRpcDestinations();
 
   const container = $('participants-area');
   if (container) {
@@ -1499,6 +1589,162 @@ function renderRemoteDataTracks() {
 
   for (const remoteDataTrack of remoteDataTracks.filter((r) => !renderedSids.has(r.info.sid))) {
     wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
+  }
+}
+
+function createRpcHandlerElement(topic: string): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.topic = topic;
+
+  const safeId = encodeURIComponent(topic).replace(/%/g, '_');
+  const replyInputId = `rpc-handler-reply-${safeId}`;
+  const unregisterId = `rpc-handler-unregister-${safeId}`;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${topic}">${topic}</span>
+      <button id="${unregisterId}" class="btn btn-outline-danger btn-sm" type="button">✕</button>
+    </div>
+    <div class="input-group input-group-sm mt-2">
+      <input
+        id="${replyInputId}"
+        type="text"
+        class="form-control text-monospace"
+        placeholder="Reply payload"
+      />
+      <div class="input-group-append">
+        <button class="btn btn-outline-secondary rpc-handler-preset-hello" type="button">Hello</button>
+        <button class="btn btn-outline-secondary rpc-handler-preset-20k" type="button">20k</button>
+      </div>
+    </div>
+    <div
+      class="rpc-handler-well bg-dark rounded p-2 text-monospace mt-2"
+      style="max-height: 180px; overflow-y: auto; font-size: 0.7rem; min-height: 60px; display: flex; align-items: center; justify-content: center;"
+    >
+      <span class="rpc-handler-placeholder text-muted">No invocations yet</span>
+    </div>
+  `;
+
+  const replyInput = item.querySelector<HTMLInputElement>(`#${replyInputId}`)!;
+  replyInput.addEventListener('input', () => {
+    const entry = rpcHandlers.get(topic);
+    if (entry) {
+      entry.reply = replyInput.value;
+    }
+  });
+
+  item
+    .querySelector<HTMLButtonElement>('.rpc-handler-preset-hello')!
+    .addEventListener('click', () => {
+      replyInput.value = RPC_PRESETS.hello;
+      const entry = rpcHandlers.get(topic);
+      if (entry) {
+        entry.reply = replyInput.value;
+      }
+    });
+  item
+    .querySelector<HTMLButtonElement>('.rpc-handler-preset-20k')!
+    .addEventListener('click', () => {
+      replyInput.value = RPC_PRESETS['20k'];
+      const entry = rpcHandlers.get(topic);
+      if (entry) {
+        entry.reply = replyInput.value;
+      }
+    });
+
+  const unregisterBtn = item.querySelector<HTMLButtonElement>(`#${unregisterId}`)!;
+  unregisterBtn.addEventListener('click', () => {
+    if (currentRoom) {
+      currentRoom.unregisterRpcMethod(topic);
+    }
+    rpcHandlers.delete(topic);
+    renderRpcHandlers();
+  });
+
+  return item;
+}
+
+function renderRpcHandlers() {
+  const wrapper = $('rpc-handlers-list');
+  const rendered = new Set<string>();
+
+  for (const child of Array.from(wrapper.children)) {
+    const el = child as HTMLElement;
+    const topic = el.dataset.topic!;
+    if (!rpcHandlers.has(topic)) {
+      el.remove();
+    } else {
+      rendered.add(topic);
+    }
+  }
+
+  for (const topic of rpcHandlers.keys()) {
+    if (!rendered.has(topic)) {
+      wrapper.appendChild(createRpcHandlerElement(topic));
+    }
+  }
+}
+
+function appendRpcInvocation(topic: string, n: number, caller: string, payload: string): void {
+  const card = $('rpc-handlers-list').querySelector<HTMLElement>(
+    `[data-topic="${CSS.escape(topic)}"]`,
+  );
+  if (!card) return;
+  const well = card.querySelector<HTMLElement>('.rpc-handler-well')!;
+  const placeholder = well.querySelector('.rpc-handler-placeholder');
+  if (placeholder) {
+    placeholder.remove();
+    well.style.display = 'block';
+  }
+
+  const entry = document.createElement('div');
+  entry.className = 'border-bottom border-secondary pb-1 mb-1';
+
+  const sizeString =
+    payload.length < 1024 ? `${payload.length}B` : `${(payload.length / 1024).toFixed(2)}KB`;
+
+  const meta = document.createElement('div');
+  meta.className = 'text-muted';
+  meta.style.cssText = 'font-size: 0.65rem;';
+  meta.textContent = `#${n} · ${caller} · ${sizeString} · ${new Date().toISOString()}`;
+  entry.appendChild(meta);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'white-space: pre-wrap; word-break: break-word; color: #e9ecef;';
+  body.textContent = payload;
+  entry.appendChild(body);
+
+  well.appendChild(entry);
+  well.scrollTop = well.scrollHeight;
+}
+
+function refreshRpcDestinations(): void {
+  const select = <HTMLSelectElement>$('rpc-send-destination');
+  const previous = select.value;
+
+  const identities: string[] = [];
+  if (currentRoom) {
+    currentRoom.remoteParticipants.forEach((p) => identities.push(p.identity));
+  }
+  identities.sort();
+
+  select.innerHTML = '';
+  if (identities.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no remote participants)';
+    select.appendChild(opt);
+  } else {
+    for (const identity of identities) {
+      const opt = document.createElement('option');
+      opt.value = identity;
+      opt.textContent = identity;
+      select.appendChild(opt);
+    }
+    if (identities.includes(previous)) {
+      select.value = previous;
+    }
   }
 }
 
