@@ -188,3 +188,99 @@ describe('extractMaxAgeFromRequestHeaders', () => {
     expect(extractMaxAgeFromRequestHeaders(headers)).toBe(3600);
   });
 });
+
+describe('isSafariSpeakerSelectionSupported', () => {
+  it('returns true for Safari >= 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '26.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '27.1',
+        os: 'macOS',
+        osVersion: '27.1',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns true for iOS Safari >= 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '26.0',
+        os: 'iOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false for Safari < 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '25.9',
+        os: 'macOS',
+        osVersion: '25.9',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for non-Safari browsers', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '120.0',
+        os: 'macOS',
+        osVersion: '14.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for non-Safari browsers on macOS 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '140.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(false);
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Firefox',
+        version: '140.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for iOS Safari < 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '18.0',
+        os: 'iOS',
+        osVersion: '18.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns true for non-Safari WebKit browsers on iOS 26+ (Chrome iOS, etc.)', () => {
+    // On iOS, third-party browsers are required to use WebKit and inherit Safari behaviour.
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '140.0',
+        os: 'iOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+  });
+});
