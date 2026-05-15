@@ -146,12 +146,14 @@ export function isSVCCodec(codec?: string): boolean {
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document || isSafariBased()) {
-    return false;
-  }
-  if (!elm) {
-    elm = document.createElement('audio');
-  }
+  if (!document) return false;
+  // iOS/Safari 26+ has Speaker Selection API — trust the version check rather than
+  // feature-detecting via 'in', because Apple may not expose setSinkId on the prototype
+  // until the element is actually in a document context.
+  if (isSafariSpeakerSelectionSupported()) return true;
+  // Older Safari has no setSinkId at all.
+  if (isSafariBased()) return false;
+  if (!elm) elm = document.createElement('audio');
   return 'setSinkId' in elm;
 }
 

@@ -60,6 +60,7 @@ import {
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
   supportsDynacast,
+  supportsSetSinkId,
   supportsVP9,
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
@@ -138,6 +139,7 @@ export {
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
   supportsDynacast,
+  supportsSetSinkId,
   supportsVP9,
   Mutex,
   isAudioCodec,

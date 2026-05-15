@@ -284,3 +284,45 @@ describe('isSafariSpeakerSelectionSupported', () => {
     ).toBe(true);
   });
 });
+
+describe('supportsSetSinkId', () => {
+  it('returns true on Firefox when setSinkId is present', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns true on Chrome (any macOS version) when setSinkId is present', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns true on Safari 26 (short-circuits the feature check)', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+      configurable: true,
+    });
+    // No setSinkId on the element — the iOS/Safari 26 path should still return true.
+    const fakeAudio = {} as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns false on Safari < 26 even when the element has setSinkId', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(false);
+  });
+});
