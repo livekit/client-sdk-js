@@ -1449,7 +1449,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (success && isMuted) shouldTriggerImmediateDeviceChange = true;
     } else if (kind === 'audiooutput') {
       shouldTriggerImmediateDeviceChange = true;
-      // True when we can route output via AudioContext.setSinkId directly, e.g., 
+      // True when we can route output via AudioContext.setSinkId directly, e.g.,
       //   Chrome / Edge / Firefox + webAudioMix : true  (use AudioContext.setSinkId)
       //   Safari macOS (any version)            : false (AudioContext.setSinkId not implemented)
       //   Safari iOS  (any version)             : false (AudioContext.setSinkId not implemented)
