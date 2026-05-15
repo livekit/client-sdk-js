@@ -103,10 +103,12 @@ import {
 import {
   Future,
   createDummyVideoStreamTrack,
+  disposeSharedRelay,
   extractChatMessage,
   extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
+  getOrCreateSharedRelay,
   isBrowserSupported,
   isCloud,
   isLocalAudioTrack,
@@ -114,6 +116,7 @@ import {
   isReactNative,
   isRemotePub,
   isSafariBased,
+  isSafariSpeakerSelectionSupported,
   isWeb,
   numberToBigInt,
   sleep,
@@ -1446,14 +1449,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (success && isMuted) shouldTriggerImmediateDeviceChange = true;
     } else if (kind === 'audiooutput') {
       shouldTriggerImmediateDeviceChange = true;
-      if (
-        (!supportsSetSinkId() && !this.options.webAudioMix) ||
-        (this.options.webAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
-      ) {
+      // True when we can route output via AudioContext.setSinkId directly, e.g., 
+      //   Chrome / Edge / Firefox + webAudioMix : true  (use AudioContext.setSinkId)
+      //   Safari macOS (any version)            : false (AudioContext.setSinkId not implemented)
+      //   Safari iOS  (any version)             : false (AudioContext.setSinkId not implemented)
+      //   any browser without webAudioMix       : false
+      const audioContextHasSinkId =
+        this.options.webAudioMix && !!this.audioContext && 'setSinkId' in this.audioContext;
+      // True when we route output via the shared relay <audio> element (iOS 26 path).
+      //   iOS 26+ Safari + webAudioMix          : true
+      //   macOS Safari 26+ + webAudioMix        : true (also benefits from the relay approach)
+      //   anything else                         : false
+      const useSharedRelay = isSafariSpeakerSelectionSupported() && !!this.audioContext;
+      // Throw only when neither HTMLMediaElement.setSinkId nor AudioContext.setSinkId is usable.
+      // When webAudioMix=true but AudioContext.setSinkId is unavailable (e.g. iOS 26 Safari),
+      // we fall through and rely on the shared relay-element setSinkId path.
+      if (!supportsSetSinkId() && !audioContextHasSinkId) {
         throw new Error('cannot switch audio output, the current browser does not support it');
       }
-      if (this.options.webAudioMix) {
-        // setting `default` for web audio output doesn't work, so we need to normalize the id before
+      if (audioContextHasSinkId) {
+        // AudioContext.setSinkId (Chrome) doesn't accept 'default', so resolve to a real device id.
+        // On iOS 26 we use HTMLMediaElement.setSinkId on a relay element instead, which does
+        // accept 'default', so skip normalization there.
         deviceId =
           (await DeviceManager.getInstance().normalizeDeviceId('audiooutput', deviceId)) ?? '';
       }
@@ -1462,16 +1479,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options.audioOutput.deviceId = deviceId;
 
       try {
-        if (this.options.webAudioMix) {
+        if (audioContextHasSinkId) {
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
           this.audioContext?.setSinkId(deviceId);
         }
 
-        // also set audio output on all audio elements, even if webAudioMix is enabled in order to workaround echo cancellation not working on chrome with non-default output devices
-        // see https://issues.chromium.org/issues/40252911#comment7
-        await Promise.all(
-          Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({ deviceId })),
-        );
+        if (useSharedRelay) {
+          // iOS 26 path: route via a single shared relay <audio> element on the AudioContext.
+          // Calling setSinkId here (within the user gesture) grants iOS permission for this
+          // element, which persists for the call — so new remote tracks joining later route
+          // through the already-permitted element without needing their own user gesture.
+          await (getOrCreateSharedRelay(this.audioContext!).relayElement.setSinkId(
+            deviceId,
+          ) as Promise<void>);
+        } else {
+          // Standard path for browsers with HTMLMediaElement.setSinkId (Chrome, Firefox, etc.):
+          // apply setSinkId on each participant's attached <audio> element directly.
+          // Note: Chrome with webAudioMix=true also needs this for echo cancellation with
+          // non-default output devices — see https://issues.chromium.org/issues/40252911#comment7
+          await Promise.all(
+            Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({ deviceId })),
+          );
+        }
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
@@ -1806,9 +1835,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.remoteParticipants.clear();
       this.sidToIdentity.clear();
       this.activeSpeakers = [];
-      if (this.audioContext && typeof this.options.webAudioMix === 'boolean') {
-        this.audioContext.close();
-        this.audioContext = undefined;
+      if (this.audioContext) {
+        disposeSharedRelay(this.audioContext);
+        if (typeof this.options.webAudioMix === 'boolean') {
+          this.audioContext.close();
+          this.audioContext = undefined;
+        }
       }
       if (isWeb()) {
         window.removeEventListener('beforeunload', this.onPageLeave);
@@ -2229,7 +2261,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         continue;
       }
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
-      const activeDevice = this.getActiveDevice(kind);
+      // For audiooutput, also check options.audioOutput.deviceId as a fallback: switchActiveDevice
+      // sets that field before awaiting setSinkId, but only updates activeDeviceMap after the
+      // await resolves. If a devicechange handler fires inside that window before any audiooutput
+      // switch has been recorded, activeDeviceMap is empty and the fallback yields the in-flight
+      // selection rather than nothing.
+      const activeDevice =
+        kind === 'audiooutput'
+          ? (this.getActiveDevice(kind) ?? this.options.audioOutput?.deviceId)
+          : this.getActiveDevice(kind);
 
       if (activeDevice === previousDevices.filter((info) => info.kind === kind)[0]?.deviceId) {
         // in  Safari the first device is always the default, so we assume a user on the default device would like to switch to the default once it changes
@@ -2247,9 +2287,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // switch to first available device if previously active device is not available any more
       if (
         devicesOfKind.length > 0 &&
-        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind)) &&
+        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === activeDevice) &&
         // avoid switching audio output on safari without explicit user action as it leads to slowed down audio playback
-        (kind !== 'audiooutput' || !isSafariBased())
+        // exception: iOS/Safari 26+ supports the Speaker Selection API
+        (kind !== 'audiooutput' || !isSafariBased() || isSafariSpeakerSelectionSupported())
       ) {
         await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
       }
@@ -2257,8 +2298,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleDeviceChange = async () => {
-    if (getBrowser()?.os !== 'iOS') {
-      // default devices are non deterministic on iOS, so we don't attempt to select them here
+    if (getBrowser()?.os !== 'iOS' || isSafariSpeakerSelectionSupported()) {
+      // default devices are non deterministic on iOS (pre-26), so we don't attempt to select them here
       await this.selectDefaultDevices();
     }
     this.emit(RoomEvent.MediaDevicesChanged);

@@ -1,6 +1,15 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
-import { extractMaxAgeFromRequestHeaders, getClientInfo, splitUtf8, toWebsocketUrl } from './utils';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  disposeSharedRelay,
+  extractMaxAgeFromRequestHeaders,
+  getClientInfo,
+  getOrCreateSharedRelay,
+  isSafariSpeakerSelectionSupported,
+  splitUtf8,
+  supportsSetSinkId,
+  toWebsocketUrl,
+} from './utils';
 
 describe('toWebsocketUrl', () => {
   it('leaves wss urls alone', () => {
@@ -324,5 +333,78 @@ describe('supportsSetSinkId', () => {
     });
     const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
     expect(supportsSetSinkId(fakeAudio)).toBe(false);
+  });
+});
+
+describe('getOrCreateSharedRelay / disposeSharedRelay', () => {
+  function createMockContext() {
+    const stream = new MediaStream();
+    const destNode = {
+      stream,
+      disconnect: vi.fn(),
+    } as unknown as MediaStreamAudioDestinationNode;
+    const ctx = {
+      createMediaStreamDestination: vi.fn(() => destNode),
+    } as unknown as AudioContext;
+    return { ctx, destNode, stream };
+  }
+
+  it('creates a hidden DOM-attached <audio> element on first call', () => {
+    const { ctx, destNode, stream } = createMockContext();
+    const relay = getOrCreateSharedRelay(ctx);
+    expect(relay.destinationNode).toBe(destNode);
+    expect(relay.relayElement.srcObject).toBe(stream);
+    expect(relay.relayElement.parentElement).toBe(document.body);
+    expect(relay.relayElement.hidden).toBe(true);
+    expect(relay.relayElement.autoplay).toBe(true);
+    disposeSharedRelay(ctx);
+  });
+
+  it('returns the same relay on subsequent calls for the same context (singleton)', () => {
+    const { ctx } = createMockContext();
+    const a = getOrCreateSharedRelay(ctx);
+    const b = getOrCreateSharedRelay(ctx);
+    expect(a).toBe(b);
+    expect(ctx.createMediaStreamDestination).toHaveBeenCalledTimes(1);
+    disposeSharedRelay(ctx);
+  });
+
+  it('creates independent relays for different contexts', () => {
+    const a = createMockContext();
+    const b = createMockContext();
+    const relayA = getOrCreateSharedRelay(a.ctx);
+    const relayB = getOrCreateSharedRelay(b.ctx);
+    expect(relayA).not.toBe(relayB);
+    expect(relayA.destinationNode).toBe(a.destNode);
+    expect(relayB.destinationNode).toBe(b.destNode);
+    disposeSharedRelay(a.ctx);
+    disposeSharedRelay(b.ctx);
+  });
+
+  it('removes the element from the DOM and disconnects the destination on dispose', () => {
+    const { ctx, destNode } = createMockContext();
+    const relay = getOrCreateSharedRelay(ctx);
+    expect(relay.relayElement.parentElement).toBe(document.body);
+
+    disposeSharedRelay(ctx);
+
+    expect(relay.relayElement.parentElement).toBeNull();
+    expect(destNode.disconnect).toHaveBeenCalled();
+  });
+
+  it('creates a fresh relay after dispose', () => {
+    const { ctx } = createMockContext();
+    const first = getOrCreateSharedRelay(ctx);
+    disposeSharedRelay(ctx);
+    const second = getOrCreateSharedRelay(ctx);
+    expect(second).not.toBe(first);
+    expect(ctx.createMediaStreamDestination).toHaveBeenCalledTimes(2);
+    disposeSharedRelay(ctx);
+  });
+
+  it('is a no-op when no relay exists for the context', () => {
+    const { ctx, destNode } = createMockContext();
+    expect(() => disposeSharedRelay(ctx)).not.toThrow();
+    expect(destNode.disconnect).not.toHaveBeenCalled();
   });
 });

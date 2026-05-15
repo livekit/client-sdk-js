@@ -145,6 +145,50 @@ export function isSVCCodec(codec?: string): boolean {
   return codec === 'av1' || codec === 'vp9';
 }
 
+/** A shared relay element + destination node attached to an AudioContext on iOS 26.
+ *  iOS 26 grants setSinkId permission per-element (not per-origin), so a new <audio> element
+ *  created when a remote participant joins would fail setSinkId without a user gesture.
+ *  Routing all remote tracks through a single shared relay element (created once, setSinkId'd
+ *  once during the user gesture in Room.switchActiveDevice) sidesteps this. */
+const SHARED_RELAY_KEY = '_livekitSharedRelay';
+
+type AudioContextWithSharedRelay = AudioContext & {
+  [SHARED_RELAY_KEY]?: {
+    destinationNode: MediaStreamAudioDestinationNode;
+    relayElement: HTMLAudioElement;
+  };
+};
+
+export function getOrCreateSharedRelay(context: AudioContext): {
+  destinationNode: MediaStreamAudioDestinationNode;
+  relayElement: HTMLAudioElement;
+} {
+  const ctx = context as AudioContextWithSharedRelay;
+  if (!ctx[SHARED_RELAY_KEY]) {
+    const destinationNode = context.createMediaStreamDestination();
+    const relayElement = document.createElement('audio');
+    relayElement.hidden = true;
+    relayElement.autoplay = true;
+    relayElement.srcObject = destinationNode.stream;
+    document.body?.appendChild(relayElement);
+    relayElement.play().catch(() => {});
+    ctx[SHARED_RELAY_KEY] = { destinationNode, relayElement };
+  }
+  return ctx[SHARED_RELAY_KEY]!;
+}
+
+export function disposeSharedRelay(context: AudioContext) {
+  const ctx = context as AudioContextWithSharedRelay;
+  const relay = ctx[SHARED_RELAY_KEY];
+  if (relay) {
+    relay.relayElement.pause();
+    relay.relayElement.srcObject = null;
+    relay.relayElement.parentElement?.removeChild(relay.relayElement);
+    relay.destinationNode.disconnect();
+    delete ctx[SHARED_RELAY_KEY];
+  }
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document) return false;
   // iOS/Safari 26+ has Speaker Selection API — trust the version check rather than
