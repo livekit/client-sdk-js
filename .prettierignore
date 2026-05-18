@@ -1,9 +1,0 @@
-.github/
-dist/
-docs/
-node_modules/
-protocol/
-src/proto/
-src/room/attributes/
-yarn.lock
-pnpm-lock.yaml
