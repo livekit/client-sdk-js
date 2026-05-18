@@ -280,7 +280,10 @@ export function getLogContextFromTrack(track: Track | TrackPublication): Record<
 }
 
 export function supportsSynchronizationSources(): boolean {
-  return typeof RTCRtpReceiver !== 'undefined' && 'getSynchronizationSources' in RTCRtpReceiver;
+  return (
+    typeof RTCRtpReceiver !== 'undefined' &&
+    typeof RTCRtpReceiver.prototype.getSynchronizationSources === 'function'
+  );
 }
 
 export function diffAttributes(

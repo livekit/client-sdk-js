@@ -13,7 +13,11 @@ import { DataTrackDepacketizerDropError } from '../depacketizer';
 import { type DataTrackFrame, DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket } from '../packet';
-import { type DataTrackInfo, type DataTrackSid } from '../types';
+import {
+  type DataTrackInfo,
+  type DataTrackSid,
+  type RemoteDataTrackPipelineOptions,
+} from '../types';
 import { DataTrackSubscribeError } from './errors';
 import IncomingDataTrackPipeline from './pipeline';
 import {
@@ -65,6 +69,7 @@ type Descriptor<S extends SubscriptionState> = {
   info: DataTrackInfo;
   publisherIdentity: Participant['identity'];
   subscription: S;
+  pipelineOptions: RemoteDataTrackPipelineOptions;
 };
 
 type IncomingDataTrackManagerOptions = {
@@ -110,6 +115,19 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       if (descriptor.subscription.type === 'active') {
         descriptor.subscription.pipeline.updateE2eeManager(e2eeManager);
       }
+    }
+  }
+
+  /** @internal */
+  setPipelineOptions(sid: DataTrackSid, options: RemoteDataTrackPipelineOptions): void {
+    const descriptor = this.descriptors.get(sid);
+    if (!descriptor) {
+      log.warn(`Unknown track ${sid}, cannot set pipeline options.`);
+      return;
+    }
+    descriptor.pipelineOptions = options;
+    if (descriptor.subscription.type === 'active') {
+      descriptor.subscription.pipeline.setOptions(options);
     }
   }
 
@@ -473,6 +491,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       info,
       publisherIdentity,
       subscription: { type: 'none' },
+      pipelineOptions: {},
     };
     this.descriptors.set(descriptor.info.sid, descriptor);
 
@@ -530,6 +549,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
           info: descriptor.info,
           publisherIdentity: descriptor.publisherIdentity,
           e2eeManager: this.e2eeManager,
+          pipelineOptions: descriptor.pipelineOptions,
         });
 
         const previousDescriptorSubscription = descriptor.subscription;

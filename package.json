@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.18.9",
+  "version": "2.19.0",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -25,6 +25,16 @@
         "types": "./dist/e2ee.worker.d.ts",
         "default": "./dist/livekit-client.e2ee.worker.umd.js"
       }
+    },
+    "./packet-trailer-worker": {
+      "import": {
+        "types": "./dist/packetTrailer.worker.d.mts",
+        "default": "./dist/livekit-client.packet-trailer.worker.esm.mjs"
+      },
+      "require": {
+        "types": "./dist/packetTrailer.worker.d.ts",
+        "default": "./dist/livekit-client.packet-trailer.worker.umd.js"
+      }
     }
   },
   "files": [
@@ -39,6 +49,9 @@
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
+      ],
+      "./dist/src/packetTrailer/worker/packetTrailer.worker.d.ts": [
+        "./dist/ts4.2/packetTrailer/worker/packetTrailer.worker.d.ts"
       ]
     }
   },

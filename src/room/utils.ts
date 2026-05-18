@@ -1,6 +1,7 @@
 import {
   ChatMessage as ChatMessageModel,
   ClientInfo,
+  ClientInfo_Capability,
   ClientInfo_SDK,
   DisconnectReason,
   Transcription as TranscriptionModel,
@@ -9,7 +10,7 @@ import { type Throws } from '@livekit/throws-transformer/throws';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
-import { protocolVersion, version } from '../version';
+import { clientProtocol, protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -177,6 +178,18 @@ export function isFireFox(): boolean {
 export function isChromiumBased(): boolean {
   const browser = getBrowser();
   return !!browser && browser.name === 'Chrome' && browser.os !== 'iOS';
+}
+
+export function isScriptTransformSupportedForWorker(): boolean {
+  // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+  // Disabling it for Chrome based browsers until the API has stabilized.
+  // @ts-ignore
+  return (
+    typeof window !== 'undefined' &&
+    // @ts-ignore
+    typeof window.RTCRtpScriptTransform !== 'undefined' &&
+    !isChromiumBased()
+  );
 }
 
 export function isSafari(): boolean {
@@ -364,10 +377,12 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
-export function getClientInfo(): ClientInfo {
+export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
   const info = new ClientInfo({
+    capabilities,
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
+    clientProtocol,
     version,
   });
 

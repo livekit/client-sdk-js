@@ -12,39 +12,55 @@ const transform: TransformOptions = {
   target: ['es2020', 'chrome64', 'edge79', 'firefox58', 'safari11.3'],
 };
 
-const [clientBundle, workerBundle, clientDts, workerDts] = await Promise.all([
-  rolldown({
-    transform,
-    input: 'src/index.ts',
-    plugins: [],
-  }),
-  rolldown({
-    transform,
-    input: 'src/e2ee/worker/e2ee.worker.ts',
-  }),
-  rolldown({
-    transform,
-    input: 'src/index.ts',
-    plugins: [
-      dts({
-        tsconfig: 'tsconfig.json',
-        emitDtsOnly: true,
-        tsgo: false,
-      }),
-    ],
-  }),
-  rolldown({
-    transform,
-    input: 'src/e2ee/worker/e2ee.worker.ts',
-    plugins: [
-      dts({
-        tsconfig: 'src/e2ee/worker/tsconfig.json',
-        emitDtsOnly: true,
-        tsgo: false,
-      }),
-    ],
-  }),
-]);
+const [clientBundle, workerBundle, packetTrailerBundle, clientDts, workerDts, packetTrailerDts] =
+  await Promise.all([
+    rolldown({
+      transform,
+      input: 'src/index.ts',
+      plugins: [],
+    }),
+    rolldown({
+      transform,
+      input: 'src/e2ee/worker/e2ee.worker.ts',
+    }),
+    rolldown({
+      transform,
+      input: 'src/packetTrailer/worker/packetTrailer.worker.ts',
+    }),
+    rolldown({
+      transform,
+      input: 'src/index.ts',
+      plugins: [
+        dts({
+          tsconfig: 'tsconfig.json',
+          emitDtsOnly: true,
+          tsgo: false,
+        }),
+      ],
+    }),
+    rolldown({
+      transform,
+      input: 'src/e2ee/worker/e2ee.worker.ts',
+      plugins: [
+        dts({
+          tsconfig: 'src/e2ee/worker/tsconfig.json',
+          emitDtsOnly: true,
+          tsgo: false,
+        }),
+      ],
+    }),
+    rolldown({
+      transform,
+      input: 'src/packetTrailer/worker/packetTrailer.worker.ts',
+      plugins: [
+        dts({
+          tsconfig: 'src/packetTrailer/worker/tsconfig.json',
+          emitDtsOnly: true,
+          tsgo: false,
+        }),
+      ],
+    }),
+  ]);
 
 await clientBundle.write({
   file: `dist/${packageJson.name}.esm.mjs`,
@@ -76,6 +92,7 @@ await workerBundle.write({
   file: `dist/${packageJson.name}.e2ee.worker.esm.mjs`,
   format: 'esm',
   sourcemap: true,
+  intro: 'export {};',
 });
 workerDts.write({
   dir: 'dist',
@@ -96,4 +113,30 @@ await workerBundle.write({
   minify: true,
   name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
   plugins: [],
+});
+packetTrailerBundle.write({
+  file: `dist/${packageJson.name}.packet-trailer.worker.esm.mjs`,
+  format: 'esm',
+  sourcemap: true,
+  intro: 'export {};',
+});
+packetTrailerDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.mjs`;
+  },
+});
+packetTrailerBundle.write({
+  file: `dist/${packageJson.name}.packet-trailer.worker.umd.js`,
+  format: 'umd',
+  sourcemap: true,
+  minify: true,
+  name: kebabCaseToPascalCase(packageJson.name) + '.packet-trailer.worker',
+  plugins: [],
+});
+packetTrailerDts.write({
+  dir: 'dist',
+  entryFileNames: (chunkInfo) => {
+    return `${chunkInfo.name}.js`;
+  },
 });

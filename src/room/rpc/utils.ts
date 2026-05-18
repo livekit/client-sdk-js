@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: 2024 LiveKit, Inc.
-//
-// SPDX-License-Identifier: Apache-2.0
 import { RpcError as RpcError_Proto } from '@livekit/protocol';
 
 /** Parameters for initiating an RPC call */
@@ -63,6 +60,9 @@ export class RpcError extends Error {
 
   data?: string;
 
+  // More info: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause
+  cause?: unknown;
+
   /**
    * Creates an error object with the given code and message, plus an optional data payload.
    *
@@ -70,11 +70,15 @@ export class RpcError extends Error {
    *
    * Error codes 1001-1999 are reserved for built-in errors (see RpcError.ErrorCode for their meanings).
    */
-  constructor(code: number, message: string, data?: string) {
+  constructor(code: number, message: string, data?: string, options?: { cause?: unknown }) {
     super(message);
     this.code = code;
     this.message = truncateBytes(message, RpcError.MAX_MESSAGE_BYTES);
     this.data = data ? truncateBytes(data, RpcError.MAX_DATA_BYTES) : undefined;
+
+    if (typeof options?.cause !== 'undefined') {
+      this.cause = options?.cause;
+    }
   }
 
   /**
@@ -133,16 +137,53 @@ export class RpcError extends Error {
    *
    * @internal
    */
-  static builtIn(key: keyof typeof RpcError.ErrorCode, data?: string): RpcError {
-    return new RpcError(RpcError.ErrorCode[key], RpcError.ErrorMessage[key], data);
+  static builtIn(
+    key: keyof typeof RpcError.ErrorCode,
+    data?: string,
+    options?: { cause?: unknown },
+  ): RpcError {
+    return new RpcError(RpcError.ErrorCode[key], RpcError.ErrorMessage[key], data, options);
   }
 }
 
 /*
- * Maximum payload size for RPC requests and responses. If a payload exceeds this size,
+ * Maximum payload size for RPC requests and responses for clients with a clientProtocol of less
+ * than CLIENT_PROTOCOL_DATA_STREAM_RPC.
+ *
+ * If a payload exceeds this size and the remote client does not support compression,
  * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
-export const MAX_PAYLOAD_BYTES = 15360; // 15 KB
+export const MAX_V1_PAYLOAD_BYTES = 15360; // 15 KB
+
+/**
+ * Topic used for v2 RPC request data streams.
+ * @internal
+ */
+export const RPC_REQUEST_DATA_STREAM_TOPIC = 'lk.rpc_request';
+
+/**
+ * Topic used for v2 RPC response data streams.
+ * @internal
+ */
+export const RPC_RESPONSE_DATA_STREAM_TOPIC = 'lk.rpc_response';
+
+/** @internal */
+export enum RpcRequestAttrs {
+  RPC_REQUEST_ID = 'lk.rpc_request_id',
+  RPC_REQUEST_METHOD = 'lk.rpc_request_method',
+  RPC_REQUEST_RESPONSE_TIMEOUT_MS = 'lk.rpc_request_response_timeout_ms',
+  RPC_REQUEST_VERSION = 'lk.rpc_request_version',
+}
+
+/** Initial version of rpc which uses RpcRequest / RpcResponse messages.
+ * @internal
+ **/
+export const RPC_VERSION_V1 = 1;
+
+/** Rpc version backed by data streams instead of RpcRequest / RpcResponse.
+ * @internal
+ **/
+export const RPC_VERSION_V2 = 2;
 
 /**
  * @internal

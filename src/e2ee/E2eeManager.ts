@@ -2,16 +2,24 @@ import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log, { LogLevel, workerLogger } from '../logger';
+import { hasPacketTrailerPublishOptions } from '../packetTrailer/utils';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
+import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
-import type { VideoCodec } from '../room/track/options';
+import type { TrackPublishOptions, VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { Future, isChromiumBased, isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
+import {
+  Future,
+  isLocalTrack,
+  isSafariBased,
+  isScriptTransformSupportedForWorker,
+  isVideoTrack,
+} from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -34,7 +42,7 @@ import type {
   SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
-import { isE2EESupported, isScriptTransformSupported } from './utils';
+import { isE2EESupported } from './utils';
 
 export interface BaseE2EEManager {
   setup(room: Room): void;
@@ -221,6 +229,9 @@ export class E2EEManager
           encryptFuture.resolve(data as EncryptDataResponseMessage['data']);
         }
         break;
+      case 'packetTrailerMetadata':
+        this.handlePacketTrailerMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
+        break;
       default:
         break;
     }
@@ -230,6 +241,33 @@ export class E2EEManager
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
+
+  private handlePacketTrailerMetadata(
+    trackId: string,
+    rtpTimestamp: number,
+    ssrc: number,
+    metadata: { userTimestamp: bigint; frameId: number },
+  ) {
+    if (!this.room) {
+      return;
+    }
+    for (const participant of [
+      this.room.localParticipant,
+      ...this.room.remoteParticipants.values(),
+    ]) {
+      for (const pub of participant.trackPublications.values()) {
+        if (
+          pub.track &&
+          pub.track.mediaStreamID === trackId &&
+          pub.track instanceof RemoteVideoTrack &&
+          pub.track.packetTrailerExtractor
+        ) {
+          pub.track.packetTrailerExtractor.storeMetadata(rtpTimestamp, ssrc, metadata);
+          return;
+        }
+      }
+    }
+  }
 
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
@@ -299,6 +337,7 @@ export class E2EEManager
           trackId: publication.track!.mediaStreamID,
           codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
           participantIdentity: this.room!.localParticipant.identity,
+          hasPacketTrailer: false,
         },
       };
 
@@ -448,11 +487,16 @@ export class E2EEManager
     if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new TypeError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
+    const hasPacketTrailer =
+      track.kind === 'video' &&
+      !!trackInfo.packetTrailerFeatures &&
+      trackInfo.packetTrailerFeatures.length > 0;
     this.handleReceiver(
       track.receiver,
       track.mediaStreamID,
       remoteId,
       track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
+      hasPacketTrailer,
     );
   }
 
@@ -461,7 +505,12 @@ export class E2EEManager
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, track.mediaStreamID, undefined);
+    this.handleSender(
+      sender,
+      track.mediaStreamID,
+      undefined,
+      isVideoTrack(track) ? track.publishOptions?.packetTrailer : undefined,
+    );
   }
 
   /**
@@ -473,35 +522,33 @@ export class E2EEManager
     receiver: RTCRtpReceiver,
     trackId: string,
     participantIdentity: string,
-    codec?: VideoCodec,
+    codec: VideoCodec | undefined,
+    hasPacketTrailer: boolean,
   ) {
     if (!this.worker) {
       return;
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupportedForWorker()) {
       const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
         trackId,
         codec,
+        hasPacketTrailer,
       };
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
       if (E2EE_FLAG in receiver && codec) {
-        // only update codec
+        // update track-specific state when the transceiver is reused
         const msg: UpdateCodecMessage = {
           kind: 'updateCodec',
           data: {
             trackId,
             codec,
-            participantIdentity: participantIdentity,
+            participantIdentity,
+            hasPacketTrailer,
           },
         };
         this.worker.postMessage(msg);
@@ -532,6 +579,7 @@ export class E2EEManager
           codec,
           participantIdentity: participantIdentity,
           isReuse: E2EE_FLAG in receiver,
+          hasPacketTrailer,
         },
       };
       this.worker.postMessage(msg, [readable, writable]);
@@ -546,7 +594,12 @@ export class E2EEManager
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, trackId: string, codec?: VideoCodec) {
+  private handleSender(
+    sender: RTCRtpSender,
+    trackId: string,
+    codec?: VideoCodec,
+    packetTrailer?: TrackPublishOptions['packetTrailer'],
+  ) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
@@ -555,18 +608,15 @@ export class E2EEManager
       throw TypeError('local identity needs to be known in order to set up encrypted sender');
     }
 
-    if (
-      isScriptTransformSupported() &&
-      // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
-      // Disabling it for Chrome based browsers until the API has stabilized
-      !isChromiumBased()
-    ) {
+    if (isScriptTransformSupportedForWorker()) {
       log.info('initialize script transform');
-      const options = {
+      const options: ScriptTransformOptions = {
         kind: 'encode',
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
+        hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
+        packetTrailer,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -583,6 +633,8 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
+          hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
+          packetTrailer,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);

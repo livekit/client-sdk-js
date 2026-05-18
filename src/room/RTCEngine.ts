@@ -26,7 +26,6 @@ import {
   Room as RoomModel,
   RoomMovedResponse,
   RpcAck,
-  RpcResponse,
   ServerInfo,
   SessionDescription,
   SignalTarget,
@@ -54,9 +53,14 @@ import {
   toProtoSessionDescription,
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
-import { asEncryptablePacket } from '../e2ee/utils';
+import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
+import {
+  hasPacketTrailerPublishOptions,
+  isPacketTrailerSupported,
+  shouldUsePacketTrailerScriptTransform,
+} from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
@@ -74,7 +78,6 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
@@ -762,7 +765,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled) {
+    // E2EE and packet trailer extraction both rely on encoded frame transforms.
+    // Only opt into the createEncodedStreams flavor when that path will be
+    // used; RTCRtpScriptTransform does not need the PeerConnection flag.
+    const needsInsertableStreams =
+      this.signalOpts?.e2eeEnabled ||
+      (this.options.packetTrailer?.worker && !shouldUsePacketTrailerScriptTransform());
+
+    if (needsInsertableStreams && isInsertableStreamSupported()) {
       this.log.debug('E2EE - setting up transports with insertable streams');
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
@@ -1004,16 +1014,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
+    let sender: RTCRtpSender;
     if (supportsTransceiver()) {
-      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      return sender;
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.warn('using add-track fallback');
-      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
-      return sender;
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+    this.setupPacketTrailerSender(sender, opts);
+    return sender;
   }
 
   async createSimulcastSender(
@@ -1022,16 +1033,67 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    // store RTCRtpSender
+    let sender: RTCRtpSender | undefined;
     if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.debug('using add-track fallback');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
+    }
+    if (sender) {
+      this.setupPacketTrailerSender(sender, opts);
+    }
+    return sender;
+  }
+
+  private setupPacketTrailerSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
+    if (!this.options.packetTrailer?.worker || this.signalOpts?.e2eeEnabled) {
+      return;
     }
 
-    throw new UnexpectedConnectionState('Cannot stream on this device');
+    const packetTrailer = opts.packetTrailer;
+    const hasPacketTrailer = hasPacketTrailerPublishOptions(packetTrailer);
+
+    if (shouldUsePacketTrailerScriptTransform()) {
+      if (hasPacketTrailer) {
+        // @ts-ignore
+        sender.transform = new RTCRtpScriptTransform(this.options.packetTrailer.worker, {
+          kind: 'encode',
+          packetTrailer,
+        });
+      }
+      return;
+    }
+
+    if (
+      !isPacketTrailerSupported(this.options.packetTrailer) ||
+      !('createEncodedStreams' in sender)
+    ) {
+      if (hasPacketTrailer) {
+        this.log.warn('packet trailer transform not supported; skipping write', this.logContext);
+      }
+      return;
+    }
+
+    // @ts-ignore
+    const { readable, writable } = sender.createEncodedStreams();
+    if (hasPacketTrailer) {
+      this.options.packetTrailer.worker.postMessage(
+        {
+          kind: 'encode',
+          data: {
+            readableStream: readable,
+            writableStream: writable,
+            packetTrailer,
+          },
+        },
+        [readable, writable],
+      );
+    } else {
+      readable.pipeTo(writable);
+    }
   }
 
   private async createTransceiverRTCRtpSender(
@@ -1399,30 +1461,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.once(EngineEvent.Disconnected, onDisconnected);
     });
   };
-
-  /** @internal */
-  async publishRpcResponse(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: error
-            ? { case: 'error', value: error.toProto() }
-            : { case: 'payload', value: payload ?? '' },
-        }),
-      },
-    });
-
-    await this.sendDataPacket(packet, DataChannelKind.RELIABLE);
-  }
 
   /** @internal */
   async publishRpcAck(destinationIdentity: string, requestId: string) {

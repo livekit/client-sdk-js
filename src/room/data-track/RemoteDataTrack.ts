@@ -7,7 +7,7 @@ import {
   type IRemoteTrack,
   TrackSymbol,
 } from './track-interfaces';
-import { type DataTrackInfo } from './types';
+import { type DataTrackInfo, type RemoteDataTrackPipelineOptions } from './types';
 
 type RemoteDataTrackOptions = {
   publisherIdentity: Participant['identity'];
@@ -79,5 +79,12 @@ export default class RemoteDataTrack implements IRemoteTrack, IDataTrack {
       // NOTE: Rethrow errors to break Throws<...> type boundary
       throw err;
     }
+  }
+
+  /** Configure how incoming frames for this track are processed before they are handed out to
+   * subscribers (the "pipeline"). These options apply to all current and future subscriptions
+   * of this track, and may be set at any time. */
+  setPipelineOptions(options: RemoteDataTrackPipelineOptions): void {
+    this.manager.setPipelineOptions(this.info.sid, options);
   }
 }
