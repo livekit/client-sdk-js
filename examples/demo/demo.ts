@@ -46,7 +46,12 @@ import {
 import PTWorker from '../../src/packetTrailer/worker/packetTrailer.worker?worker';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { TrackEvent } from '../../src/room/events';
-import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
+import {
+  isSVCCodec,
+  isSafariSpeakerSelectionSupported,
+  sleep,
+  supportsH265,
+} from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -182,6 +187,9 @@ const appActions = {
       audioOutput: {
         deviceId: audioOutputId,
       },
+      // Route remote audio through AudioContext on iOS 26 so the shared relay element
+      // handles setSinkId — without this, iOS silently ignores setSinkId on WebRTC tracks.
+      webAudioMix: isSafariSpeakerSelectionSupported(),
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
