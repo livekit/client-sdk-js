@@ -1157,6 +1157,7 @@ function createConnectionParams(
   params.set('sdk', isReactNative() ? 'reactnative' : 'js');
   params.set('version', info.version!);
   params.set('protocol', info.protocol!.toString());
+  params.set('client_protocol', info.clientProtocol!.toString());
   if (info.deviceModel) {
     params.set('device_model', info.deviceModel);
   }
