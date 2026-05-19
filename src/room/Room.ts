@@ -233,6 +233,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private rpcServerManager: RpcServerManager;
 
+  /**
+   * AbortController for the constructor-registered `devicechange` listener on
+   * `navigator.mediaDevices`. Stored on the instance so `disconnect()` can tear
+   * the listener down even when the room never connected; otherwise the listener
+   * keeps the Room reachable from the global `navigator.mediaDevices` EventTarget
+   * and leaks memory across mount/unmount cycles (issue #1940).
+   */
+  private deviceChangeAbortController?: AbortController;
+
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
   }
@@ -373,14 +382,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (isWeb()) {
-      const abortController = new AbortController();
+      this.deviceChangeAbortController = new AbortController();
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
       navigator.mediaDevices?.addEventListener?.('devicechange', this.handleDeviceChange, {
-        signal: abortController.signal,
+        signal: this.deviceChangeAbortController.signal,
       });
 
       if (Room.cleanupRegistry) {
+        const abortController = this.deviceChangeAbortController;
         Room.cleanupRegistry.register(this, () => {
           abortController.abort();
         });
@@ -1117,6 +1127,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   disconnect = async (stopTracks = true) => {
     const unlock = await this.disconnectLock.lock();
     try {
+      // Always tear down the constructor-registered `devicechange` listener,
+      // even when the room never connected. The listener keeps the Room
+      // reachable from `navigator.mediaDevices` and would otherwise leak across
+      // SPA route changes (issue #1940). Safe to call repeatedly; aborting an
+      // already-aborted signal is a no-op.
+      if (isWeb()) {
+        this.deviceChangeAbortController?.abort();
+        this.deviceChangeAbortController = undefined;
+      }
       if (this.state === ConnectionState.Disconnected) {
         this.log.debug('already disconnected');
         return;
@@ -1778,6 +1797,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager.clearControllers();
     this.incomingDataTrackManager.reset();
     this.outgoingDataTrackManager.reset();
+    // Always tear down the constructor-registered `devicechange` listener, even
+    // when the room never connected. The listener keeps the Room reachable from
+    // `navigator.mediaDevices` and would otherwise leak across SPA route changes
+    // (issue #1940).
+    if (isWeb()) {
+      this.deviceChangeAbortController?.abort();
+      this.deviceChangeAbortController = undefined;
+    }
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
