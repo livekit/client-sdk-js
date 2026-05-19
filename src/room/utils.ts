@@ -794,3 +794,19 @@ export function extractMaxAgeFromRequestHeaders(headers: Headers): number | unde
 export function isCompressionStreamSupported() {
   return typeof CompressionStream !== 'undefined';
 }
+
+/**
+ * Whether the "send publisher offer with join request" optimization (PR #1846)
+ * should be used. Firefox is excluded because deferring setLocalDescription
+ * until the answer arrives leaves Firefox's publisher SCTP transport in a
+ * state where data channels never reach `'open'` (see #1919).
+ */
+export function shouldUsePrejoinPublisherOffer(useV0Path: boolean): boolean {
+  if (useV0Path) {
+    return false;
+  }
+  if (!isCompressionStreamSupported()) {
+    return false;
+  }
+  return !isFireFox();
+}

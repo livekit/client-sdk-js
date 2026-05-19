@@ -90,10 +90,10 @@ import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
   Future,
-  isCompressionStreamSupported,
   isVideoCodec,
   isVideoTrack,
   isWeb,
+  shouldUsePrejoinPublisherOffer,
   sleep,
   supportsAddTrack,
   supportsTransceiver,
@@ -324,8 +324,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
+      // #1919: Firefox can't open data channels when the initial offer's
+      // setLocalDescription is deferred until the join answer arrives, so
+      // skip the prejoin-offer fast path there.
+      const usePrejoinOffer = shouldUsePrejoinPublisherOffer(useV0Path);
       let offerProto: SessionDescription | undefined;
-      if (!useV0Path && isCompressionStreamSupported()) {
+      if (usePrejoinOffer) {
         if (!this.pcManager) {
           await this.configure();
           this.createDataChannels();
@@ -358,7 +362,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.participantSid = joinResponse.participant?.sid;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!useV0Path && isCompressionStreamSupported()) {
+      if (usePrejoinOffer) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
         if (!this.pcManager) {
