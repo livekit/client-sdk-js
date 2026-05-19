@@ -1,6 +1,12 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
-import { extractMaxAgeFromRequestHeaders, getClientInfo, splitUtf8, toWebsocketUrl } from './utils';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  extractMaxAgeFromRequestHeaders,
+  getClientInfo,
+  shouldUsePrejoinPublisherOffer,
+  splitUtf8,
+  toWebsocketUrl,
+} from './utils';
 
 describe('toWebsocketUrl', () => {
   it('leaves wss urls alone', () => {
@@ -186,5 +192,100 @@ describe('extractMaxAgeFromRequestHeaders', () => {
     const headers = new Headers();
     headers.set('Cache-Control', 'custom-max-age=7200,max-age=3600');
     expect(extractMaxAgeFromRequestHeaders(headers)).toBe(3600);
+  });
+});
+
+// Regression coverage for #1919: Firefox cannot connect after upgrading from
+// 2.18.0 to 2.18.1 because the publisher data channel never opens when the
+// initial offer is created before setLocalDescription. The fast-publisher-offer
+// path must therefore be skipped on Firefox.
+describe('shouldUsePrejoinPublisherOffer', () => {
+  const originalUserAgent = navigator.userAgent;
+  const originalCompressionStream = (globalThis as unknown as { CompressionStream?: unknown })
+    .CompressionStream;
+
+  function setUserAgent(ua: string) {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: ua,
+    });
+  }
+
+  function setCompressionStreamSupported(supported: boolean) {
+    if (supported) {
+      Object.defineProperty(globalThis, 'CompressionStream', {
+        configurable: true,
+        value: class CompressionStreamStub {},
+        writable: true,
+      });
+    } else {
+      // Removing the global is the most faithful way to model older browsers.
+      delete (globalThis as unknown as { CompressionStream?: unknown }).CompressionStream;
+    }
+  }
+
+  beforeEach(() => {
+    // happy-dom ships CompressionStream by default; pin known state per test.
+    setCompressionStreamSupported(true);
+  });
+
+  afterEach(() => {
+    setUserAgent(originalUserAgent);
+    if (typeof originalCompressionStream === 'undefined') {
+      delete (globalThis as unknown as { CompressionStream?: unknown }).CompressionStream;
+    } else {
+      Object.defineProperty(globalThis, 'CompressionStream', {
+        configurable: true,
+        value: originalCompressionStream,
+        writable: true,
+      });
+    }
+  });
+
+  it('is false on Firefox even when CompressionStream is supported (#1919)', () => {
+    setUserAgent('Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0');
+    expect(shouldUsePrejoinPublisherOffer(false)).toBe(false);
+  });
+
+  it('is true on Chrome when CompressionStream is supported', () => {
+    setUserAgent(
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    );
+    expect(shouldUsePrejoinPublisherOffer(false)).toBe(true);
+  });
+
+  it('is true on Safari (desktop) when CompressionStream is supported', () => {
+    setUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    );
+    expect(shouldUsePrejoinPublisherOffer(false)).toBe(true);
+  });
+
+  it('is false on any browser when CompressionStream is not supported', () => {
+    setUserAgent(
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    );
+    setCompressionStreamSupported(false);
+    expect(shouldUsePrejoinPublisherOffer(false)).toBe(false);
+  });
+
+  it('is false when useV0Path is true (legacy dual peer connection path)', () => {
+    setUserAgent(
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    );
+    expect(shouldUsePrejoinPublisherOffer(true)).toBe(false);
+  });
+
+  it('is false when useV0Path is true on Firefox too', () => {
+    setUserAgent('Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0');
+    expect(shouldUsePrejoinPublisherOffer(true)).toBe(false);
+  });
+
+  it('is true on Firefox-on-iOS (FxiOS) only if CompressionStream is present — FxiOS uses WebKit, not Gecko, so the Firefox SCTP timing quirk does not apply, and the browser parser reports name=Firefox os=iOS. We intentionally keep this conservative and still bypass for any Firefox UA.', () => {
+    setUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/120.0 Mobile/15E148 Safari/605.1.15',
+    );
+    // FxiOS still gets detected as Firefox by the parser; we keep it conservative.
+    expect(shouldUsePrejoinPublisherOffer(false)).toBe(false);
   });
 });
