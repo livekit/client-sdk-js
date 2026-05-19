@@ -103,10 +103,10 @@ describe('Room lifecycle', () => {
     }
   });
 
-  it('removes the constructor-registered devicechange listener on disconnect, even when the room never connected (#1940)', async () => {
+  it('wraps the constructor-registered devicechange listener in a WeakRef so the Room is GC-eligible (#1940)', async () => {
     // happy-dom does not provide navigator.mediaDevices. Install a minimal
     // EventTarget stand-in so the constructor takes the listener-registration
-    // branch and we can observe the resulting AbortSignal.
+    // branch and we can observe the registered listener.
     const mediaDevices = new EventTarget() as EventTarget & {
       addEventListener: EventTarget['addEventListener'];
       removeEventListener: EventTarget['removeEventListener'];
@@ -117,29 +117,38 @@ describe('Room lifecycle', () => {
     });
 
     const addSpy = vi.spyOn(mediaDevices, 'addEventListener');
+    const derefSpy = vi.spyOn(WeakRef.prototype, 'deref');
+    const cleanupRegistrySpy = Room.cleanupRegistry
+      ? vi.spyOn(Room.cleanupRegistry, 'register')
+      : undefined;
 
     const room = new Room();
+    const handleDeviceChangeSpy = vi.spyOn(
+      room as unknown as { handleDeviceChange: (ev: Event) => void },
+      'handleDeviceChange',
+    );
 
-    // Constructor must register exactly one devicechange listener.
+    // Constructor must register exactly one devicechange listener with AbortSignal teardown.
     const deviceChangeAdds = addSpy.mock.calls.filter(([type]) => type === 'devicechange');
     expect(deviceChangeAdds).toHaveLength(1);
-
-    // The registration must opt in to AbortSignal-based teardown.
+    const listener = deviceChangeAdds[0][1] as EventListener;
     const addOptions = deviceChangeAdds[0][2] as AddEventListenerOptions | undefined;
-    expect(addOptions).toBeDefined();
-    const signal = addOptions!.signal as AbortSignal | undefined;
-    expect(signal).toBeInstanceOf(AbortSignal);
-    expect(signal!.aborted).toBe(false);
+    expect(addOptions?.signal).toBeInstanceOf(AbortSignal);
 
-    // disconnect() on a freshly-constructed room hits the
-    // `state === Disconnected` short-circuit. Without the fix, nothing
-    // aborts the constructor's AbortController, and the listener leaks.
-    await room.disconnect();
+    // FinalizationRegistry must be registered with the Room as the target so the
+    // cleanup callback fires when the user drops their Room reference.
+    if (Room.cleanupRegistry) {
+      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(Function));
+    }
 
-    expect(signal!.aborted).toBe(true);
+    // While the WeakRef still derefs to the Room, the listener forwards to handleDeviceChange.
+    listener.call(null, new Event('devicechange'));
+    expect(handleDeviceChangeSpy).toHaveBeenCalledTimes(1);
 
-    // Idempotency: calling disconnect again must not throw.
-    await room.disconnect();
-    expect(signal!.aborted).toBe(true);
+    // Simulate the Room being GC'd by forcing deref to return undefined; the
+    // listener must short-circuit instead of calling handleDeviceChange.
+    derefSpy.mockReturnValue(undefined);
+    listener.call(null, new Event('devicechange'));
+    expect(handleDeviceChangeSpy).toHaveBeenCalledTimes(1);
   });
 });
