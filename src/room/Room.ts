@@ -373,29 +373,34 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (isWeb()) {
-      // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
-      // strongly retain the Room. When the user drops their Room ref, the
-      // FinalizationRegistry callback aborts the controller and removes the listener.
-      const roomRef = new WeakRef(this);
       const cleanupController = new AbortController();
-      const onDeviceChange = () => {
-        const self = roomRef.deref();
-        if (!self) {
-          return;
-        }
-        self.handleDeviceChange();
-      };
+      let onDeviceChange: () => void;
+
+      if (Room.cleanupRegistry) {
+        // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
+        // strongly retain the Room. When the user drops their Room ref, the
+        // FinalizationRegistry callback aborts the controller and removes the listener.
+        const roomRef = new WeakRef(this);
+        onDeviceChange = () => {
+          const self = roomRef.deref();
+          if (!self) {
+            return;
+          }
+          self.handleDeviceChange();
+        };
+        Room.cleanupRegistry.register(this, () => {
+          cleanupController.abort();
+        });
+      } else {
+        // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
+        // direct listener (matches pre-#1944 behavior).
+        onDeviceChange = this.handleDeviceChange;
+      }
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
       navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange, {
         signal: cleanupController.signal,
       });
-
-      if (Room.cleanupRegistry) {
-        Room.cleanupRegistry.register(this, () => {
-          cleanupController.abort();
-        });
-      }
     }
   }
 
@@ -766,6 +771,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
+    typeof WeakRef !== 'undefined' &&
     new FinalizationRegistry((cleanup: () => void) => {
       cleanup();
     });

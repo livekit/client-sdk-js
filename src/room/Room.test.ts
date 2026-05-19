@@ -151,4 +151,39 @@ describe('Room lifecycle', () => {
     listener.call(null, new Event('devicechange'));
     expect(handleDeviceChangeSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('falls back to a direct devicechange listener when WeakRef/FinalizationRegistry are unavailable (#1944)', async () => {
+    const mediaDevices = new EventTarget() as EventTarget & {
+      addEventListener: EventTarget['addEventListener'];
+      removeEventListener: EventTarget['removeEventListener'];
+    };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: mediaDevices,
+    });
+
+    // Simulate a legacy browser by stubbing out cleanupRegistry.
+    const originalRegistry = Room.cleanupRegistry;
+    Object.defineProperty(Room, 'cleanupRegistry', {
+      configurable: true,
+      value: false,
+    });
+
+    try {
+      const addSpy = vi.spyOn(mediaDevices, 'addEventListener');
+      const room = new Room();
+      const handleDeviceChange = (room as unknown as { handleDeviceChange: () => void })
+        .handleDeviceChange;
+
+      const deviceChangeAdds = addSpy.mock.calls.filter(([type]) => type === 'devicechange');
+      expect(deviceChangeAdds).toHaveLength(1);
+      // The registered listener is the bare handleDeviceChange method (no WeakRef closure).
+      expect(deviceChangeAdds[0][1]).toBe(handleDeviceChange);
+    } finally {
+      Object.defineProperty(Room, 'cleanupRegistry', {
+        configurable: true,
+        value: originalRegistry,
+      });
+    }
+  });
 });
