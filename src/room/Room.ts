@@ -378,12 +378,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // FinalizationRegistry callback aborts the controller and removes the listener.
       const roomRef = new WeakRef(this);
       const cleanupController = new AbortController();
-      const onDeviceChange = (ev: Event) => {
+      const onDeviceChange = () => {
         const self = roomRef.deref();
         if (!self) {
           return;
         }
-        self.handleDeviceChange(ev);
+        self.handleDeviceChange();
       };
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
