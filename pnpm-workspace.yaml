@@ -1,6 +1,3 @@
-packages:
-  - .
-  - ./smoke-tests
 minimumReleaseAge: 2880
 minimumReleaseAgeExclude:
   - '@livekit/*'
