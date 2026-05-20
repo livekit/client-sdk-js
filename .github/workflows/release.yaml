@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   release:
-    if: ${{ github.event.inputs.snapshot == 'false' }}
+    if: ${{ github.event.inputs.snapshot != 'true' }}
     name: Release
     runs-on: ubuntu-latest
     steps:
