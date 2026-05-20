@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: 'Publish a snapshot release'
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -45,3 +50,28 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
           AWS_DEFAULT_REGION: "us-east-1"
+
+  snapshot-release:
+    if: ${{ github.event.inputs.snapshot == 'true' }}
+    name: Snapshot Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - name: Use Node.js 24
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Publish snapshot release
+        run: |
+            pnpm build
+            pnpm changeset version --snapshot
+            pnpm publish --tag dev --no-git-checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+     
