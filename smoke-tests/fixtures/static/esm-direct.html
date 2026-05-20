@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>livekit-client smoke — native ESM</title>
+  </head>
+  <body>
+    <h1>livekit-client smoke — native ESM</h1>
+    <pre id="result">pending</pre>
+    <script src="/shared/assertions.js"></script>
+    <script type="module">
+      import * as lk from '/node_modules/livekit-client/dist/livekit-client.esm.mjs';
+      const expected = window.__expectedVersion;
+      const result = window.__livekitRunSmoke(lk, expected);
+      window.__smoke = result;
+      document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+    </script>
+  </body>
+</html>

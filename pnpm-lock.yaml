@@ -3259,8 +3259,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20260401:
-    resolution: {integrity: sha512-trGd1r4vZ89ABUR8VnF2Lsl/Tb9ObfQNH3r+kF8NFVSLCq3b3x96McL6pXMnH/aa4tutrziJZvb7zm3WsAEfCA==}
+  typescript@6.0.0-dev.20260416:
+    resolution: {integrity: sha512-64CCow5rQc6+oBAPqLtvZ8f3iz4WVCLwMVkg6/kOfMQlGshVOMkBhCXn+MMP4SX4Xtnz48VpD98FkptirMEuEQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5077,7 +5077,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20260401
+      typescript: 6.0.0-dev.20260416
 
   dts-resolver@3.0.0: {}
 
@@ -6339,7 +6339,7 @@ snapshots:
 
   rechoir@0.6.2:
     dependencies:
-      resolve: 1.22.10
+      resolve: 1.22.12
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -6860,7 +6860,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typescript@6.0.0-dev.20260401: {}
+  typescript@6.0.0-dev.20260416: {}
 
   uc.micro@2.1.0: {}
 
