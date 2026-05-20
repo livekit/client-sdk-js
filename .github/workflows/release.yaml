@@ -7,6 +7,10 @@ on:
         description: 'Publish a snapshot release'
         type: boolean
         default: false
+      snapshot-prefix:
+        description: 'A prefix that will appended to the published version'
+        type: string
+        default: ''
   push:
     branches:
       - main
@@ -70,7 +74,7 @@ jobs:
       - name: Publish snapshot release
         run: |
             pnpm build
-            pnpm changeset version --snapshot
+            pnpm changeset version --snapshot ${{ github.event.inputs.snapshot-prefix }}
             pnpm publish --tag dev --no-git-checks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
