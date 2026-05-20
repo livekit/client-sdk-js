@@ -1,0 +1,24 @@
+{
+  "name": "livekit-client-smoke-tests",
+  "private": true,
+  "version": "0.0.0",
+  "description": "End-to-end smoke tests that consume the built livekit-client package in every published format (native ESM, UMD/CDN global, bundler-ESM, bundler-CJS).",
+  "type": "module",
+  "scripts": {
+    "prepare:pack": "node scripts/prepare-package.mjs",
+    "build:fixtures": "node scripts/build-fixtures.mjs",
+    "pretest": "node scripts/build-fixtures.mjs",
+    "test": "playwright test",
+    "playwright:install": "playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "livekit-client": "file:./livekit-client.tgz"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "http-server": "14.1.1",
+    "vite": "7.3.2",
+    "webpack": "5.97.1",
+    "webpack-cli": "5.1.4"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+livekit-client.tgz
+fixtures/bundler-esm/dist/
+fixtures/bundler-cjs/dist/
+test-results/
+playwright-report/
+.playwright-cache/
