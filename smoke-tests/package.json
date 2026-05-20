@@ -9,13 +9,15 @@
     "build:fixtures": "node scripts/build-fixtures.mjs",
     "pretest": "node scripts/build-fixtures.mjs",
     "test": "playwright test",
-    "playwright:install": "playwright install --with-deps chromium"
+    "playwright:install": "playwright install --with-deps chromium",
+    "playwright:test": "playwright test "
   },
   "dependencies": {
     "livekit-client": "file:./livekit-client.tgz"
   },
   "devDependencies": {
     "@playwright/test": "1.49.1",
+    "playwright": "1.60.0",
     "http-server": "14.1.1",
     "vite": "7.3.2",
     "webpack": "5.104.1",
