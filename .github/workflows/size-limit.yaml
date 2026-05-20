@@ -22,6 +22,6 @@ jobs:
       - uses: andresz1/size-limit-action@94bc357df29c36c8f8d50ea497c3e225c3c95d1d # v1.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          script: pnpx size-limit --json
+          script: pnpm --silent run size-limit --json
           package_manager: pnpm
           build_script: build
