@@ -112,6 +112,7 @@
     "happy-dom": "^20.0.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
+    "publint": "^0.3.21",
     "rollup": "4.60.2",
     "rollup-plugin-delete": "^2.1.0",
     "rollup-plugin-typescript2": "0.37.0",
