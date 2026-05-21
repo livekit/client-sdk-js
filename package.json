@@ -7,34 +7,19 @@
   "module": "./dist/livekit-client.esm.mjs",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.mts",
-        "default": "./dist/livekit-client.esm.mjs"
-      },
-      "require": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/livekit-client.umd.js"
-      }
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/livekit-client.esm.mjs",
+      "require": "./dist/livekit-client.umd.js"
     },
     "./e2ee-worker": {
-      "import": {
-        "types": "./dist/e2ee.worker.d.mts",
-        "default": "./dist/livekit-client.e2ee.worker.esm.mjs"
-      },
-      "require": {
-        "types": "./dist/e2ee.worker.d.ts",
-        "default": "./dist/livekit-client.e2ee.worker.umd.js"
-      }
+      "types": "./dist/src/e2ee/worker/e2ee.worker.d.ts",
+      "import": "./dist/livekit-client.e2ee.worker.mjs",
+      "require": "./dist/livekit-client.e2ee.worker.js"
     },
     "./packet-trailer-worker": {
-      "import": {
-        "types": "./dist/packetTrailer.worker.d.mts",
-        "default": "./dist/livekit-client.packet-trailer.worker.esm.mjs"
-      },
-      "require": {
-        "types": "./dist/packetTrailer.worker.d.ts",
-        "default": "./dist/livekit-client.packet-trailer.worker.umd.js"
-      }
+      "types": "./dist/src/packetTrailer/worker/packetTrailer.worker.d.ts",
+      "import": "./dist/livekit-client.pt.worker.mjs",
+      "require": "./dist/livekit-client.pt.worker.js"
     }
   },
   "files": [
@@ -59,7 +44,8 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "node ./rolldown-build.mts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.pt-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
     "build-docs": "typedoc && mkdir -p docs/assets/github && cp .github/*.png docs/assets/github/ && find docs -name '*.html' -type f -exec sed -i.bak 's|=\"/.github/|=\"assets/github/|g' {} + && find docs -name '*.bak' -delete",
@@ -94,12 +80,17 @@
   },
   "devDependencies": {
     "@babel/core": "7.29.0",
+    "@babel/preset-env": "7.29.2",
     "@bufbuild/protoc-gen-es": "^1.10.0",
     "@changesets/cli": "2.31.0",
     "@eslint/js": "10.0.1",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@livekit/throws-transformer": "^0.1.3",
-    "@rolldown/plugin-babel": "^0.2.3",
+    "@rollup/plugin-babel": "7.0.0",
+    "@rollup/plugin-commonjs": "29.0.2",
+    "@rollup/plugin-json": "6.1.0",
+    "@rollup/plugin-node-resolve": "16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
     "@size-limit/file": "^11.2.0",
     "@size-limit/webpack": "^11.2.0",
     "@stylistic/eslint-plugin": "^5.10.0",
@@ -121,9 +112,10 @@
     "happy-dom": "^20.0.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
-    "publint": "^0.3.14",
-    "rolldown": "1.0.1",
-    "rolldown-plugin-dts": "^0.25.1",
+    "publint": "^0.3.21",
+    "rollup": "4.60.2",
+    "rollup-plugin-delete": "^2.1.0",
+    "rollup-plugin-typescript2": "0.37.0",
     "size-limit": "^11.2.0",
     "tsx": "^4.21.0",
     "typedoc": "0.28.19",
