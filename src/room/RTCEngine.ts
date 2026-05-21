@@ -122,7 +122,7 @@ enum PCState {
 export enum DataChannelKind {
   RELIABLE = DataPacket_Kind.RELIABLE,
   LOSSY = DataPacket_Kind.LOSSY,
-  DATA_TRACK_LOSSY,
+  DATA_TRACK_LOSSY = 2,
 }
 
 /** @internal */
