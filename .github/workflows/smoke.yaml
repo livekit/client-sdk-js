@@ -32,7 +32,7 @@ jobs:
         run: pnpm install
 
       - name: Build SDK
-        run: pnpm build
+        run: pnpm build:clean
 
       - name: Pack SDK into smoke-tests tarball
         working-directory: smoke-tests
@@ -50,7 +50,7 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: smoke-tests
-        run: npm run playwright:install
+        run: npx playwright install --with-deps chromium
 
       - name: Build bundler fixtures
         working-directory: smoke-tests
@@ -58,7 +58,7 @@ jobs:
 
       - name: Run smoke tests
         working-directory: smoke-tests
-        run: npm run playwright:test
+        run: npx playwright test
 
       - name: Upload Playwright report
         if: failure()

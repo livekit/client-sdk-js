@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import * as log from 'loglevel';
 
 export enum LogLevel {
   trace = 0,

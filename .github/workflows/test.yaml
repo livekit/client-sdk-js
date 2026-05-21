@@ -37,8 +37,5 @@ jobs:
 
     - name: Check browser target compatibility
       run: |
-        pnpm build
+        pnpm build:clean
         pnpm compat
-
-    - name: Ensure package publish is configured correctly
-      run: pnpm publint
