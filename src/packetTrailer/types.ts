@@ -1,3 +1,4 @@
+import type { VideoCodec } from '../room/track/options';
 import type { PacketTrailerFramePayload } from './packetTrailer';
 
 export interface PacketTrailerMetadata {
@@ -30,6 +31,7 @@ export interface PTDecodeMessage extends PTBaseMessage {
     writableStream: WritableStream;
     trackId: string;
     hasPacketTrailer: boolean;
+    codec?: VideoCodec;
   };
 }
 
@@ -39,6 +41,7 @@ export interface PTEncodeMessage extends PTBaseMessage {
     readableStream: ReadableStream;
     writableStream: WritableStream;
     packetTrailer?: PacketTrailerPublishOptions;
+    codec?: VideoCodec;
   };
 }
 
@@ -46,10 +49,12 @@ export type PTScriptTransformOptions =
   | {
       kind: 'decode';
       trackId: string;
+      codec?: VideoCodec;
     }
   | {
       kind: 'encode';
       packetTrailer?: PacketTrailerPublishOptions;
+      codec?: VideoCodec;
     };
 
 export interface PTMetadataMessage extends PTBaseMessage {
@@ -63,6 +68,7 @@ export interface PTUpdateTrackIdMessage extends PTBaseMessage {
     oldTrackId: string;
     newTrackId: string;
     hasPacketTrailer: boolean;
+    codec?: VideoCodec;
   };
 }
 

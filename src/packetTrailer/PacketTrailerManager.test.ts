@@ -149,6 +149,34 @@ describe('PacketTrailerManager', () => {
     );
   });
 
+  it('passes subscribed video codec to the packet trailer worker', () => {
+    stubInsertableStreamsSupport();
+
+    const worker = { postMessage: vi.fn() } as unknown as Worker;
+    const manager = new PacketTrailerManager({ worker });
+    const { receiver, readable, writable } = makeReceiver();
+    const trackInfo = {
+      packetTrailerFeatures: [1],
+      codecs: [{ mimeType: 'video/AV1' }],
+    } as unknown as TrackInfo;
+
+    setupReceiver(manager, receiver, 'av1-track', trackInfo);
+
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      {
+        kind: 'decode',
+        data: {
+          readableStream: readable,
+          writableStream: writable,
+          trackId: 'av1-track',
+          hasPacketTrailer: true,
+          codec: 'av1',
+        },
+      },
+      [readable, writable],
+    );
+  });
+
   it('updates a reused receiver from trailer extraction to passthrough for tracks without packet trailer features', () => {
     stubInsertableStreamsSupport();
 

@@ -5,6 +5,8 @@ import { RoomEvent } from '../room/events';
 import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
+import type { VideoCodec } from '../room/track/options';
+import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
 import { isPacketTrailerSupported, shouldUsePacketTrailerScriptTransform } from './utils';
 
@@ -92,9 +94,10 @@ export class PacketTrailerManager {
     // clients on older protocols or that don't opt into the feature.
     const hasFeatures =
       !!trackInfo?.packetTrailerFeatures && trackInfo.packetTrailerFeatures.length > 0;
+    const codec = this.getVideoCodec(trackInfo);
     if (!hasFeatures) {
       if (!this.room?.hasE2EESetup) {
-        this.setupPassthroughReceiver(receiver, track.mediaStreamID);
+        this.setupPassthroughReceiver(receiver, track.mediaStreamID, codec);
       }
       return;
     }
@@ -119,10 +122,10 @@ export class PacketTrailerManager {
       return;
     }
 
-    this.setupWorkerReceiver(receiver, trackId, true);
+    this.setupWorkerReceiver(receiver, trackId, true, codec);
   }
 
-  private setupPassthroughReceiver(receiver: RTCRtpReceiver, trackId: string) {
+  private setupPassthroughReceiver(receiver: RTCRtpReceiver, trackId: string, codec?: VideoCodec) {
     if (shouldUsePacketTrailerScriptTransform()) {
       if ('transform' in receiver) {
         // @ts-ignore
@@ -136,12 +139,12 @@ export class PacketTrailerManager {
       isPacketTrailerSupported({ worker: this.worker }) &&
       !this.workerPipelines.has(receiver)
     ) {
-      this.setupWorkerReceiver(receiver, trackId, false);
+      this.setupWorkerReceiver(receiver, trackId, false, codec);
       return;
     }
 
     if (this.worker && this.workerPipelines.has(receiver)) {
-      this.setupWorkerReceiver(receiver, trackId, false);
+      this.setupWorkerReceiver(receiver, trackId, false, codec);
     }
   }
 
@@ -149,6 +152,7 @@ export class PacketTrailerManager {
     receiver: RTCRtpReceiver,
     newTrackId: string,
     hasPacketTrailer = true,
+    codec?: VideoCodec,
   ) {
     const worker = this.worker;
     if (!worker) {
@@ -160,6 +164,7 @@ export class PacketTrailerManager {
       receiver.transform = new RTCRtpScriptTransform(worker, {
         kind: 'decode',
         trackId: newTrackId,
+        ...(codec ? { codec } : {}),
       });
       return;
     }
@@ -172,7 +177,12 @@ export class PacketTrailerManager {
       // correctly and re-activate processing.
       const msg: PTUpdateTrackIdMessage = {
         kind: 'updateTrackId',
-        data: { oldTrackId: existingTrackId, newTrackId, hasPacketTrailer },
+        data: {
+          oldTrackId: existingTrackId,
+          newTrackId,
+          hasPacketTrailer,
+          ...(codec ? { codec } : {}),
+        },
       };
       worker.postMessage(msg);
       this.workerPipelines.set(receiver, newTrackId);
@@ -200,6 +210,7 @@ export class PacketTrailerManager {
         writableStream: streams.writable,
         trackId: newTrackId,
         hasPacketTrailer,
+        ...(codec ? { codec } : {}),
       },
     };
     worker.postMessage(msg, [streams.readable, streams.writable]);
@@ -247,4 +258,9 @@ export class PacketTrailerManager {
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('packet trailer worker encountered an error:', { error: ev.error });
   };
+
+  private getVideoCodec(trackInfo?: TrackInfo): VideoCodec | undefined {
+    const mimeType = trackInfo?.codecs?.[0]?.mimeType || trackInfo?.mimeType;
+    return mimeType ? mimeTypeToVideoCodecString(mimeType) : undefined;
+  }
 }

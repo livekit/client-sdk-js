@@ -1055,6 +1055,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const packetTrailer = opts.packetTrailer;
     const hasPacketTrailer = hasPacketTrailerPublishOptions(packetTrailer);
+    const codec = opts.videoCodec;
 
     if (shouldUsePacketTrailerScriptTransform()) {
       if (hasPacketTrailer) {
@@ -1062,6 +1063,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         sender.transform = new RTCRtpScriptTransform(this.options.packetTrailer.worker, {
           kind: 'encode',
           packetTrailer,
+          ...(codec ? { codec } : {}),
         });
       }
       return;
@@ -1087,6 +1089,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             readableStream: readable,
             writableStream: writable,
             packetTrailer,
+            ...(codec ? { codec } : {}),
           },
         },
         [readable, writable],

@@ -1,3 +1,4 @@
+import type { VideoCodec } from '../room/track/options';
 import type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './types';
 import { hasPacketTrailerPublishOptions } from './utils';
 
@@ -11,9 +12,16 @@ export const PACKET_TRAILER_MAGIC = Uint8Array.from([
 export const PACKET_TRAILER_TIMESTAMP_TAG = 0x01;
 export const PACKET_TRAILER_FRAME_ID_TAG = 0x02;
 export const PACKET_TRAILER_ENVELOPE_SIZE = 5;
+export const AV1_METADATA_TYPE_LIVEKIT_PACKET_TRAILER = 31;
 
 const TIMESTAMP_TLV_SIZE = 10;
 const FRAME_ID_TLV_SIZE = 6;
+const AV1_OBU_SIZE_PRESENT_BIT = 0b0000_0010;
+const AV1_OBU_EXTENSION_FLAG = 0b0000_0100;
+const AV1_OBU_TYPE_MASK = 0b0111_1000;
+const AV1_OBU_TYPE_SEQUENCE_HEADER = 1;
+const AV1_OBU_TYPE_TEMPORAL_DELIMITER = 2;
+const AV1_OBU_TYPE_METADATA = 5;
 
 export interface ExtractPacketTrailerResult {
   data: Uint8Array;
@@ -24,23 +32,37 @@ export function appendPacketTrailer(
   data: Uint8Array,
   userTimestamp: bigint,
   frameId: number,
+  codec?: VideoCodec,
 ): Uint8Array {
+  const trailer = buildPacketTrailerPayload(userTimestamp, frameId);
+  if (!trailer) {
+    return data;
+  }
+
+  if (codec === 'av1') {
+    return appendAv1PacketTrailer(data, trailer);
+  }
+
+  const result = new Uint8Array(data.length + trailer.length);
+  result.set(data);
+  result.set(trailer, data.length);
+  return result;
+}
+
+function buildPacketTrailerPayload(userTimestamp: bigint, frameId: number): Uint8Array | undefined {
   const hasTimestamp = userTimestamp !== BigInt(0);
   const hasFrameId = frameId !== 0;
 
   if (!hasTimestamp && !hasFrameId) {
-    return data;
+    return undefined;
   }
 
   const trailerLength =
     (hasTimestamp ? TIMESTAMP_TLV_SIZE : 0) +
     (hasFrameId ? FRAME_ID_TLV_SIZE : 0) +
     PACKET_TRAILER_ENVELOPE_SIZE;
-  const result = new Uint8Array(data.length + trailerLength);
+  const result = new Uint8Array(trailerLength);
   let offset = 0;
-
-  result.set(data, offset);
-  offset += data.length;
 
   if (hasTimestamp) {
     result[offset++] = PACKET_TRAILER_TIMESTAMP_TAG ^ 0xff;
@@ -66,6 +88,7 @@ export function appendPacketTrailerToEncodedFrame(
   frame: RTCEncodedVideoFrame,
   options: PacketTrailerPublishOptions | undefined,
   frameId: number,
+  codec?: VideoCodec,
 ): boolean {
   if (!hasPacketTrailerPublishOptions(options) || frame.data.byteLength === 0) {
     return false;
@@ -74,7 +97,7 @@ export function appendPacketTrailerToEncodedFrame(
   const userTimestamp = options?.timestamp ? BigInt(Date.now()) * BigInt(1000) : BigInt(0);
   const packetTrailerFrameId = options?.frameId ? frameId : 0;
   const data = new Uint8Array(frame.data);
-  const result = appendPacketTrailer(data, userTimestamp, packetTrailerFrameId);
+  const result = appendPacketTrailer(data, userTimestamp, packetTrailerFrameId, codec);
 
   if (result.byteLength === data.byteLength) {
     return false;
@@ -87,8 +110,15 @@ export function appendPacketTrailerToEncodedFrame(
   return true;
 }
 
-export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPacketTrailerResult {
+export function extractPacketTrailer(
+  data: ArrayBuffer | Uint8Array,
+  codec?: VideoCodec,
+): ExtractPacketTrailerResult {
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (codec === 'av1') {
+    return extractAv1PacketTrailer(bytes);
+  }
+
   if (bytes.length < PACKET_TRAILER_ENVELOPE_SIZE) {
     return { data: bytes };
   }
@@ -104,9 +134,32 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   }
 
   const trailerStart = bytes.length - trailerLength;
-  const trailerEnd = bytes.length - PACKET_TRAILER_ENVELOPE_SIZE;
-  const strippedData = bytes.subarray(0, trailerStart);
-  let offset = trailerStart;
+  const metadata = parsePacketTrailerPayload(bytes.subarray(trailerStart));
+
+  if (!metadata) {
+    return { data: bytes };
+  }
+
+  return { data: bytes.subarray(0, trailerStart), metadata };
+}
+
+function parsePacketTrailerPayload(trailer: Uint8Array): PacketTrailerMetadata | undefined {
+  if (trailer.length < PACKET_TRAILER_ENVELOPE_SIZE) {
+    return undefined;
+  }
+
+  const magicOffset = trailer.length - PACKET_TRAILER_MAGIC.length;
+  if (!matchesMagic(trailer, magicOffset)) {
+    return undefined;
+  }
+
+  const trailerLength = trailer[trailer.length - PACKET_TRAILER_ENVELOPE_SIZE] ^ 0xff;
+  if (trailerLength !== trailer.length || trailerLength < PACKET_TRAILER_ENVELOPE_SIZE) {
+    return undefined;
+  }
+
+  const trailerEnd = trailer.length - PACKET_TRAILER_ENVELOPE_SIZE;
+  let offset = 0;
   let foundAny = false;
   const metadata: PacketTrailerMetadata = {
     userTimestamp: BigInt(0),
@@ -114,18 +167,18 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   };
 
   while (offset + 2 <= trailerEnd) {
-    const tag = bytes[offset++] ^ 0xff;
-    const length = bytes[offset++] ^ 0xff;
+    const tag = trailer[offset++] ^ 0xff;
+    const length = trailer[offset++] ^ 0xff;
 
     if (offset + length > trailerEnd) {
       break;
     }
 
     if (tag === PACKET_TRAILER_TIMESTAMP_TAG && length === 8) {
-      metadata.userTimestamp = readUint64Xor(bytes, offset);
+      metadata.userTimestamp = readUint64Xor(trailer, offset);
       foundAny = true;
     } else if (tag === PACKET_TRAILER_FRAME_ID_TAG && length === 4) {
-      metadata.frameId = readUint32Xor(bytes, offset, length);
+      metadata.frameId = readUint32Xor(trailer, offset, length);
       foundAny = true;
     }
 
@@ -133,10 +186,202 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   }
 
   if (!foundAny) {
-    return { data: bytes };
+    return undefined;
   }
 
-  return { data: strippedData, metadata };
+  return metadata;
+}
+
+function appendAv1PacketTrailer(data: Uint8Array, trailer: Uint8Array): Uint8Array {
+  const obu = buildAv1MetadataObu(trailer);
+  if (data.length === 0) {
+    return obu;
+  }
+
+  const insertOffset = findAv1MetadataInsertOffset(data);
+  const result = new Uint8Array(data.length + obu.length);
+  result.set(data.subarray(0, insertOffset));
+  result.set(obu, insertOffset);
+  result.set(data.subarray(insertOffset), insertOffset + obu.length);
+  return result;
+}
+
+function buildAv1MetadataObu(trailer: Uint8Array): Uint8Array {
+  const metadataType = writeLeb128(AV1_METADATA_TYPE_LIVEKIT_PACKET_TRAILER);
+  const metadataPayload = new Uint8Array(metadataType.length + trailer.length);
+  metadataPayload.set(metadataType);
+  metadataPayload.set(trailer, metadataType.length);
+
+  const payloadSize = writeLeb128(metadataPayload.length);
+  const obu = new Uint8Array(1 + payloadSize.length + metadataPayload.length);
+  let offset = 0;
+  obu[offset++] = (AV1_OBU_TYPE_METADATA << 3) | AV1_OBU_SIZE_PRESENT_BIT;
+  obu.set(payloadSize, offset);
+  offset += payloadSize.length;
+  obu.set(metadataPayload, offset);
+  return obu;
+}
+
+function findAv1MetadataInsertOffset(data: Uint8Array): number {
+  let pos = 0;
+  let insertOffset = 0;
+
+  while (pos < data.length) {
+    const obuStart = pos;
+    const obuHeader = data[pos++];
+    if ((obuHeader & 0x80) !== 0) {
+      return 0;
+    }
+
+    const obuType = (obuHeader & AV1_OBU_TYPE_MASK) >> 3;
+    if ((obuHeader & AV1_OBU_EXTENSION_FLAG) !== 0) {
+      if (pos >= data.length) {
+        return 0;
+      }
+      pos += 1;
+    }
+
+    let payloadSize = data.length - pos;
+    if ((obuHeader & AV1_OBU_SIZE_PRESENT_BIT) !== 0) {
+      const leb = readLeb128(data, pos);
+      if (!leb || leb.value > data.length - leb.offset) {
+        return 0;
+      }
+      pos = leb.offset;
+      payloadSize = leb.value;
+    }
+
+    const obuEnd = pos + payloadSize;
+    if (obuType === AV1_OBU_TYPE_TEMPORAL_DELIMITER) {
+      pos = obuEnd;
+      continue;
+    }
+
+    if (obuType !== AV1_OBU_TYPE_SEQUENCE_HEADER) {
+      break;
+    }
+
+    insertOffset = obuEnd;
+    pos = obuEnd;
+
+    if ((data[obuStart] & AV1_OBU_SIZE_PRESENT_BIT) === 0) {
+      break;
+    }
+  }
+
+  return insertOffset;
+}
+
+function extractAv1PacketTrailer(data: Uint8Array): ExtractPacketTrailerResult {
+  const strippedChunks: Uint8Array[] = [];
+  let strippedLength = 0;
+  let pos = 0;
+
+  while (pos < data.length) {
+    const obuStart = pos;
+    const obuHeader = data[pos++];
+    if ((obuHeader & 0x80) !== 0) {
+      return { data };
+    }
+
+    const obuType = (obuHeader & AV1_OBU_TYPE_MASK) >> 3;
+    if ((obuHeader & AV1_OBU_EXTENSION_FLAG) !== 0) {
+      if (pos >= data.length) {
+        return { data };
+      }
+      pos += 1;
+    }
+
+    let payloadSize = data.length - pos;
+    if ((obuHeader & AV1_OBU_SIZE_PRESENT_BIT) !== 0) {
+      const leb = readLeb128(data, pos);
+      if (!leb || leb.value > data.length - leb.offset) {
+        return { data };
+      }
+      pos = leb.offset;
+      payloadSize = leb.value;
+    }
+
+    const payloadStart = pos;
+    const obuEnd = payloadStart + payloadSize;
+
+    if (obuType === AV1_OBU_TYPE_METADATA) {
+      const metadataPayload = data.subarray(payloadStart, obuEnd);
+      const metadataType = readLeb128(metadataPayload, 0);
+      if (
+        metadataType &&
+        metadataType.value === AV1_METADATA_TYPE_LIVEKIT_PACKET_TRAILER &&
+        metadataType.offset <= metadataPayload.length
+      ) {
+        const metadata = parsePacketTrailerPayload(metadataPayload.subarray(metadataType.offset));
+        if (metadata) {
+          const remaining = data.subarray(obuEnd);
+          strippedChunks.push(remaining);
+          strippedLength += remaining.length;
+          return { data: concatUint8Arrays(strippedChunks, strippedLength), metadata };
+        }
+      }
+    }
+
+    const chunk = data.subarray(obuStart, obuEnd);
+    strippedChunks.push(chunk);
+    strippedLength += chunk.length;
+    pos = obuEnd;
+  }
+
+  return { data };
+}
+
+function concatUint8Arrays(chunks: Uint8Array[], length: number): Uint8Array {
+  const result = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+function writeLeb128(value: number): Uint8Array {
+  const bytes: number[] = [];
+  let remaining = value;
+  do {
+    let byte = remaining & 0x7f;
+    remaining = Math.floor(remaining / 0x80);
+    if (remaining > 0) {
+      byte |= 0x80;
+    }
+    bytes.push(byte);
+  } while (remaining > 0);
+
+  return Uint8Array.from(bytes);
+}
+
+function readLeb128(
+  data: Uint8Array,
+  offset: number,
+): { value: number; offset: number } | undefined {
+  let value = 0;
+  let multiplier = 1;
+  let pos = offset;
+
+  for (let bytes = 0; bytes < 8; bytes += 1) {
+    if (pos >= data.length) {
+      return undefined;
+    }
+
+    const byte = data[pos++];
+    value += (byte & 0x7f) * multiplier;
+    if (value > Number.MAX_SAFE_INTEGER) {
+      return undefined;
+    }
+    if ((byte & 0x80) === 0) {
+      return { value, offset: pos };
+    }
+    multiplier *= 0x80;
+  }
+
+  return undefined;
 }
 
 function matchesMagic(data: Uint8Array, offset: number) {
@@ -244,12 +489,13 @@ export interface ProcessPacketTrailerResult {
 export function processPacketTrailer(
   frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
   trackId: string | undefined,
+  codec?: VideoCodec,
 ): ProcessPacketTrailerResult {
   if (frame.data.byteLength === 0) {
     return {};
   }
 
-  const result = extractPacketTrailer(frame.data);
+  const result = extractPacketTrailer(frame.data, codec);
   if (!result.metadata) {
     return {};
   }

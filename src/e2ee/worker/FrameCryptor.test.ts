@@ -564,6 +564,42 @@ describe('FrameCryptor', () => {
       }
     });
 
+    it('posts AV1 packet trailer metadata from custom metadata OBUs', async () => {
+      vitest.useFakeTimers();
+      try {
+        const { cryptor, input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+        const postMessage = vitest.fn();
+        vitest.stubGlobal('postMessage', postMessage);
+        encryptionEnabledMap.set(participantIdentity, false);
+        cryptor.setHasPacketTrailer(true);
+        cryptor.setVideoCodec('av1');
+
+        const payload = Uint8Array.from([0x32, 0x02, 0x01, 0x02]);
+        const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456n, 42, 'av1');
+        const frame = mockRTCEncodedVideoFrame(trailer);
+
+        input.write(frame);
+        await vitest.advanceTimersToNextTimerAsync();
+
+        expect(new Uint8Array(output.chunks[0].data)).toEqual(payload);
+        expect(postMessage).toHaveBeenCalledWith({
+          kind: 'packetTrailerMetadata',
+          data: {
+            trackId: 'testTrack',
+            rtpTimestamp: frame.timestamp,
+            ssrc: 0,
+            metadata: {
+              userTimestamp: 1_744_249_600_123_456n,
+              frameId: 42,
+            },
+          },
+        });
+      } finally {
+        vitest.unstubAllGlobals();
+        vitest.useRealTimers();
+      }
+    });
+
     it('recovers from delayed use of rotated key', async () => {
       vitest.useFakeTimers();
       try {

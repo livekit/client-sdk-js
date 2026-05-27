@@ -181,6 +181,40 @@ describe('RTCEngine', () => {
     );
   });
 
+  it('passes sender video codec to the packet trailer worker', () => {
+    stubInsertableStreamsSupport();
+
+    const worker = { postMessage: vi.fn() } as unknown as Worker;
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker },
+    });
+    const readable = {} as ReadableStream;
+    const writable = {} as WritableStream;
+    const createEncodedStreams = vi.fn(() => ({ readable, writable }));
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    setupPacketTrailerSender(engine, sender, {
+      packetTrailer: { timestamp: true },
+      videoCodec: 'av1',
+    });
+
+    expect(worker.postMessage).toHaveBeenCalledWith(
+      {
+        kind: 'encode',
+        data: {
+          readableStream: readable,
+          writableStream: writable,
+          packetTrailer: { timestamp: true },
+          codec: 'av1',
+        },
+      },
+      [readable, writable],
+    );
+  });
+
   it('uses RTCRtpScriptTransform for sender packet trailer writes when supported', () => {
     stubScriptTransformSupport();
 

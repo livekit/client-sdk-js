@@ -496,7 +496,12 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.packetTrailerFrameId =
         this.packetTrailerFrameId === 0xffffffff ? 1 : this.packetTrailerFrameId + 1;
     }
-    appendPacketTrailerToEncodedFrame(encodedFrame, this.packetTrailer, this.packetTrailerFrameId);
+    appendPacketTrailerToEncodedFrame(
+      encodedFrame,
+      this.packetTrailer,
+      this.packetTrailerFrameId,
+      this.getPacketTrailerCodec(encodedFrame),
+    );
   }
 
   /**
@@ -511,7 +516,11 @@ export class FrameCryptor extends BaseFrameCryptor {
   ) {
     if (this.hasPacketTrailer && isVideoFrame(encodedFrame)) {
       try {
-        const ptResult = processPacketTrailer(encodedFrame, this.trackId);
+        const ptResult = processPacketTrailer(
+          encodedFrame,
+          this.trackId,
+          this.getPacketTrailerCodec(encodedFrame),
+        );
         if (ptResult.data) {
           encodedFrame.data = ptResult.data;
         }
@@ -827,6 +836,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
+  }
+
+  private getPacketTrailerCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    try {
+      return this.getVideoCodec(frame) ?? this.detectedCodec ?? this.videoCodec;
+    } catch {
+      return this.detectedCodec ?? this.videoCodec;
+    }
   }
 }
 
