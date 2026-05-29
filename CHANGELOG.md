@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.19.1
+
+### Patch Changes
+
+- Disable publisher offer with join in firefox - [#1954](https://github.com/livekit/client-sdk-js/pull/1954) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Fix memory leak where the constructor-registered `devicechange` listener on `navigator.mediaDevices` was not removed when a `Room` was constructed but never connected. The listener kept the `Room` instance reachable from the global `navigator.mediaDevices` EventTarget, defeating the `FinalizationRegistry` cleanup. - [#1944](https://github.com/livekit/client-sdk-js/pull/1944) ([@nikhilgupta58](https://github.com/nikhilgupta58))
+
+- Ensure that client protocol is set in the dual peer connection case - [#1942](https://github.com/livekit/client-sdk-js/pull/1942) ([@1egoman](https://github.com/1egoman))
+
 ## 2.19.0
 
 ### Minor Changes
