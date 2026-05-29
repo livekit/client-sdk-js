@@ -1,0 +1,25 @@
+name: 'validate-dts-against-old-typescript'
+permissions:
+  contents: read
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  validate-dts-against-old-typescript:
+    runs-on: ubuntu-latest
+    env:
+      CI_JOB_NUMBER: 1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Validates that livekit-client can be parsed in a typescript 4.8 project
+        run: pnpm validate-dts-against-old-typescript 4.8
