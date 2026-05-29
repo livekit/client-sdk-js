@@ -6,6 +6,7 @@ import type {
   VideoCaptureOptions,
 } from './track/options';
 import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
+import { isFireFox } from './utils';
 
 export const defaultVideoCodec = 'vp8';
 
@@ -42,7 +43,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
   webAudioMix: false,
-  singlePeerConnection: true,
+  singlePeerConnection: !isFireFox(),
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
