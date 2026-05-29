@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Disable single pc mode in firefox by default
+Disable publisher offer with join in firefox
