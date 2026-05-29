@@ -794,3 +794,8 @@ export function extractMaxAgeFromRequestHeaders(headers: Headers): number | unde
 export function isCompressionStreamSupported() {
   return typeof CompressionStream !== 'undefined';
 }
+
+export function isPublisherOfferWithJoinSupported() {
+  // we have connectivity issue about publisher offer with join on firefox #1919
+  return isCompressionStreamSupported() && !isFireFox();
+}
