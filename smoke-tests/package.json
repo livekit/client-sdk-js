@@ -16,11 +16,11 @@
     "livekit-client": "file:./livekit-client.tgz"
   },
   "devDependencies": {
-    "@playwright/test": "1.49.1",
+    "@playwright/test": "1.60.0",
     "playwright": "1.60.0",
     "http-server": "14.1.1",
-    "vite": "7.3.2",
-    "webpack": "5.104.1",
+    "vite": "7.3.3",
+    "webpack": "5.106.2",
     "webpack-cli": "5.1.4"
   }
 }
