@@ -86,11 +86,14 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
 
     const completionFuture = new Future<string, RpcError>();
 
+    let responseTimeoutId: ReturnType<typeof setTimeout> | null = null;
     const ackTimeoutId = setTimeout(() => {
       this.pendingAcks.delete(id);
       completionFuture.reject?.(RpcError.builtIn('CONNECTION_TIMEOUT'));
       this.pendingResponses.delete(id);
-      clearTimeout(responseTimeoutId);
+      if (responseTimeoutId !== null) {
+        clearTimeout(responseTimeoutId);
+      }
     }, maxRoundTripLatencyMs);
 
     this.pendingAcks.set(id, {
@@ -114,7 +117,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       remoteClientProtocol,
     );
 
-    const responseTimeoutId = setTimeout(() => {
+    responseTimeoutId = setTimeout(() => {
       this.pendingResponses.delete(id);
       completionFuture.reject?.(RpcError.builtIn('RESPONSE_TIMEOUT'));
     }, responseTimeoutMs);
