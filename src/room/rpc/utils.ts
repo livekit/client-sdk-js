@@ -15,6 +15,7 @@ export interface PerformRpcParams {
    * Default: 15000ms.
    */
   responseTimeout?: number;
+  maxRoundTripLatency?: number;
 }
 
 /**

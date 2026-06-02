@@ -61,8 +61,8 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     method,
     payload,
     responseTimeout: responseTimeoutMs = 15000,
+    maxRoundTripLatency: maxRoundTripLatencyMs = 7000,
   }: PerformRpcParams): Promise<[id: string, completionPromise: Promise<string>]> {
-    const maxRoundTripLatencyMs = 7000;
     const minEffectiveTimeoutMs = maxRoundTripLatencyMs + 1000;
 
     const remoteClientProtocol = this.getRemoteParticipantClientProtocol(destinationIdentity);
