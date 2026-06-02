@@ -760,6 +760,35 @@ const appActions = {
     }
   },
 
+  // Send a burst of reliable data to back up the SFU's per-subscriber reliable buffer.
+  // Run this from the SENDER while the RECEIVER has throttled subscriber bandwidth, to
+  // reproduce the head-of-line / slow-reader drop that times out RPCs in production.
+  floodReliableData: async () => {
+    if (!currentRoom) {
+      appendLog('floodReliableData failed: room not connected');
+      return;
+    }
+    const PACKET_SIZE = 8 * 1024; // 8 KB per packet
+    const PACKET_COUNT = 400; // ~3.2 MB total
+    const payload = new Uint8Array(PACKET_SIZE);
+    const button = $('flood-data-button');
+    button.setAttribute('disabled', 'true');
+    appendLog(`flooding reliable data: ${PACKET_COUNT} x ${PACKET_SIZE} bytes`);
+    try {
+      for (let i = 0; i < PACKET_COUNT; i += 1) {
+        await currentRoom.localParticipant.publishData(payload, {
+          reliable: true,
+          topic: 'flood',
+        });
+      }
+      appendLog('flood complete');
+    } catch (e) {
+      appendLog('flood error (send buffer likely backed up):', e);
+    } finally {
+      button.removeAttribute('disabled');
+    }
+  },
+
   handleDeviceSelected: async (e: Event) => {
     const deviceId = (<HTMLSelectElement>e.target).value;
     const elementId = (<HTMLSelectElement>e.target).id;

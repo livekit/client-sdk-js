@@ -217,6 +217,14 @@
                 <option value="leave-full-reconnect">Leave Request Full Reconnect</option>
               </select>
               <button
+                id="flood-data-button"
+                class="btn btn-warning mt-1"
+                type="button"
+                onclick="appActions.floodReliableData()"
+              >
+                Flood reliable data
+              </button>
+              <button
                 id="disconnect-room-button"
                 class="btn btn-danger mt-1"
                 disabled
