@@ -1746,20 +1746,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       this.on(EngineEvent.Closing, handleClosed);
       this.on(EngineEvent.Restarting, handleClosed);
-
-      this.pcManager.publisher.once(
-        PCEvents.RTPVideoPayloadTypes,
-        (rtpTypes: MediaAttributes['rtp']) => {
-          const rtpMap = new Map<number, VideoCodec>();
-          rtpTypes.forEach((rtp) => {
-            const codec = rtp.codec.toLowerCase();
-            if (isVideoCodec(codec)) {
-              rtpMap.set(rtp.payload, codec);
-            }
-          });
-          this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
-        },
-      );
+      this.pcManager.publisher.off(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
+      this.pcManager.publisher.once(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
 
       try {
         await this.pcManager.negotiate(abortController);
@@ -1905,6 +1893,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // debugging method to fail the next connection attempt for /rtc/v1 to trigger the fallback version
     this.shouldFailOnV1Path = true;
   }
+
+  private onRtpMapAvailable = (rtpTypes: MediaAttributes['rtp']) => {
+    const rtpMap = new Map<number, VideoCodec>();
+    rtpTypes.forEach((rtp) => {
+      const codec = rtp.codec.toLowerCase();
+      if (isVideoCodec(codec)) {
+        rtpMap.set(rtp.payload, codec);
+      }
+    });
+    this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+  };
 
   private dataChannelsInfo(): DataChannelInfo[] {
     const infos: DataChannelInfo[] = [];

@@ -8,7 +8,8 @@ import {
 } from '../../packetTrailer/packetTrailer';
 import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
 import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
-import type { VideoCodec } from '../../room/track/options';
+import { type VideoCodec, videoCodecs } from '../../room/track/options';
+import { mimeTypeToVideoCodecString } from '../../room/track/utils';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
@@ -105,6 +106,12 @@ export class FrameCryptor extends BaseFrameCryptor {
   private readonly MAX_ERRORS_PER_MINUTE = 5; // Maximum errors to emit per minute per key
 
   private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
+
+  /**
+   * Tracks (participant, trackId, payloadType) tuples for which we've already logged a NALU
+   * fallback, so a persistent bad state doesn't flood the console (Firefox doesn't filter debug).
+   */
+  private loggedNALUFallbacks: Set<string> = new Set();
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
@@ -795,22 +802,23 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
 
     // Try NALU processing for H.264/H.265 codecs
+    const payloadType = frame.getMetadata().payloadType;
+    const fallbackKey = `${this.participantIdentity}-${this.trackId}-${payloadType}`;
     try {
       const knownCodec =
         detectedCodec === 'h264' || detectedCodec === 'h265' ? detectedCodec : undefined;
       const naluResult = processNALUsForEncryption(new Uint8Array(frame.data), knownCodec);
 
       if (naluResult.requiresNALUProcessing) {
+        // Recovered for this tuple, allow a future failure to log again.
+        this.loggedNALUFallbacks.delete(fallbackKey);
         return {
           unencryptedBytes: naluResult.unencryptedBytes,
           requiresNALUProcessing: true,
         };
       }
     } catch (e) {
-      workerLogger.debug('NALU processing failed, falling back to VP8 handling', {
-        error: e,
-        ...this.logContext,
-      });
+      this.logNALUFallbackOnce(fallbackKey, payloadType, e);
     }
 
     // Fallback to VP8 handling
@@ -818,13 +826,40 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   /**
-   * inspects frame payloadtype if available and maps it to the codec specified in rtpMap
+   * Logs a NALU processing fallback at most once per (participant, trackId, payloadType) tuple,
+   * so a persistent bad state doesn't flood the console (Firefox doesn't filter debug).
+   */
+  private logNALUFallbackOnce(
+    fallbackKey: string,
+    payloadType: number | undefined,
+    error: unknown,
+  ) {
+    if (this.loggedNALUFallbacks.has(fallbackKey)) {
+      return;
+    }
+    this.loggedNALUFallbacks.add(fallbackKey);
+    workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
+      error,
+      payloadType,
+      ...this.logContext,
+    });
+  }
+
+  /**
+   * inspects frame mimetype if available. falls back to payloadtype and maps it to the codec specified in rtpMap
    */
   private getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    const metadata = frame.getMetadata();
+    if (metadata.mimeType) {
+      const maybeKnownCodec = mimeTypeToVideoCodecString(metadata.mimeType);
+      if (videoCodecs.includes(maybeKnownCodec)) {
+        return maybeKnownCodec;
+      }
+    }
     if (this.rtpMap.size === 0) {
       return undefined;
     }
-    const payloadType = frame.getMetadata().payloadType;
+    const payloadType = metadata.payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
