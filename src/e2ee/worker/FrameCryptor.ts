@@ -8,7 +8,8 @@ import {
 } from '../../packetTrailer/packetTrailer';
 import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
 import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
-import type { VideoCodec } from '../../room/track/options';
+import { type VideoCodec, videoCodecs } from '../../room/track/options';
+import { mimeTypeToVideoCodecString } from '../../room/track/utils';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
@@ -818,13 +819,20 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   /**
-   * inspects frame payloadtype if available and maps it to the codec specified in rtpMap
+   * inspects frame mimetype if available. falls back to payloadtype and maps it to the codec specified in rtpMap
    */
   private getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    const metadata = frame.getMetadata();
+    if (metadata.mimeType) {
+      const maybeKnownCodec = mimeTypeToVideoCodecString(metadata.mimeType);
+      if (videoCodecs.includes(maybeKnownCodec)) {
+        return maybeKnownCodec;
+      }
+    }
     if (this.rtpMap.size === 0) {
       return undefined;
     }
-    const payloadType = frame.getMetadata().payloadType;
+    const payloadType = metadata.payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
