@@ -107,6 +107,12 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
 
+  /**
+   * Tracks (participant, trackId, payloadType) tuples for which we've already logged a NALU
+   * fallback, so a persistent bad state doesn't flood the console (Firefox doesn't filter debug).
+   */
+  private loggedNALUFallbacks: Set<string> = new Set();
+
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantIdentity: string;
@@ -796,22 +802,30 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
 
     // Try NALU processing for H.264/H.265 codecs
+    const payloadType = frame.getMetadata().payloadType;
+    const fallbackKey = `${this.participantIdentity}-${this.trackId}-${payloadType}`;
     try {
       const knownCodec =
         detectedCodec === 'h264' || detectedCodec === 'h265' ? detectedCodec : undefined;
       const naluResult = processNALUsForEncryption(new Uint8Array(frame.data), knownCodec);
 
       if (naluResult.requiresNALUProcessing) {
+        // Recovered for this tuple, allow a future failure to log again.
+        this.loggedNALUFallbacks.delete(fallbackKey);
         return {
           unencryptedBytes: naluResult.unencryptedBytes,
           requiresNALUProcessing: true,
         };
       }
     } catch (e) {
-      workerLogger.debug('NALU processing failed, falling back to VP8 handling', {
-        error: e,
-        ...this.logContext,
-      });
+      if (!this.loggedNALUFallbacks.has(fallbackKey)) {
+        this.loggedNALUFallbacks.add(fallbackKey);
+        workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
+          error: e,
+          payloadType,
+          ...this.logContext,
+        });
+      }
     }
 
     // Fallback to VP8 handling
