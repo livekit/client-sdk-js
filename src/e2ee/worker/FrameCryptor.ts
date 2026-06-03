@@ -818,18 +818,31 @@ export class FrameCryptor extends BaseFrameCryptor {
         };
       }
     } catch (e) {
-      if (!this.loggedNALUFallbacks.has(fallbackKey)) {
-        this.loggedNALUFallbacks.add(fallbackKey);
-        workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
-          error: e,
-          payloadType,
-          ...this.logContext,
-        });
-      }
+      this.logNALUFallbackOnce(fallbackKey, payloadType, e);
     }
 
     // Fallback to VP8 handling
     return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
+  }
+
+  /**
+   * Logs a NALU processing fallback at most once per (participant, trackId, payloadType) tuple,
+   * so a persistent bad state doesn't flood the console (Firefox doesn't filter debug).
+   */
+  private logNALUFallbackOnce(
+    fallbackKey: string,
+    payloadType: number | undefined,
+    error: unknown,
+  ) {
+    if (this.loggedNALUFallbacks.has(fallbackKey)) {
+      return;
+    }
+    this.loggedNALUFallbacks.add(fallbackKey);
+    workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
+      error,
+      payloadType,
+      ...this.logContext,
+    });
   }
 
   /**
