@@ -6,6 +6,7 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { type StructuredLogger } from '../../../logger';
+import { CLIENT_PROTOCOL_DATA_STREAM_V2 } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import { DataChannelKind } from '../../RTCEngine';
 import { EngineEvent } from '../../events';
@@ -35,9 +36,18 @@ export default class OutgoingDataStreamManager {
 
   protected log: StructuredLogger;
 
-  constructor(engine: RTCEngine, log: StructuredLogger) {
+  /** Returns the advertised client protocol of a remote participant, used to decide whether a
+   * recipient can receive single-packet (inline) data streams. */
+  protected getRemoteParticipantClientProtocol: (identity: string) => number;
+
+  constructor(
+    engine: RTCEngine,
+    log: StructuredLogger,
+    getRemoteParticipantClientProtocol: (identity: string) => number,
+  ) {
     this.engine = engine;
     this.log = log;
+    this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
   }
 
   setupEngine(engine: RTCEngine) {
@@ -102,9 +112,24 @@ export default class OutgoingDataStreamManager {
   }
 
   /**
+   * Returns true only if every recipient is known to support single-packet (inline) data streams.
+   * Broadcasts (no explicit destination identities) can't be guaranteed, so they are not eligible.
+   */
+  private canSendInline(destinationIdentities?: Array<string>): boolean {
+    if (!destinationIdentities || destinationIdentities.length === 0) {
+      return false;
+    }
+    return destinationIdentities.every(
+      (identity) =>
+        this.getRemoteParticipantClientProtocol(identity) >= CLIENT_PROTOCOL_DATA_STREAM_V2,
+    );
+  }
+
+  /**
    * Attempts to send `text` as a single header packet with the payload smuggled into a reserved
-   * attribute. Returns the resulting {@link TextStreamInfo} if it fit under the MTU, or `undefined`
-   * if the caller should fall back to the regular chunked stream.
+   * attribute. Returns the resulting {@link TextStreamInfo} if it was sent inline, or `null` if the
+   * caller should fall back to the regular chunked stream (recipient doesn't support data streams
+   * v2, or the payload is too large to fit under the MTU).
    */
   private async trySendInlineText(
     streamId: string,
@@ -112,6 +137,10 @@ export default class OutgoingDataStreamManager {
     totalTextLength: number,
     options?: SendTextOptions,
   ): Promise<TextStreamInfo | null> {
+    if (!this.canSendInline(options?.destinationIdentities)) {
+      return null;
+    }
+
     const info: TextStreamInfo = {
       id: streamId,
       mimeType: 'text/plain',
