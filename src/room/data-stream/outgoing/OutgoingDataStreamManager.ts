@@ -24,7 +24,7 @@ import type {
 import { numberToBigInt, splitUtf8 } from '../../utils';
 import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
 
-const STREAM_CHUNK_SIZE = 15_000;
+const STREAM_CHUNK_SIZE_BYTES = 15_000;
 
 /**
  * Manages sending custom user data via data channels.
@@ -145,7 +145,7 @@ export default class OutgoingDataStreamManager {
     const writableStream = new WritableStream<string>({
       // Implement the sink
       async write(text) {
-        for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE)) {
+        for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE_BYTES)) {
           const chunk = new DataStream_Chunk({
             content: textByteChunk,
             streamId,
@@ -276,7 +276,7 @@ export default class OutgoingDataStreamManager {
         let byteOffset = 0;
         try {
           while (byteOffset < chunk.byteLength) {
-            const subChunk = chunk.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE);
+            const subChunk = chunk.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE_BYTES);
             const chunkPacket = new DataPacket({
               destinationIdentities,
               value: {
