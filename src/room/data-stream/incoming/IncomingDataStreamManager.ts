@@ -8,7 +8,8 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
+import { bigIntToNumber, decodeBase64 } from '../../utils';
+import { INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -156,6 +157,23 @@ export default class IncomingDataStreamManager {
         attributes: streamHeader.attributes,
         encryptionType,
       };
+
+      // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+      // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+      const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
+      if (typeof inlinePayload !== 'undefined') {
+        delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+        streamHandlerCallback(
+          new ByteStreamReader(
+            info,
+            createInlineStream(streamHeader.streamId, decodeBase64(inlinePayload)),
+            bigIntToNumber(streamHeader.totalLength),
+          ),
+          { identity: participantIdentity },
+        );
+        return;
+      }
+
       const stream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
@@ -203,6 +221,22 @@ export default class IncomingDataStreamManager {
         encryptionType,
         attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
       };
+
+      // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+      // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+      const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
+      if (typeof inlinePayload !== 'undefined') {
+        delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+        streamHandlerCallback(
+          new TextStreamReader(
+            info,
+            createInlineStream(streamHeader.streamId, new TextEncoder().encode(inlinePayload)),
+            bigIntToNumber(streamHeader.totalLength),
+          ),
+          { identity: participantIdentity },
+        );
+        return;
+      }
 
       const stream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
@@ -294,4 +328,22 @@ export default class IncomingDataStreamManager {
       this.byteStreamControllers.delete(trailer.streamId);
     }
   }
+}
+
+/**
+ * Builds a `ReadableStream` that yields the given content as a single chunk and then immediately
+ * closes - used to surface an inline (single-packet) data stream as a fully-formed stream.
+ */
+function createInlineStream(
+  streamId: string,
+  content: Uint8Array,
+): ReadableStream<DataStream_Chunk> {
+  return new ReadableStream<DataStream_Chunk>({
+    start: (controller) => {
+      controller.enqueue(
+        new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content }),
+      );
+      controller.close();
+    },
+  });
 }

@@ -1,11 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   DataPacket,
-  DataStream_ByteHeader,
   DataStream_Chunk,
-  DataStream_Header,
-  DataStream_OperationType,
-  DataStream_TextHeader,
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
@@ -22,9 +18,13 @@ import type {
   TextStreamInfo,
 } from '../../types';
 import { numberToBigInt, splitUtf8 } from '../../utils';
+import { INLINE_PAYLOAD_ATTRIBUTE, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
-
-const STREAM_CHUNK_SIZE_BYTES = 15_000;
+import {
+  buildByteStreamHeader,
+  buildTextStreamHeader,
+  createStreamHeaderPacket,
+} from './header-utils';
 
 /**
  * Manages sending custom user data via data channels.
@@ -49,6 +49,16 @@ export default class OutgoingDataStreamManager {
     const streamId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalTextLength = textInBytes.byteLength;
+
+    // Fast path: when the full payload is known up front, there are no attachments, and the
+    // payload fits (with header overhead) under the MTU, smuggle it into a reserved header
+    // attribute and send a single `streamHeader` packet - no chunk/trailer packets.
+    if (!options?.attachments || options.attachments.length === 0) {
+      const inlineInfo = await this.trySendInlineText(streamId, text, totalTextLength, options);
+      if (inlineInfo) {
+        return inlineInfo;
+      }
+    }
 
     const fileIds = options?.attachments?.map(() => crypto.randomUUID());
 
@@ -92,6 +102,44 @@ export default class OutgoingDataStreamManager {
   }
 
   /**
+   * Attempts to send `text` as a single header packet with the payload smuggled into a reserved
+   * attribute. Returns the resulting {@link TextStreamInfo} if it fit under the MTU, or `undefined`
+   * if the caller should fall back to the regular chunked stream.
+   */
+  private async trySendInlineText(
+    streamId: string,
+    text: string,
+    totalTextLength: number,
+    options?: SendTextOptions,
+  ): Promise<TextStreamInfo | null> {
+    const info: TextStreamInfo = {
+      id: streamId,
+      mimeType: 'text/plain',
+      timestamp: Date.now(),
+      topic: options?.topic ?? '',
+      size: totalTextLength,
+      attributes: options?.attributes,
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
+    };
+
+    const header = buildTextStreamHeader({
+      ...info,
+      attributes: { ...info.attributes, [INLINE_PAYLOAD_ATTRIBUTE]: text },
+    });
+    const packet = createStreamHeaderPacket(header, options?.destinationIdentities);
+
+    if (packet.toBinary().byteLength > STREAM_CHUNK_SIZE_BYTES) {
+      return null;
+    }
+
+    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    options?.onProgress?.(1);
+    return info;
+  }
+
+  /**
    * @internal
    */
   async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
@@ -109,34 +157,9 @@ export default class OutgoingDataStreamManager {
         : Encryption_Type.NONE,
       attachedStreamIds: options?.attachedStreamIds,
     };
-    const header = new DataStream_Header({
-      streamId,
-      mimeType: info.mimeType,
-      topic: info.topic,
-      timestamp: numberToBigInt(info.timestamp),
-      totalLength: numberToBigInt(info.size),
-      attributes: info.attributes,
-      contentHeader: {
-        case: 'textHeader',
-        value: new DataStream_TextHeader({
-          version: options?.version,
-          attachedStreamIds: info.attachedStreamIds,
-          replyToStreamId: options?.replyToStreamId,
-          operationType:
-            options?.type === 'update'
-              ? DataStream_OperationType.UPDATE
-              : DataStream_OperationType.CREATE,
-        }),
-      },
-    });
+    const header = buildTextStreamHeader(info, options);
     const destinationIdentities = options?.destinationIdentities;
-    const packet = new DataPacket({
-      destinationIdentities,
-      value: {
-        case: 'streamHeader',
-        value: header,
-      },
-    });
+    const packet = createStreamHeaderPacket(header, destinationIdentities);
     await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
     let chunkId = 0;
@@ -239,28 +262,8 @@ export default class OutgoingDataStreamManager {
         : Encryption_Type.NONE,
     };
 
-    const header = new DataStream_Header({
-      totalLength: numberToBigInt(info.size),
-      mimeType: info.mimeType,
-      streamId,
-      topic: info.topic,
-      timestamp: numberToBigInt(Date.now()),
-      attributes: info.attributes,
-      contentHeader: {
-        case: 'byteHeader',
-        value: new DataStream_ByteHeader({
-          name: info.name,
-        }),
-      },
-    });
-
-    const packet = new DataPacket({
-      destinationIdentities,
-      value: {
-        case: 'streamHeader',
-        value: header,
-      },
-    });
+    const header = buildByteStreamHeader(info);
+    const packet = createStreamHeaderPacket(header, destinationIdentities);
 
     await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 
