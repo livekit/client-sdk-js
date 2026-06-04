@@ -22,6 +22,7 @@ describe('RpcServerManager', () => {
         {} as unknown as RTCEngine,
         log,
         (_identity) => CLIENT_PROTOCOL_DEFAULT,
+        () => [],
       );
 
       rpcServerManager = new RpcServerManager(
@@ -195,6 +196,7 @@ describe('RpcServerManager', () => {
         {} as unknown as RTCEngine,
         log,
         (_identity) => CLIENT_PROTOCOL_DATA_STREAM_V2,
+        () => [],
       );
 
       vi.spyOn(outgoingDataStreamManager, 'sendText').mockResolvedValue(undefined as any);
@@ -422,6 +424,7 @@ describe('RpcServerManager', () => {
         {} as unknown as RTCEngine,
         log,
         (_identity) => CLIENT_PROTOCOL_DEFAULT,
+        () => [],
       );
       const sendTextSpy = vi.spyOn(outgoingDataStreamManager, 'sendText');
 
