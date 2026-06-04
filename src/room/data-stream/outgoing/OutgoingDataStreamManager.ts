@@ -40,14 +40,20 @@ export default class OutgoingDataStreamManager {
    * recipient can receive single-packet (inline) data streams. */
   protected getRemoteParticipantClientProtocol: (identity: string) => number;
 
+  /** Returns the identities of every remote participant currently in the room, used to decide
+   * whether a broadcast (no explicit destinations) can be sent inline. */
+  protected getAllRemoteParticipantIdentities: () => Array<string>;
+
   constructor(
     engine: RTCEngine,
     log: StructuredLogger,
     getRemoteParticipantClientProtocol: (identity: string) => number,
+    getAllRemoteParticipantIdentities: () => Array<string>,
   ) {
     this.engine = engine;
     this.log = log;
     this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
+    this.getAllRemoteParticipantIdentities = getAllRemoteParticipantIdentities;
   }
 
   setupEngine(engine: RTCEngine) {
@@ -113,13 +119,16 @@ export default class OutgoingDataStreamManager {
 
   /**
    * Returns true only if every recipient is known to support single-packet (inline) data streams.
-   * Broadcasts (no explicit destination identities) can't be guaranteed, so they are not eligible.
+   * For a targeted send this checks the named destination identities; for a broadcast (no explicit
+   * destinations) it checks every remote participant currently in the room. An empty room (nobody
+   * to receive) is considered eligible.
    */
   private canSendInline(destinationIdentities?: Array<string>): boolean {
-    if (!destinationIdentities || destinationIdentities.length === 0) {
-      return false;
-    }
-    return destinationIdentities.every(
+    const identities =
+      destinationIdentities && destinationIdentities.length > 0
+        ? destinationIdentities
+        : this.getAllRemoteParticipantIdentities();
+    return identities.every(
       (identity) =>
         this.getRemoteParticipantClientProtocol(identity) >= CLIENT_PROTOCOL_DATA_STREAM_V2,
     );

@@ -272,6 +272,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine,
       this.log,
       this.getRemoteParticipantClientProtocol,
+      this.getAllRemoteParticipantIdentities,
     );
 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
@@ -2511,6 +2512,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
+  };
+
+  private getAllRemoteParticipantIdentities = () => {
+    return Array.from(this.remoteParticipants.keys());
   };
 
   private registerRpcDataStreamHandler() {
