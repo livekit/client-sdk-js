@@ -184,21 +184,11 @@ describe('RpcServerManager', () => {
   describe('v2 -> v2', () => {
     let rpcServerManager: RpcServerManager;
     let outgoingDataStreamManager: OutgoingDataStreamManager;
-    let mockStreamTextWriter: {
-      write: ReturnType<typeof vi.fn>;
-      close: ReturnType<typeof vi.fn>;
-    };
 
     beforeEach(() => {
       outgoingDataStreamManager = new OutgoingDataStreamManager({} as unknown as RTCEngine, log);
 
-      mockStreamTextWriter = {
-        write: vi.fn().mockResolvedValue(undefined),
-        close: vi.fn().mockResolvedValue(undefined),
-      };
-      vi.spyOn(outgoingDataStreamManager, 'streamText').mockResolvedValue(
-        mockStreamTextWriter as any,
-      );
+      vi.spyOn(outgoingDataStreamManager, 'sendText').mockResolvedValue(undefined as any);
 
       rpcServerManager = new RpcServerManager(
         log,
@@ -243,15 +233,14 @@ describe('RpcServerManager', () => {
 
       // The response should have been sent via data stream, not packet
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
-      expect(outgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+      expect(outgoingDataStreamManager.sendText).toHaveBeenCalledWith(
+        'response payload',
         expect.objectContaining({
           topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
           destinationIdentities: ['caller-identity'],
           attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
         }),
       );
-      expect(mockStreamTextWriter.write).toHaveBeenCalledWith('response payload');
-      expect(mockStreamTextWriter.close).toHaveBeenCalled();
     });
 
     it('should receive a large rpc request (> 15kb) and send a large response via data stream from a participant', async () => {
@@ -277,15 +266,14 @@ describe('RpcServerManager', () => {
 
       // The response should have been sent via data stream, not packet
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
-      expect(outgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+      expect(outgoingDataStreamManager.sendText).toHaveBeenCalledWith(
+        new Array(20_000).fill('B').join(''),
         expect.objectContaining({
           topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
           destinationIdentities: ['caller-identity'],
           attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
         }),
       );
-      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(new Array(20_000).fill('B').join(''));
-      expect(mockStreamTextWriter.close).toHaveBeenCalled();
     });
 
     it('should register an RPC method handler', async () => {
@@ -317,7 +305,7 @@ describe('RpcServerManager', () => {
 
       // Response goes via data stream, not packet
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
-      expect(outgoingDataStreamManager.streamText).toHaveBeenCalled();
+      expect(outgoingDataStreamManager.sendText).toHaveBeenCalled();
     });
 
     it('should catch and transform unhandled errors in the RPC method handler', async () => {
@@ -414,7 +402,7 @@ describe('RpcServerManager', () => {
       const errorResponse = errorEvent.packet.value.value.value.value;
       expect(errorResponse.code).toStrictEqual(RpcError.ErrorCode.UNSUPPORTED_METHOD);
 
-      expect(outgoingDataStreamManager.streamText).not.toHaveBeenCalled();
+      expect(outgoingDataStreamManager.sendText).not.toHaveBeenCalled();
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
     });
   });
@@ -425,7 +413,7 @@ describe('RpcServerManager', () => {
         {} as unknown as RTCEngine,
         log,
       );
-      const streamTextSpy = vi.spyOn(outgoingDataStreamManager, 'streamText');
+      const sendTextSpy = vi.spyOn(outgoingDataStreamManager, 'sendText');
 
       const rpcServerManager = new RpcServerManager(
         log,
@@ -457,7 +445,7 @@ describe('RpcServerManager', () => {
       assert(ackEvent.packet.value.case === 'rpcAck');
 
       // Response should be a v1 RpcResponse packet, not a data stream
-      expect(streamTextSpy).not.toHaveBeenCalled();
+      expect(sendTextSpy).not.toHaveBeenCalled();
       const responseEvent = await managerEvents.waitFor('sendDataPacket');
       assert(responseEvent.packet.value.case === 'rpcResponse');
       const rpcResponse = responseEvent.packet.value.value;

@@ -132,19 +132,13 @@ describe('RpcClientManager', () => {
 
   describe('v2 -> v2', () => {
     let rpcClientManager: RpcClientManager;
-    let mockStreamTextWriter: {
-      write: ReturnType<typeof vi.fn>;
-      close: ReturnType<typeof vi.fn>;
-    };
+    let sendTextMock: ReturnType<typeof vi.fn>;
     let mockOutgoingDataStreamManager: OutgoingDataStreamManager;
 
     beforeEach(() => {
-      mockStreamTextWriter = {
-        write: vi.fn().mockResolvedValue(undefined),
-        close: vi.fn().mockResolvedValue(undefined),
-      };
+      sendTextMock = vi.fn().mockResolvedValue(undefined);
       mockOutgoingDataStreamManager = {
-        streamText: vi.fn().mockResolvedValue(mockStreamTextWriter),
+        sendText: sendTextMock,
       } as unknown as OutgoingDataStreamManager;
 
       rpcClientManager = new RpcClientManager(
@@ -171,7 +165,8 @@ describe('RpcClientManager', () => {
       });
 
       // Verify the data stream was used with correct attributes
-      expect(mockOutgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+      expect(mockOutgoingDataStreamManager.sendText).toHaveBeenCalledWith(
+        'request-payload',
         expect.objectContaining({
           topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
@@ -182,8 +177,6 @@ describe('RpcClientManager', () => {
           }),
         }),
       );
-      expect(mockStreamTextWriter.write).toHaveBeenCalledWith('request-payload');
-      expect(mockStreamTextWriter.close).toHaveBeenCalled();
 
       // No packet should have been emitted
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
@@ -213,7 +206,8 @@ describe('RpcClientManager', () => {
       });
 
       // Verify the data stream was used with correct attributes
-      expect(mockOutgoingDataStreamManager.streamText).toHaveBeenCalledWith(
+      expect(mockOutgoingDataStreamManager.sendText).toHaveBeenCalledWith(
+        longPayload,
         expect.objectContaining({
           topic: RPC_REQUEST_DATA_STREAM_TOPIC,
           destinationIdentities: ['destination-identity'],
@@ -224,8 +218,6 @@ describe('RpcClientManager', () => {
           }),
         }),
       );
-      expect(mockStreamTextWriter.write).toHaveBeenCalledWith(longPayload);
-      expect(mockStreamTextWriter.close).toHaveBeenCalled();
 
       // No packet should have been emitted
       expect(managerEvents.areThereBufferedEvents('sendDataPacket')).toBe(false);
@@ -337,14 +329,14 @@ describe('RpcClientManager', () => {
     });
 
     it('should not drop ack and response that arrive before publish completes', async () => {
-      // Hold the publish path open by blocking writer.close() until we explicitly resolve it.
-      let resolveClose!: () => void;
-      const closeBlocked = new Promise<void>((resolve) => {
-        resolveClose = resolve;
+      // Hold the publish path open by blocking sendText() until we explicitly resolve it.
+      let resolveSend!: () => void;
+      const sendBlocked = new Promise<void>((resolve) => {
+        resolveSend = resolve;
       });
-      mockStreamTextWriter.close = vi.fn().mockReturnValue(closeBlocked);
+      sendTextMock.mockReturnValue(sendBlocked);
 
-      // Start performRpc but don't await its return yet. The synchronous prefix runs streamText.
+      // Start performRpc but don't await its return yet. The synchronous prefix runs sendText.
       const performRpcPromise = rpcClientManager.performRpc({
         destinationIdentity: 'destination-identity',
         method: 'test-method',
@@ -352,11 +344,10 @@ describe('RpcClientManager', () => {
         responseTimeout: 200,
       });
 
-      // streamText was called synchronously; pull the request id out of the attributes.
-      const streamTextCalls = (mockOutgoingDataStreamManager.streamText as ReturnType<typeof vi.fn>)
-        .mock.calls;
-      expect(streamTextCalls.length).toBe(1);
-      const requestId = streamTextCalls[0][0].attributes[RpcRequestAttrs.RPC_REQUEST_ID];
+      // sendText was called synchronously; pull the request id out of the attributes.
+      const sendTextCalls = sendTextMock.mock.calls;
+      expect(sendTextCalls.length).toBe(1);
+      const requestId = sendTextCalls[0][1].attributes[RpcRequestAttrs.RPC_REQUEST_ID];
 
       // Deliver ack and response BEFORE close() unblocks - the publish has not yet returned.
       rpcClientManager.handleIncomingRpcAck(requestId);
@@ -367,7 +358,7 @@ describe('RpcClientManager', () => {
       );
 
       // Now allow the publish path to complete.
-      resolveClose();
+      resolveSend();
 
       const [, completionPromise] = await performRpcPromise;
       await expect(completionPromise).resolves.toStrictEqual('response-payload');
