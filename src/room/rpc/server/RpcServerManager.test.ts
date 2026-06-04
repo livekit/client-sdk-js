@@ -2,7 +2,11 @@ import { RpcRequest } from '@livekit/protocol';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
-import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DEFAULT } from '../../../version';
+import {
+  CLIENT_PROTOCOL_DATA_STREAM_RPC,
+  CLIENT_PROTOCOL_DATA_STREAM_V2,
+  CLIENT_PROTOCOL_DEFAULT,
+} from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import { RPC_RESPONSE_DATA_STREAM_TOPIC, RpcError, RpcRequestAttrs } from '../utils';
@@ -17,6 +21,7 @@ describe('RpcServerManager', () => {
       const outgoingDataStreamManager = new OutgoingDataStreamManager(
         {} as unknown as RTCEngine,
         log,
+        (_identity) => CLIENT_PROTOCOL_DEFAULT,
       );
 
       rpcServerManager = new RpcServerManager(
@@ -186,7 +191,11 @@ describe('RpcServerManager', () => {
     let outgoingDataStreamManager: OutgoingDataStreamManager;
 
     beforeEach(() => {
-      outgoingDataStreamManager = new OutgoingDataStreamManager({} as unknown as RTCEngine, log);
+      outgoingDataStreamManager = new OutgoingDataStreamManager(
+        {} as unknown as RTCEngine,
+        log,
+        (_identity) => CLIENT_PROTOCOL_DATA_STREAM_V2,
+      );
 
       vi.spyOn(outgoingDataStreamManager, 'sendText').mockResolvedValue(undefined as any);
 
@@ -412,6 +421,7 @@ describe('RpcServerManager', () => {
       const outgoingDataStreamManager = new OutgoingDataStreamManager(
         {} as unknown as RTCEngine,
         log,
+        (_identity) => CLIENT_PROTOCOL_DEFAULT,
       );
       const sendTextSpy = vi.spyOn(outgoingDataStreamManager, 'sendText');
 

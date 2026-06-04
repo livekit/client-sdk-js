@@ -267,7 +267,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.maybeCreateEngine();
 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(
+      this.engine,
+      this.log,
+      this.getRemoteParticipantClientProtocol,
+    );
 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager

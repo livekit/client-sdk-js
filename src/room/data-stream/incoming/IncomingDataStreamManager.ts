@@ -340,9 +340,7 @@ function createInlineStream(
 ): ReadableStream<DataStream_Chunk> {
   return new ReadableStream<DataStream_Chunk>({
     start: (controller) => {
-      controller.enqueue(
-        new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content }),
-      );
+      controller.enqueue(new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content }));
       controller.close();
     },
   });

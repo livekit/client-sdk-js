@@ -16,6 +16,7 @@ describe('RpcClientManager', () => {
       const outgoingDataStreamManager = new OutgoingDataStreamManager(
         {} as unknown as RTCEngine,
         log,
+        (_identity) => CLIENT_PROTOCOL_DEFAULT,
       );
 
       rpcClientManager = new RpcClientManager(
