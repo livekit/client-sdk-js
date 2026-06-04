@@ -780,6 +780,25 @@ export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
   return result;
 }
 
+/** Encodes a byte array as a base64 string (suitable for embedding binary data in a string field). */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
+}
+
+/** Decodes a base64 string (as produced by {@link encodeBase64}) back into a byte array. */
+export function decodeBase64(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export function extractMaxAgeFromRequestHeaders(headers: Headers): number | undefined {
   const cacheControl = headers.get('Cache-Control');
   if (cacheControl) {
