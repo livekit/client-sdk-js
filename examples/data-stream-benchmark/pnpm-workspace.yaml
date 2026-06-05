@@ -1,0 +1,8 @@
+# This example installs standalone (its own pnpm workspace root), separate from the repo-root
+# workspace. Some pinned (dev) deps trip pnpm's supply-chain trust-downgrade check
+# (ERR_PNPM_TRUST_DOWNGRADE) under a strict global `trustPolicy: no-downgrade`. Exclude those
+# specific packages here so `pnpm install` / `pnpm dev` work in this directory without changing
+# global or repo-root config, while keeping the trust check active for everything else.
+trustPolicyExclude:
+  - 'vite@5.4.21'
+  - 'undici-types@6.21.0'
