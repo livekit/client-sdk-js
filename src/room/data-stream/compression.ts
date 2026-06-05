@@ -24,6 +24,19 @@ export async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
   return collect(cs.readable);
 }
 
+/**
+ * gzip-compresses a byte array, exposing the compressed output as a readable stream so callers can
+ * forward it incrementally instead of buffering the whole result. The input is written in full (the
+ * caller already holds it), but the output is produced and consumed chunk by chunk.
+ */
+export function gzipCompressStream(data: Uint8Array): ReadableStream<Uint8Array> {
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(data as NonSharedUint8Array);
+  writer.close();
+  return cs.readable;
+}
+
 /** gunzips a byte array in full (inverse of {@link gzipCompress}). */
 export async function gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream('gzip');

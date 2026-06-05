@@ -19,7 +19,7 @@ import type {
   TextStreamInfo,
 } from '../../types';
 import { encodeBase64, isCompressionStreamSupported, numberToBigInt, splitUtf8 } from '../../utils';
-import { gzipCompress } from '../compression';
+import { gzipCompress, gzipCompressStream } from '../compression';
 import {
   COMPRESSION_ATTRIBUTE,
   COMPRESSION_GZIP,
@@ -407,19 +407,14 @@ async function sendStreamTrailer(
   await engine.sendDataPacket(trailerPacket, DataChannelKind.RELIABLE);
 }
 
-function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
-  const out = new Uint8Array(a.byteLength + b.byteLength);
-  out.set(a, 0);
-  out.set(b, a.byteLength);
-  return out;
-}
-
 /**
- * Builds a `WritableStream` whose writes are gzip-compressed (streaming, never buffering the whole
- * payload) and whose compressed output is emitted as fixed-size `streamChunk` packets, followed by a
- * `streamTrailer` on close. The compressed bytes are chunked on arbitrary boundaries — safe because
- * the receiver decompresses the full concatenation — so this is only used for recipients that
- * understand compressed streams.
+ * Builds a `WritableStream` whose writes are gzip-compressed and emitted as `streamChunk` packets,
+ * followed by a `streamTrailer` on close. Each `write()` is compressed into its own gzip member and
+ * its compressed bytes are split into `STREAM_CHUNK_SIZE_BYTES` pieces sent immediately — including a
+ * final partial piece — so a write's data is delivered without waiting to fill a chunk or for the
+ * stream to close (low latency for incremental senders). The receiver decompresses the concatenation
+ * of members (a valid multi-member gzip stream), so this is only used for recipients that understand
+ * compressed streams.
  */
 function createCompressedChunkWritable<T>(
   streamId: string,
@@ -427,12 +422,7 @@ function createCompressedChunkWritable<T>(
   engine: RTCEngine,
   encode: (chunk: T) => Uint8Array,
 ): WritableStream<T> {
-  const cs = new CompressionStream('gzip');
-  const csWriter = cs.writable.getWriter();
-  const reader = cs.readable.getReader();
-
   let chunkId = 0;
-  let pending: Uint8Array = new Uint8Array(0);
 
   const sendChunk = async (content: Uint8Array) => {
     const chunkPacket = new DataPacket({
@@ -450,39 +440,24 @@ function createCompressedChunkWritable<T>(
     chunkId += 1;
   };
 
-  // Drain compressed output in the background, emitting full-size chunks as they accumulate and
-  // flushing the remainder once the compressor closes. Reading here backpressures the compressor,
-  // which backpressures the writer, giving end-to-end flow control.
-  const pump = (async () => {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      pending = concatBytes(pending, value);
-      while (pending.byteLength >= STREAM_CHUNK_SIZE_BYTES) {
-        await sendChunk(pending.slice(0, STREAM_CHUNK_SIZE_BYTES));
-        pending = pending.slice(STREAM_CHUNK_SIZE_BYTES);
-      }
-    }
-    if (pending.byteLength > 0) {
-      await sendChunk(pending);
-      pending = new Uint8Array(0);
-    }
-  })();
-
   return new WritableStream<T>({
     async write(chunk) {
-      await csWriter.write(encode(chunk) as NonSharedUint8Array);
+      const reader = gzipCompressStream(encode(chunk)).getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        await Promise.all(new Array(Math.ceil(value.length / STREAM_CHUNK_SIZE_BYTES)).fill(null).map((_, i) => {
+          return sendChunk(value.slice(i * STREAM_CHUNK_SIZE_BYTES, (i+1) * STREAM_CHUNK_SIZE_BYTES));
+        }));
+      }
     },
     async close() {
-      await csWriter.close();
-      await pump;
       await sendStreamTrailer(streamId, destinationIdentities, engine);
     },
-    async abort(err) {
-      await csWriter.abort(err).catch(() => {});
-      await reader.cancel(err).catch(() => {});
+    abort() {
+      // Each write compresses independently, so there is no persistent compressor to tear down.
     },
   });
 }
