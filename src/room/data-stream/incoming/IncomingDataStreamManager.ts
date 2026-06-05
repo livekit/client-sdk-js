@@ -136,161 +136,166 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    if (streamHeader.contentHeader.case === 'byteHeader') {
-      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming byte stream due to no handler for topic',
-          streamHeader.topic,
-        );
-        return;
-      }
+    switch (streamHeader.contentHeader.case) {
+      case 'byteHeader': {
+        const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
+        if (!streamHandlerCallback) {
+          this.log.debug(
+            'ignoring incoming byte stream due to no handler for topic',
+            streamHeader.topic,
+          );
+          return;
+        }
 
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
 
-      const info: ByteStreamInfo = {
-        id: streamHeader.streamId,
-        name: streamHeader.contentHeader.value.name ?? 'unknown',
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: bigIntToNumber(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-        encryptionType,
-      };
+        const info: ByteStreamInfo = {
+          id: streamHeader.streamId,
+          name: streamHeader.contentHeader.value.name ?? 'unknown',
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+          topic: streamHeader.topic,
+          timestamp: bigIntToNumber(streamHeader.timestamp),
+          attributes: streamHeader.attributes,
+          encryptionType,
+        };
 
-      const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
 
-      // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
-      // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-      const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
-      if (typeof inlinePayload !== 'undefined') {
-        delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
-        delete info.attributes![COMPRESSION_ATTRIBUTE];
-        const bytes = decodeBase64(inlinePayload);
+        // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+        // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+        const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
+        if (typeof inlinePayload !== 'undefined') {
+          delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+          delete info.attributes![COMPRESSION_ATTRIBUTE];
+          const bytes = decodeBase64(inlinePayload);
+          streamHandlerCallback(
+            new ByteStreamReader(
+              info,
+              createInlineStream(streamHeader.streamId, compressed ? gzipDecompress(bytes) : bytes),
+              bigIntToNumber(streamHeader.totalLength),
+            ),
+            { identity: participantIdentity },
+          );
+          return;
+        }
+
+        if (compressed) {
+          delete info.attributes![COMPRESSION_ATTRIBUTE];
+        }
+
+        const stream = new ReadableStream<DataStream_Chunk>({
+          start: (controller) => {
+            streamController = controller;
+
+            if (this.textStreamControllers.has(streamHeader.streamId)) {
+              throw new DataStreamError(
+                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+                DataStreamErrorReason.AlreadyOpened,
+              );
+            }
+
+            this.byteStreamControllers.set(streamHeader.streamId, {
+              info,
+              controller: streamController,
+              startTime: Date.now(),
+              sendingParticipantIdentity: participantIdentity,
+            });
+          },
+        });
         streamHandlerCallback(
           new ByteStreamReader(
             info,
-            createInlineStream(streamHeader.streamId, compressed ? gzipDecompress(bytes) : bytes),
-            bigIntToNumber(streamHeader.totalLength),
+            compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'byte') : stream,
+            // Compressed streams report no total length; completion is driven by the trailer.
+            compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
           ),
-          { identity: participantIdentity },
+          {
+            identity: participantIdentity,
+          },
         );
-        return;
+        break;
       }
+      case 'textHeader': {
+        const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
+        if (!streamHandlerCallback) {
+          this.log.debug(
+            'ignoring incoming text stream due to no handler for topic',
+            streamHeader.topic,
+          );
+          return;
+        }
 
-      if (compressed) {
-        delete info.attributes![COMPRESSION_ATTRIBUTE];
-      }
+        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
 
-      const stream = new ReadableStream<DataStream_Chunk>({
-        start: (controller) => {
-          streamController = controller;
+        const info: TextStreamInfo = {
+          id: streamHeader.streamId,
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+          topic: streamHeader.topic,
+          timestamp: Number(streamHeader.timestamp),
+          attributes: streamHeader.attributes,
+          encryptionType,
+          attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
+        };
 
-          if (this.textStreamControllers.has(streamHeader.streamId)) {
-            throw new DataStreamError(
-              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-              DataStreamErrorReason.AlreadyOpened,
-            );
-          }
+        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
 
-          this.byteStreamControllers.set(streamHeader.streamId, {
-            info,
-            controller: streamController,
-            startTime: Date.now(),
-            sendingParticipantIdentity: participantIdentity,
-          });
-        },
-      });
-      streamHandlerCallback(
-        new ByteStreamReader(
-          info,
-          compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'byte') : stream,
-          // Compressed streams report no total length; completion is driven by the trailer.
-          compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
-        ),
-        {
-          identity: participantIdentity,
-        },
-      );
-    } else if (streamHeader.contentHeader.case === 'textHeader') {
-      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming text stream due to no handler for topic',
-          streamHeader.topic,
-        );
-        return;
-      }
+        // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+        // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+        const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
+        if (typeof inlinePayload !== 'undefined') {
+          delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+          delete info.attributes![COMPRESSION_ATTRIBUTE];
+          // Compressed text is base64(gzip(utf-8)); uncompressed text is the raw string.
+          const content = compressed
+            ? gzipDecompress(decodeBase64(inlinePayload))
+            : new TextEncoder().encode(inlinePayload);
+          streamHandlerCallback(
+            new TextStreamReader(
+              info,
+              createInlineStream(streamHeader.streamId, content),
+              bigIntToNumber(streamHeader.totalLength),
+            ),
+            { identity: participantIdentity },
+          );
+          return;
+        }
 
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+        if (compressed) {
+          delete info.attributes![COMPRESSION_ATTRIBUTE];
+        }
 
-      const info: TextStreamInfo = {
-        id: streamHeader.streamId,
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: Number(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-        encryptionType,
-        attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
-      };
+        const stream = new ReadableStream<DataStream_Chunk>({
+          start: (controller) => {
+            streamController = controller;
 
-      const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+            if (this.textStreamControllers.has(streamHeader.streamId)) {
+              throw new DataStreamError(
+                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+                DataStreamErrorReason.AlreadyOpened,
+              );
+            }
 
-      // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
-      // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-      const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
-      if (typeof inlinePayload !== 'undefined') {
-        delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
-        delete info.attributes![COMPRESSION_ATTRIBUTE];
-        // Compressed text is base64(gzip(utf-8)); uncompressed text is the raw string.
-        const content = compressed
-          ? gzipDecompress(decodeBase64(inlinePayload))
-          : new TextEncoder().encode(inlinePayload);
+            this.textStreamControllers.set(streamHeader.streamId, {
+              info,
+              controller: streamController,
+              startTime: Date.now(),
+              sendingParticipantIdentity: participantIdentity,
+            });
+          },
+        });
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            createInlineStream(streamHeader.streamId, content),
-            bigIntToNumber(streamHeader.totalLength),
+            compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'text') : stream,
+            // Compressed streams report no total length; completion is driven by the trailer.
+            compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
           ),
           { identity: participantIdentity },
         );
-        return;
+        break;
       }
-
-      if (compressed) {
-        delete info.attributes![COMPRESSION_ATTRIBUTE];
-      }
-
-      const stream = new ReadableStream<DataStream_Chunk>({
-        start: (controller) => {
-          streamController = controller;
-
-          if (this.textStreamControllers.has(streamHeader.streamId)) {
-            throw new DataStreamError(
-              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-              DataStreamErrorReason.AlreadyOpened,
-            );
-          }
-
-          this.textStreamControllers.set(streamHeader.streamId, {
-            info,
-            controller: streamController,
-            startTime: Date.now(),
-            sendingParticipantIdentity: participantIdentity,
-          });
-        },
-      });
-      streamHandlerCallback(
-        new TextStreamReader(
-          info,
-          compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'text') : stream,
-          // Compressed streams report no total length; completion is driven by the trailer.
-          compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
-        ),
-        { identity: participantIdentity },
-      );
     }
   }
 
