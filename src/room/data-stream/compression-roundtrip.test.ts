@@ -123,6 +123,40 @@ describe.skipIf(!hasCompression)('data stream compression round-trip', () => {
     expect(Array.from(flatten(await reader.readAll()))).toEqual(Array.from(payload));
   });
 
+  it('round-trips text written across multiple writes (multi-member gzip)', async () => {
+    const { manager, sentPackets } = createSender();
+    const parts = ['first part ', '日本語🚀 second ', 'x'.repeat(20_000), ' tail'];
+
+    const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+    for (const part of parts) {
+      await writer.write(part);
+    }
+    await writer.close();
+
+    expect(sentPackets.some((p) => p.value.case === 'streamChunk')).toBe(true);
+    const reader = await receiveText(sentPackets, 't');
+    expect(await reader.readAll()).toBe(parts.join(''));
+  });
+
+  it('round-trips bytes written across multiple writes (multi-member gzip)', async () => {
+    const { manager, sentPackets } = createSender();
+    const parts = [
+      new Uint8Array([1, 2, 3]),
+      new Uint8Array(20_000).fill(7),
+      new Uint8Array([9, 8, 7, 6]),
+    ];
+    const expected = parts.flatMap((p) => Array.from(p));
+
+    const writer = await manager.streamBytes({ topic: 'b', destinationIdentities: [RECEIVER] });
+    for (const part of parts) {
+      await writer.write(part);
+    }
+    await writer.close();
+
+    const reader = await receiveBytes(sentPackets, 'b');
+    expect(Array.from(flatten(await reader.readAll()))).toEqual(expected);
+  });
+
   it('does not compress for a pre-v2 recipient (uncompressed round-trip)', async () => {
     const { manager, sentPackets } = createSender(CLIENT_PROTOCOL_DATA_STREAM_RPC);
     const payload = 'plain text '.repeat(2_000);
