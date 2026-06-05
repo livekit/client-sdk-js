@@ -8,8 +8,9 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber, decodeBase64 } from '../../utils';
-import { INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
+import { bigIntToNumber, decodeBase64, numberToBigInt } from '../../utils';
+import { gzipDecompress, gzipDecompressStream } from '../compression';
+import { COMPRESSION_ATTRIBUTE, COMPRESSION_GZIP, INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -158,15 +159,19 @@ export default class IncomingDataStreamManager {
         encryptionType,
       };
 
+      const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+
       // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
       // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
       const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
       if (typeof inlinePayload !== 'undefined') {
         delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+        delete info.attributes![COMPRESSION_ATTRIBUTE];
+        const bytes = decodeBase64(inlinePayload);
         streamHandlerCallback(
           new ByteStreamReader(
             info,
-            createInlineStream(streamHeader.streamId, decodeBase64(inlinePayload)),
+            createInlineStream(streamHeader.streamId, compressed ? gzipDecompress(bytes) : bytes),
             bigIntToNumber(streamHeader.totalLength),
           ),
           { identity: participantIdentity },
@@ -174,7 +179,11 @@ export default class IncomingDataStreamManager {
         return;
       }
 
-      const stream = new ReadableStream({
+      if (compressed) {
+        delete info.attributes![COMPRESSION_ATTRIBUTE];
+      }
+
+      const stream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
 
@@ -194,7 +203,12 @@ export default class IncomingDataStreamManager {
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new ByteStreamReader(
+          info,
+          compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'byte') : stream,
+          // Compressed streams report no total length; completion is driven by the trailer.
+          compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
+        ),
         {
           identity: participantIdentity,
         },
@@ -222,20 +236,31 @@ export default class IncomingDataStreamManager {
         attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
       };
 
+      const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+
       // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
       // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
       const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
       if (typeof inlinePayload !== 'undefined') {
         delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
+        delete info.attributes![COMPRESSION_ATTRIBUTE];
+        // Compressed text is base64(gzip(utf-8)); uncompressed text is the raw string.
+        const content = compressed
+          ? gzipDecompress(decodeBase64(inlinePayload))
+          : new TextEncoder().encode(inlinePayload);
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            createInlineStream(streamHeader.streamId, new TextEncoder().encode(inlinePayload)),
+            createInlineStream(streamHeader.streamId, content),
             bigIntToNumber(streamHeader.totalLength),
           ),
           { identity: participantIdentity },
         );
         return;
+      }
+
+      if (compressed) {
+        delete info.attributes![COMPRESSION_ATTRIBUTE];
       }
 
       const stream = new ReadableStream<DataStream_Chunk>({
@@ -258,7 +283,12 @@ export default class IncomingDataStreamManager {
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new TextStreamReader(
+          info,
+          compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'text') : stream,
+          // Compressed streams report no total length; completion is driven by the trailer.
+          compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
+        ),
         { identity: participantIdentity },
       );
     }
@@ -332,16 +362,96 @@ export default class IncomingDataStreamManager {
 
 /**
  * Builds a `ReadableStream` that yields the given content as a single chunk and then immediately
- * closes - used to surface an inline (single-packet) data stream as a fully-formed stream.
+ * closes - used to surface an inline (single-packet) data stream as a fully-formed stream. `content`
+ * may be a promise (e.g. async gzip decompression); a rejection errors the stream.
  */
 function createInlineStream(
   streamId: string,
-  content: Uint8Array,
+  content: Uint8Array | Promise<Uint8Array>,
 ): ReadableStream<DataStream_Chunk> {
   return new ReadableStream<DataStream_Chunk>({
-    start: (controller) => {
-      controller.enqueue(new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content }));
-      controller.close();
+    start: async (controller) => {
+      try {
+        const bytes = await content;
+        controller.enqueue(
+          new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content: bytes }),
+        );
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
     },
+  });
+}
+
+/**
+ * Transforms a raw stream of (compressed) `DataStream_Chunk`s into a stream of decompressed
+ * `DataStream_Chunk`s, so the existing `ByteStreamReader`/`TextStreamReader` consume it unchanged.
+ * For text, the decompressed bytes are reframed on UTF-8 character boundaries (via
+ * `TextDecoderStream`) so each synthesized chunk decodes independently. Errors on the source stream
+ * (e.g. encryption mismatch, abnormal end) propagate downstream to the reader.
+ */
+function decompressedChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+  kind: 'byte' | 'text',
+): ReadableStream<DataStream_Chunk> {
+  const decompressed = gzipDecompressStream(chunkContentStream(raw)).getReader();
+  // For text, reframe decompressed bytes on UTF-8 character boundaries (the decoder buffers partial
+  // multibyte sequences across reads) and re-encode each whole-character fragment, so the reader's
+  // per-chunk fatal decode always sees valid input.
+  const decoder = kind === 'text' ? new TextDecoder() : undefined;
+  const encoder = kind === 'text' ? new TextEncoder() : undefined;
+  let chunkIndex = 0;
+
+  return new ReadableStream<DataStream_Chunk>({
+    async pull(controller) {
+      for (;;) {
+        const { done, value } = await decompressed.read();
+        if (done) {
+          const tail = decoder?.decode();
+          if (tail) {
+            controller.enqueue(makeChunk(streamId, chunkIndex++, encoder!.encode(tail)));
+          }
+          controller.close();
+          return;
+        }
+        const content = decoder ? encoder!.encode(decoder.decode(value, { stream: true })) : value;
+        if (content.byteLength === 0) {
+          continue; // partial multibyte char buffered; pull more
+        }
+        controller.enqueue(makeChunk(streamId, chunkIndex++, content));
+        return;
+      }
+    },
+    cancel: (reason) => {
+      decompressed.cancel(reason);
+    },
+  });
+}
+
+/** Maps a stream of `DataStream_Chunk`s to a stream of their raw (compressed) `content` bytes. */
+function chunkContentStream(raw: ReadableStream<DataStream_Chunk>): ReadableStream<Uint8Array> {
+  const reader = raw.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(value.content);
+    },
+    cancel: (reason) => {
+      reader.cancel(reason);
+    },
+  });
+}
+
+function makeChunk(streamId: string, chunkIndex: number, content: Uint8Array): DataStream_Chunk {
+  return new DataStream_Chunk({
+    streamId,
+    chunkIndex: numberToBigInt(chunkIndex),
+    content: content as NonSharedUint8Array,
   });
 }
