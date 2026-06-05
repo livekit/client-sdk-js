@@ -498,6 +498,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return this.pc.getStats();
   }
 
+  getMaxMessageSize() {
+    return this._pc?.sctp?.maxMessageSize;
+  }
+
   async getConnectedAddress(): Promise<string | undefined> {
     if (!this._pc) {
       return;

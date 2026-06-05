@@ -110,14 +110,6 @@ const reliabeReceiveStateTTL = 30_000;
 const lossyDataChannelBufferThresholdMin = 8 * 1024;
 const lossyDataChannelBufferThresholdMax = 256 * 1024;
 
-/**
- * Corresponds to the max-message-size negotiated in SDP. Attempting to send a single data packet
- * larger than this silently closes the data channel (DataChannel.send reports success even for an
- * oversized packet), so the limit must be enforced here.
- *
- * TODO: read the actual negotiated max-message-size from SDP rather than hardcoding.
- */
-export const MAX_DATA_PACKET_SIZE = 64 * 1024 - 1; // 65535 bytes (64 KB - 1)
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
 
@@ -1516,9 +1508,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
 
-    if (msg.byteLength > MAX_DATA_PACKET_SIZE) {
+    const maxPublisherMessageSizeBytes = this.pcManager?.getMaxPublisherMessageSize();
+    if (
+      typeof maxPublisherMessageSizeBytes !== 'undefined' &&
+      msg.byteLength > maxPublisherMessageSizeBytes
+    ) {
       throw new PublishDataError(
-        `cannot publish data packet larger than ${MAX_DATA_PACKET_SIZE} bytes (got ${msg.byteLength})`,
+        `cannot publish data packet larger than ${maxPublisherMessageSizeBytes} bytes (got ${msg.byteLength})`,
       );
     }
 
