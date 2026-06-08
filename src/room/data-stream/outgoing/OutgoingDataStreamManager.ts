@@ -423,8 +423,12 @@ function createCompressedChunkWritable<T>(
   encode: (chunk: T) => Uint8Array,
 ): WritableStream<T> {
   let chunkId = 0;
+  // Each write() is compressed into its own gzip member. Browsers' DecompressionStream only accepts a
+  // single member per gzip stream, so we tag every chunk with its member index (in the chunk's spare
+  // `version` field); the receiver segments on it and decompresses each member independently.
+  let memberId = 0;
 
-  const sendChunk = async (content: Uint8Array) => {
+  const sendChunk = async (content: Uint8Array, version: number) => {
     const chunkPacket = new DataPacket({
       destinationIdentities,
       value: {
@@ -433,6 +437,7 @@ function createCompressedChunkWritable<T>(
           content: content as NonSharedUint8Array,
           streamId,
           chunkIndex: numberToBigInt(chunkId),
+          version,
         }),
       },
     });
@@ -442,15 +447,22 @@ function createCompressedChunkWritable<T>(
 
   return new WritableStream<T>({
     async write(chunk) {
+      const member = memberId;
+      memberId += 1;
       const reader = gzipCompressStream(encode(chunk)).getReader();
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
           break;
         }
-        await Promise.all(new Array(Math.ceil(value.length / STREAM_CHUNK_SIZE_BYTES)).fill(null).map((_, i) => {
-          return sendChunk(value.slice(i * STREAM_CHUNK_SIZE_BYTES, (i+1) * STREAM_CHUNK_SIZE_BYTES));
-        }));
+        await Promise.all(
+          new Array(Math.ceil(value.length / STREAM_CHUNK_SIZE_BYTES)).fill(null).map((_, i) => {
+            return sendChunk(
+              value.slice(i * STREAM_CHUNK_SIZE_BYTES, (i + 1) * STREAM_CHUNK_SIZE_BYTES),
+              member,
+            );
+          }),
+        );
       }
     },
     async close() {

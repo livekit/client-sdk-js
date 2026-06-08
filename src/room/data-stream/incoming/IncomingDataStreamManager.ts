@@ -9,7 +9,7 @@ import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, decodeBase64, numberToBigInt } from '../../utils';
-import { gzipDecompress, gzipDecompressStream } from '../compression';
+import { gzipDecompress } from '../compression';
 import { COMPRESSION_ATTRIBUTE, COMPRESSION_GZIP, INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
 import {
   type ByteStreamHandler,
@@ -392,63 +392,95 @@ function createInlineStream(
 /**
  * Transforms a raw stream of (compressed) `DataStream_Chunk`s into a stream of decompressed
  * `DataStream_Chunk`s, so the existing `ByteStreamReader`/`TextStreamReader` consume it unchanged.
- * For text, the decompressed bytes are reframed on UTF-8 character boundaries (via
- * `TextDecoderStream`) so each synthesized chunk decodes independently. Errors on the source stream
- * (e.g. encryption mismatch, abnormal end) propagate downstream to the reader.
+ *
+ * The sender compresses each `write()` into its own gzip member and tags every chunk with that
+ * member's index in `chunk.version`. Browsers' `DecompressionStream` only accepts a single member
+ * per gzip stream, so we feed each member's chunks into its own `DecompressionStream` as they arrive
+ * (never buffering the whole member) and start a fresh one when the member index changes, draining
+ * decompressed output incrementally. For text, a streaming `TextDecoder` reframes the decompressed
+ * bytes on UTF-8 character boundaries across members so each synthesized chunk decodes independently.
+ * Errors on the source stream (e.g. encryption mismatch, abnormal end) propagate to the reader.
  */
 function decompressedChunkStream(
   raw: ReadableStream<DataStream_Chunk>,
   streamId: string,
   kind: 'byte' | 'text',
 ): ReadableStream<DataStream_Chunk> {
-  const decompressed = gzipDecompressStream(chunkContentStream(raw)).getReader();
-  // For text, reframe decompressed bytes on UTF-8 character boundaries (the decoder buffers partial
-  // multibyte sequences across reads) and re-encode each whole-character fragment, so the reader's
-  // per-chunk fatal decode always sees valid input.
+  const srcReader = raw.getReader();
   const decoder = kind === 'text' ? new TextDecoder() : undefined;
   const encoder = kind === 'text' ? new TextEncoder() : undefined;
-  let chunkIndex = 0;
+  let outIndex = 0;
 
-  return new ReadableStream<DataStream_Chunk>({
-    async pull(controller) {
-      for (;;) {
-        const { done, value } = await decompressed.read();
-        if (done) {
-          const tail = decoder?.decode();
-          if (tail) {
-            controller.enqueue(makeChunk(streamId, chunkIndex++, encoder!.encode(tail)));
+  const enqueueDecompressed = (
+    controller: ReadableStreamDefaultController<DataStream_Chunk>,
+    bytes: Uint8Array,
+  ) => {
+    const content = decoder ? encoder!.encode(decoder.decode(bytes, { stream: true })) : bytes;
+    if (content.byteLength > 0) {
+      controller.enqueue(makeChunk(streamId, outIndex++, content));
+    }
+  };
+
+  const pump = async (controller: ReadableStreamDefaultController<DataStream_Chunk>) => {
+    let currentMember: number | undefined;
+    let dsWriter: WritableStreamDefaultWriter<BufferSource> | null = null;
+    let drain: Promise<void> | null = null;
+
+    const openMember = () => {
+      const ds = new DecompressionStream('gzip');
+      dsWriter = ds.writable.getWriter();
+      const dsReader = ds.readable.getReader();
+      // Drain this member's decompressed output concurrently with feeding its input.
+      drain = (async () => {
+        for (;;) {
+          const { done, value } = await dsReader.read();
+          if (done) {
+            break;
           }
-          controller.close();
-          return;
+          enqueueDecompressed(controller, value);
         }
-        const content = decoder ? encoder!.encode(decoder.decode(value, { stream: true })) : value;
-        if (content.byteLength === 0) {
-          continue; // partial multibyte char buffered; pull more
-        }
-        controller.enqueue(makeChunk(streamId, chunkIndex++, content));
-        return;
-      }
-    },
-    cancel: (reason) => {
-      decompressed.cancel(reason);
-    },
-  });
-}
+      })();
+    };
 
-/** Maps a stream of `DataStream_Chunk`s to a stream of their raw (compressed) `content` bytes. */
-function chunkContentStream(raw: ReadableStream<DataStream_Chunk>): ReadableStream<Uint8Array> {
-  const reader = raw.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { done, value } = await reader.read();
+    // Close the current member's compressor input and wait for its remaining output to drain.
+    const closeMember = async () => {
+      if (dsWriter) {
+        await dsWriter.close();
+        await drain;
+        dsWriter = null;
+        drain = null;
+      }
+    };
+
+    for (;;) {
+      const { done, value } = await srcReader.read();
       if (done) {
+        await closeMember();
+        const tail = decoder?.decode();
+        if (tail) {
+          controller.enqueue(makeChunk(streamId, outIndex++, encoder!.encode(tail)));
+        }
         controller.close();
         return;
       }
-      controller.enqueue(value.content);
+      // A change in member index means the previous gzip member is complete.
+      if (currentMember !== undefined && value.version !== currentMember) {
+        await closeMember();
+      }
+      if (!dsWriter) {
+        openMember();
+      }
+      currentMember = value.version;
+      await dsWriter!.write(value.content as NonSharedUint8Array);
+    }
+  };
+
+  return new ReadableStream<DataStream_Chunk>({
+    start: (controller) => {
+      pump(controller).catch((err) => controller.error(err));
     },
     cancel: (reason) => {
-      reader.cancel(reason);
+      srcReader.cancel(reason);
     },
   });
 }
