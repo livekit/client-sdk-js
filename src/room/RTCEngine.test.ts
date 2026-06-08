@@ -223,7 +223,7 @@ describe('RTCEngine', () => {
 
   describe('sendDataPacket', () => {
     const MAX_DATA_PACKET_SIZE = 64 * 1024 - 1; // 65535 bytes (64 KB - 1)
-    function stubConnectedEngine(engine: RTCEngine) {
+    function stubConnectedEngine(engine: RTCEngine, maxDataPacketSize: number = MAX_DATA_PACKET_SIZE) {
       const send = vi.fn();
       Object.assign(engine as unknown as Record<string, unknown>, {
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
@@ -231,7 +231,7 @@ describe('RTCEngine', () => {
         updateAndEmitDCBufferStatus: vi.fn(),
         dataChannelForKind: vi.fn(() => ({ send })),
         pcManager: {
-          getMaxPublisherMessageSize: vi.fn(() => MAX_DATA_PACKET_SIZE),
+          getMaxPublisherMessageSize: vi.fn(() => maxDataPacketSize),
         },
       });
       return send;
@@ -255,6 +255,25 @@ describe('RTCEngine', () => {
         PublishDataError,
       );
       expect(send).not.toHaveBeenCalled();
+    });
+
+    it('does not reject packets if the max data packet size is 0', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const send = stubConnectedEngine(engine, 0);
+
+      const packet = new DataPacket({
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'user',
+          value: new UserPacket({ payload: new Uint8Array(100) }),
+        },
+      });
+
+      // Sending the packet should succeed, there isn't a size limit
+      await expect(
+        engine.sendDataPacket(packet, DataChannelKind.RELIABLE),
+      ).resolves.toBeUndefined();
+      expect(send).toHaveBeenCalledTimes(1);
     });
 
     it('sends packets within the max data packet size', async () => {

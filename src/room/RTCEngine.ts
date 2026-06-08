@@ -127,6 +127,11 @@ export enum DataChannelKind {
   DATA_TRACK_LOSSY = 2,
 }
 
+// Default data-channel max message size (bytes), used when the remote SDP
+// answer does not advertise an `a=max-message-size` attribute (RFC 8841).
+// `0` means "no limit".
+const DEFAULT_MAX_MESSAGE_SIZE = 64_000;
+
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   client: SignalClient;
@@ -1537,9 +1542,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
 
-    const maxPublisherMessageSizeBytes = this.pcManager?.getMaxPublisherMessageSize();
+    // Clamp to the SDK default - libwebrtc advertises larger (~256 KiB)
+    // than LiveKit/pion can deliver end-to-end (~64 KiB), so we trust
+    // the answer up untilthe built in ceiling.
+    const maxPublisherMessageSizeBytes = Math.min(
+      this.pcManager?.getMaxPublisherMessageSize() ?? DEFAULT_MAX_MESSAGE_SIZE,
+      DEFAULT_MAX_MESSAGE_SIZE,
+    );
     if (
       typeof maxPublisherMessageSizeBytes !== 'undefined' &&
+      maxPublisherMessageSizeBytes !== 0 /* 0 means "no limit" */ &&
       msg.byteLength > maxPublisherMessageSizeBytes
     ) {
       throw new PublishDataError(
