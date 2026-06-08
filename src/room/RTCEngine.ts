@@ -363,6 +363,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         if (!this.pcManager) {
           await this.configure(joinResponse, !useV0Path);
+          if (!useV0Path) {
+            // CLT-52036: When publisher-offer-with-join is disabled (Firefox, #1954) we would
+            // otherwise let the first publisher offer be data-channel-only and add the
+            // audio/video transceivers in a later renegotiation. Firefox then fails to bind
+            // receive decoders to those late-added transceivers, so all subscribed media arrives
+            // as RTP but never decodes (empty codecStats, frozen video, silent audio). Pre-allocate
+            // the data channels + media sections here (as the offer-with-join path already does) so
+            // the first offer carries m=audio/m=video and Firefox sets up its codec machinery.
+            this.createDataChannels();
+            this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+          }
         }
         // create offer
         if (!this.subscriberPrimary || joinResponse.fastPublish) {
