@@ -377,7 +377,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           await this.configure(joinResponse, !useV0Path);
           if (!useV0Path) {
             // The V1 first offer must carry the media layout so Firefox binds receive decoders for
-            // subscribed tracks (CLT-52036) — without it, subscribed audio/video arrive as RTP but
+            // subscribed tracks — without it, subscribed audio/video arrive as RTP but
             // never decode. V0 (legacy dual-PC) keeps its original lazy behavior.
             this.applyInitialPublisherLayout();
           }
