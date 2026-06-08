@@ -16,8 +16,8 @@ const MAX_FILL_COUNT = BOX_DURATION_MS;
 /** Cell fill hue (R,G,B); opacity scales with throughput. */
 const FILL_RGB = '52,152,219';
 
-/** How many chunks to split up the data stream payload into. If `0`, send all at once with `sendText`. */
-const STREAM_CHUNK_SIZE_BYTES = 0;
+/** Chunk size to split up the data stream payload into. If `0`, send all at once with `sendText`. */
+const STREAM_CHUNK_SIZE_BYTES = 1000;
 
 const TOPIC = 'benchmark';
 const SENDER_IDENTITY = 'bench-sender';
