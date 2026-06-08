@@ -103,7 +103,9 @@ describe('PacketTrailerManager', () => {
   it('uses RTCRtpScriptTransform for packet trailer extraction when supported', () => {
     useSafariUserAgent();
     const transform = {};
-    const RTCRtpScriptTransform = vi.fn(() => transform);
+    const RTCRtpScriptTransform = vi.fn(function () {
+      return transform;
+    });
     setScriptTransform(RTCRtpScriptTransform);
 
     const worker = {} as Worker;

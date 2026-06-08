@@ -168,4 +168,14 @@ export default [
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
     },
   },
+  {
+    // vitest v4 requires `function`/`class` (not arrow) implementations for
+    // mocks invoked with `new` (e.g. WebSocketStream, RTCRtpScriptTransform)
+    name: 'test/mock-constructors',
+    files: ['**/*.test.ts'],
+    rules: {
+      'prefer-arrow-callback': 'off',
+      'func-names': 'off',
+    },
+  },
 ];

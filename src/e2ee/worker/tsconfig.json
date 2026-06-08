@@ -8,7 +8,10 @@
       "ES2018.Promise",
       "WebWorker",
       "ES2021.WeakRef",
-      "DOM.AsyncIterable"
+      "DOM.AsyncIterable",
+      "ES2020.BigInt",
+      "ES2018.AsyncIterable",
+      "ES2018.AsyncGenerator"
     ]
   }
 }

@@ -77,7 +77,7 @@ function mockWebSocketStream(options: MockWebSocketStreamOptions = {}) {
     onUrl,
   } = options;
 
-  return vi.mocked(WebSocketStream).mockImplementationOnce((url) => {
+  return vi.mocked(WebSocketStream).mockImplementationOnce(function (url) {
     onUrl?.(url);
     return {
       url: 'wss://test.livekit.io',
@@ -283,7 +283,7 @@ describe('SignalClient.connect', () => {
     it('should reject when AbortSignal is triggered', async () => {
       const abortController = new AbortController();
 
-      vi.mocked(WebSocketStream).mockImplementation(() => {
+      vi.mocked(WebSocketStream).mockImplementation(function () {
         // Simulate abort
         setTimeout(() => abortController.abort(new Error('User aborted connection')), 50);
 
@@ -344,7 +344,7 @@ describe('SignalClient.connect', () => {
         extensions: '',
       };
 
-      vi.mocked(WebSocketStream).mockImplementation(() => {
+      vi.mocked(WebSocketStream).mockImplementation(function () {
         return {
           url: 'wss://test.livekit.io',
           opened: Promise.resolve(mockConnection),
@@ -526,7 +526,7 @@ describe('SignalClient.connect', () => {
         closedResolve = resolve;
       });
 
-      vi.mocked(WebSocketStream).mockImplementation(() => {
+      vi.mocked(WebSocketStream).mockImplementation(function () {
         // Simulate close during connection
         queueMicrotask(() => {
           closedResolve({ closeCode: 1006, reason: 'Connection lost' });

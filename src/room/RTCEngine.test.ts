@@ -185,7 +185,9 @@ describe('RTCEngine', () => {
     stubScriptTransformSupport();
 
     const transform = {};
-    const RTCRtpScriptTransform = vi.fn(() => transform);
+    const RTCRtpScriptTransform = vi.fn(function () {
+      return transform;
+    });
     Object.defineProperty(window, 'RTCRtpScriptTransform', {
       configurable: true,
       value: RTCRtpScriptTransform,

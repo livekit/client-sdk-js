@@ -1,5 +1,5 @@
 import { DataPacket, DataPacket_Kind, RpcAck, RpcRequest, RpcResponse } from '@livekit/protocol';
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { type StructuredLogger } from '../../../logger';
 import { CLIENT_PROTOCOL_DATA_STREAM_RPC } from '../../../version';

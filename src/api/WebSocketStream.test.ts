@@ -129,24 +129,24 @@ describe('WebSocketStream', () => {
     vi.clearAllMocks();
 
     // Store original WebSocket
-    originalWebSocket = global.WebSocket;
+    originalWebSocket = globalThis.WebSocket;
 
     // Mock WebSocket globally
-    global.WebSocket = vi.fn((url: string, protocols?: string | string[]) => {
+    globalThis.WebSocket = vi.fn(function (url: string, protocols?: string | string[]) {
       mockWebSocket = new MockWebSocket(url, protocols);
       return mockWebSocket as any;
     }) as any;
 
     // Add constants to the mocked WebSocket
-    (global.WebSocket as any).CONNECTING = MockWebSocket.CONNECTING;
-    (global.WebSocket as any).OPEN = MockWebSocket.OPEN;
-    (global.WebSocket as any).CLOSING = MockWebSocket.CLOSING;
-    (global.WebSocket as any).CLOSED = MockWebSocket.CLOSED;
+    (globalThis.WebSocket as any).CONNECTING = MockWebSocket.CONNECTING;
+    (globalThis.WebSocket as any).OPEN = MockWebSocket.OPEN;
+    (globalThis.WebSocket as any).CLOSING = MockWebSocket.CLOSING;
+    (globalThis.WebSocket as any).CLOSED = MockWebSocket.CLOSED;
   });
 
   afterEach(() => {
     // Restore original WebSocket
-    global.WebSocket = originalWebSocket;
+    globalThis.WebSocket = originalWebSocket;
   });
 
   describe('Constructor and Initialization', () => {
