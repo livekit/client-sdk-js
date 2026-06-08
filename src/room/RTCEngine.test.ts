@@ -1,6 +1,6 @@
 import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import RTCEngine, { DataChannelKind, MAX_DATA_PACKET_SIZE } from './RTCEngine';
+import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError } from './errors';
 
@@ -220,6 +220,7 @@ describe('RTCEngine', () => {
   });
 
   describe('sendDataPacket', () => {
+    const MAX_DATA_PACKET_SIZE = 64 * 1024 - 1; // 65535 bytes (64 KB - 1)
     function stubConnectedEngine(engine: RTCEngine) {
       const send = vi.fn();
       Object.assign(engine as unknown as Record<string, unknown>, {
@@ -227,6 +228,9 @@ describe('RTCEngine', () => {
         waitForBufferStatusLow: vi.fn().mockResolvedValue(undefined),
         updateAndEmitDCBufferStatus: vi.fn(),
         dataChannelForKind: vi.fn(() => ({ send })),
+        pcManager: {
+          getMaxPublisherMessageSize: vi.fn(() => MAX_DATA_PACKET_SIZE),
+        },
       });
       return send;
     }
