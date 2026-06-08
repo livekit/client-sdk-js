@@ -223,7 +223,10 @@ describe('RTCEngine', () => {
 
   describe('sendDataPacket', () => {
     const MAX_DATA_PACKET_SIZE = 64 * 1024 - 1; // 65535 bytes (64 KB - 1)
-    function stubConnectedEngine(engine: RTCEngine, maxDataPacketSize: number = MAX_DATA_PACKET_SIZE) {
+    function stubConnectedEngine(
+      engine: RTCEngine,
+      maxDataPacketSize: number = MAX_DATA_PACKET_SIZE,
+    ) {
       const send = vi.fn();
       Object.assign(engine as unknown as Record<string, unknown>, {
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
@@ -292,6 +295,59 @@ describe('RTCEngine', () => {
         engine.sendDataPacket(packet, DataChannelKind.RELIABLE),
       ).resolves.toBeUndefined();
       expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleDataChannelClose', () => {
+    function stubCloseEnv(
+      engine: RTCEngine,
+      { closed, publisherState }: { closed: boolean; publisherState: RTCPeerConnectionState },
+    ) {
+      const error = vi.fn();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: closed,
+        log: { error },
+        pcManager: {
+          publisher: { getConnectionState: () => publisherState },
+        },
+      });
+      return error;
+    }
+
+    function fireClose(engine: RTCEngine, kind: DataChannelKind) {
+      (
+        engine as unknown as {
+          handleDataChannelClose: (kind: DataChannelKind) => () => void;
+        }
+      ).handleDataChannelClose(kind)();
+    }
+
+    it('logs an error when a publisher channel closes while connected', () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const error = stubCloseEnv(engine, { closed: false, publisherState: 'connected' });
+
+      fireClose(engine, DataChannelKind.RELIABLE);
+
+      expect(error).toHaveBeenCalledOnce();
+      expect(error.mock.calls[0][0]).toContain('RELIABLE');
+    });
+
+    it('stays quiet when the engine is already closed', () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const error = stubCloseEnv(engine, { closed: true, publisherState: 'connected' });
+
+      fireClose(engine, DataChannelKind.RELIABLE);
+
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('stays quiet when the publisher PC is no longer connected', () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const error = stubCloseEnv(engine, { closed: false, publisherState: 'closed' });
+
+      fireClose(engine, DataChannelKind.RELIABLE);
+
+      expect(error).not.toHaveBeenCalled();
     });
   });
 });

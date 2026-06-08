@@ -869,14 +869,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.lossyDC) {
       this.lossyDC.onmessage = null;
       this.lossyDC.onerror = null;
+      this.lossyDC.onclose = null;
     }
     if (this.reliableDC) {
       this.reliableDC.onmessage = null;
       this.reliableDC.onerror = null;
+      this.reliableDC.onclose = null;
     }
     if (this.dataTrackDC) {
       this.dataTrackDC.onmessage = null;
       this.dataTrackDC.onerror = null;
+      this.dataTrackDC.onclose = null;
     }
 
     // create data channels
@@ -901,6 +904,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
     this.dataTrackDC.onerror = this.handleDataError;
+
+    // detect unexpected publisher data channel closes
+    this.lossyDC.onclose = this.handleDataChannelClose(DataChannelKind.LOSSY);
+    this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
+    this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
     // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
     this.lossyDC.bufferedAmountLowThreshold = 65535;
@@ -1038,6 +1046,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.error(`DataChannel error on ${channelKind}: ${event.message}`, { error });
     } else {
       this.log.error(`Unknown DataChannel error on ${channelKind}`, { event });
+    }
+  };
+
+  private handleDataChannelClose = (kind: DataChannelKind) => () => {
+    // A publisher DC closing while the session is up and the publisher PC is still
+    // connected is the signature of an oversized message having aborted the channel
+    // (see livekit/rust-sdks#1137). Surface it; do not attempt renegotiation.
+    if (!this._isClosed && this.pcManager?.publisher.getConnectionState() === 'connected') {
+      this.log.error(
+        `publisher data channel '${DataChannelKind[kind]}' closed unexpectedly`,
+        this.logContext,
+      );
     }
   };
 
