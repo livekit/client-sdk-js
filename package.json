@@ -79,8 +79,8 @@
     "@types/dom-mediacapture-record": "^1"
   },
   "devDependencies": {
-    "@babel/core": "7.29.0",
-    "@babel/preset-env": "7.29.5",
+    "@babel/core": "7.29.7",
+    "@babel/preset-env": "7.29.7",
     "@bufbuild/protoc-gen-es": "^1.10.0",
     "@changesets/cli": "2.31.0",
     "@eslint/js": "10.0.1",
@@ -98,8 +98,8 @@
     "@types/events": "^3.0.3",
     "@types/sdp-transform": "2.15.0",
     "@types/ua-parser-js": "0.7.39",
-    "@typescript-eslint/eslint-plugin": "8.59.3",
-    "@typescript-eslint/parser": "8.59.3",
+    "@typescript-eslint/eslint-plugin": "8.59.4",
+    "@typescript-eslint/parser": "8.59.4",
     "downlevel-dts": "^0.11.0",
     "eslint": "10.4.0",
     "eslint-config-airbnb-extended": "^2.3.2",
