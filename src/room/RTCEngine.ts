@@ -324,12 +324,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
+      // Whether the initial publisher offer is bundled with the join request. Computed once and
+      // reused after the join below. Only the (non-Firefox) offer-with-join path does this.
+      const sendOfferWithJoin = !useV0Path && isPublisherOfferWithJoinSupported();
+
       let offerProto: SessionDescription | undefined;
-      if (!useV0Path && isPublisherOfferWithJoinSupported()) {
+      if (sendOfferWithJoin) {
         if (!this.pcManager) {
+          // Firefox is excluded from offer-with-join (see isPublisherOfferWithJoinSupported):
+          // customers reported ICE connectivity problems for FF on this path (#1919) that we were
+          // never able to reproduce, so out of caution FF stays on the deferred path below. The
+          // exact cause is unknown — note that ICE gathering does not actually start here, since
+          // createInitialOffer() defers setLocalDescription (via pendingInitialOffer) until the
+          // answer is applied, after updateConfiguration() has set the server's TURN servers.
           await this.configure();
-          this.createDataChannels();
-          this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+          this.applyInitialPublisherLayout();
         }
         const offer = await this.pcManager?.publisher.createInitialOffer();
         if (offer) {
@@ -358,11 +367,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.participantSid = joinResponse.participant?.sid;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!useV0Path && isPublisherOfferWithJoinSupported()) {
+      if (sendOfferWithJoin) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
         if (!this.pcManager) {
+          // Deferred path (Firefox, and V0): configure with the join response so the PC picks up
+          // the server's ICE servers and topology, then negotiate separately rather than bundling
+          // the offer with the join.
           await this.configure(joinResponse, !useV0Path);
+          if (!useV0Path) {
+            // The V1 first offer must carry the media layout so Firefox binds receive decoders for
+            // subscribed tracks — without it, subscribed audio/video arrive as RTP but
+            // never decode. V0 (legacy dual-PC) keeps its original lazy behavior.
+            this.applyInitialPublisherLayout();
+          }
         }
         // create offer
         if (!this.subscriberPrimary || joinResponse.fastPublish) {
@@ -812,6 +830,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     return rtcConfig;
+  }
+
+  /**
+   * Populate the publisher PC so its first offer carries the data channels + recvonly media
+   * sections. Required for every V1 connection: Firefox only binds receive decoders for media
+   * present in that first offer, and the offer-with-join path needs the sections to
+   * build a meaningful initial offer. Must be called on a configured pcManager.
+   */
+  private applyInitialPublisherLayout() {
+    this.createDataChannels();
+    this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
   }
 
   private addMediaSections(numAudios: number, numVideos: number) {
