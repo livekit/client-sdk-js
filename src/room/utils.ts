@@ -797,5 +797,5 @@ export function isCompressionStreamSupported() {
 
 export function isPublisherOfferWithJoinSupported() {
   // we have connectivity issue about publisher offer with join on firefox #1919
-  return isCompressionStreamSupported();
+  return isCompressionStreamSupported() && !isFireFox();
 }
