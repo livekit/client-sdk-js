@@ -1,6 +1,8 @@
+import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import RTCEngine from './RTCEngine';
+import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
+import { PublishDataError } from './errors';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -217,5 +219,60 @@ describe('RTCEngine', () => {
     });
     expect((sender as unknown as { transform: unknown }).transform).toBe(transform);
     expect(createEncodedStreams).not.toHaveBeenCalled();
+  });
+
+  describe('sendDataPacket', () => {
+    const MAX_DATA_PACKET_SIZE = 64 * 1024 - 1; // 65535 bytes (64 KB - 1)
+    function stubConnectedEngine(engine: RTCEngine) {
+      const send = vi.fn();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
+        waitForBufferStatusLow: vi.fn().mockResolvedValue(undefined),
+        updateAndEmitDCBufferStatus: vi.fn(),
+        dataChannelForKind: vi.fn(() => ({ send })),
+        pcManager: {
+          getMaxPublisherMessageSize: vi.fn(() => MAX_DATA_PACKET_SIZE),
+        },
+      });
+      return send;
+    }
+
+    it('rejects packets larger than the max data packet size', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const send = stubConnectedEngine(engine);
+
+      // The serialized packet includes protobuf framing on top of the payload, so a payload at the
+      // limit is already guaranteed to exceed it once serialized.
+      const packet = new DataPacket({
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'user',
+          value: new UserPacket({ payload: new Uint8Array(MAX_DATA_PACKET_SIZE) }),
+        },
+      });
+
+      await expect(engine.sendDataPacket(packet, DataChannelKind.RELIABLE)).rejects.toBeInstanceOf(
+        PublishDataError,
+      );
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('sends packets within the max data packet size', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const send = stubConnectedEngine(engine);
+
+      const packet = new DataPacket({
+        kind: DataPacket_Kind.RELIABLE,
+        value: {
+          case: 'user',
+          value: new UserPacket({ payload: new Uint8Array(1024) }),
+        },
+      });
+
+      await expect(
+        engine.sendDataPacket(packet, DataChannelKind.RELIABLE),
+      ).resolves.toBeUndefined();
+      expect(send).toHaveBeenCalledTimes(1);
+    });
   });
 });

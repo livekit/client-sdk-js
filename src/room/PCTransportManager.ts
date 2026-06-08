@@ -310,6 +310,10 @@ export class PCTransportManager {
     return matchingTransceiver?.mid;
   }
 
+  getMaxPublisherMessageSize() {
+    return this.publisher.getMaxMessageSize();
+  }
+
   addPublisherTrack(track: MediaStreamTrack) {
     return this.publisher.addTrack(track);
   }

@@ -73,6 +73,7 @@ import {
   ConnectionError,
   ConnectionErrorReason,
   NegotiationError,
+  PublishDataError,
   SignalReconnectError,
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -108,6 +109,7 @@ const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 const lossyDataChannelBufferThresholdMin = 8 * 1024;
 const lossyDataChannelBufferThresholdMax = 256 * 1024;
+
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
 
@@ -1534,6 +1536,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
+
+    const maxPublisherMessageSizeBytes = this.pcManager?.getMaxPublisherMessageSize();
+    if (
+      typeof maxPublisherMessageSizeBytes !== 'undefined' &&
+      msg.byteLength > maxPublisherMessageSizeBytes
+    ) {
+      throw new PublishDataError(
+        `cannot publish data packet larger than ${maxPublisherMessageSizeBytes} bytes (got ${msg.byteLength})`,
+      );
+    }
 
     switch (kind) {
       case DataChannelKind.LOSSY:
