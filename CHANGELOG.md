@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.19.2
+
+### Patch Changes
+
+- fix: rtpMap event leak on multiple negotiations without video tracks - [#1961](https://github.com/livekit/client-sdk-js/pull/1961) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure clearTimeout(responseTimeoutId) is skipped when timeout isn't set yet - [#1958](https://github.com/livekit/client-sdk-js/pull/1958) ([@1egoman](https://github.com/1egoman))
+
+- Send initial media sections with v1 signalling for FF - [#1963](https://github.com/livekit/client-sdk-js/pull/1963) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.19.1
 
 ### Patch Changes
