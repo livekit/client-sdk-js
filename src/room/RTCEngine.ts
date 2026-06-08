@@ -331,10 +331,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let offerProto: SessionDescription | undefined;
       if (sendOfferWithJoin) {
         if (!this.pcManager) {
-          // Configured WITHOUT the join response, so ICE gathering starts before the server's TURN
-          // servers are known (they're applied via updateConfiguration after the join). Chrome
-          // copes via continual gathering; Firefox does not pick up the late TURN servers, which is
-          // why FF is excluded from this path and uses the deferred path below (#1919).
+          // Firefox is excluded from offer-with-join (see isPublisherOfferWithJoinSupported):
+          // customers reported ICE connectivity problems for FF on this path (#1919) that we were
+          // never able to reproduce, so out of caution FF stays on the deferred path below. The
+          // exact cause is unknown — note that ICE gathering does not actually start here, since
+          // createInitialOffer() defers setLocalDescription (via pendingInitialOffer) until the
+          // answer is applied, after updateConfiguration() has set the server's TURN servers.
           await this.configure();
           this.applyInitialPublisherLayout();
         }
@@ -369,13 +371,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
         if (!this.pcManager) {
-          // Configure AFTER the join so the PC is created with the server's TURN servers already
-          // present — ICE gathering then includes relay candidates from the start. This is what
-          // keeps the deferred path safe on Firefox.
+          // Deferred path (Firefox, and V0): configure with the join response so the PC picks up
+          // the server's ICE servers and topology, then negotiate separately rather than bundling
+          // the offer with the join.
           await this.configure(joinResponse, !useV0Path);
           if (!useV0Path) {
             // The V1 first offer must carry the media layout so Firefox binds receive decoders for
-            // subscribed tracks. V0 (legacy dual-PC) keeps its original lazy behavior.
+            // subscribed tracks (CLT-52036) — without it, subscribed audio/video arrive as RTP but
+            // never decode. V0 (legacy dual-PC) keeps its original lazy behavior.
             this.applyInitialPublisherLayout();
           }
         }
