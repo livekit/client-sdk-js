@@ -288,9 +288,8 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'text') : stream,
-            // Compressed streams report no total length; completion is driven by the trailer.
-            compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
+            stream,
+            bigIntToNumber(streamHeader.totalLength),
           ),
           { identity: participantIdentity },
         );
