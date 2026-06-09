@@ -1,7 +1,7 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
+import { bigIntToNumber, Future } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
   /** An AbortSignal can be used to terminate reads early. */
@@ -151,7 +151,16 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
  * A class to read chunks from a ReadableStream and provide them in a structured format.
  */
 export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
-  private receivedChunks: Map<number, DataStream_Chunk>;
+  /** Store a queue of chunks to be read. */
+  private chunks: Array<DataStream_Chunk> = [];
+  private chunkPublishedFuture = new Future<{ done: false, value: DataStream_Chunk } | { done: true, value?: undefined }, never>();
+  private receivedChunks: Map<number /* chunk index */, DataStream_Chunk>;
+  private receivedChunkDecompressionStreams: Map<number /* compression indexes */, {
+    stream: DecompressionStream;
+    writer: WritableStreamDefaultWriter<BufferSource>;
+    reader: ReadableStreamDefaultReader<Uint8Array>;
+  }> = new Map();
+
 
   signal?: AbortSignal;
 
@@ -204,10 +213,86 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     const decoder = new TextDecoder('utf-8', { fatal: true });
     const signal = this.signal;
 
+    const readNext = <T>(reader: ReadableStreamDefaultReader<T>, signal?: AbortSignal) => {
+      return new Promise<ReadableStreamReadResult<T>>(
+        (resolve, reject) => {                                              
+          if (signal) {                                                     
+            const onAbort = () => reject(signal.reason);
+            signal.addEventListener('abort', onAbort, { once: true });      
+            reader                                                          
+              .read()
+              .then(resolve, reject)
+              .finally(() => {
+                signal.removeEventListener('abort', onAbort);
+              });
+          } else {
+            reader.read().then(resolve, reject);
+          }
+        },
+      );
+    };
+
+    const decodeChunkContents = (content: Uint8Array, chunkIndex: bigint) => {
+      let decodedResult;
+      try {
+        decodedResult = decoder.decode(content);
+      } catch (err) {
+        throw new DataStreamError(
+          `Cannot decode datastream chunk ${chunkIndex} as text: ${err}`,
+          DataStreamErrorReason.DecodeFailed,
+        );
+      }
+
+      return decodedResult;
+    };
+
     const cleanup = () => {
       reader.releaseLock();
       this.signal = undefined;
     };
+
+    // Prefill DecompressionStreams ahead of the iterator for fastest decompression performance
+    (async () => {
+      let lastChunkIndex: bigint | null = null;
+      while (true) {
+        try {
+          if (signal?.aborted) {
+            throw signal.reason;
+          }
+          const result = await readNext(reader, signal);
+          // console.log('RESULT', result);
+          if (result.done) {
+            this.chunkPublishedFuture.resolve?.({ done: true });
+            break;
+          } else {
+            this.chunks.unshift(result.value);
+            this.chunkPublishedFuture.resolve?.({ done: false, value: result.value });
+            this.chunkPublishedFuture = new Future();
+
+            const compressionIndex = result.value.iv?.[0] ?? 0;                 
+            if (compressionIndex > 0) {                                         
+              let state = this.receivedChunkDecompressionStreams.get(compressionIndex);
+              if (!state) {
+                const stream = new DecompressionStream('gzip');
+                state = {
+                  stream,
+                  writer: stream.writable.getWriter(),
+                  reader: stream.readable.getReader(),
+                };
+                this.receivedChunkDecompressionStreams.set(compressionIndex, state);
+              }
+              // console.log('WRITE CMP', compressionIndex, result.value.content);
+              state.writer.write(result.value.content as BufferSource);
+            }
+
+            lastChunkIndex = result.value.chunkIndex;
+          }
+        } catch (err) {
+          cleanup();
+          throw err;
+        }
+      }
+    })();
 
     return {
       next: async (): Promise<IteratorResult<string>> => {
@@ -215,43 +300,65 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
           if (signal?.aborted) {
             throw signal.reason;
           }
-          const result = await new Promise<ReadableStreamReadResult<DataStream_Chunk>>(
-            (resolve, reject) => {
-              if (signal) {
-                const onAbort = () => reject(signal.reason);
-                signal.addEventListener('abort', onAbort, { once: true });
-                reader
-                  .read()
-                  .then(resolve, reject)
-                  .finally(() => {
-                    signal.removeEventListener('abort', onAbort);
-                  });
-              } else {
-                reader.read().then(resolve, reject);
-              }
-            },
-          );
-          if (result.done) {
-            this.validateBytesReceived(true);
-            return { done: true, value: undefined };
-          } else {
-            this.handleChunkReceived(result.value);
 
-            let decodedResult;
-            try {
-              decodedResult = decoder.decode(result.value.content);
-            } catch (err) {
-              throw new DataStreamError(
-                `Cannot decode datastream chunk ${result.value.chunkIndex} as text: ${err}`,
-                DataStreamErrorReason.DecodeFailed,
-              );
+          // Step 1: Get next chunk, either already pre-fetched in this.chunks, or if not then
+          // wait for the next one to be generated
+          let chunk = this.chunks.pop();
+          if (!chunk) {
+            const { done, value } = await this.chunkPublishedFuture.promise;
+            if (done) {
+              this.validateBytesReceived(true);
+              return { done: true, value: undefined };
             }
-
-            return {
-              done: false,
-              value: decodedResult,
-            };
+            this.chunks.pop(); // FIXME: maybe do this in a loop?
+            chunk = value;
           }
+          // console.log('CHUNK', chunk);
+
+          this.handleChunkReceived(chunk);
+
+          let chunkContent = chunk.content;
+
+          // Step 2: optionally decompress bu pulling the proper length in bytes from the
+          // corresponding DecompressionStream
+          const compressionIndex = chunk.iv?.[0] ?? 0;
+          const uncompressedByteLength = (((chunk.iv?.[1] ?? 0) & 0xff) << 8) | ((chunk.iv?.[2] ?? 0) & 0xff);
+          // console.log('COMPRESSION RATIO:', chunkContent.length / uncompressedByteLength);
+          if (compressionIndex > 0) {
+            // Chunk was compressed, so read the next `uncompressedByteLength` bytes
+            const decompressionState = this.receivedChunkDecompressionStreams.get(compressionIndex);
+            if (decompressionState) {
+              let combinedBuffer = new Uint8Array(uncompressedByteLength);
+              let offset = 0;
+              while (true) {
+                const { done, value } = await decompressionState.reader.read();
+                // console.log('CMP READ:', done, value);
+                if (done) {
+                  break;
+                }
+                if (offset + value.length > combinedBuffer.length) {
+                  throw new Error(`uncompressedByteLength value was too short, espected to be able to fit at least ${value.length} bytes at offset ${offset}, but only had ${combinedBuffer.length} bytes of space`);
+                }
+                combinedBuffer.set(value, offset);
+                offset += value.length;
+                if (offset >= combinedBuffer.length) {
+                  // FIXME: store value.slice(offset - uncompressedByteLength) and return on next read
+                  break;
+                }
+              }
+              chunkContent = combinedBuffer;
+            }
+          }
+
+          // Step 3: Decode raw result back into text
+          // console.log('CNT', chunkContent);
+          const decodedResult = decodeChunkContents(chunkContent, chunk.chunkIndex);
+          // console.log('OUTPUT', decodedResult);
+
+          return {
+            done: false,
+            value: decodedResult,
+          };
         } catch (err) {
           cleanup();
           throw err;
