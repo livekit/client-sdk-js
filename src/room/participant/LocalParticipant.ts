@@ -1221,7 +1221,7 @@ export default class LocalParticipant extends Participant {
       this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
-        opts.degradationPreference ??= getDefaultDegradationPreference(track);
+        opts.degradationPreference = 'maintain-resolution';
         track.setDegradationPreference(opts.degradationPreference);
       }
 

@@ -996,6 +996,10 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
   if (container) {
     container.innerHTML = '';
   }
+  const selfView = $('self-view-area');
+  if (selfView) {
+    selfView.innerHTML = '';
+  }
 
   // clear the chat area on disconnect
   const chat = <HTMLTextAreaElement>$('chat');
@@ -1026,7 +1030,7 @@ function appendLog(...args: any[]) {
 
 // updates participant UI
 function renderParticipant(participant: Participant, remove: boolean = false) {
-  const container = getParticipantsAreaElement();
+  const container = getParticipantContainer(participant);
   if (!container) return;
   const { identity } = participant;
   let div = container.querySelector(`#participant-${identity}`);
@@ -1236,9 +1240,9 @@ function renderBitrate() {
   }
   const participants: Participant[] = [...currentRoom.remoteParticipants.values()];
   participants.push(currentRoom.localParticipant);
-  const container = getParticipantsAreaElement();
 
   for (const p of participants) {
+    const container = getParticipantContainer(p);
     const elm = container.querySelector(`#bitrate-${p.identity}`);
     let totalBitrate = 0;
     for (const t of p.trackPublications.values()) {
@@ -1753,6 +1757,15 @@ function getParticipantsAreaElement(): HTMLElement {
     window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
     $('participants-area')
   );
+}
+
+// the local participant's camera is rendered in its own floating box instead of
+// the regular participants grid
+function getParticipantContainer(participant: Participant): HTMLElement {
+  if (isLocalParticipant(participant)) {
+    return $('self-view-area') ?? getParticipantsAreaElement();
+  }
+  return getParticipantsAreaElement();
 }
 
 function updateVideoSize(element: HTMLVideoElement, target: Element) {

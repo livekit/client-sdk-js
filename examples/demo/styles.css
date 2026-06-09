@@ -53,21 +53,46 @@
 }
 
 #participants-area {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 20px;
+  width: 100%;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  overflow-x: auto;
 }
 
 #participants-area > .participant {
-  width: 100%;
+  flex: 1 1 0;
+  min-width: 240px;
+  aspect-ratio: 16 / 9;
 }
 
-#participants-area > .participant::before {
-  content: '';
-  display: inline-block;
-  width: 1px;
-  height: 0;
-  padding-bottom: calc(100% / (16 / 9));
+#self-view-area {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  width: 280px;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+#self-view-area:empty {
+  display: none;
+}
+
+#self-view-area > .participant {
+  width: 100%;
+  height: 100%;
 }
 
 #log-area {
