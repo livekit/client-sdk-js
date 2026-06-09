@@ -1,2 +1,7 @@
 overrides:
   lodash: '>=4.18.0'
+  # Security: node-tar path-traversal advisories (GHSA-9ppj-qmqm-q256,
+  # GHSA-qffp-2rhf-9h96, GHSA-83g3-92jg-28cx, GHSA-34x7-hfp2-rc4v,
+  # GHSA-r6q2-hw4h-h46w, GHSA-8qq5-rm4j-mr97, GHSA-f5x3-32g6-xq36). tar is
+  # pinned to ^4 by node-pre-gyp via vite-plugin-mix; force the patched line.
+  tar: '>=7.5.11'
