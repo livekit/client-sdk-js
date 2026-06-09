@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  lodash: '>=4.18.0'
+
 importers:
 
   .:
@@ -3138,8 +3141,8 @@ packages:
   lodash.startcase@4.4.0:
     resolution: {integrity: sha512-+WKqsK294HMSc2jEbNgpHpd0JfIBhp7rEV4aqXWqFr6AlXov+SlcgB1Fv01y2kGe3Gc8nMW7VA0SrGuSkRfIEg==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   loglevel@1.9.2:
     resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
@@ -5607,7 +5610,7 @@ snapshots:
       '@babel/traverse': 7.27.0
       '@babel/types': 7.27.0
       javascript-natural-sort: 0.7.1
-      lodash: 4.17.21
+      lodash: 4.18.1
       prettier: 3.8.3
     transitivePeerDependencies:
       - supports-color
@@ -7389,7 +7392,7 @@ snapshots:
 
   lodash.startcase@4.4.0: {}
 
-  lodash@4.17.21: {}
+  lodash@4.18.1: {}
 
   loglevel@1.9.2: {}
 

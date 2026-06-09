@@ -1,3 +1,7 @@
+overrides:
+  # Security: GHSA-r5fr-rjxr-66jc (code injection via _.template). lodash is a
+  # transitive devDependency; pin to the patched release.
+  lodash: '>=4.18.0'
 minimumReleaseAge: 2880
 minimumReleaseAgeExclude:
   - '@livekit/*'
