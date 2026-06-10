@@ -9,8 +9,13 @@ import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, decodeBase64, numberToBigInt } from '../../utils';
-import { gzipDecompress } from '../compression';
-import { COMPRESSION_ATTRIBUTE, COMPRESSION_GZIP, INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
+import { gzipDecompress, inflateRawStream } from '../compression';
+import {
+  COMPRESSION_ATTRIBUTE,
+  COMPRESSION_DEFLATE_RAW,
+  COMPRESSION_GZIP,
+  INLINE_PAYLOAD_ATTRIBUTE,
+} from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -239,7 +244,11 @@ export default class IncomingDataStreamManager {
           attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
         };
 
-        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+        // Inline payloads are compressed as one-shot gzip; chunked streams as a single raw-deflate
+        // stream spanning all chunks (see COMPRESSION_DEFLATE_RAW).
+        const inlineCompressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+        const streamCompressed =
+          info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
 
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
@@ -248,7 +257,7 @@ export default class IncomingDataStreamManager {
           delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
           delete info.attributes![COMPRESSION_ATTRIBUTE];
           // Compressed text is base64(gzip(utf-8)); uncompressed text is the raw string.
-          const content = compressed
+          const content = inlineCompressed
             ? gzipDecompress(decodeBase64(inlinePayload))
             : new TextEncoder().encode(inlinePayload);
           streamHandlerCallback(
@@ -262,7 +271,7 @@ export default class IncomingDataStreamManager {
           return;
         }
 
-        if (compressed) {
+        if (streamCompressed) {
           delete info.attributes![COMPRESSION_ATTRIBUTE];
         }
 
@@ -288,7 +297,9 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            stream,
+            streamCompressed ? inflateRawChunkStream(stream, streamHeader.streamId) : stream,
+            // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
+            // it applies to both paths.
             bigIntToNumber(streamHeader.totalLength),
           ),
           { identity: participantIdentity },
@@ -384,6 +395,103 @@ function createInlineStream(
       } catch (err) {
         controller.error(err);
       }
+    },
+  });
+}
+
+/**
+ * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `TextStreamReader` consumes it unchanged.
+ *
+ * The sender runs a single raw-deflate context across the whole stream, sync-flushing at every
+ * write boundary, so the receiver feeds all chunk contents (in `chunkIndex` order) through ONE
+ * decompressor and gets each write's content emitted as soon as its chunks arrive. A streaming
+ * `TextDecoder` reframes the decompressed bytes on UTF-8 character boundaries (a write larger than
+ * the MTU spans several packets, which may split a codepoint) so each synthesized chunk decodes
+ * independently. Errors on the source stream (e.g. encryption mismatch, abnormal end) propagate to
+ * the reader.
+ */
+function inflateRawChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  const srcReader = raw.getReader();
+
+  // Stage 1: unwrap chunk packets to compressed bytes, guarding ordering. A stateful decompressor
+  // silently corrupts on duplicated or out-of-order input, so duplicates are dropped (with a
+  // warning - in-order delivery is expected on the reliable channel, but reconnect handling may
+  // replay) and a gap is a hard error.
+  let lastChunkIndex = -1;
+  const compressedBytes = new ReadableStream<Uint8Array>({
+    pull: async (controller) => {
+      for (;;) {
+        const { done, value } = await srcReader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        const index = bigIntToNumber(value.chunkIndex);
+        if (index <= lastChunkIndex) {
+          log.warn(
+            `ignoring duplicate chunk ${index} for compressed data stream ${streamId} (last processed: ${lastChunkIndex})`,
+          );
+          continue;
+        }
+        if (index > lastChunkIndex + 1) {
+          throw new DataStreamError(
+            `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
+            DataStreamErrorReason.Incomplete,
+          );
+        }
+        lastChunkIndex = index;
+        controller.enqueue(value.content);
+        return;
+      }
+    },
+    cancel: (reason) => srcReader.cancel(reason),
+  });
+
+  // Stage 2: one decompressor for the stream's lifetime.
+  const decompressedReader = inflateRawStream(compressedBytes).getReader();
+
+  // Stage 3: reframe decompressed bytes on UTF-8 boundaries and re-wrap as chunks.
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const encoder = new TextEncoder();
+  let outIndex = 0;
+  const decodeOrThrow = (bytes?: Uint8Array): string => {
+    try {
+      return bytes ? decoder.decode(bytes, { stream: true }) : decoder.decode();
+    } catch (err) {
+      throw new DataStreamError(
+        `Cannot decode compressed data stream ${streamId} as text: ${err}`,
+        DataStreamErrorReason.DecodeFailed,
+      );
+    }
+  };
+
+  return new ReadableStream<DataStream_Chunk>({
+    pull: async (controller) => {
+      for (;;) {
+        const { done, value } = await decompressedReader.read();
+        if (done) {
+          const tail = decodeOrThrow();
+          if (tail.length > 0) {
+            controller.enqueue(makeChunk(streamId, outIndex++, encoder.encode(tail)));
+          }
+          controller.close();
+          return;
+        }
+        const text = decodeOrThrow(value);
+        if (text.length > 0) {
+          controller.enqueue(makeChunk(streamId, outIndex++, encoder.encode(text)));
+          return;
+        }
+        // Everything so far was a partial codepoint; keep pulling.
+      }
+    },
+    cancel: (reason) => {
+      decompressedReader.cancel(reason).catch(() => {});
+      srcReader.cancel(reason).catch(() => {});
     },
   });
 }
