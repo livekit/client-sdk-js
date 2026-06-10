@@ -22,7 +22,6 @@ import { encodeBase64, isCompressionStreamSupported, numberToBigInt, splitUtf8 }
 import {
   StreamingDeflate,
   deflateRawCompress,
-  deflateRawCompressStream,
   gzipCompressStream,
 } from '../compression';
 import {
@@ -107,8 +106,6 @@ export default class OutgoingDataStreamManager {
       topic: options?.topic,
       attachedStreamIds: fileIds,
       attributes: options?.attributes,
-      // The full payload goes out in the single write below, so the platform compressor suffices.
-      singleWrite: true,
     });
 
     await writer.write(text);
@@ -246,17 +243,10 @@ export default class OutgoingDataStreamManager {
     let chunkId = 0;
     const engine = this.engine;
 
-    // When the whole payload arrives in a single write (the sendText fallback), the platform
-    // compressor produces the identical wire format without fflate — its inability to flush
-    // mid-stream doesn't matter because the only flush is the close at the end.
-    const oneShotCompress =
-      compress && options?.singleWrite === true && isCompressionStreamSupported();
-
     // Otherwise, one deflate context for the whole stream: the dictionary persists across writes,
     // and each write's output is sync-flushed so the receiver can decode it on arrival (see
     // StreamingDeflate).
-    const compressor = compress && !oneShotCompress ? new StreamingDeflate() : undefined;
-    let wroteOnce = false;
+    const compressor = compress ? new StreamingDeflate() : undefined;
 
     // Sends `bytes` as one or more streamChunk packets, splitting at the MTU budget. Writes are
     // already serialized by the WritableStream, so no extra locking is needed.
@@ -283,25 +273,7 @@ export default class OutgoingDataStreamManager {
 
     const writableStream = new WritableStream<string>({
       async write(text) {
-        if (oneShotCompress) {
-          if (wroteOnce) {
-            // @throws-transformer ignore
-            throw new Error(
-              'streamText was opened with singleWrite, but write() was called more than once',
-            );
-          }
-          wroteOnce = true;
-          // Forward compressed output as it is produced; closing the compressor's input emits the
-          // terminating final block as part of the output, so close() below only sends the trailer.
-          const reader = deflateRawCompressStream(textEncoder.encode(text)).getReader();
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) {
-              break;
-            }
-            await sendChunks(value);
-          }
-        } else if (compressor) {
+        if (compressor) {
           await sendChunks(compressor.compressWrite(textEncoder.encode(text)));
         } else {
           // Uncompressed path: split each write on UTF-8 boundaries so every chunk decodes
@@ -317,17 +289,6 @@ export default class OutgoingDataStreamManager {
           const tail = compressor.end();
           if (tail.byteLength > 0) {
             await sendChunks(tail);
-          }
-        } else if (oneShotCompress && !wroteOnce) {
-          // Closed without ever writing: emit a valid empty deflate stream (just a final block) so
-          // the receiver's decompressor still terminates cleanly.
-          const reader = deflateRawCompressStream(new Uint8Array(0)).getReader();
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) {
-              break;
-            }
-            await sendChunks(value);
           }
         }
         await sendStreamTrailer(streamId, destinationIdentities, engine);
