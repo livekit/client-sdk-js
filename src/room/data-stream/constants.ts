@@ -19,21 +19,32 @@ export const STREAM_CHUNK_SIZE_BYTES = 15_000;
 /**
  * Reserved data-stream header attribute signaling that the payload (inline or chunked) is
  * compressed. Self-describing: the sender sets it when it compresses, and the receiver decompresses
- * iff it is present. The only supported value today is {@link COMPRESSION_GZIP}.
+ * iff it is present. Inline payloads and chunked text streams use
+ * {@link COMPRESSION_DEFLATE_RAW}; chunked byte streams still use the legacy
+ * {@link COMPRESSION_GZIP} member scheme.
  *
  * @internal
  */
 export const COMPRESSION_ATTRIBUTE = 'lk.compression';
 
-/** Value of {@link COMPRESSION_ATTRIBUTE} for gzip-compressed payloads. @internal */
+/**
+ * Value of {@link COMPRESSION_ATTRIBUTE} for the legacy chunked byte-stream scheme: each `write()`
+ * is its own complete gzip member, tagged with a member index in the chunk `version` field.
+ * Slated to migrate to {@link COMPRESSION_DEFLATE_RAW}.
+ *
+ * @internal
+ */
 export const COMPRESSION_GZIP = 'gzip';
 
 /**
- * Value of {@link COMPRESSION_ATTRIBUTE} for chunked streams compressed with a single raw-deflate
- * context shared across the whole stream. The sender sync-flushes at every write boundary so the
- * receiver can decompress each chunk as it arrives, and terminates the deflate stream with a final
- * block before the trailer. Receivers concatenate chunk contents in `chunkIndex` order through one
- * raw-deflate (windowBits -15) decompressor.
+ * Value of {@link COMPRESSION_ATTRIBUTE} for raw-deflate-compressed payloads.
+ *
+ * For inline (single-packet) payloads this is a one-shot raw-deflate buffer, base64'd into the
+ * payload attribute. For chunked streams it is a single raw-deflate context shared across the whole
+ * stream: the sender sync-flushes at every write boundary so the receiver can decompress each chunk
+ * as it arrives, and terminates the deflate stream with a final block before the trailer. Receivers
+ * concatenate chunk contents in `chunkIndex` order through one raw-deflate (windowBits -15)
+ * decompressor.
  *
  * @internal
  */

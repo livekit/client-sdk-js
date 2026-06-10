@@ -9,7 +9,7 @@ import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, decodeBase64, numberToBigInt } from '../../utils';
-import { gzipDecompress, inflateRawStream } from '../compression';
+import { deflateRawDecompress, inflateRawStream } from '../compression';
 import {
   COMPRESSION_ATTRIBUTE,
   COMPRESSION_DEFLATE_RAW,
@@ -165,6 +165,10 @@ export default class IncomingDataStreamManager {
           encryptionType,
         };
 
+        // Inline byte payloads are one-shot deflate-raw; chunked byte streams still use the legacy
+        // per-write gzip member scheme (see decompressedChunkStream).
+        const inlineCompressed =
+          info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
         const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
 
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
@@ -177,7 +181,10 @@ export default class IncomingDataStreamManager {
           streamHandlerCallback(
             new ByteStreamReader(
               info,
-              createInlineStream(streamHeader.streamId, compressed ? gzipDecompress(bytes) : bytes),
+              createInlineStream(
+                streamHeader.streamId,
+                inlineCompressed ? deflateRawDecompress(bytes) : bytes,
+              ),
               bigIntToNumber(streamHeader.totalLength),
             ),
             { identity: participantIdentity },
@@ -244,11 +251,9 @@ export default class IncomingDataStreamManager {
           attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
         };
 
-        // Inline payloads are compressed as one-shot gzip; chunked streams as a single raw-deflate
-        // stream spanning all chunks (see COMPRESSION_DEFLATE_RAW).
-        const inlineCompressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
-        const streamCompressed =
-          info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
+        // Both inline and chunked text payloads are deflate-raw compressed; inline as a one-shot
+        // buffer, chunked as a single stream spanning all chunks (see COMPRESSION_DEFLATE_RAW).
+        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
 
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
@@ -256,9 +261,9 @@ export default class IncomingDataStreamManager {
         if (typeof inlinePayload !== 'undefined') {
           delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
           delete info.attributes![COMPRESSION_ATTRIBUTE];
-          // Compressed text is base64(gzip(utf-8)); uncompressed text is the raw string.
-          const content = inlineCompressed
-            ? gzipDecompress(decodeBase64(inlinePayload))
+          // Compressed text is base64(deflate-raw(utf-8)); uncompressed text is the raw string.
+          const content = compressed
+            ? deflateRawDecompress(decodeBase64(inlinePayload))
             : new TextEncoder().encode(inlinePayload);
           streamHandlerCallback(
             new TextStreamReader(
@@ -271,7 +276,7 @@ export default class IncomingDataStreamManager {
           return;
         }
 
-        if (streamCompressed) {
+        if (compressed) {
           delete info.attributes![COMPRESSION_ATTRIBUTE];
         }
 
@@ -297,7 +302,7 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            streamCompressed ? inflateRawChunkStream(stream, streamHeader.streamId) : stream,
+            compressed ? inflateRawChunkStream(stream, streamHeader.streamId) : stream,
             // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
             // it applies to both paths.
             bigIntToNumber(streamHeader.totalLength),
