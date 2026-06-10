@@ -27,9 +27,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       return false;
     }
 
-    areTokenSourceFetchOptionsEqual(options, this.cachedFetchOptions);
-
-    return true;
+    return areTokenSourceFetchOptionsEqual(options, this.cachedFetchOptions);
   }
 
   private shouldReturnCachedValueFromFetch(fetchOptions: TokenSourceFetchOptions) {
