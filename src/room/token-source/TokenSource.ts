@@ -27,28 +27,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       return false;
     }
 
-    for (const key of Object.keys(this.cachedFetchOptions) as Array<
-      keyof TokenSourceFetchOptions
-    >) {
-      switch (key) {
-        case 'roomName':
-        case 'participantName':
-        case 'participantIdentity':
-        case 'participantMetadata':
-        case 'participantAttributes':
-        case 'agentName':
-        case 'agentMetadata':
-        case 'deployment':
-          if (this.cachedFetchOptions[key] !== options[key]) {
-            return false;
-          }
-          break;
-        default:
-          // ref: https://stackoverflow.com/a/58009992
-          const exhaustiveCheckedKey: never = key;
-          throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
-      }
-    }
+    areTokenSourceFetchOptionsEqual(options, this.cachedFetchOptions);
 
     return true;
   }
