@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   StreamingDeflate,
-  gzipCompress,
-  gzipDecompress,
-  gzipDecompressStream,
+  deflateRawCompress,
+  deflateRawDecompress,
   inflateRawStream,
 } from './compression';
 
@@ -47,34 +46,35 @@ async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
   return out;
 }
 
-describe('data-stream gzip helpers', () => {
+describe('data-stream buffered deflate-raw helpers (inline payloads)', () => {
   it('round-trips a buffered payload', async () => {
     const original = bytes('the quick brown fox '.repeat(500));
-    const restored = await gzipDecompress(await gzipCompress(original));
+    const restored = await deflateRawDecompress(await deflateRawCompress(original));
     expect(text(restored)).toBe(text(original));
   });
 
   it('actually compresses repetitive data', async () => {
     const original = bytes('A'.repeat(50_000));
-    const compressed = await gzipCompress(original);
+    const compressed = await deflateRawCompress(original);
     expect(compressed.byteLength).toBeLessThan(original.byteLength);
   });
 
   it('round-trips an empty payload', async () => {
-    const restored = await gzipDecompress(await gzipCompress(new Uint8Array(0)));
+    const restored = await deflateRawDecompress(await deflateRawCompress(new Uint8Array(0)));
     expect(restored.byteLength).toBe(0);
   });
 
-  it('streams decompression of a payload split across many compressed input chunks', async () => {
+  it('streams decompression of a one-shot payload split across many input chunks', async () => {
     const original = bytes('hello compressed world '.repeat(2_000));
-    const compressed = await gzipCompress(original);
+    const compressed = await deflateRawCompress(original);
 
-    // Feed the compressed bytes in small slices to exercise incremental decompression.
+    // Feed the compressed bytes in small slices to exercise incremental decompression - a one-shot
+    // buffer is also a valid input for the streaming decompressor.
     const slices: Uint8Array[] = [];
     for (let i = 0; i < compressed.byteLength; i += 100) {
       slices.push(compressed.slice(i, i + 100));
     }
-    const restored = await collect(gzipDecompressStream(streamOf(...slices)));
+    const restored = await collect(inflateRawStream(streamOf(...slices)));
     expect(text(restored)).toBe(text(original));
   });
 });

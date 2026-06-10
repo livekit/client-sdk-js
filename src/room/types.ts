@@ -34,6 +34,15 @@ export interface StreamTextOptions {
   replyToStreamId?: string;
   totalSize?: number;
   attributes?: Record<string, string>;
+  /**
+   * Promise that the stream's entire payload will arrive in exactly ONE `write()` call before
+   * `close()`. Lets the sender compress with a one-shot platform `CompressionStream` (whose only
+   * "flush" is the close at the end) instead of the per-write-flushable deflate. Writing more than
+   * once with this set is an error.
+   *
+   * @internal
+   */
+  singleWrite?: boolean;
 }
 
 export type StreamBytesOptions = {

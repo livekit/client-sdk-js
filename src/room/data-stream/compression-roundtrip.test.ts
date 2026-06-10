@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import log from '../../logger';
 import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DATA_STREAM_V2 } from '../../version';
 import type RTCEngine from '../RTCEngine';
+import { StreamingDeflate } from './compression';
 import IncomingDataStreamManager from './incoming/IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './incoming/StreamReader';
 import OutgoingDataStreamManager from './outgoing/OutgoingDataStreamManager';
@@ -282,6 +283,78 @@ describe.skipIf(!hasCompression)('data stream compression round-trip', () => {
 
     const reader = await receiveText(sentPackets, 't');
     expect(await reader.readAll()).toBe(expected);
+  });
+
+  it('compresses the sendText chunked fallback with the platform compressor, not fflate', async () => {
+    const { manager, sentPackets } = createSender();
+    const fflateSpy = vi.spyOn(StreamingDeflate.prototype, 'compressWrite');
+
+    try {
+      // High entropy → too big to inline even compressed → falls back to the chunked stream.
+      let payload = '';
+      while (payload.length < 60_000) {
+        payload += Math.random().toString(36).slice(2);
+      }
+      await manager.sendText(payload, { topic: 't', destinationIdentities: [RECEIVER] });
+
+      expect(fflateSpy).not.toHaveBeenCalled();
+      const header = sentPackets.find((p) => p.value.case === 'streamHeader');
+      const headerValue = header!.value.value as Extract<
+        DataPacket['value'],
+        { case: 'streamHeader' }
+      >['value'];
+      expect(headerValue.attributes['lk.compression']).toBe('deflate-raw');
+
+      // The wire format is identical, so the same receiver path decodes it.
+      const reader = await receiveText(sentPackets, 't');
+      expect(await reader.readAll()).toBe(payload);
+    } finally {
+      fflateSpy.mockRestore();
+    }
+  });
+
+  it('still uses fflate for multi-write streamText streams', async () => {
+    const { manager, sentPackets } = createSender();
+    const fflateSpy = vi.spyOn(StreamingDeflate.prototype, 'compressWrite');
+
+    try {
+      const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+      await writer.write('one ');
+      await writer.write('two');
+      await writer.close();
+
+      expect(fflateSpy).toHaveBeenCalledTimes(2);
+      const reader = await receiveText(sentPackets, 't');
+      expect(await reader.readAll()).toBe('one two');
+    } finally {
+      fflateSpy.mockRestore();
+    }
+  });
+
+  it('rejects a second write on a singleWrite stream', async () => {
+    const { manager } = createSender();
+
+    const writer = await manager.streamText({
+      topic: 't',
+      destinationIdentities: [RECEIVER],
+      singleWrite: true,
+    });
+    await writer.write('the only write');
+    await expect(writer.write('one too many')).rejects.toThrow(/more than once/);
+  });
+
+  it('round-trips a singleWrite stream closed without any writes', async () => {
+    const { manager, sentPackets } = createSender();
+
+    const writer = await manager.streamText({
+      topic: 't',
+      destinationIdentities: [RECEIVER],
+      singleWrite: true,
+    });
+    await writer.close();
+
+    const reader = await receiveText(sentPackets, 't');
+    expect(await reader.readAll()).toBe('');
   });
 
   it('does not compress for a pre-v2 recipient (uncompressed round-trip)', async () => {
