@@ -27,3 +27,14 @@ export const COMPRESSION_ATTRIBUTE = 'lk.compression';
 
 /** Value of {@link COMPRESSION_ATTRIBUTE} for gzip-compressed payloads. @internal */
 export const COMPRESSION_GZIP = 'gzip';
+
+/**
+ * Value of {@link COMPRESSION_ATTRIBUTE} for chunked streams compressed with a single raw-deflate
+ * context shared across the whole stream. The sender sync-flushes at every write boundary so the
+ * receiver can decompress each chunk as it arrives, and terminates the deflate stream with a final
+ * block before the trailer. Receivers concatenate chunk contents in `chunkIndex` order through one
+ * raw-deflate (windowBits -15) decompressor.
+ *
+ * @internal
+ */
+export const COMPRESSION_DEFLATE_RAW = 'deflate-raw';

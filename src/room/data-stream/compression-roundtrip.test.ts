@@ -1,4 +1,4 @@
-import { type DataPacket, Encryption_Type } from '@livekit/protocol';
+import { type DataPacket, type DataStream_Chunk, Encryption_Type } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import log from '../../logger';
 import { CLIENT_PROTOCOL_DATA_STREAM_RPC, CLIENT_PROTOCOL_DATA_STREAM_V2 } from '../../version';
@@ -123,7 +123,7 @@ describe.skipIf(!hasCompression)('data stream compression round-trip', () => {
     expect(Array.from(flatten(await reader.readAll()))).toEqual(Array.from(payload));
   });
 
-  it('round-trips text written across multiple writes (multi-member gzip)', async () => {
+  it('round-trips text written across multiple writes (shared deflate context)', async () => {
     const { manager, sentPackets } = createSender();
     const parts = ['first part ', '日本語🚀 second ', 'x'.repeat(20_000), ' tail'];
 
@@ -155,6 +155,133 @@ describe.skipIf(!hasCompression)('data stream compression round-trip', () => {
 
     const reader = await receiveBytes(sentPackets, 'b');
     expect(Array.from(flatten(await reader.readAll()))).toEqual(expected);
+  });
+
+  it('marks chunked compressed text streams with the deflate-raw attribute', async () => {
+    const { manager, sentPackets } = createSender();
+
+    const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+    await writer.write('compressed contents');
+    await writer.close();
+
+    const header = sentPackets.find((p) => p.value.case === 'streamHeader');
+    const headerValue = header!.value.value as Extract<
+      DataPacket['value'],
+      { case: 'streamHeader' }
+    >['value'];
+    expect(headerValue.attributes['lk.compression']).toBe('deflate-raw');
+    // Chunk packets carry no smuggled metadata.
+    for (const packet of sentPackets) {
+      if (packet.value.case === 'streamChunk') {
+        expect(packet.value.value.iv).toBeUndefined();
+        expect(packet.value.value.version).toBe(0);
+      }
+    }
+  });
+
+  it('emits each write to the receiver as its packets arrive, before the stream ends', async () => {
+    const { manager, sentPackets } = createSender();
+    const incoming = new IncomingDataStreamManager();
+    incoming.setConnected(true);
+    const readerPromise = new Promise<TextStreamReader>((resolve) => {
+      incoming.registerTextStreamHandler('t', (reader) => resolve(reader));
+    });
+
+    const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+    let fed = 0;
+    const feedNewPackets = () => {
+      for (const packet of sentPackets.slice(fed)) {
+        incoming.handleDataStreamPacket(packet, Encryption_Type.NONE);
+      }
+      fed = sentPackets.length;
+    };
+
+    const writes = ['first write ', 'second write, repeating first write words ', 'third'];
+    let iterator: AsyncIterator<string> | undefined;
+    for (const write of writes) {
+      await writer.write(write);
+      feedNewPackets();
+      if (!iterator) {
+        const reader = await readerPromise;
+        iterator = reader[Symbol.asyncIterator]();
+      }
+      // The write's full text must be readable now - no trailer has been sent yet.
+      let got = '';
+      while (got.length < write.length) {
+        const { done, value } = await iterator.next();
+        expect(done).toBeFalsy();
+        got += value;
+      }
+      expect(got).toBe(write);
+    }
+
+    await writer.close();
+    feedNewPackets();
+    const end = await iterator!.next();
+    expect(end.done).toBe(true);
+  });
+
+  it('ignores a duplicated chunk packet with a warning', async () => {
+    const { manager, sentPackets } = createSender();
+    const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    try {
+      const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+      await writer.write('part one ');
+      await writer.write('part two');
+      await writer.close();
+
+      // Replay the first chunk packet again right after the original.
+      const firstChunkIdx = sentPackets.findIndex((p) => p.value.case === 'streamChunk');
+      const packets = [...sentPackets];
+      packets.splice(firstChunkIdx + 1, 0, packets[firstChunkIdx]);
+
+      const reader = await receiveText(packets, 't');
+      expect(await reader.readAll()).toBe('part one part two');
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('duplicate chunk'));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('errors the stream when a chunk goes missing (gap in chunk indices)', async () => {
+    const { manager, sentPackets } = createSender();
+
+    const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+    await writer.write('part one ');
+    await writer.write('part two');
+    await writer.close();
+
+    // Drop the first chunk packet entirely.
+    const firstChunkIdx = sentPackets.findIndex((p) => p.value.case === 'streamChunk');
+    const packets = sentPackets.filter((_, i) => i !== firstChunkIdx);
+
+    const reader = await receiveText(packets, 't');
+    await expect(reader.readAll()).rejects.toThrow(/[Mm]issing chunk/);
+  });
+
+  it('round-trips a long stream of many small writes (transcription pattern)', async () => {
+    const { manager, sentPackets } = createSender();
+    const writes = Array.from(
+      { length: 500 },
+      (_, i) => `transcription segment number ${i} with some repeated filler words. `,
+    );
+
+    const writer = await manager.streamText({ topic: 't', destinationIdentities: [RECEIVER] });
+    for (const write of writes) {
+      await writer.write(write);
+    }
+    await writer.close();
+
+    const expected = writes.join('');
+    // Context takeover should compress the repetitive writes well below the raw size.
+    const compressedTotal = sentPackets
+      .filter((p) => p.value.case === 'streamChunk')
+      .reduce((sum, p) => sum + (p.value.value as DataStream_Chunk).content.byteLength, 0);
+    expect(compressedTotal).toBeLessThan(expected.length / 3);
+
+    const reader = await receiveText(sentPackets, 't');
+    expect(await reader.readAll()).toBe(expected);
   });
 
   it('does not compress for a pre-v2 recipient (uncompressed round-trip)', async () => {
