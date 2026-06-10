@@ -38,6 +38,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
         case 'participantAttributes':
         case 'agentName':
         case 'agentMetadata':
+        case 'deployment':
           if (this.cachedFetchOptions[key] !== options[key]) {
             return false;
           }
@@ -189,6 +190,14 @@ class TokenSourceEndpoint extends TokenSourceCached {
             request.roomConfig.agents.push(new RoomAgentDispatch());
           }
           request.roomConfig.agents[0].metadata = options.agentMetadata!;
+          break;
+
+        case 'deployment':
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].deployment = options.deployment!;
           break;
 
         default:
