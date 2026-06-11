@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  StreamingDeflate,
   deflateRawCompress,
+  deflateRawCompressStream,
   deflateRawDecompress,
   inflateRawStream,
 } from './compression';
@@ -79,77 +79,33 @@ describe('data-stream buffered deflate-raw helpers (inline payloads)', () => {
   });
 });
 
-describe('StreamingDeflate + inflateRawStream', () => {
-  it('round-trips multiple writes through a single decompressor', async () => {
-    const deflate = new StreamingDeflate();
-    const writes = ['first write ', 'second write with 日本語🚀 ', 'third '.repeat(100)];
-    const parts = writes.map((w) => deflate.compressWrite(bytes(w)));
-    parts.push(deflate.end());
-
-    const restored = await collect(inflateRawStream(streamOf(...parts)));
-    expect(text(restored)).toBe(writes.join(''));
+describe('deflateRawCompressStream + inflateRawStream', () => {
+  it('round-trips a one-shot payload through the streaming decompressor', async () => {
+    const original = 'first part 日本語🚀 ' + 'repeated filler '.repeat(2_000);
+    const compressed = await collect(deflateRawCompressStream(bytes(original)));
+    const restored = await collect(inflateRawStream(streamOf(compressed)));
+    expect(text(restored)).toBe(original);
   });
 
-  it("emits each write's content before any further input arrives (timeliness)", async () => {
-    const deflate = new StreamingDeflate();
-
-    let inputController!: ReadableStreamDefaultController<Uint8Array>;
-    const input = new ReadableStream<Uint8Array>({
-      start(controller) {
-        inputController = controller;
-      },
-    });
-    const reader = inflateRawStream(input).getReader();
-    const decoder = new TextDecoder();
-
-    const writes = ['hello there, ', 'hello again - repeating myself, hello hello ', 'bye'];
-    for (const write of writes) {
-      inputController.enqueue(deflate.compressWrite(bytes(write)));
-      // The write's full content must come out without sending anything further.
-      let got = '';
-      while (got.length < write.length) {
-        const { done, value } = await reader.read();
-        expect(done).toBe(false);
-        got += decoder.decode(value!, { stream: true });
-      }
-      expect(got).toBe(write);
-    }
-
-    inputController.enqueue(deflate.end());
-    inputController.close();
-    const { done } = await reader.read();
-    expect(done).toBe(true);
-  });
-
-  it('reuses the compression context across writes (later similar writes shrink)', () => {
-    const deflate = new StreamingDeflate();
-    const sentence = 'the quick brown fox jumps over the lazy dog and keeps on jumping. ';
-    const first = deflate.compressWrite(bytes(sentence.repeat(10)));
-    const second = deflate.compressWrite(bytes(sentence.repeat(10)));
-    // The second write is pure back-references into the persisted window.
-    expect(second.byteLength).toBeLessThan(first.byteLength / 4);
+  it('actually compresses repetitive data', async () => {
+    const original = bytes('the quick brown fox '.repeat(2_000));
+    const compressed = await collect(deflateRawCompressStream(original));
+    expect(compressed.byteLength).toBeLessThan(original.byteLength / 3);
   });
 
   it('round-trips incompressible input', async () => {
-    const deflate = new StreamingDeflate();
     const original = new Uint8Array(10_000);
     for (let i = 0; i < original.length; i += 1) {
       original[i] = Math.floor(Math.random() * 256);
     }
-    const parts = [deflate.compressWrite(original), deflate.end()];
-    const restored = await collect(inflateRawStream(streamOf(...parts)));
+    const compressed = await collect(deflateRawCompressStream(original));
+    const restored = await collect(inflateRawStream(streamOf(compressed)));
     expect(Array.from(restored)).toEqual(Array.from(original));
   });
 
-  it('handles an empty write', async () => {
-    const deflate = new StreamingDeflate();
-    const parts = [
-      deflate.compressWrite(bytes('before ')),
-      deflate.compressWrite(new Uint8Array(0)),
-      deflate.compressWrite(bytes('after')),
-      deflate.end(),
-    ];
-    const restored = await collect(inflateRawStream(streamOf(...parts)));
-    expect(text(restored)).toBe('before after');
+  it('round-trips an empty payload', async () => {
+    const compressed = await collect(deflateRawCompressStream(new Uint8Array(0)));
+    const restored = await collect(inflateRawStream(streamOf(compressed)));
+    expect(restored.byteLength).toBe(0);
   });
 });

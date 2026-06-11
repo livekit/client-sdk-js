@@ -19,11 +19,7 @@ import type {
   TextStreamInfo,
 } from '../../types';
 import { encodeBase64, isCompressionStreamSupported, numberToBigInt, splitUtf8 } from '../../utils';
-import {
-  StreamingDeflate,
-  deflateRawCompress,
-  gzipCompressStream,
-} from '../compression';
+import { deflateRawCompress, deflateRawCompressStream, gzipCompressStream } from '../compression';
 import {
   COMPRESSION_ATTRIBUTE,
   COMPRESSION_DEFLATE_RAW,
@@ -78,6 +74,7 @@ export default class OutgoingDataStreamManager {
     const streamId = crypto.randomUUID();
     const textInBytes = textEncoder.encode(text);
     const totalTextLength = textInBytes.byteLength;
+    const compress = options?.compress ?? true;
 
     // Fast path: when the full payload is known up front, there are no attachments, and the
     // payload fits (with header overhead) under the MTU, smuggle it into a reserved header
@@ -99,20 +96,36 @@ export default class OutgoingDataStreamManager {
       options?.onProgress?.(totalProgress);
     };
 
-    const writer = await this.streamText({
-      streamId,
-      totalSize: totalTextLength,
-      destinationIdentities: options?.destinationIdentities,
-      topic: options?.topic,
-      attachedStreamIds: fileIds,
-      attributes: options?.attributes,
-    });
+    let info: TextStreamInfo;
+    if (compress && this.shouldCompress(options?.destinationIdentities)) {
+      // The full payload is known up front, so the chunked fallback can compress it in one shot
+      // with the platform compressor (incremental writers can't compress; see streamText).
+      info = await this.sendChunkedCompressedText(
+        streamId,
+        text,
+        totalTextLength,
+        fileIds,
+        options,
+      );
+      // set text part of progress to 1
+      handleProgress(1, 0);
+    } else {
+      const writer = await this.streamText({
+        streamId,
+        totalSize: totalTextLength,
+        destinationIdentities: options?.destinationIdentities,
+        topic: options?.topic,
+        attachedStreamIds: fileIds,
+        attributes: options?.attributes,
+      });
 
-    await writer.write(text);
-    // set text part of progress to 1
-    handleProgress(1, 0);
+      await writer.write(text);
+      // set text part of progress to 1
+      handleProgress(1, 0);
 
-    await writer.close();
+      await writer.close();
+      info = writer.info;
+    }
 
     if (options?.attachments && fileIds) {
       await Promise.all(
@@ -127,7 +140,7 @@ export default class OutgoingDataStreamManager {
         ),
       );
     }
-    return writer.info;
+    return info;
   }
 
   /**
@@ -147,8 +160,8 @@ export default class OutgoingDataStreamManager {
     );
   }
 
-  /** Whether to compress a chunked byte stream (legacy gzip-member scheme): all recipients support
-   * v2 and the runtime can compress. */
+  /** Whether to compress a chunked stream: all recipients support v2 and the runtime can
+   * compress. */
   private shouldCompress(destinationIdentities?: Array<string>): boolean {
     return this.allRecipientsSupportV2(destinationIdentities) && isCompressionStreamSupported();
   }
@@ -211,15 +224,21 @@ export default class OutgoingDataStreamManager {
   }
 
   /**
-   * @internal
+   * Sends `text` as a compressed chunked stream: one raw-deflate stream spanning every chunk
+   * packet's content, terminated by the trailer. Used by the sendText fallback when the payload is
+   * too large to send inline — the full payload is known up front, so the platform compressor
+   * works even though it cannot flush mid-stream (the close is the only flush needed). Incremental
+   * writers (streamText) cannot use this and send uncompressed instead.
    */
-  async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
-    const streamId = options?.streamId ?? crypto.randomUUID();
+  private async sendChunkedCompressedText(
+    streamId: string,
+    text: string,
+    totalTextLength: number,
+    attachedStreamIds: Array<string> | undefined,
+    options?: SendTextOptions,
+  ): Promise<TextStreamInfo> {
     const destinationIdentities = options?.destinationIdentities;
-    const compressOption = options?.compress ?? true;
-    // The sender compresses with fflate (pure JS, always available), so eligibility is purely about
-    // the recipients: advertising data streams v2 means "can decompress a deflate-raw stream".
-    const compress = compressOption && this.allRecipientsSupportV2(destinationIdentities);
+    const engine = this.engine;
 
     const info: TextStreamInfo = {
       id: streamId,
@@ -227,10 +246,63 @@ export default class OutgoingDataStreamManager {
       timestamp: Date.now(),
       topic: options?.topic ?? '',
       // Size is the pre-compression byte length; the receiver counts decompressed bytes against it.
+      size: totalTextLength,
+      attributes: { ...options?.attributes, [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
+      attachedStreamIds,
+    };
+    const header = buildTextStreamHeader(info);
+    const packet = createStreamHeaderPacket(header, destinationIdentities);
+    await engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+
+    // Forward compressed output as it is produced, splitting at the MTU budget.
+    let chunkId = 0;
+    const reader = deflateRawCompressStream(textEncoder.encode(text)).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      let byteOffset = 0;
+      while (byteOffset < value.byteLength) {
+        const subChunk = value.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE_BYTES);
+        const chunkPacket = new DataPacket({
+          destinationIdentities,
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              content: subChunk,
+              streamId,
+              chunkIndex: numberToBigInt(chunkId),
+            }),
+          },
+        });
+        await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
+        chunkId += 1;
+        byteOffset += subChunk.byteLength;
+      }
+    }
+
+    await sendStreamTrailer(streamId, destinationIdentities, engine);
+    return info;
+  }
+
+  /**
+   * @internal
+   */
+  async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
+    const streamId = options?.streamId ?? crypto.randomUUID();
+    const destinationIdentities = options?.destinationIdentities;
+
+    const info: TextStreamInfo = {
+      id: streamId,
+      mimeType: 'text/plain',
+      timestamp: Date.now(),
+      topic: options?.topic ?? '',
       size: options?.totalSize,
-      attributes: compress
-        ? { ...options?.attributes, [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW }
-        : options?.attributes,
+      attributes: options?.attributes,
       encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
         ? Encryption_Type.GCM
         : Encryption_Type.NONE,
@@ -242,11 +314,6 @@ export default class OutgoingDataStreamManager {
 
     let chunkId = 0;
     const engine = this.engine;
-
-    // Otherwise, one deflate context for the whole stream: the dictionary persists across writes,
-    // and each write's output is sync-flushed so the receiver can decode it on arrival (see
-    // StreamingDeflate).
-    const compressor = compress ? new StreamingDeflate() : undefined;
 
     // Sends `bytes` as one or more streamChunk packets, splitting at the MTU budget. Writes are
     // already serialized by the WritableStream, so no extra locking is needed.
@@ -273,24 +340,15 @@ export default class OutgoingDataStreamManager {
 
     const writableStream = new WritableStream<string>({
       async write(text) {
-        if (compressor) {
-          await sendChunks(compressor.compressWrite(textEncoder.encode(text)));
-        } else {
-          // Uncompressed path: split each write on UTF-8 boundaries so every chunk decodes
-          // independently on the receiver (required for pre-v2 receivers).
-          for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE_BYTES)) {
-            await sendChunks(textByteChunk);
-          }
+        // Incremental writers are never compressed (the platform compressor cannot flush
+        // mid-stream, and per-write flushing costs more than it saves at typical write sizes —
+        // see sendChunkedCompressedText for the one-shot compressed path). Split each write on
+        // UTF-8 boundaries so every chunk decodes independently on the receiver.
+        for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE_BYTES)) {
+          await sendChunks(textByteChunk);
         }
       },
       async close() {
-        if (compressor) {
-          // Terminate the deflate stream so the receiver's decompressor can close cleanly.
-          const tail = compressor.end();
-          if (tail.byteLength > 0) {
-            await sendChunks(tail);
-          }
-        }
         await sendStreamTrailer(streamId, destinationIdentities, engine);
       },
       abort(err) {
@@ -344,7 +402,9 @@ export default class OutgoingDataStreamManager {
   async streamBytes(options?: StreamBytesOptions) {
     const streamId = options?.streamId ?? crypto.randomUUID();
     const destinationIdentities = options?.destinationIdentities;
-    const compressOption = options?.compress ?? true;
+    const compressOption =
+      options?.compress ??
+      (typeof options?.totalSize === 'number' && options.totalSize > 2_000) /* bytes */;
     const compress = compressOption && this.shouldCompress(destinationIdentities);
 
     const info: ByteStreamInfo = {
