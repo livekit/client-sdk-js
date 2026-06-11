@@ -96,7 +96,7 @@ export function inflateRawStream(input: ReadableStream<Uint8Array>): ReadableStr
   const pipe = (async () => {
     const reader = input.getReader();
     try {
-      for (;;) {
+      while (true) {
         const { done, value } = await reader.read();
         if (done) {
           break;
