@@ -26,7 +26,6 @@ export interface SendTextOptions {
 export interface StreamTextOptions {
   topic?: string;
   destinationIdentities?: Array<string>;
-  compress?: boolean;
   type?: 'create' | 'update';
   streamId?: string;
   version?: number;

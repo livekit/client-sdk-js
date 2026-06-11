@@ -17,7 +17,7 @@ const MAX_FILL_COUNT = BOX_DURATION_MS;
 const FILL_RGB = '52,152,219';
 
 /** Chunk size to split up the data stream payload into. If `0`, send all at once with `sendText`. */
-const STREAM_CHUNK_SIZE_BYTES = 1000;
+const STREAM_CHUNK_SIZE_BYTES = 0;
 
 const TOPIC = 'benchmark';
 const SENDER_IDENTITY = 'bench-sender';
@@ -26,6 +26,7 @@ const RECEIVER_IDENTITY = 'bench-receiver';
 const SIZES: Array<{ label: string; bytes: number }> = [
   { label: '10 B', bytes: 10 },
   { label: '100 B', bytes: 100 },
+  { label: '512 B', bytes: 512 },
   { label: '1 KB', bytes: 1_000 },
   { label: '15 KB', bytes: 15_000 },
   { label: '100 KB', bytes: 100_000 },

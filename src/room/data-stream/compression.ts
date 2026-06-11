@@ -1,9 +1,10 @@
 /**
  * Compression helpers for data streams. The buffered deflate-raw variants are for the inline
- * (single-packet) case where the payload is small and bounded; {@link StreamingDeflate} /
- * {@link inflateRawStream} serve the chunked (multi-packet) case, producing/consuming compressed
- * data incrementally rather than buffering it all. {@link gzipCompressStream} remains for the
- * legacy chunked byte-stream scheme (one gzip member per write).
+ * (single-packet) case where the payload is small and bounded; {@link deflateRawCompressStream} /
+ * {@link inflateRawStream} serve the chunked (multi-packet) `sendText` fallback, where the whole
+ * payload is known up front but the compressed output is produced/consumed incrementally rather
+ * than buffered. {@link gzipCompressStream} remains for the legacy chunked byte-stream scheme
+ * (one gzip member per write).
  *
  * These operate on bytes (not strings) so a single set of helpers serves both text and byte streams;
  * the `TextEncoder`/`TextDecoder` boundary lives at the manager/reader edges.
@@ -13,66 +14,12 @@
  *
  * @internal
  */
-import { Deflate } from 'fflate';
-
-/**
- * Per-stream raw-deflate compressor for chunked data streams. One instance lives for the whole
- * stream, so the LZ77 window persists across writes — repeated content in later writes compresses
- * against earlier ones (the permessage-deflate "context takeover" model). Each
- * {@link StreamingDeflate.compressWrite} output is flushed to a byte boundary, so a receiver
- * feeding the bytes through a single raw-deflate decompressor can decode every write's content as
- * soon as it arrives, without waiting for the stream to end.
- *
- * Built on fflate rather than `CompressionStream` because the platform compressor has no flush —
- * it only emits buffered output on close, which would force a fresh (dictionary-reset) compressor
- * per write.
- */
-export class StreamingDeflate {
-  private pending: Array<Uint8Array> = [];
-
-  private deflate = new Deflate((chunk) => {
-    this.pending.push(chunk);
-  });
-
-  /** Compresses one write. The returned bytes are byte-aligned (sync flush), so the receiver can
-   *  decompress the write's full content immediately upon receiving them. */
-  compressWrite(data: Uint8Array): Uint8Array {
-    this.deflate.push(data);
-    this.deflate.flush();
-    return this.takePending();
-  }
-
-  /** Terminates the deflate stream with an empty final block. Call exactly once, after the last
-   *  write; the returned bytes must be delivered so the receiver's decompressor can close cleanly. */
-  end(): Uint8Array {
-    this.deflate.push(new Uint8Array(0), true);
-    return this.takePending();
-  }
-
-  private takePending(): Uint8Array {
-    if (this.pending.length === 1) {
-      const only = this.pending[0];
-      this.pending = [];
-      return only;
-    }
-    const total = this.pending.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-    const result = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of this.pending) {
-      result.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    this.pending = [];
-    return result;
-  }
-}
 
 /**
  * Compresses a fully-known payload into a raw-deflate stream, exposing the compressed output as a
- * readable so callers can forward it incrementally. Produces the same wire format as
- * {@link StreamingDeflate} (a raw-deflate stream terminated by a final block) but via the platform
- * `CompressionStream` — usable only when the entire payload is written at once, since the platform
- * compressor cannot flush mid-stream (its only "flush" is the close at the end).
+ * readable so callers can forward it incrementally. Usable only when the entire payload is written
+ * at once, since the platform compressor cannot flush mid-stream (its only "flush" is the close at
+ * the end) — incremental multi-write senders (`streamText`) therefore send uncompressed.
  */
 export function deflateRawCompressStream(data: Uint8Array): ReadableStream<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
