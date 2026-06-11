@@ -293,6 +293,15 @@ export interface AudioCaptureOptions {
   voiceIsolation?: ConstrainBoolean;
 
   /**
+   * @experimental
+   * when capturing system/screen-share audio, excludes the local participant's own audio
+   * from the captured stream to prevent echo. Browser support is not widespread yet
+   * (as of mid 2026, Chromium-based browsers only).
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/restrictOwnAudio
+   */
+  restrictOwnAudio?: ConstrainBoolean;
+
+  /**
    * the sample rate or range of sample rates which are acceptable and/or required.
    */
   sampleRate?: ConstrainULong;
