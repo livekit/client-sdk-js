@@ -429,7 +429,7 @@ function inflateRawChunkStream(
   let lastChunkIndex = -1;
   const compressedBytes = new ReadableStream<Uint8Array>({
     pull: async (controller) => {
-      for (;;) {
+      while (true) {
         const { done, value } = await srcReader.read();
         if (done) {
           controller.close();
@@ -476,12 +476,13 @@ function inflateRawChunkStream(
 
   return new ReadableStream<DataStream_Chunk>({
     pull: async (controller) => {
-      for (;;) {
+      while (true) {
         const { done, value } = await decompressedReader.read();
         if (done) {
           const tail = decodeOrThrow();
           if (tail.length > 0) {
-            controller.enqueue(makeChunk(streamId, outIndex++, encoder.encode(tail)));
+            controller.enqueue(makeChunk(streamId, outIndex, encoder.encode(tail)));
+            outIndex += 1;
           }
           controller.close();
           return;
