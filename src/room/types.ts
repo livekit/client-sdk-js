@@ -21,6 +21,9 @@ export interface SendTextOptions {
   attachments?: Array<File>;
   onProgress?: (progress: number) => void;
   attributes?: Record<string, string>;
+  /** Whether to compress the payload (deflate-raw). Defaults to true. Compression is only applied
+   * when every recipient supports data streams v2 and the runtime can compress. */
+  compress?: boolean;
 }
 
 export interface StreamTextOptions {
@@ -40,7 +43,6 @@ export type StreamBytesOptions = {
   topic?: string;
   attributes?: Record<string, string>;
   destinationIdentities?: Array<string>;
-  compress?: boolean;
   streamId?: string;
   mimeType?: string;
   totalSize?: number;
@@ -52,6 +54,9 @@ export type SendFileOptions = Pick<
 > & {
   onProgress?: (progress: number) => void;
   encryptionType?: Encryption_Type.NONE;
+  /** Whether to compress the payload (deflate-raw). Defaults to true. Compression is only applied
+   * when every recipient supports data streams v2 and the runtime can compress. */
+  compress?: boolean;
 };
 
 export type DataPublishOptions = {
