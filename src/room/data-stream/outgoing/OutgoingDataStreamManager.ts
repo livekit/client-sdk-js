@@ -9,6 +9,7 @@ import { type StructuredLogger } from '../../../logger';
 import { CLIENT_PROTOCOL_DATA_STREAM_V2 } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import { DataChannelKind } from '../../RTCEngine';
+import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { EngineEvent } from '../../events';
 import type {
   ByteStreamInfo,
@@ -220,7 +221,7 @@ export default class OutgoingDataStreamManager {
     source: ReadableStream<Uint8Array>,
   ): Promise<void> {
     const engine = this.engine;
-    await engine.sendDataPacket(headerPacket, DataChannelKind.RELIABLE);
+    await sendHeaderPacket(engine, headerPacket);
 
     let chunkId = 0;
     for await (const chunk of readBytesInChunks(source, STREAM_CHUNK_SIZE_BYTES)) {
@@ -263,7 +264,7 @@ export default class OutgoingDataStreamManager {
     };
     const header = buildTextStreamHeader(info, options);
     const packet = createStreamHeaderPacket(header, destinationIdentities);
-    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    await sendHeaderPacket(this.engine, packet);
 
     let chunkId = 0;
     const engine = this.engine;
@@ -344,7 +345,11 @@ export default class OutgoingDataStreamManager {
     // MTU). Revisit this in the future though.
 
     // Phase 2: Try to send a multi packet data stream with compressed bytes
-    if (compress && isCompressionStreamSupported() && this.allRecipientsSupportV2(destinationIdentities)) {
+    if (
+      compress &&
+      isCompressionStreamSupported() &&
+      this.allRecipientsSupportV2(destinationIdentities)
+    ) {
       const info: ByteStreamInfo = {
         id: streamId,
         name: file.name,
@@ -411,7 +416,7 @@ export default class OutgoingDataStreamManager {
     const header = buildByteStreamHeader(info);
     const packet = createStreamHeaderPacket(header, destinationIdentities);
 
-    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    await sendHeaderPacket(this.engine, packet);
 
     let chunkId = 0;
     const writeMutex = new Mutex();
@@ -462,6 +467,23 @@ export default class OutgoingDataStreamManager {
 
     return byteWriter;
   }
+}
+
+/**
+ * Sends a stream `streamHeader` packet, enforcing that it fits the MTU budget. The header carries
+ * the user attributes (plus topic/framing), and a single `DataPacket` larger than the MTU can't be
+ * reliably sent — so an oversized header (almost always due to large attributes) is a hard error
+ * rather than a malformed packet on the wire. The inline fast path does its own size check and
+ * falls back to the chunked path instead of calling this.
+ */
+async function sendHeaderPacket(engine: RTCEngine, packet: DataPacket): Promise<void> {
+  if (packet.toBinary().byteLength > STREAM_CHUNK_SIZE_BYTES) {
+    throw new DataStreamError(
+      `data stream header exceeds the ${STREAM_CHUNK_SIZE_BYTES}-byte limit; reduce attribute size`,
+      DataStreamErrorReason.HeaderTooLarge,
+    );
+  }
+  await engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
 }
 
 /** Sends a `streamTrailer` packet, marking the end of a stream. */
