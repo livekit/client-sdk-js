@@ -1,10 +1,9 @@
 /**
  * Compression helpers for data streams. The buffered deflate-raw variants are for the inline
  * (single-packet) case where the payload is small and bounded; {@link deflateRawCompressStream} /
- * {@link inflateRawStream} serve the chunked (multi-packet) `sendText` fallback, where the whole
- * payload is known up front but the compressed output is produced/consumed incrementally rather
- * than buffered. {@link gzipCompressStream} remains for the legacy chunked byte-stream scheme
- * (one gzip member per write).
+ * {@link inflateRawStream} serve the chunked (multi-packet) `sendText`/`sendFile` fallback, where
+ * the whole payload is known up front but the compressed output is produced/consumed incrementally
+ * rather than buffered.
  *
  * These operate on bytes (not strings) so a single set of helpers serves both text and byte streams;
  * the `TextEncoder`/`TextDecoder` boundary lives at the manager/reader edges.
@@ -76,19 +75,6 @@ export async function deflateRawDecompress(data: Uint8Array): Promise<Uint8Array
   writer.write(data as NonSharedUint8Array);
   writer.close();
   return collect(ds.readable);
-}
-
-/**
- * gzip-compresses a byte array, exposing the compressed output as a readable stream so callers can
- * forward it incrementally instead of buffering the whole result. The input is written in full (the
- * caller already holds it), but the output is produced and consumed chunk by chunk.
- */
-export function gzipCompressStream(data: Uint8Array): ReadableStream<Uint8Array> {
-  const cs = new CompressionStream('gzip');
-  const writer = cs.writable.getWriter();
-  writer.write(data as NonSharedUint8Array);
-  writer.close();
-  return cs.readable;
 }
 
 /** Concatenates all chunks of a byte stream into one array. */

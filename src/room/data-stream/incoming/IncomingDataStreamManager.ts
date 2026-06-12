@@ -13,7 +13,6 @@ import { deflateRawDecompress, inflateRawStream } from '../compression';
 import {
   COMPRESSION_ATTRIBUTE,
   COMPRESSION_DEFLATE_RAW,
-  COMPRESSION_GZIP,
   INLINE_PAYLOAD_ATTRIBUTE,
 } from '../constants';
 import {
@@ -165,11 +164,9 @@ export default class IncomingDataStreamManager {
           encryptionType,
         };
 
-        // Inline byte payloads are one-shot deflate-raw; chunked byte streams still use the legacy
-        // per-write gzip member scheme (see decompressedChunkStream).
-        const inlineCompressed =
-          info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
-        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_GZIP;
+        // Both inline and chunked byte payloads are deflate-raw compressed; inline as a one-shot
+        // base64 buffer, chunked as a single stream spanning all chunks (mirrors text).
+        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
 
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
@@ -177,13 +174,15 @@ export default class IncomingDataStreamManager {
         if (typeof inlinePayload !== 'undefined') {
           delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
           delete info.attributes![COMPRESSION_ATTRIBUTE];
+          // Inline bytes are always base64 (binary isn't a valid attribute string), optionally
+          // deflate-raw compressed.
           const bytes = decodeBase64(inlinePayload);
           streamHandlerCallback(
             new ByteStreamReader(
               info,
               createInlineStream(
                 streamHeader.streamId,
-                inlineCompressed ? deflateRawDecompress(bytes) : bytes,
+                compressed ? deflateRawDecompress(bytes) : bytes,
               ),
               bigIntToNumber(streamHeader.totalLength),
             ),
@@ -218,9 +217,10 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new ByteStreamReader(
             info,
-            compressed ? decompressedChunkStream(stream, streamHeader.streamId, 'byte') : stream,
-            // Compressed streams report no total length; completion is driven by the trailer.
-            compressed ? undefined : bigIntToNumber(streamHeader.totalLength),
+            compressed ? inflateRawByteChunkStream(stream, streamHeader.streamId) : stream,
+            // `totalLength` is the pre-compression size, and the reader counts decompressed bytes,
+            // so it applies to both paths (mirrors text).
+            bigIntToNumber(streamHeader.totalLength),
           ),
           {
             identity: participantIdentity,
@@ -405,29 +405,18 @@ function createInlineStream(
 }
 
 /**
- * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
- * decompressed chunks, so `TextStreamReader` consumes it unchanged.
- *
- * The sender runs a single raw-deflate context across the whole stream, sync-flushing at every
- * write boundary, so the receiver feeds all chunk contents (in `chunkIndex` order) through ONE
- * decompressor and gets each write's content emitted as soon as its chunks arrive. A streaming
- * `TextDecoder` reframes the decompressed bytes on UTF-8 character boundaries (a write larger than
- * the MTU spans several packets, which may split a codepoint) so each synthesized chunk decodes
- * independently. Errors on the source stream (e.g. encryption mismatch, abnormal end) propagate to
- * the reader.
+ * Unwraps a stream of compressed `DataStream_Chunk`s to their compressed bytes (in `chunkIndex`
+ * order), guarding ordering for the stateful decompressor that consumes them. A stateful
+ * decompressor silently corrupts on duplicated or out-of-order input, so duplicates are dropped
+ * (with a warning - in-order delivery is expected on the reliable channel, but reconnect handling
+ * may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
  */
-function inflateRawChunkStream(
-  raw: ReadableStream<DataStream_Chunk>,
+function orderedCompressedBytes(
+  srcReader: ReadableStreamDefaultReader<DataStream_Chunk>,
   streamId: string,
-): ReadableStream<DataStream_Chunk> {
-  const srcReader = raw.getReader();
-
-  // Stage 1: unwrap chunk packets to compressed bytes, guarding ordering. A stateful decompressor
-  // silently corrupts on duplicated or out-of-order input, so duplicates are dropped (with a
-  // warning - in-order delivery is expected on the reliable channel, but reconnect handling may
-  // replay) and a gap is a hard error.
+): ReadableStream<Uint8Array> {
   let lastChunkIndex = -1;
-  const compressedBytes = new ReadableStream<Uint8Array>({
+  return new ReadableStream<Uint8Array>({
     pull: async (controller) => {
       while (true) {
         const { done, value } = await srcReader.read();
@@ -455,13 +444,64 @@ function inflateRawChunkStream(
     },
     cancel: (reason) => srcReader.cancel(reason),
   });
+}
 
-  // Stage 2: one decompressor for the stream's lifetime.
-  const decompressedReader = inflateRawStream(compressedBytes).getReader();
+/**
+ * Transforms a stream of deflate-raw-compressed byte `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `ByteStreamReader` consumes it unchanged. All chunk contents are fed (in
+ * `chunkIndex` order) through ONE raw-deflate decompressor for the stream's lifetime; decompressed
+ * output is re-wrapped as chunks as soon as it is produced. The sender (sendFile) compresses the
+ * whole payload in one shot, but the format also supports a single context-takeover stream
+ * sync-flushed at write boundaries, so a future incremental streamBytes could compress with no
+ * protocol change. Errors on the source stream propagate to the reader.
+ */
+function inflateRawByteChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  const srcReader = raw.getReader();
+  const decompressedReader = inflateRawStream(
+    orderedCompressedBytes(srcReader, streamId),
+  ).getReader();
 
-  // Stage 3: reframe decompressed bytes on UTF-8 boundaries and re-wrap as chunks.
+  let outIndex = 0;
+  return new ReadableStream<DataStream_Chunk>({
+    pull: async (controller) => {
+      while (true) {
+        const { done, value } = await decompressedReader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        if (value.byteLength > 0) {
+          controller.enqueue(makeChunk(streamId, outIndex++, value));
+          return;
+        }
+        // Inflate can emit empty reads; keep pulling until there is content or the stream ends.
+      }
+    },
+    cancel: (reason) => {
+      decompressedReader.cancel(reason).catch(() => {});
+      srcReader.cancel(reason).catch(() => {});
+    },
+  });
+}
+
+/**
+ * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `TextStreamReader` consumes it unchanged. Builds on
+ * {@link inflateRawByteChunkStream} (single decompressor + ordering guard) and adds a streaming
+ * `TextDecoder` that reframes the decompressed bytes on UTF-8 character boundaries (a write larger
+ * than the MTU spans several packets, which may split a codepoint) so each synthesized chunk
+ * decodes independently. Errors on the source stream propagate to the reader.
+ */
+function inflateRawChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  const byteReader = inflateRawByteChunkStream(raw, streamId).getReader();
+
   const decoder = new TextDecoder('utf-8', { fatal: true });
-  const encoder = new TextEncoder();
   let outIndex = 0;
   const decodeOrThrow = (bytes?: Uint8Array): string => {
     try {
@@ -474,10 +514,11 @@ function inflateRawChunkStream(
     }
   };
 
+  const encoder = new TextEncoder();
   return new ReadableStream<DataStream_Chunk>({
     pull: async (controller) => {
       while (true) {
-        const { done, value } = await decompressedReader.read();
+        const { done, value } = await byteReader.read();
         if (done) {
           const tail = decodeOrThrow();
           if (tail.length > 0) {
@@ -487,7 +528,7 @@ function inflateRawChunkStream(
           controller.close();
           return;
         }
-        const text = decodeOrThrow(value);
+        const text = decodeOrThrow(value.content);
         if (text.length > 0) {
           controller.enqueue(makeChunk(streamId, outIndex++, encoder.encode(text)));
           return;
@@ -496,104 +537,7 @@ function inflateRawChunkStream(
       }
     },
     cancel: (reason) => {
-      decompressedReader.cancel(reason).catch(() => {});
-      srcReader.cancel(reason).catch(() => {});
-    },
-  });
-}
-
-/**
- * Transforms a raw stream of (compressed) `DataStream_Chunk`s into a stream of decompressed
- * `DataStream_Chunk`s, so the existing `ByteStreamReader`/`TextStreamReader` consume it unchanged.
- *
- * The sender compresses each `write()` into its own gzip member and tags every chunk with that
- * member's index in `chunk.version`. Browsers' `DecompressionStream` only accepts a single member
- * per gzip stream, so we feed each member's chunks into its own `DecompressionStream` as they arrive
- * (never buffering the whole member) and start a fresh one when the member index changes, draining
- * decompressed output incrementally. For text, a streaming `TextDecoder` reframes the decompressed
- * bytes on UTF-8 character boundaries across members so each synthesized chunk decodes independently.
- * Errors on the source stream (e.g. encryption mismatch, abnormal end) propagate to the reader.
- */
-function decompressedChunkStream(
-  raw: ReadableStream<DataStream_Chunk>,
-  streamId: string,
-  kind: 'byte' | 'text',
-): ReadableStream<DataStream_Chunk> {
-  const srcReader = raw.getReader();
-  const decoder = kind === 'text' ? new TextDecoder() : undefined;
-  const encoder = kind === 'text' ? new TextEncoder() : undefined;
-  let outIndex = 0;
-
-  const enqueueDecompressed = (
-    controller: ReadableStreamDefaultController<DataStream_Chunk>,
-    bytes: Uint8Array,
-  ) => {
-    const content = decoder ? encoder!.encode(decoder.decode(bytes, { stream: true })) : bytes;
-    if (content.byteLength > 0) {
-      controller.enqueue(makeChunk(streamId, outIndex++, content));
-    }
-  };
-
-  const pump = async (controller: ReadableStreamDefaultController<DataStream_Chunk>) => {
-    let currentMember: number | undefined;
-    let dsWriter: WritableStreamDefaultWriter<BufferSource> | null = null;
-    let drain: Promise<void> | null = null;
-
-    const openMember = () => {
-      const ds = new DecompressionStream('gzip');
-      dsWriter = ds.writable.getWriter();
-      const dsReader = ds.readable.getReader();
-      // Drain this member's decompressed output concurrently with feeding its input.
-      drain = (async () => {
-        for (;;) {
-          const { done, value } = await dsReader.read();
-          if (done) {
-            break;
-          }
-          enqueueDecompressed(controller, value);
-        }
-      })();
-    };
-
-    // Close the current member's compressor input and wait for its remaining output to drain.
-    const closeMember = async () => {
-      if (dsWriter) {
-        await dsWriter.close();
-        await drain;
-        dsWriter = null;
-        drain = null;
-      }
-    };
-
-    for (;;) {
-      const { done, value } = await srcReader.read();
-      if (done) {
-        await closeMember();
-        const tail = decoder?.decode();
-        if (tail) {
-          controller.enqueue(makeChunk(streamId, outIndex++, encoder!.encode(tail)));
-        }
-        controller.close();
-        return;
-      }
-      // A change in member index means the previous gzip member is complete.
-      if (currentMember !== undefined && value.version !== currentMember) {
-        await closeMember();
-      }
-      if (!dsWriter) {
-        openMember();
-      }
-      currentMember = value.version;
-      await dsWriter!.write(value.content as NonSharedUint8Array);
-    }
-  };
-
-  return new ReadableStream<DataStream_Chunk>({
-    start: (controller) => {
-      pump(controller).catch((err) => controller.error(err));
-    },
-    cancel: (reason) => {
-      srcReader.cancel(reason);
+      byteReader.cancel(reason).catch(() => {});
     },
   });
 }
