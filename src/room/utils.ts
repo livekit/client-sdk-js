@@ -780,6 +780,54 @@ export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
   return result;
 }
 
+/** Wraps a byte array in a `ReadableStream` that yields it as a single chunk and then closes. */
+export function readableFromBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes as NonSharedUint8Array);
+      controller.close();
+    },
+  });
+}
+
+/**
+ * Re-chunks a byte stream into pieces of exactly `chunkSize` bytes (the final piece may be
+ * smaller), coalescing or splitting the source's pieces as needed. Memory use is bounded to roughly
+ * `chunkSize` plus one source read, so it never buffers the whole stream — used to pack
+ * `CompressionStream`/`file.stream()` output into MTU-sized data-stream chunks.
+ */
+export async function* readBytesInChunks(
+  source: ReadableStream<Uint8Array>,
+  chunkSize: number,
+): AsyncGenerator<Uint8Array> {
+  const reader = source.getReader();
+  let buffer = new Uint8Array(0);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value.byteLength === 0) {
+        continue;
+      }
+      const merged = new Uint8Array(buffer.byteLength + value.byteLength);
+      merged.set(buffer);
+      merged.set(value, buffer.byteLength);
+      buffer = merged;
+      while (buffer.byteLength >= chunkSize) {
+        yield buffer.slice(0, chunkSize);
+        buffer = buffer.slice(chunkSize);
+      }
+    }
+    if (buffer.byteLength > 0) {
+      yield buffer;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 /** Encodes a byte array as a base64 string (suitable for embedding binary data in a string field). */
 export function encodeBase64(bytes: Uint8Array): string {
   let binary = '';
