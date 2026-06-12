@@ -106,9 +106,8 @@ export default class OutgoingDataStreamManager {
         [INLINE_PAYLOAD_ATTRIBUTE]: text,
       };
       if (compress && isCompressionStreamSupported()) {
-        const raw = textEncoder.encode(text);
-        const compressed = await deflateRawCompress(raw);
-        if (compressed.byteLength < raw.byteLength) {
+        const compressed = await deflateRawCompress(textInBytes);
+        if (compressed.byteLength < textInBytes.byteLength) {
           inlineAttributes[INLINE_PAYLOAD_ATTRIBUTE] = encodeBase64(compressed);
           inlineAttributes[COMPRESSION_ATTRIBUTE] = COMPRESSION_DEFLATE_RAW;
         }
@@ -225,7 +224,18 @@ export default class OutgoingDataStreamManager {
 
     let chunkId = 0;
     for await (const chunk of readBytesInChunks(source, STREAM_CHUNK_SIZE_BYTES)) {
-      await sendChunkPacket(engine, streamId, destinationIdentities, chunk, chunkId);
+      const chunkPacket = new DataPacket({
+        destinationIdentities,
+        value: {
+          case: 'streamChunk',
+          value: new DataStream_Chunk({
+            content: chunk,
+            streamId,
+            chunkIndex: numberToBigInt(chunkId),
+          }),
+        },
+      });
+      await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
       chunkId += 1;
     }
 
@@ -258,29 +268,6 @@ export default class OutgoingDataStreamManager {
     let chunkId = 0;
     const engine = this.engine;
 
-    // Sends `bytes` as one or more streamChunk packets, splitting at the MTU budget. Writes are
-    // already serialized by the WritableStream, so no extra locking is needed.
-    const sendChunks = async (bytes: Uint8Array) => {
-      let byteOffset = 0;
-      while (byteOffset < bytes.byteLength) {
-        const subChunk = bytes.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE_BYTES);
-        const chunkPacket = new DataPacket({
-          destinationIdentities,
-          value: {
-            case: 'streamChunk',
-            value: new DataStream_Chunk({
-              content: subChunk,
-              streamId,
-              chunkIndex: numberToBigInt(chunkId),
-            }),
-          },
-        });
-        await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
-        chunkId += 1;
-        byteOffset += subChunk.byteLength;
-      }
-    };
-
     // Incremental text streams are never compressed (CompressionStream does not support flushing
     // mid-stream); one-shot compression lives in sendText.
     //
@@ -289,7 +276,21 @@ export default class OutgoingDataStreamManager {
     const writableStream = new WritableStream<string>({
       async write(text) {
         for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE_BYTES)) {
-          await sendChunks(textByteChunk);
+          const chunk = new DataStream_Chunk({
+            content: textByteChunk,
+            streamId,
+            chunkIndex: numberToBigInt(chunkId),
+          });
+          const chunkPacket = new DataPacket({
+            destinationIdentities,
+            value: {
+              case: 'streamChunk',
+              value: chunk,
+            },
+          });
+          await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
+
+          chunkId += 1;
         }
       },
       async close() {
@@ -425,14 +426,26 @@ export default class OutgoingDataStreamManager {
     const writableStream = new WritableStream<Uint8Array>({
       async write(chunk) {
         const unlock = await writeMutex.lock();
+
+        let byteOffset = 0;
         try {
-          chunkId = await sendBytesAsChunks(
-            engine,
-            streamId,
-            destinationIdentities,
-            chunk,
-            chunkId,
-          );
+          while (byteOffset < chunk.byteLength) {
+            const subChunk = chunk.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE_BYTES);
+            const chunkPacket = new DataPacket({
+              destinationIdentities,
+              value: {
+                case: 'streamChunk',
+                value: new DataStream_Chunk({
+                  content: subChunk,
+                  streamId,
+                  chunkIndex: numberToBigInt(chunkId),
+                }),
+              },
+            });
+            await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
+            chunkId += 1;
+            byteOffset += subChunk.byteLength;
+          }
         } finally {
           unlock();
         }
@@ -449,50 +462,6 @@ export default class OutgoingDataStreamManager {
 
     return byteWriter;
   }
-}
-
-/** Sends a single `streamChunk` packet (content must already be within the MTU budget). */
-async function sendChunkPacket(
-  engine: RTCEngine,
-  streamId: string,
-  destinationIdentities: Array<string> | undefined,
-  content: Uint8Array,
-  chunkId: number,
-): Promise<void> {
-  const chunkPacket = new DataPacket({
-    destinationIdentities,
-    value: {
-      case: 'streamChunk',
-      value: new DataStream_Chunk({
-        content,
-        streamId,
-        chunkIndex: numberToBigInt(chunkId),
-      }),
-    },
-  });
-  await engine.sendDataPacket(chunkPacket, DataChannelKind.RELIABLE);
-}
-
-/**
- * Splits `bytes` into `streamChunk` packets at the MTU budget and sends each over the reliable
- * channel, returning the next chunk index so callers can keep indices contiguous across calls.
- */
-async function sendBytesAsChunks(
-  engine: RTCEngine,
-  streamId: string,
-  destinationIdentities: Array<string> | undefined,
-  bytes: Uint8Array,
-  startChunkId: number,
-): Promise<number> {
-  let chunkId = startChunkId;
-  let byteOffset = 0;
-  while (byteOffset < bytes.byteLength) {
-    const subChunk = bytes.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE_BYTES);
-    await sendChunkPacket(engine, streamId, destinationIdentities, subChunk, chunkId);
-    chunkId += 1;
-    byteOffset += subChunk.byteLength;
-  }
-  return chunkId;
 }
 
 /** Sends a `streamTrailer` packet, marking the end of a stream. */
