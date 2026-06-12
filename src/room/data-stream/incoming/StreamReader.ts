@@ -201,8 +201,6 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     // Suppress unhandled rejection on reader.closed — errors are
     // already propagated through reader.read() to the consumer.
     reader.closed.catch(() => {});
-    // Each chunk decodes independently: the sender splits uncompressed writes on UTF-8 boundaries,
-    // and compressed streams are reframed on UTF-8 boundaries by the decompression transform.
     const decoder = new TextDecoder('utf-8', { fatal: true });
     const signal = this.signal;
 
@@ -235,22 +233,25 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
           );
           if (result.done) {
             this.validateBytesReceived(true);
-            return { done: true, value: undefined as any };
+            return { done: true, value: undefined };
+          } else {
+            this.handleChunkReceived(result.value);
+
+            let decodedResult: string;
+            try {
+              decodedResult = decoder.decode(result.value.content);
+            } catch (err) {
+              throw new DataStreamError(
+                `Cannot decode datastream chunk ${result.value.chunkIndex} as text: ${err}`,
+                DataStreamErrorReason.DecodeFailed,
+              );
+            }
+
+            return {
+              done: false,
+              value: decodedResult,
+            };
           }
-
-          this.handleChunkReceived(result.value);
-
-          let decodedResult: string;
-          try {
-            decodedResult = decoder.decode(result.value.content);
-          } catch (err) {
-            throw new DataStreamError(
-              `Cannot decode datastream chunk ${result.value.chunkIndex} as text: ${err}`,
-              DataStreamErrorReason.DecodeFailed,
-            );
-          }
-
-          return { done: false, value: decodedResult };
         } catch (err) {
           cleanup();
           throw err;
