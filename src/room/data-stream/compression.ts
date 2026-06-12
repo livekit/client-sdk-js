@@ -1,9 +1,9 @@
 /**
- * Compression helpers for data streams. The buffered deflate-raw variants are for the inline
- * (single-packet) case where the payload is small and bounded; {@link deflateRawCompressStream} /
- * {@link inflateRawStream} serve the chunked (multi-packet) `sendText`/`sendFile` fallback, where
- * the whole payload is known up front but the compressed output is produced/consumed incrementally
- * rather than buffered.
+ * Compression helpers for data streams. The buffered deflate-raw variant ({@link deflateRawCompress})
+ * is for the inline (single-packet) case where the payload is small and bounded;
+ * {@link deflateRawCompressReadable} / {@link inflateRawStream} serve the chunked (multi-packet)
+ * `sendText`/`sendFile` paths, streaming the compressed bytes through without buffering the whole
+ * payload.
  *
  * These operate on bytes (not strings) so a single set of helpers serves both text and byte streams;
  * the `TextEncoder`/`TextDecoder` boundary lives at the manager/reader edges.
@@ -15,16 +15,34 @@
  */
 
 /**
- * Compresses a fully-known payload into a raw-deflate stream, exposing the compressed output as a
- * readable so callers can forward it incrementally. Usable only when the entire payload is written
- * at once, since the platform compressor cannot flush mid-stream (its only "flush" is the close at
- * the end) — incremental multi-write senders (`streamText`) therefore send uncompressed.
+ * Pipes a byte stream through `CompressionStream('deflate-raw')`, exposing the compressed output as
+ * a readable — the compression counterpart of {@link inflateRawStream}. Drives the source into the
+ * compressor in the background (forwarding source errors via `abort`), so callers can forward the
+ * compressed output incrementally without buffering the whole payload. Used for the chunked
+ * `sendText`/`sendFile` paths, where the full payload is known up front but is streamed (e.g. from
+ * `file.stream()`) rather than held in memory.
  */
-export function deflateRawCompressStream(data: Uint8Array): ReadableStream<Uint8Array> {
+export function deflateRawCompressReadable(
+  input: ReadableStream<Uint8Array>,
+): ReadableStream<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
   const writer = cs.writable.getWriter();
-  writer.write(data as NonSharedUint8Array);
-  writer.close();
+  const pipe = (async () => {
+    const reader = input.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        await writer.write(value as NonSharedUint8Array);
+      }
+      await writer.close();
+    } catch (err) {
+      await writer.abort(err).catch(() => {});
+    }
+  })();
+  pipe.catch(() => {});
   return cs.readable;
 }
 
