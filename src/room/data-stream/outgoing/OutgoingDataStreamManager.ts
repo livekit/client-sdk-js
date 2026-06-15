@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import {
+  ClientInfo_Capability,
   DataPacket,
   DataStream_Chunk,
   DataStream_Trailer,
@@ -56,6 +57,10 @@ export default class OutgoingDataStreamManager {
    * recipient can receive single-packet (inline) data streams. */
   protected getRemoteParticipantClientProtocol: (identity: string) => number;
 
+  /** Returns the client capabilities a remote participant advertises, used to decide whether a
+   * recipient can decompress a deflate-raw compressed stream. */
+  protected getRemoteParticipantCapabilities: (identity: string) => Array<ClientInfo_Capability>;
+
   /** Returns the identities of every remote participant currently in the room, used to decide
    * whether a broadcast (no explicit destinations) can be sent inline. */
   protected getAllRemoteParticipantIdentities: () => Array<string>;
@@ -64,11 +69,13 @@ export default class OutgoingDataStreamManager {
     engine: RTCEngine,
     log: StructuredLogger,
     getRemoteParticipantClientProtocol: (identity: string) => number,
+    getRemoteParticipantCapabilities: (identity: string) => Array<ClientInfo_Capability>,
     getAllRemoteParticipantIdentities: () => Array<string>,
   ) {
     this.engine = engine;
     this.log = log;
     this.getRemoteParticipantClientProtocol = getRemoteParticipantClientProtocol;
+    this.getRemoteParticipantCapabilities = getRemoteParticipantCapabilities;
     this.getAllRemoteParticipantIdentities = getAllRemoteParticipantIdentities;
   }
 
@@ -138,7 +145,8 @@ export default class OutgoingDataStreamManager {
     if (
       compress &&
       isCompressionStreamSupported() &&
-      this.allRecipientsSupportV2(options?.destinationIdentities)
+      this.allRecipientsSupportV2(options?.destinationIdentities) &&
+      this.allRecipientsSupportCompression(options?.destinationIdentities)
     ) {
       info.attributes = { ...info.attributes, [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW };
       info.attachedStreamIds = fileIds;
@@ -203,6 +211,23 @@ export default class OutgoingDataStreamManager {
     return identities.every(
       (identity) =>
         this.getRemoteParticipantClientProtocol(identity) >= CLIENT_PROTOCOL_DATA_STREAM_V2,
+    );
+  }
+
+  /**
+   * Returns true only if every recipient advertises the deflate-raw compression capability (so it
+   * can decompress a compressed stream). Resolved the same way as {@link allRecipientsSupportV2}:
+   * named destinations, or every remote participant for a broadcast; an empty room is eligible.
+   */
+  private allRecipientsSupportCompression(destinationIdentities?: Array<string>): boolean {
+    const identities =
+      destinationIdentities && destinationIdentities.length > 0
+        ? destinationIdentities
+        : this.getAllRemoteParticipantIdentities();
+    return identities.every((identity) =>
+      this.getRemoteParticipantCapabilities(identity).includes(
+        ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW,
+      ),
     );
   }
 
@@ -348,7 +373,8 @@ export default class OutgoingDataStreamManager {
     if (
       compress &&
       isCompressionStreamSupported() &&
-      this.allRecipientsSupportV2(destinationIdentities)
+      this.allRecipientsSupportV2(destinationIdentities) &&
+      this.allRecipientsSupportCompression(destinationIdentities)
     ) {
       const info: ByteStreamInfo = {
         id: streamId,
