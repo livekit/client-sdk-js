@@ -113,7 +113,7 @@ export default class OutgoingDataStreamManager {
         ...info.attributes,
         [INLINE_PAYLOAD_ATTRIBUTE]: text,
       };
-      if (compress && isCompressionStreamSupported()) {
+      if (compress && isCompressionStreamSupported() && this.allRecipientsSupportCompression(options?.destinationIdentities)) {
         const compressed = await deflateRawCompress(textInBytes);
         if (compressed.byteLength < textInBytes.byteLength) {
           inlineAttributes[INLINE_PAYLOAD_ATTRIBUTE] = encodeBase64(compressed);
