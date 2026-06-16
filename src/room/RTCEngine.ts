@@ -1059,9 +1059,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
-    if (event instanceof ErrorEvent && event.error) {
-      const { error } = event.error;
-      this.log.error(`DataChannel error on ${channelKind}: ${event.message}`, { error });
+    if (typeof RTCErrorEvent !== 'undefined' && event instanceof RTCErrorEvent && event.error) {
+      const { error } = event;
+      this.log.error(`DataChannel error on ${channelKind}: ${error.message}`, {
+        error,
+        errorDetail: error.errorDetail,
+        sctpCauseCode: error.sctpCauseCode,
+      });
     } else {
       this.log.error(`Unknown DataChannel error on ${channelKind}`, { event });
     }
