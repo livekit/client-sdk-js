@@ -8,7 +8,7 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber, decodeBase64, numberToBigInt } from '../../utils';
+import { bigIntToNumber, decodeBase64, isCompressionStreamSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawStream } from '../compression';
 import {
   COMPRESSION_ATTRIBUTE,
@@ -168,6 +168,15 @@ export default class IncomingDataStreamManager {
         // base64 buffer, chunked as a single stream spanning all chunks (mirrors text).
         const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
 
+        if (compressed && !isCompressionStreamSupported()) {
+          // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+          // isn't properly abiding by the data streams v2 protocol.
+          log.warn(
+            `Data stream ${streamHeader.streamId} received with ${info.attributes![COMPRESSION_ATTRIBUTE]} compression, but this browser does not have support for DecompressionStream. Dropping...`,
+          );
+          return;
+        }
+
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
         const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
@@ -254,6 +263,15 @@ export default class IncomingDataStreamManager {
         // Both inline and chunked text payloads are deflate-raw compressed; inline as a one-shot
         // buffer, chunked as a single stream spanning all chunks (see COMPRESSION_DEFLATE_RAW).
         const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
+
+        if (compressed && !isCompressionStreamSupported()) {
+          // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+          // isn't properly abiding by the data streams v2 protocol.
+          log.warn(
+            `Data stream ${streamHeader.streamId} received with ${info.attributes![COMPRESSION_ATTRIBUTE]} compression, but this browser does not have support for DecompressionStream. Dropping...`,
+          );
+          return;
+        }
 
         // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.

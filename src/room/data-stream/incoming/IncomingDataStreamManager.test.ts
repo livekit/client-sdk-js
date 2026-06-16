@@ -1,95 +1,636 @@
 import {
   DataPacket,
   DataStream_ByteHeader,
+  DataStream_Chunk,
   DataStream_Header,
   DataStream_TextHeader,
+  DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
+import { createDeflateRaw, constants } from 'zlib';
 import { encodeBase64 } from '../../utils';
-import { INLINE_PAYLOAD_ATTRIBUTE } from '../constants';
+import { INLINE_PAYLOAD_ATTRIBUTE, COMPRESSION_ATTRIBUTE, COMPRESSION_DEFLATE_RAW, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
+import { deflateRawCompress } from '../compression';
 
-function inlineTextHeaderPacket(streamId: string, topic: string, text: string) {
-  const header = new DataStream_Header({
-    streamId,
-    topic,
-    mimeType: 'text/plain',
-    timestamp: 0n,
-    totalLength: BigInt(new TextEncoder().encode(text).byteLength),
-    attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: text, foo: 'bar' },
-    contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
-  });
-  return new DataPacket({
-    participantIdentity: 'alice',
-    value: { case: 'streamHeader', value: header },
-  });
+/** Builds a low quality random string of the given length. */
+function randomText(length: number): string {
+  let s = '';
+  while (s.length < length) {
+    s += Math.random().toString(36).slice(2);
+  }
+  return s.slice(0, length);
 }
 
-function inlineByteHeaderPacket(streamId: string, topic: string, bytes: Uint8Array) {
-  const header = new DataStream_Header({
-    streamId,
-    topic,
-    mimeType: 'application/octet-stream',
-    timestamp: 0n,
-    totalLength: BigInt(bytes.byteLength),
-    attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: encodeBase64(bytes), foo: 'bar' },
-    contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({ name: 'blob' }) },
-  });
-  return new DataPacket({
-    participantIdentity: 'alice',
-    value: { case: 'streamHeader', value: header },
-  });
-}
+describe('IncomingDataStreamManager', () => {
+  describe('Receiving v1 data streams', () => {
+    it('should receive a v1 text data stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
 
-describe('IncomingDataStreamManager inline streams', () => {
-  it('synthesizes a complete text stream from an inline header', async () => {
-    const manager = new IncomingDataStreamManager();
-    manager.setConnected(true);
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
 
-    const readerPromise = new Promise<TextStreamReader>((resolve) => {
-      manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(text.length),
+              attributes: { foo: 'bar' },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId,
+              chunkIndex: 0n,
+              content: new TextEncoder().encode(text),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamTrailer',
+            value: new DataStream_Trailer({ streamId }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual('hello world');
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
     });
 
-    manager.handleDataStreamPacket(
-      inlineTextHeaderPacket('stream-1', 'my-topic', 'hello world'),
-      Encryption_Type.NONE,
-    );
+    it('should receive a v1 bytes data stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
 
-    const reader = await readerPromise;
-    expect(await reader.readAll()).toBe('hello world');
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
 
-    // The reserved attribute is stripped, user attributes are preserved.
-    expect(reader.info.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeUndefined();
-    expect(reader.info.attributes?.foo).toBe('bar');
-  });
+      const streamId = crypto.randomUUID();
 
-  it('synthesizes a complete byte stream from an inline header', async () => {
-    const manager = new IncomingDataStreamManager();
-    manager.setConnected(true);
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: 4n,
+              attributes: { foo: 'bar' },
+              contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId,
+              chunkIndex: 0n,
+              content: new Uint8Array([0x01, 0x02, 0x03, 0x04]),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamTrailer',
+            value: new DataStream_Trailer({ streamId }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
 
-    const payload = new Uint8Array([0, 1, 2, 255, 128, 64]);
-
-    const readerPromise = new Promise<ByteStreamReader>((resolve) => {
-      manager.registerByteStreamHandler('bytes-topic', (reader) => resolve(reader));
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual([new Uint8Array([0x01, 0x02, 0x03, 0x04])]);
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
     });
 
-    manager.handleDataStreamPacket(
-      inlineByteHeaderPacket('stream-2', 'bytes-topic', payload),
-      Encryption_Type.NONE,
-    );
+    it('should receive a v1 text data stream with files', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
 
-    const reader = await readerPromise;
-    const chunks = await reader.readAll();
-    const flattened = new Uint8Array(chunks.reduce((acc, c) => acc + c.byteLength, 0));
-    let offset = 0;
-    for (const chunk of chunks) {
-      flattened.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    expect(Array.from(flattened)).toEqual(Array.from(payload));
-    expect(reader.info.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeUndefined();
-    expect(reader.info.attributes?.foo).toBe('bar');
+      const streamId = crypto.randomUUID();
+      const streamReaderPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const attachmentStreamId = crypto.randomUUID();
+      const attachmentStreamReaderPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      // Send the main data stream body
+      const text = 'hello world';
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(text.length),
+              attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: text, foo: 'bar' },
+              contentHeader: {
+                case: 'textHeader',
+                value: new DataStream_TextHeader({
+                  attachedStreamIds: [attachmentStreamId],
+                }),
+              },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      // Send an attachment
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId: attachmentStreamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: 3n,
+              attributes: {},
+              contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId: attachmentStreamId,
+              chunkIndex: 0n,
+              content: new Uint8Array([0x01, 0x02, 0x03]),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamTrailer',
+            value: new DataStream_Trailer({ streamId: attachmentStreamId }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const streamReader = await streamReaderPromise;
+      expect(await streamReader.readAll()).toStrictEqual('hello world');
+      expect(streamReader.info.attachedStreamIds).toHaveLength(1);
+
+      const attachmentStreamReader = await attachmentStreamReaderPromise;
+      expect(await attachmentStreamReader.readAll()).toStrictEqual([new Uint8Array([0x01, 0x02, 0x03])]);
+      expect(streamReader.info.attachedStreamIds).toHaveLength(1);
+    });
+  });
+
+  describe('Receiving v2 data streams', () => {
+    it('should receive a v2 SINGLE PACKET + UNCOMPRESSED text data stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(text.length),
+              attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: text, foo: 'bar' },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual('hello world');
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
+    });
+
+    it('should receive a v2 SINGLE PACKET + COMPRESSED text data stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+      const compressed = encodeBase64(await deflateRawCompress(new TextEncoder().encode(text)));
+
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(text.length),
+              attributes: {
+                [INLINE_PAYLOAD_ATTRIBUTE]: compressed,
+                [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW,
+                foo: 'bar'
+              },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual('hello world');
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
+    });
+
+    it('should receive a v2 MULTI PACKET + COMPRESSED text data stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+
+      // NOTE: mostly incompressible, but the hello world parts repeating should mean that the compressed
+      // contents is smaller than the full uncompressed data.
+      const text = new Array(30).fill(null).map(() => `hello world${randomText(1_000)}`).join('');
+
+      const compressed = await deflateRawCompress(new TextEncoder().encode(text));
+
+      // Make sure the compressed text should be able to be split into two "packets" worth of data
+      expect(compressed.length).toBeLessThan(2 * STREAM_CHUNK_SIZE_BYTES);
+
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(text.length),
+              attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId,
+              chunkIndex: 0n,
+              content: compressed.slice(0, STREAM_CHUNK_SIZE_BYTES),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId,
+              chunkIndex: 1n,
+              content: compressed.slice(STREAM_CHUNK_SIZE_BYTES),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamTrailer',
+            value: new DataStream_Trailer({ streamId }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual(text);
+    });
+
+    it.only('should receive a v2 multi packet + compressed data stream and emit chunks at Z_SYNC_FLUSH boundaries', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+
+      // Generate a mostly incompressible compressed stream, with Z_SYNC_FLUSH between each chunk
+      const input = new Array(30).fill(0).map(() => new TextEncoder().encode(`hello world${randomText(1_000)}`));
+      const compressed: Array<Uint8Array> = [];
+      const stream = createDeflateRaw();
+      stream.on('data', (chunk) => {
+        compressed.push(chunk);
+      });
+      for (const item of input) {
+        stream.write(item);
+        await new Promise<void>((resolve) => stream.flush(constants.Z_SYNC_FLUSH, resolve));
+      }
+      const closePromise = new Promise<void>((resolve, reject) => {
+        stream.once('end', resolve);
+        stream.once('error', reject);
+      });
+      stream.end();
+      await closePromise;
+
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: BigInt(input.reduce((acc, i) => acc + i.byteLength, 0)),
+              attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      for (let index = 0; index < input.length; index += 1) {
+        const item = input[index];
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamChunk',
+              value: new DataStream_Chunk({
+                streamId,
+                chunkIndex: BigInt(index),
+                content: item,
+                version: 0,
+              }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+      }
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamTrailer',
+            value: new DataStream_Trailer({ streamId }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      // Make sure that stream chunks each get emitted sequentially and are passed out of the reader
+      const reader = await readerPromise;
+      const iterator = reader[Symbol.asyncIterator]();
+      for (let index = 0; index < input.length; index += 1) {
+        const chunk = await iterator.next();
+        expect(chunk.done).toStrictEqual(false);
+        expect(chunk.value).toStrictEqual(input[index]);
+      }
+      const final = await iterator.next();
+      expect(final.done).toStrictEqual(true);
+    });
+
+    it(`should ignore a v2 TEXT data stream with compression if DecompressionStream doesn't exist`, async () => {
+      const text = 'hello world';
+      const compressed = await deflateRawCompress(new TextEncoder().encode(text));
+
+      let originalCompressionStream: typeof CompressionStream, originalDecompressionStream: typeof DecompressionStream;
+      try {
+        originalCompressionStream = CompressionStream;
+        (CompressionStream as any) = undefined;
+        originalDecompressionStream = DecompressionStream;
+        (DecompressionStream as any) = undefined;
+
+        const manager = new IncomingDataStreamManager();
+        manager.setConnected(true);
+
+        const readerPromise = new Promise<TextStreamReader>((resolve) => {
+          manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+        });
+
+        const streamId = crypto.randomUUID();
+
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamHeader',
+              value: new DataStream_Header({
+                streamId,
+                topic: 'my-topic',
+                mimeType: 'text/plain',
+                timestamp: 0n,
+                totalLength: BigInt(text.length),
+                attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+                contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+              }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamChunk',
+              value: new DataStream_Chunk({
+                streamId,
+                chunkIndex: 0n,
+                content: compressed,
+                version: 0,
+              }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamTrailer',
+              value: new DataStream_Trailer({ streamId }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+
+        // Make sure promise is still pending; the data stream should have been dropped
+        await expect(
+          Promise.race([readerPromise, Promise.resolve('still pending')]),
+        ).resolves.toStrictEqual('still pending');
+      } finally {
+        CompressionStream = originalCompressionStream!;
+        DecompressionStream = originalDecompressionStream!;
+      }
+    });
+
+    it(`should ignore a v2 BYTES data stream with compression if DecompressionStream doesn't exist`, async () => {
+      const bytes = new Uint8Array([0x01, 0x02, 0x03]);
+      const compressed = await deflateRawCompress(bytes);
+
+      let originalCompressionStream: typeof CompressionStream, originalDecompressionStream: typeof DecompressionStream;
+      try {
+        originalCompressionStream = CompressionStream;
+        (CompressionStream as any) = undefined;
+        originalDecompressionStream = DecompressionStream;
+        (DecompressionStream as any) = undefined;
+
+        const manager = new IncomingDataStreamManager();
+        manager.setConnected(true);
+
+        const readerPromise = new Promise<TextStreamReader>((resolve) => {
+          manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+        });
+
+        const streamId = crypto.randomUUID();
+
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamHeader',
+              value: new DataStream_Header({
+                streamId,
+                topic: 'my-topic',
+                mimeType: 'text/plain',
+                timestamp: 0n,
+                totalLength: BigInt(bytes.length),
+                attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+                contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+              }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamChunk',
+              value: new DataStream_Chunk({
+                streamId,
+                chunkIndex: 0n,
+                content: compressed,
+                version: 0,
+              }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+        manager.handleDataStreamPacket(
+          new DataPacket({
+            participantIdentity: 'alice',
+            value: {
+              case: 'streamTrailer',
+              value: new DataStream_Trailer({ streamId }),
+            },
+          }),
+          Encryption_Type.NONE,
+        );
+
+        // Make sure promise is still pending; the data stream should have been dropped
+        await expect(
+          Promise.race([readerPromise, Promise.resolve('still pending')]),
+        ).resolves.toStrictEqual('still pending');
+      } finally {
+        CompressionStream = originalCompressionStream!;
+        DecompressionStream = originalDecompressionStream!;
+      }
+    });
   });
 });
