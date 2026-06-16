@@ -456,33 +456,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
-    // Detach the data channel handlers before closing the peer connections. Closing a peer
-    // connection tears down the SCTP transport, which can dispatch `error`/`close` events on
-    // the still-open data channels; if our handlers are still attached at that point,
-    // handleDataError logs a spurious "Unknown DataChannel error" during an otherwise graceful
-    // disconnect. Detaching first makes this deterministic regardless of how/when the browser
-    // dispatches those teardown events. See livekit/client-sdk-js#1953.
-    const detachHandlers = (dc: RTCDataChannel | undefined) => {
-      if (!dc) return;
+    const dcCleanup = (dc: RTCDataChannel | undefined) => {
+      if (!dc) {
+        return;
+      }
+
+      // Detach the data channel handlers before closing anything. Closing a peer connection tears
+      // down the SCTP transport, which can dispatch `error`/`close` events on the still-open data
+      // channels; if our handlers are still attached at that point, handleDataError logs a spurious
+      // "Unknown DataChannel error" during an otherwise graceful disconnect. Removing the handlers
+      // before dc.close()/pcManager.close() makes this deterministic regardless of how/when the
+      // browser dispatches those teardown events. See livekit/client-sdk-js#1953.
       dc.onbufferedamountlow = null;
       dc.onclose = null;
       dc.onclosing = null;
       dc.onerror = null;
       dc.onmessage = null;
       dc.onopen = null;
-    };
-    detachHandlers(this.lossyDC);
-    detachHandlers(this.lossyDCSub);
-    detachHandlers(this.reliableDC);
-    detachHandlers(this.reliableDCSub);
-    detachHandlers(this.dataTrackDC);
-    detachHandlers(this.dataTrackDCSub);
 
-    await this.pcManager?.close();
-    this.pcManager = undefined;
-
-    const dcCleanup = (dc: RTCDataChannel | undefined) => {
-      if (!dc) return;
       dc.close();
     };
     dcCleanup(this.lossyDC);
@@ -491,6 +482,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     dcCleanup(this.reliableDCSub);
     dcCleanup(this.dataTrackDC);
     dcCleanup(this.dataTrackDCSub);
+
+    await this.pcManager?.close();
+    this.pcManager = undefined;
 
     this.lossyDC = undefined;
     this.lossyDCSub = undefined;
