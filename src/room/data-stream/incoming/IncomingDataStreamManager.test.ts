@@ -409,15 +409,18 @@ describe('IncomingDataStreamManager', () => {
       const streamId = crypto.randomUUID();
 
       // Generate a mostly incompressible compressed stream, with Z_SYNC_FLUSH between each chunk
-      const input = new Array(30).fill(0).map(() => new TextEncoder().encode(`hello world${randomText(1_000)}`));
-      const compressed: Array<Uint8Array> = [];
+      const text = new Array(30).fill(0).map(() => `hello world${randomText(1_000)}`);
+      const bytes = text.map((b) => new TextEncoder().encode(b));
       const stream = createDeflateRaw();
-      stream.on('data', (chunk) => {
-        compressed.push(chunk);
-      });
-      for (const item of input) {
+      let pending: Array<Buffer> = [];
+      stream.on('data', (chunk: Buffer) => pending.push(chunk));
+
+      const compressed: Array<Uint8Array> = [];
+      for (const item of bytes) {
         stream.write(item);
         await new Promise<void>((resolve) => stream.flush(constants.Z_SYNC_FLUSH, resolve));
+        compressed.push(Buffer.concat(pending));
+        pending = [];
       }
       const closePromise = new Promise<void>((resolve, reject) => {
         stream.once('end', resolve);
@@ -425,6 +428,9 @@ describe('IncomingDataStreamManager', () => {
       });
       stream.end();
       await closePromise;
+      // The final deflate block is emitted on end(); fold it into the last write's chunk so the
+      // receiver's single decompressor terminates cleanly right after emitting the last write.
+      compressed[compressed.length - 1] = Buffer.concat([compressed[compressed.length - 1], ...pending]);
 
       manager.handleDataStreamPacket(
         new DataPacket({
@@ -436,7 +442,7 @@ describe('IncomingDataStreamManager', () => {
               topic: 'my-topic',
               mimeType: 'text/plain',
               timestamp: 0n,
-              totalLength: BigInt(input.reduce((acc, i) => acc + i.byteLength, 0)),
+              totalLength: BigInt(bytes.reduce((acc, i) => acc + i.byteLength, 0)),
               attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
               contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
             }),
@@ -444,8 +450,8 @@ describe('IncomingDataStreamManager', () => {
         }),
         Encryption_Type.NONE,
       );
-      for (let index = 0; index < input.length; index += 1) {
-        const item = input[index];
+      for (let index = 0; index < compressed.length; index += 1) {
+        const item = compressed[index];
         manager.handleDataStreamPacket(
           new DataPacket({
             participantIdentity: 'alice',
@@ -476,10 +482,12 @@ describe('IncomingDataStreamManager', () => {
       // Make sure that stream chunks each get emitted sequentially and are passed out of the reader
       const reader = await readerPromise;
       const iterator = reader[Symbol.asyncIterator]();
-      for (let index = 0; index < input.length; index += 1) {
+
+      for (let index = 0; index < text.length; index += 1) {
         const chunk = await iterator.next();
         expect(chunk.done).toStrictEqual(false);
-        expect(chunk.value).toStrictEqual(input[index]);
+        console.log('AA', chunk.value, text[index]);
+        expect(chunk.value).toStrictEqual(text[index]);
       }
       const final = await iterator.next();
       expect(final.done).toStrictEqual(true);
