@@ -19,7 +19,7 @@
     "@playwright/test": "1.60.0",
     "playwright": "1.60.0",
     "http-server": "14.1.1",
-    "vite": "7.3.3",
+    "vite": "7.3.5",
     "webpack": "5.107.1",
     "webpack-cli": "5.1.4"
   }
