@@ -1054,6 +1054,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   private handleDataError = (event: Event) => {
+    // Errors fired while we're tearing the connection down (e.g. the SCTP transport aborting as
+    // the peer connection closes) carry no actionable information — the channel is going away
+    // regardless. Suppress them so a graceful disconnect doesn't surface spurious errors.
+    // See livekit/client-sdk-js#1953.
+    if (this._isClosed) {
+      return;
+    }
+
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
