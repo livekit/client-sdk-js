@@ -5,3 +5,5 @@ minimumReleaseAgeExclude:
   - webrtc-adapter@9.0.5
   # Renovate security update: vitest@4.1.0
   - vitest@4.1.0
+  # Renovate security update: vite@7.3.5
+  - vite@7.3.5
