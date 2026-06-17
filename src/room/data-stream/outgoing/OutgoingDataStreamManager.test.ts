@@ -219,6 +219,39 @@ describe('OutgoingDataStreamManager', () => {
       expect(trailer.streamId).toStrictEqual(writer.info.id);
       expect(trailer.reason).toStrictEqual('');
     });
+
+    it('should send a FILE via sendFile without compression (happy path)', async () => {
+      const bytes = new Uint8Array(20_000).fill(0x07);
+      const info = await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
+        topic: 'my-topic',
+      });
+
+      // Pre-v2 recipients: uncompressed, multi-packet legacy format.
+      // 20k of data -> 15k + 5k chunks. 1 header + 2 chunks + 1 trailer = 4 packets.
+      expect(sentPackets).toHaveLength(4);
+
+      expect(sentPackets[0].value.case).toBe('streamHeader');
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.topic).toStrictEqual('my-topic');
+      expect(header.contentHeader.case).toBe('byteHeader');
+      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
+
+      expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
+      let chunk = chunkOf(sentPackets[1]);
+      expect(chunk.chunkIndex).toStrictEqual(0n);
+      expect(chunk.content).toHaveLength(15_000); // MTU
+      expect(chunk.content.every((byte) => byte === 0x07)).toBeTruthy();
+
+      expect(sentPackets[2].value.case).toStrictEqual('streamChunk');
+      chunk = chunkOf(sentPackets[2]);
+      expect(chunk.chunkIndex).toStrictEqual(1n);
+      expect(chunk.content).toHaveLength(5_000);
+      expect(chunk.content.every((byte) => byte === 0x07)).toBeTruthy();
+
+      expect(sentPackets[3].value.case).toStrictEqual('streamTrailer');
+      expect(trailerOf(sentPackets[3]).streamId).toStrictEqual(info.id);
+    });
   });
   describe('v2 -> room of all v2', () => {
     let manager: OutgoingDataStreamManager, sentPackets: Array<DataPacket>;
@@ -579,6 +612,53 @@ describe('OutgoingDataStreamManager', () => {
       const trailer = trailerOf(sentPackets[2]);
       expect(trailer.streamId).toStrictEqual(info.id);
       expect(trailer.reason).toStrictEqual('');
+    });
+
+    it('should send a FILE via sendFile WITHOUT compression if remote does not support compression', async () => {
+      const bytes = new Uint8Array(10_000).fill(0x07);
+      const info = await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
+        topic: 'my-topic',
+        destinationIdentities: ['noCompression'],
+      });
+
+      // v2 recipient but no deflate-raw capability: uncompressed, multi-packet (never inline).
+      expect(sentPackets).toHaveLength(3);
+
+      expect(sentPackets[0].value.case).toBe('streamHeader');
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.contentHeader.case).toBe('byteHeader');
+      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
+      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeUndefined();
+
+      expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
+      const chunk = chunkOf(sentPackets[1]);
+      expect(chunk.chunkIndex).toStrictEqual(0n);
+      expect(chunk.content).toHaveLength(10_000); // uncompressed, single chunk under the MTU
+      expect(chunk.content.every((byte) => byte === 0x07)).toBeTruthy();
+
+      expect(sentPackets[2].value.case).toStrictEqual('streamTrailer');
+      expect(trailerOf(sentPackets[2]).streamId).toStrictEqual(info.id);
+    });
+
+    it('should send an empty FILE via sendFile', async () => {
+      const info = await manager.sendFile(new File([], 'empty.bin'), {
+        topic: 'my-topic',
+        destinationIdentities: ['alice', 'bob'],
+      });
+
+      // An empty file still produces a well-formed compressed byte stream: a header declaring zero
+      // length, the deflate stream's final block, and a trailer.
+      expect(sentPackets[0].value.case).toBe('streamHeader');
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.contentHeader.case).toBe('byteHeader');
+      expect(header.totalLength).toStrictEqual(0n);
+      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
+
+      const last = sentPackets[sentPackets.length - 1];
+      expect(last.value.case).toStrictEqual('streamTrailer');
+      expect(trailerOf(last).streamId).toStrictEqual(info.id);
     });
   });
   describe('v2 -> room of mixed v1 / v2', () => {
