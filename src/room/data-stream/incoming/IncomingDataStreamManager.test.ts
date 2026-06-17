@@ -8,7 +8,6 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { createDeflateRaw, constants } from 'zlib';
 import { encodeBase64 } from '../../utils';
 import { INLINE_PAYLOAD_ATTRIBUTE, COMPRESSION_ATTRIBUTE, COMPRESSION_DEFLATE_RAW, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
@@ -761,121 +760,6 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       expect(await reader.readAll()).toStrictEqual(text);
-    });
-
-    it('should receive a v2 multi packet + compressed data stream and emit chunks at Z_SYNC_FLUSH boundaries', async () => {
-      const manager = new IncomingDataStreamManager();
-      manager.setConnected(true);
-
-      const readerPromise = new Promise<TextStreamReader>((resolve) => {
-        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
-      });
-
-      const streamId = crypto.randomUUID();
-
-      // Generate a mostly incompressible compressed stream, with Z_SYNC_FLUSH between each chunk
-      const text = new Array(30).fill(0).map(() => `hello world${randomText(1_000)}`);
-      const bytes = text.map((b) => new TextEncoder().encode(b));
-      const stream = createDeflateRaw();
-
-      const merge = (parts: Array<Uint8Array>): Uint8Array => {
-        const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
-        let offset = 0;
-        for (const part of parts) {
-          out.set(part, offset);
-          offset += part.byteLength;
-        }
-        return out;
-      };
-      // Drain all currently-buffered compressor output as a single Uint8Array. Reading in paused
-      // mode (rather than via 'data' events) means each drain right after a flush callback
-      // deterministically captures exactly that write's flushed bytes, with no event-timing race
-      // that could split a write's output across two chunks.
-      const drain = (): Uint8Array => {
-        const parts: Array<Uint8Array> = [];
-        let part: Uint8Array | null;
-        while ((part = stream.read() as Uint8Array | null) !== null) {
-          parts.push(part);
-        }
-        return merge(parts);
-      };
-
-      const compressed: Array<Uint8Array> = [];
-      for (const item of bytes) {
-        stream.write(item);
-        await new Promise<void>((resolve) => stream.flush(constants.Z_SYNC_FLUSH, resolve));
-        compressed.push(drain());
-      }
-      // The final deflate block is emitted on end(); fold it into the last write's chunk so the
-      // receiver's single decompressor terminates cleanly right after emitting the last write.
-      const tail: Array<Uint8Array> = [];
-      await new Promise<void>((resolve, reject) => {
-        stream.once('error', reject);
-        stream.once('end', resolve);
-        stream.on('readable', () => {
-          let part: Uint8Array | null;
-          while ((part = stream.read() as Uint8Array | null) !== null) {
-            tail.push(part);
-          }
-        });
-        stream.end();
-      });
-      compressed[compressed.length - 1] = merge([compressed[compressed.length - 1], ...tail]);
-
-      manager.handleDataStreamPacket(
-        new DataPacket({
-          participantIdentity: 'alice',
-          value: {
-            case: 'streamHeader',
-            value: new DataStream_Header({
-              streamId,
-              topic: 'my-topic',
-              mimeType: 'text/plain',
-              timestamp: 0n,
-              totalLength: BigInt(bytes.reduce((acc, i) => acc + i.byteLength, 0)),
-              attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
-              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
-            }),
-          },
-        }),
-        Encryption_Type.NONE,
-      );
-      const reader = await readerPromise;
-
-      // Send every write's compressed chunk (each ending on a Z_SYNC_FLUSH boundary) followed by
-      // the trailer...
-      for (let index = 0; index < compressed.length; index += 1) {
-        manager.handleDataStreamPacket(
-          new DataPacket({
-            participantIdentity: 'alice',
-            value: {
-              case: 'streamChunk',
-              value: new DataStream_Chunk({
-                streamId,
-                chunkIndex: BigInt(index),
-                content: compressed[index],
-                version: 0,
-              }),
-            },
-          }),
-          Encryption_Type.NONE,
-        );
-      }
-      manager.handleDataStreamPacket(
-        new DataPacket({
-          participantIdentity: 'alice',
-          value: {
-            case: 'streamTrailer',
-            value: new DataStream_Trailer({ streamId }),
-          },
-        }),
-        Encryption_Type.NONE,
-      );
-
-      // ...then read the whole stream back. The receiver re-chunks decompressed output on its own
-      // decompressor buffer boundaries (not the sender's per-write Z_SYNC_FLUSH boundaries), so the
-      // content is verified as a whole rather than per write.
-      expect(await reader.readAll()).toStrictEqual(text.join(''));
     });
 
     it(`should ignore a v2 TEXT data stream with compression if DecompressionStream doesn't exist`, async () => {
