@@ -530,6 +530,59 @@ describe('IncomingDataStreamManager', () => {
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Extra chunk(s)');
     });
+
+    it('should throw an error if participant disconnects while data stream is still not fully received', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+
+      // Send a header declaring 10 bytes, then a 5 byte long chunk
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: 10n,
+              attributes: { foo: 'bar', baz: 'quux' },
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamChunk',
+            value: new DataStream_Chunk({
+              streamId,
+              chunkIndex: 0n,
+              content: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]),
+              version: 0,
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      // Simulate a remote participant disconnect, which calls this method in the room handler
+      manager.validateParticipantHasNoActiveDataStreams('alice');
+
+      // Make sure an error is thrown from the reader
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('Participant alice unexpectedly disconnected in the middle of sending data');
+    });
   });
 
   describe('Receiving v2 data streams', () => {
