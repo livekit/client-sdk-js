@@ -14,7 +14,6 @@ import { INLINE_PAYLOAD_ATTRIBUTE, COMPRESSION_ATTRIBUTE, COMPRESSION_DEFLATE_RA
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
 import { deflateRawCompress } from '../compression';
-import { attributes, DataStreamError } from '../../..';
 
 /** Builds a low quality random string of the given length. */
 function randomText(length: number): string {
