@@ -2502,8 +2502,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
-  private getClientInfoCapabilities(roomOptions: InternalRoomOptions): ClientInfo_Capability[] {
-    const capabilities: ClientInfo_Capability[] = [];
+  private getClientInfoCapabilities(roomOptions: InternalRoomOptions): Array<ClientInfo_Capability> {
+    const capabilities: Array<ClientInfo_Capability> = [];
     if (isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) || !!this.e2eeManager) {
       capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
     }
@@ -2519,7 +2519,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private getRemoteParticipantCapabilities = (
     identity: Participant['identity'],
-  ): ClientInfo_Capability[] => {
+  ): Array<ClientInfo_Capability> => {
     return this.remoteParticipants.get(identity)?.capabilities ?? [];
   };
 
