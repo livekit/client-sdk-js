@@ -419,7 +419,10 @@ function encodingsFromPresets(
 /** @internal */
 export function sortPresets(presets: Array<VideoPreset> | undefined) {
   if (!presets) return;
-  return presets.sort((a, b) => {
+  // Sort a copy so we don't mutate the caller's array in place. Mutating the
+  // passed-in simulcast layers can cause consumers that compare options by value
+  // (e.g. components-react's useLiveKitRoom) to detect a spurious change.
+  return presets.slice().sort((a, b) => {
     const { encoding: aEnc } = a;
     const { encoding: bEnc } = b;
 
