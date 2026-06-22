@@ -52,11 +52,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    * and the publishing track to have frame metadata features enabled.
    *
    */
-  lookupFrameMetadata({
-    rtpTimestamp,
-  }: {
-    rtpTimestamp: number;
-  }): FrameMetadata | undefined {
+  lookupFrameMetadata({ rtpTimestamp }: { rtpTimestamp: number }): FrameMetadata | undefined {
     return this.frameMetadataExtractor?.lookupMetadata(rtpTimestamp);
   }
 

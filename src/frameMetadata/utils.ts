@@ -10,8 +10,7 @@ export function shouldUseFrameMetadataScriptTransform() {
 
 export function isFrameMetadataSupported(options?: FrameMetadataOptions) {
   return (
-    !!options?.worker &&
-    (isInsertableStreamSupported() || shouldUseFrameMetadataScriptTransform())
+    !!options?.worker && (isInsertableStreamSupported() || shouldUseFrameMetadataScriptTransform())
   );
 }
 
