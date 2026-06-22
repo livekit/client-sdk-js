@@ -1,5 +1,5 @@
 import type { E2EEOptions } from './e2ee/types';
-import type { PacketTrailerOptions } from './packetTrailer/PacketTrailerManager';
+import type { FrameMetadataOptions } from './frameMetadata/FrameMetadataManager';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -103,10 +103,15 @@ export interface InternalRoomOptions {
 
   /**
    * @experimental
-   * Options for enabling packet trailers on video tracks.
-   * Packet trailers carry frame-level metadata such as user timestamps and frame IDs.
+   * Options for enabling frame metadata on video tracks.
+   * Frame metadata carries frame-level information such as user timestamps and frame IDs.
    */
-  packetTrailer?: PacketTrailerOptions;
+  frameMetadata?: FrameMetadataOptions;
+
+  /**
+   * @deprecated Use {@link InternalRoomOptions.frameMetadata} instead.
+   */
+  packetTrailer?: FrameMetadataOptions;
 
   /**
    * will attempt to connect via single peer connection mode.

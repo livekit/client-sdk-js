@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrackInfo } from '@livekit/protocol';
-import { PacketTrailerManager } from './PacketTrailerManager';
+import { FrameMetadataManager } from './FrameMetadataManager';
 
-describe('PacketTrailerManager', () => {
+describe('FrameMetadataManager', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
   const originalUserAgent = navigator.userAgent;
   const originalRTCRtpScriptTransform = (window as unknown as { RTCRtpScriptTransform?: unknown })
@@ -63,7 +63,7 @@ describe('PacketTrailerManager', () => {
     });
   }
 
-  function setupWorkerReceiver(manager: PacketTrailerManager, receiver: RTCRtpReceiver) {
+  function setupWorkerReceiver(manager: FrameMetadataManager, receiver: RTCRtpReceiver) {
     (
       manager as unknown as {
         setupWorkerReceiver: (receiver: RTCRtpReceiver, newTrackId: string) => void;
@@ -72,7 +72,7 @@ describe('PacketTrailerManager', () => {
   }
 
   function setupReceiver(
-    manager: PacketTrailerManager,
+    manager: FrameMetadataManager,
     receiver: RTCRtpReceiver,
     trackId: string,
     trackInfo?: TrackInfo,
@@ -109,7 +109,7 @@ describe('PacketTrailerManager', () => {
     setScriptTransform(RTCRtpScriptTransform);
 
     const worker = {} as Worker;
-    const manager = new PacketTrailerManager({ worker });
+    const manager = new FrameMetadataManager({ worker });
     const receiver = {
       createEncodedStreams: vi.fn(),
     } as unknown as RTCRtpReceiver;
@@ -131,7 +131,7 @@ describe('PacketTrailerManager', () => {
     stubInsertableStreamsSupport();
 
     const worker = { postMessage: vi.fn() } as unknown as Worker;
-    const manager = new PacketTrailerManager({ worker });
+    const manager = new FrameMetadataManager({ worker });
     const { receiver, readable, writable, createEncodedStreams } = makeReceiver();
 
     setupReceiver(manager, receiver, 'track-without-trailer');
@@ -155,7 +155,7 @@ describe('PacketTrailerManager', () => {
     stubInsertableStreamsSupport();
 
     const worker = { postMessage: vi.fn() } as unknown as Worker;
-    const manager = new PacketTrailerManager({ worker });
+    const manager = new FrameMetadataManager({ worker });
     const { receiver } = makeReceiver();
     const trackInfo = { packetTrailerFeatures: [1] } as unknown as TrackInfo;
 

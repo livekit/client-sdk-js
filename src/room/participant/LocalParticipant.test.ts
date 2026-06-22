@@ -5,18 +5,18 @@ import { Track } from '../track/Track';
 import type { TrackPublishOptions } from '../track/options';
 import LocalParticipant from './LocalParticipant';
 
-type PacketTrailerTestParticipant = {
-  canPublishPacketTrailer: () => boolean;
+type FrameMetadataTestParticipant = {
+  canPublishFrameMetadata: () => boolean;
   log: { warn: ReturnType<typeof vi.fn> };
-  normalizeRequestedPacketTrailerOptions: (
+  normalizeRequestedFrameMetadataOptions: (
     track: LocalTrack,
     opts: TrackPublishOptions,
   ) => PacketTrailerFeature[];
 };
 
-function makeParticipant(canPublishPacketTrailer: boolean) {
-  const participant = Object.create(LocalParticipant.prototype) as PacketTrailerTestParticipant;
-  participant.canPublishPacketTrailer = () => canPublishPacketTrailer;
+function makeParticipant(canPublishFrameMetadata: boolean) {
+  const participant = Object.create(LocalParticipant.prototype) as FrameMetadataTestParticipant;
+  participant.canPublishFrameMetadata = () => canPublishFrameMetadata;
   participant.log = { warn: vi.fn() };
   return participant;
 }
@@ -35,12 +35,12 @@ function makeTrack(kind: Track.Kind) {
   } as unknown as LocalTrack;
 }
 
-describe('LocalParticipant packet trailer publish options', () => {
-  it('normalizes requested video packet trailer options to advertised features', () => {
+describe('LocalParticipant frame metadata publish options', () => {
+  it('normalizes requested video frame metadata options to advertised features', () => {
     const participant = makeParticipant(true);
-    const opts: TrackPublishOptions = { packetTrailer: { timestamp: true, frameId: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { timestamp: true, frameId: true } };
 
-    const features = participant.normalizeRequestedPacketTrailerOptions(
+    const features = participant.normalizeRequestedFrameMetadataOptions(
       makeTrack(Track.Kind.Video),
       opts,
     );
@@ -49,33 +49,33 @@ describe('LocalParticipant packet trailer publish options', () => {
       PacketTrailerFeature.PTF_USER_TIMESTAMP,
       PacketTrailerFeature.PTF_FRAME_ID,
     ]);
-    expect(opts.packetTrailer).toEqual({ timestamp: true, frameId: true });
+    expect(opts.frameMetadata).toEqual({ timestamp: true, frameId: true });
   });
 
-  it('clears packet trailer options for non-video tracks', () => {
+  it('clears frame metadata options for non-video tracks', () => {
     const participant = makeParticipant(true);
-    const opts: TrackPublishOptions = { packetTrailer: { timestamp: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { timestamp: true } };
 
-    const features = participant.normalizeRequestedPacketTrailerOptions(
+    const features = participant.normalizeRequestedFrameMetadataOptions(
       makeTrack(Track.Kind.Audio),
       opts,
     );
 
     expect(features).toEqual([]);
-    expect(opts.packetTrailer).toBeUndefined();
+    expect(opts.frameMetadata).toBeUndefined();
   });
 
-  it('clears packet trailer options when publishing packet trailers is unsupported', () => {
+  it('clears frame metadata options when publishing frame metadata is unsupported', () => {
     const participant = makeParticipant(false);
-    const opts: TrackPublishOptions = { packetTrailer: { frameId: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { frameId: true } };
 
-    const features = participant.normalizeRequestedPacketTrailerOptions(
+    const features = participant.normalizeRequestedFrameMetadataOptions(
       makeTrack(Track.Kind.Video),
       opts,
     );
 
     expect(features).toEqual([]);
-    expect(opts.packetTrailer).toBeUndefined();
+    expect(opts.frameMetadata).toBeUndefined();
     expect(participant.log.warn).toHaveBeenCalledOnce();
   });
 });

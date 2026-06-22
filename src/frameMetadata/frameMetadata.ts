@@ -1,5 +1,5 @@
-import type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './types';
-import { hasPacketTrailerPublishOptions } from './utils';
+import type { FrameMetadata, FrameMetadataPublishOptions } from './types';
+import { hasFrameMetadataPublishOptions } from './utils';
 
 export const PACKET_TRAILER_MAGIC = Uint8Array.from([
   'L'.charCodeAt(0),
@@ -17,7 +17,7 @@ const FRAME_ID_TLV_SIZE = 6;
 
 export interface ExtractPacketTrailerResult {
   data: Uint8Array;
-  metadata?: PacketTrailerMetadata;
+  metadata?: FrameMetadata;
 }
 
 export function appendPacketTrailer(
@@ -64,10 +64,10 @@ export function appendPacketTrailer(
 
 export function appendPacketTrailerToEncodedFrame(
   frame: RTCEncodedVideoFrame,
-  options: PacketTrailerPublishOptions | undefined,
+  options: FrameMetadataPublishOptions | undefined,
   frameId: number,
 ): boolean {
-  if (!hasPacketTrailerPublishOptions(options) || frame.data.byteLength === 0) {
+  if (!hasFrameMetadataPublishOptions(options) || frame.data.byteLength === 0) {
     return false;
   }
 
@@ -108,7 +108,7 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
   const strippedData = bytes.subarray(0, trailerStart);
   let offset = trailerStart;
   let foundAny = false;
-  const metadata: PacketTrailerMetadata = {
+  const metadata: FrameMetadata = {
     userTimestamp: BigInt(0),
     frameId: 0,
   };
@@ -223,16 +223,16 @@ export function getFrameSsrc(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame)
   return 0;
 }
 
-export interface PacketTrailerFramePayload {
+export interface FrameMetadataPayload {
   trackId: string;
   rtpTimestamp: number;
   ssrc: number;
-  metadata: PacketTrailerMetadata;
+  metadata: FrameMetadata;
 }
 
 export interface ProcessPacketTrailerResult {
   data?: ArrayBuffer;
-  payload?: PacketTrailerFramePayload;
+  payload?: FrameMetadataPayload;
 }
 
 /**

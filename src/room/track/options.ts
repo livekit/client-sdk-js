@@ -1,4 +1,4 @@
-import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
+import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
 import type { Track } from './Track';
 import type {
   AudioProcessorOptions,
@@ -131,14 +131,19 @@ export interface TrackPublishDefaults {
   preConnectBuffer?: boolean;
 
   /**
-   * Packet trailer metadata to append to published video frames.
+   * Frame metadata to append to published video frames.
    *
-   * Requires either room-level packet trailer worker configuration or E2EE,
-   * because encoded frame transforms are used to write the trailer.
+   * Requires either room-level frame metadata worker configuration or E2EE,
+   * because encoded frame transforms are used to write the metadata.
    *
    * @experimental
    */
-  packetTrailer?: PacketTrailerPublishOptions;
+  frameMetadata?: FrameMetadataPublishOptions;
+
+  /**
+   * @deprecated Use {@link TrackPublishDefaults.frameMetadata} instead.
+   */
+  packetTrailer?: FrameMetadataPublishOptions;
 }
 
 /**

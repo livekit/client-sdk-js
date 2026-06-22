@@ -1,11 +1,11 @@
-import { appendPacketTrailerToEncodedFrame, processPacketTrailer } from '../packetTrailer';
+import { appendPacketTrailerToEncodedFrame, processPacketTrailer } from '../frameMetadata';
 import type {
+  FrameMetadataPublishOptions,
   PTMetadataMessage,
   PTScriptTransformOptions,
   PTWorkerMessage,
-  PacketTrailerPublishOptions,
 } from '../types';
-import { hasPacketTrailerPublishOptions } from '../utils';
+import { hasFrameMetadataPublishOptions } from '../utils';
 
 /**
  * Holds the trackId currently associated with a pipeline. A mutable
@@ -97,9 +97,9 @@ function setupDecodeTransform(
 function setupEncodeTransform(
   readable: ReadableStream,
   writable: WritableStream,
-  packetTrailer?: PacketTrailerPublishOptions,
+  packetTrailer?: FrameMetadataPublishOptions,
 ) {
-  if (!hasPacketTrailerPublishOptions(packetTrailer)) {
+  if (!hasFrameMetadataPublishOptions(packetTrailer)) {
     readable.pipeTo(writable).catch(() => {});
     return;
   }

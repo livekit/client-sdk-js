@@ -1,8 +1,8 @@
 import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
 import log, { LogLevel, workerLogger } from '../logger';
-import { hasPacketTrailerPublishOptions } from '../packetTrailer/utils';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -230,7 +230,7 @@ export class E2EEManager
         }
         break;
       case 'packetTrailerMetadata':
-        this.handlePacketTrailerMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
+        this.handleFrameMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
         break;
       default:
         break;
@@ -242,7 +242,7 @@ export class E2EEManager
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
-  private handlePacketTrailerMetadata(
+  private handleFrameMetadata(
     trackId: string,
     rtpTimestamp: number,
     ssrc: number,
@@ -260,9 +260,9 @@ export class E2EEManager
           pub.track &&
           pub.track.mediaStreamID === trackId &&
           pub.track instanceof RemoteVideoTrack &&
-          pub.track.packetTrailerExtractor
+          pub.track.frameMetadataExtractor
         ) {
-          pub.track.packetTrailerExtractor.storeMetadata(rtpTimestamp, ssrc, metadata);
+          pub.track.frameMetadataExtractor.storeMetadata(rtpTimestamp, ssrc, metadata);
           return;
         }
       }
@@ -509,7 +509,9 @@ export class E2EEManager
       sender,
       track.mediaStreamID,
       undefined,
-      isVideoTrack(track) ? track.publishOptions?.packetTrailer : undefined,
+      isVideoTrack(track)
+        ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
+        : undefined,
     );
   }
 
@@ -598,7 +600,7 @@ export class E2EEManager
     sender: RTCRtpSender,
     trackId: string,
     codec?: VideoCodec,
-    packetTrailer?: TrackPublishOptions['packetTrailer'],
+    frameMetadata?: TrackPublishOptions['frameMetadata'],
   ) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
@@ -615,8 +617,8 @@ export class E2EEManager
         participantIdentity: this.room.localParticipant.identity,
         trackId,
         codec,
-        hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
-        packetTrailer,
+        hasPacketTrailer: hasFrameMetadataPublishOptions(frameMetadata),
+        packetTrailer: frameMetadata,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -633,8 +635,8 @@ export class E2EEManager
           trackId,
           participantIdentity: this.room.localParticipant.identity,
           isReuse: false,
-          hasPacketTrailer: hasPacketTrailerPublishOptions(packetTrailer),
-          packetTrailer,
+          hasPacketTrailer: hasFrameMetadataPublishOptions(frameMetadata),
+          packetTrailer: frameMetadata,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);

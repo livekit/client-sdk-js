@@ -544,6 +544,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       return;
     }
     this.pendingInitialOffer = undefined;
+    this.log.warn(`closing peer connection`);
     this._pc.close();
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;

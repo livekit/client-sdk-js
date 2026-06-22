@@ -1,14 +1,20 @@
-import type { PacketTrailerFramePayload } from './packetTrailer';
+import type { FrameMetadataPayload } from './frameMetadata';
 
-export interface PacketTrailerMetadata {
+export interface FrameMetadata {
   userTimestamp: bigint;
   frameId: number;
 }
 
-export interface PacketTrailerPublishOptions {
+/** @deprecated Use {@link FrameMetadata} instead. */
+export type PacketTrailerMetadata = FrameMetadata;
+
+export interface FrameMetadataPublishOptions {
   timestamp?: boolean;
   frameId?: boolean;
 }
+
+/** @deprecated Use {@link FrameMetadataPublishOptions} instead. */
+export type PacketTrailerPublishOptions = FrameMetadataPublishOptions;
 
 export interface PTBaseMessage {
   kind: string;
@@ -38,7 +44,7 @@ export interface PTEncodeMessage extends PTBaseMessage {
   data: {
     readableStream: ReadableStream;
     writableStream: WritableStream;
-    packetTrailer?: PacketTrailerPublishOptions;
+    packetTrailer?: FrameMetadataPublishOptions;
   };
 }
 
@@ -49,12 +55,12 @@ export type PTScriptTransformOptions =
     }
   | {
       kind: 'encode';
-      packetTrailer?: PacketTrailerPublishOptions;
+      packetTrailer?: FrameMetadataPublishOptions;
     };
 
 export interface PTMetadataMessage extends PTBaseMessage {
   kind: 'metadata';
-  data: PacketTrailerFramePayload;
+  data: FrameMetadataPayload;
 }
 
 export interface PTUpdateTrackIdMessage extends PTBaseMessage {

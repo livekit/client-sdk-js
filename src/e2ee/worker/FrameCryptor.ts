@@ -1,13 +1,13 @@
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import { workerLogger } from '../../logger';
 import {
   appendPacketTrailerToEncodedFrame,
   processPacketTrailer,
-} from '../../packetTrailer/packetTrailer';
-import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
-import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
+} from '../../frameMetadata/frameMetadata';
+import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
+import { hasFrameMetadataPublishOptions } from '../../frameMetadata/utils';
+import { workerLogger } from '../../logger';
 import { type VideoCodec, videoCodecs } from '../../room/track/options';
 import { mimeTypeToVideoCodecString } from '../../room/track/utils';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
@@ -88,11 +88,11 @@ export class FrameCryptor extends BaseFrameCryptor {
    * When false, we skip the per-frame trailer extraction path entirely
    * on decode to avoid unnecessary work on tracks that don't use it.
    */
-  private hasPacketTrailer: boolean = false;
+  private hasFrameMetadata: boolean = false;
 
-  private packetTrailer?: PacketTrailerPublishOptions;
+  private frameMetadataOpts?: FrameMetadataPublishOptions;
 
-  private packetTrailerFrameId = 0;
+  private frameMetadataFrameId = 0;
 
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
@@ -212,13 +212,13 @@ export class FrameCryptor extends BaseFrameCryptor {
    * trailer data. When false, {@link decodeFunction} skips the per-frame
    * trailer extraction branch entirely.
    */
-  setHasPacketTrailer(hasPacketTrailer: boolean) {
-    this.hasPacketTrailer = hasPacketTrailer;
+  setHasFrameMetadata(hasFrameMetadata: boolean) {
+    this.hasFrameMetadata = hasFrameMetadata;
   }
 
-  setPacketTrailer(packetTrailer?: PacketTrailerPublishOptions) {
-    this.packetTrailer = packetTrailer;
-    this.packetTrailerFrameId = 0;
+  setFrameMetadataOpts(frameMetadata?: FrameMetadataPublishOptions) {
+    this.frameMetadataOpts = frameMetadata;
+    this.frameMetadataFrameId = 0;
   }
 
   setupTransform(
@@ -228,14 +228,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     trackId: string,
     isReuse: boolean,
     codec?: VideoCodec,
-    packetTrailer?: PacketTrailerPublishOptions,
+    frameMetadata?: FrameMetadataPublishOptions,
   ) {
     if (codec) {
       workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
     }
     if (operation === 'encode') {
-      this.setPacketTrailer(packetTrailer);
+      this.setFrameMetadataOpts(frameMetadata);
     }
 
     workerLogger.debug('Setting up frame cryptor transform', {
@@ -406,7 +406,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
 
     if (!this.isEnabled()) {
-      this.appendPacketTrailer(encodedFrame);
+      this.appendFrameMetadata(encodedFrame);
       return controller.enqueue(encodedFrame);
     }
     const keySet = this.keys.getKeySet();
@@ -475,7 +475,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         newData.set(newDataWithoutHeader, frameHeader.byteLength);
 
         encodedFrame.data = newData.buffer;
-        this.appendPacketTrailer(encodedFrame);
+        this.appendFrameMetadata(encodedFrame);
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -494,16 +494,20 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
   }
 
-  private appendPacketTrailer(encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame) {
-    if (!hasPacketTrailerPublishOptions(this.packetTrailer) || !isVideoFrame(encodedFrame)) {
+  private appendFrameMetadata(encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame) {
+    if (!hasFrameMetadataPublishOptions(this.frameMetadataOpts) || !isVideoFrame(encodedFrame)) {
       return;
     }
 
-    if (this.packetTrailer?.frameId) {
-      this.packetTrailerFrameId =
-        this.packetTrailerFrameId === 0xffffffff ? 1 : this.packetTrailerFrameId + 1;
+    if (this.frameMetadataOpts?.frameId) {
+      this.frameMetadataFrameId =
+        this.frameMetadataFrameId === 0xffffffff ? 1 : this.frameMetadataFrameId + 1;
     }
-    appendPacketTrailerToEncodedFrame(encodedFrame, this.packetTrailer, this.packetTrailerFrameId);
+    appendPacketTrailerToEncodedFrame(
+      encodedFrame,
+      this.frameMetadataOpts,
+      this.frameMetadataFrameId,
+    );
   }
 
   /**
@@ -516,7 +520,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    if (this.hasPacketTrailer && isVideoFrame(encodedFrame)) {
+    if (this.hasFrameMetadata && isVideoFrame(encodedFrame)) {
       try {
         const ptResult = processPacketTrailer(encodedFrame, this.trackId);
         if (ptResult.data) {

@@ -64,11 +64,22 @@ import {
 import { getBrowser } from './utils/browserParser';
 
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
-export type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './packetTrailer/types';
+export type {
+  FrameMetadata,
+  FrameMetadataPublishOptions,
+  /** @deprecated Use {@link FrameMetadata} instead. */
+  PacketTrailerMetadata,
+  /** @deprecated Use {@link FrameMetadataPublishOptions} instead. */
+  PacketTrailerPublishOptions,
+} from './frameMetadata/types';
 export {
+  FrameMetadataManager,
+  /** @deprecated Use {@link FrameMetadataManager} instead. */
   PacketTrailerManager,
+  type FrameMetadataOptions,
+  /** @deprecated Use {@link FrameMetadataOptions} instead. */
   type PacketTrailerOptions,
-} from './packetTrailer/PacketTrailerManager';
+} from './frameMetadata/FrameMetadataManager';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';

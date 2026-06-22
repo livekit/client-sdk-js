@@ -1,6 +1,6 @@
+import type { FrameMetadataPayload } from '../frameMetadata/frameMetadata';
+import type { FrameMetadataPublishOptions } from '../frameMetadata/types';
 import type { LogLevel } from '../logger';
-import type { PacketTrailerFramePayload } from '../packetTrailer/packetTrailer';
-import type { PacketTrailerPublishOptions } from '../packetTrailer/types';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
@@ -62,7 +62,7 @@ export interface EncodeMessage extends BaseMessage {
     /**
      * Packet trailer metadata to append on published video frames.
      */
-    packetTrailer?: PacketTrailerPublishOptions;
+    packetTrailer?: FrameMetadataPublishOptions;
   };
 }
 
@@ -165,7 +165,7 @@ export interface EncryptDataResponseMessage extends BaseMessage {
 
 export interface PTMetadataFromE2EEMessage extends BaseMessage {
   kind: 'packetTrailerMetadata';
-  data: PacketTrailerFramePayload;
+  data: FrameMetadataPayload;
 }
 
 export type E2EEWorkerMessage =
@@ -249,5 +249,5 @@ export type ScriptTransformOptions = {
   /**
    * Packet trailer metadata to append on published video frames.
    */
-  packetTrailer?: PacketTrailerPublishOptions;
+  packetTrailer?: FrameMetadataPublishOptions;
 };
