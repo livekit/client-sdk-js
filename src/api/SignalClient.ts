@@ -376,13 +376,17 @@ export class SignalClient {
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
+
+        if (this.ws) {
+          const startClose = performance.now();
+          await this.close(false);
+          this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
+        }
+
         this.log.info(`signal connecting to ${redactedUrl}`, {
           reconnect: opts.reconnect,
           reconnectReason: opts.reconnectReason,
         });
-        if (this.ws) {
-          await this.close(false);
-        }
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
