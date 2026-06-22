@@ -167,7 +167,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true, frameId: true } });
+    setupPacketTrailerSender(engine, sender, { frameMetadata: { timestamp: true, frameId: true } });
 
     expect(createEncodedStreams).toHaveBeenCalledTimes(1);
     expect(worker.postMessage).toHaveBeenCalledWith(
@@ -211,7 +211,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true } });
+    setupPacketTrailerSender(engine, sender, { frameMetadata: { timestamp: true } });
 
     expect(RTCRtpScriptTransform).toHaveBeenCalledWith(worker, {
       kind: 'encode',

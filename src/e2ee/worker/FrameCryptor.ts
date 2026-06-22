@@ -6,7 +6,7 @@ import {
   appendPacketTrailerToEncodedFrame,
   processPacketTrailer,
 } from '../../packetTrailer/packetTrailer';
-import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
+import type { FrameMetadataPublishOptions } from '../../packetTrailer/types';
 import { hasPacketTrailerPublishOptions } from '../../packetTrailer/utils';
 import { type VideoCodec, videoCodecs } from '../../room/track/options';
 import { mimeTypeToVideoCodecString } from '../../room/track/utils';
@@ -90,7 +90,7 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private hasPacketTrailer: boolean = false;
 
-  private packetTrailer?: PacketTrailerPublishOptions;
+  private packetTrailer?: FrameMetadataPublishOptions;
 
   private packetTrailerFrameId = 0;
 
@@ -216,7 +216,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.hasPacketTrailer = hasPacketTrailer;
   }
 
-  setPacketTrailer(packetTrailer?: PacketTrailerPublishOptions) {
+  setPacketTrailer(packetTrailer?: FrameMetadataPublishOptions) {
     this.packetTrailer = packetTrailer;
     this.packetTrailerFrameId = 0;
   }
@@ -228,7 +228,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     trackId: string,
     isReuse: boolean,
     codec?: VideoCodec,
-    packetTrailer?: PacketTrailerPublishOptions,
+    packetTrailer?: FrameMetadataPublishOptions,
   ) {
     if (codec) {
       workerLogger.info('setting codec on cryptor to', { codec });

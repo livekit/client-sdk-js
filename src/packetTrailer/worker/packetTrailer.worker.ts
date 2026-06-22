@@ -3,7 +3,7 @@ import type {
   PTMetadataMessage,
   PTScriptTransformOptions,
   PTWorkerMessage,
-  PacketTrailerPublishOptions,
+  FrameMetadataPublishOptions,
 } from '../types';
 import { hasPacketTrailerPublishOptions } from '../utils';
 
@@ -97,7 +97,7 @@ function setupDecodeTransform(
 function setupEncodeTransform(
   readable: ReadableStream,
   writable: WritableStream,
-  packetTrailer?: PacketTrailerPublishOptions,
+  packetTrailer?: FrameMetadataPublishOptions,
 ) {
   if (!hasPacketTrailerPublishOptions(packetTrailer)) {
     readable.pipeTo(writable).catch(() => {});

@@ -38,7 +38,7 @@ function makeTrack(kind: Track.Kind) {
 describe('LocalParticipant packet trailer publish options', () => {
   it('normalizes requested video packet trailer options to advertised features', () => {
     const participant = makeParticipant(true);
-    const opts: TrackPublishOptions = { packetTrailer: { timestamp: true, frameId: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { timestamp: true, frameId: true } };
 
     const features = participant.normalizeRequestedPacketTrailerOptions(
       makeTrack(Track.Kind.Video),
@@ -49,12 +49,12 @@ describe('LocalParticipant packet trailer publish options', () => {
       PacketTrailerFeature.PTF_USER_TIMESTAMP,
       PacketTrailerFeature.PTF_FRAME_ID,
     ]);
-    expect(opts.packetTrailer).toEqual({ timestamp: true, frameId: true });
+    expect(opts.frameMetadata).toEqual({ timestamp: true, frameId: true });
   });
 
   it('clears packet trailer options for non-video tracks', () => {
     const participant = makeParticipant(true);
-    const opts: TrackPublishOptions = { packetTrailer: { timestamp: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { timestamp: true } };
 
     const features = participant.normalizeRequestedPacketTrailerOptions(
       makeTrack(Track.Kind.Audio),
@@ -62,12 +62,12 @@ describe('LocalParticipant packet trailer publish options', () => {
     );
 
     expect(features).toEqual([]);
-    expect(opts.packetTrailer).toBeUndefined();
+    expect(opts.frameMetadata).toBeUndefined();
   });
 
   it('clears packet trailer options when publishing packet trailers is unsupported', () => {
     const participant = makeParticipant(false);
-    const opts: TrackPublishOptions = { packetTrailer: { frameId: true } };
+    const opts: TrackPublishOptions = { frameMetadata: { frameId: true } };
 
     const features = participant.normalizeRequestedPacketTrailerOptions(
       makeTrack(Track.Kind.Video),
@@ -75,7 +75,7 @@ describe('LocalParticipant packet trailer publish options', () => {
     );
 
     expect(features).toEqual([]);
-    expect(opts.packetTrailer).toBeUndefined();
+    expect(opts.frameMetadata).toBeUndefined();
     expect(participant.log.warn).toHaveBeenCalledOnce();
   });
 });

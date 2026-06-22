@@ -1,4 +1,4 @@
-import type { PacketTrailerMetadata } from '../../packetTrailer/types';
+import type { FrameMetadata } from '../../packetTrailer/types';
 
 const MAX_ENTRIES = 300;
 
@@ -13,11 +13,11 @@ const MAX_ENTRIES = 300;
  * @experimental
  */
 export class PacketTrailerExtractor {
-  private metadataMap = new Map<number, PacketTrailerMetadata>();
+  private metadataMap = new Map<number, FrameMetadata>();
 
   private activeSsrc: number = 0;
 
-  storeMetadata(rtpTimestamp: number, ssrc: number, metadata: PacketTrailerMetadata) {
+  storeMetadata(rtpTimestamp: number, ssrc: number, metadata: FrameMetadata) {
     // Simulcast layer switch: SSRC changed, flush stale entries from old layer.
     if (this.activeSsrc !== 0 && this.activeSsrc !== ssrc) {
       this.metadataMap.clear();
@@ -32,7 +32,7 @@ export class PacketTrailerExtractor {
     this.metadataMap.set(rtpTimestamp, metadata);
   }
 
-  lookupMetadata(rtpTimestamp: number): PacketTrailerMetadata | undefined {
+  lookupMetadata(rtpTimestamp: number): FrameMetadata | undefined {
     return this.metadataMap.get(rtpTimestamp);
   }
 

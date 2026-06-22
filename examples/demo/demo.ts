@@ -116,14 +116,14 @@ function syncPacketTrailerPublishOptions(room = currentRoom) {
     return packetTrailer;
   }
 
-  room.options.publishDefaults.packetTrailer = packetTrailer;
+  room.options.publishDefaults.frameMetadata = packetTrailer;
   room.localParticipant.trackPublications.forEach((pub) => {
     if (pub.kind !== Track.Kind.Video) {
       return;
     }
-    pub.options = { ...pub.options, packetTrailer };
+    pub.options = { ...pub.options, frameMetadata: packetTrailer };
     if (pub.track && isVideoTrack(pub.track)) {
-      pub.track.publishOptions = { ...pub.track.publishOptions, packetTrailer };
+      pub.track.publishOptions = { ...pub.track.publishOptions, frameMetadata: packetTrailer };
     }
   });
   return packetTrailer;
@@ -207,7 +207,7 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
-        packetTrailer,
+        frameMetadata: packetTrailer,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -651,7 +651,7 @@ const appActions = {
     }
     const publishOptions = syncPacketTrailerPublishOptions(currentRoom);
     await currentRoom.localParticipant.setCameraEnabled(!enabled, undefined, {
-      packetTrailer: publishOptions,
+      frameMetadata: publishOptions,
     });
     setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);

@@ -1109,7 +1109,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    const packetTrailer = opts.packetTrailer;
+    const packetTrailer = opts.frameMetadata;
     const hasPacketTrailer = hasPacketTrailerPublishOptions(packetTrailer);
 
     if (shouldUsePacketTrailerScriptTransform()) {

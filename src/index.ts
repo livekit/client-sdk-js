@@ -64,7 +64,7 @@ import {
 import { getBrowser } from './utils/browserParser';
 
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
-export type { PacketTrailerMetadata, PacketTrailerPublishOptions } from './packetTrailer/types';
+export type { FrameMetadata, FrameMetadataPublishOptions } from './packetTrailer/types';
 export {
   PacketTrailerManager,
   type PacketTrailerOptions,

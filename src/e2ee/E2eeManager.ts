@@ -509,7 +509,7 @@ export class E2EEManager
       sender,
       track.mediaStreamID,
       undefined,
-      isVideoTrack(track) ? track.publishOptions?.packetTrailer : undefined,
+      isVideoTrack(track) ? track.publishOptions?.frameMetadata : undefined,
     );
   }
 
@@ -598,7 +598,7 @@ export class E2EEManager
     sender: RTCRtpSender,
     trackId: string,
     codec?: VideoCodec,
-    packetTrailer?: TrackPublishOptions['packetTrailer'],
+    packetTrailer?: TrackPublishOptions['frameMetadata'],
   ) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;

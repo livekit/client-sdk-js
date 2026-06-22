@@ -1,4 +1,4 @@
-import type { PacketTrailerMetadata } from '../../packetTrailer/types';
+import type { FrameMetadata } from '../../packetTrailer/types';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -56,7 +56,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     rtpTimestamp,
   }: {
     rtpTimestamp: number;
-  }): PacketTrailerMetadata | undefined {
+  }): FrameMetadata | undefined {
     return this.packetTrailerExtractor?.lookupMetadata(rtpTimestamp);
   }
 

@@ -1425,8 +1425,8 @@ export default class LocalParticipant extends Participant {
   }
 
   private normalizeRequestedPacketTrailerOptions(track: LocalTrack, opts: TrackPublishOptions) {
-    if (track.kind !== Track.Kind.Video || !hasPacketTrailerPublishOptions(opts.packetTrailer)) {
-      opts.packetTrailer = undefined;
+    if (track.kind !== Track.Kind.Video || !hasPacketTrailerPublishOptions(opts.frameMetadata)) {
+      opts.frameMetadata = undefined;
       return [];
     }
 
@@ -1435,12 +1435,12 @@ export default class LocalParticipant extends Participant {
         ...this.logContext,
         ...getLogContextFromTrack(track),
       });
-      opts.packetTrailer = undefined;
+      opts.frameMetadata = undefined;
       return [];
     }
 
-    const features = getPacketTrailerFeatures(opts.packetTrailer);
-    opts.packetTrailer = getPacketTrailerPublishOptions(features);
+    const features = getPacketTrailerFeatures(opts.frameMetadata);
+    opts.frameMetadata = getPacketTrailerPublishOptions(features);
     return features;
   }
 
