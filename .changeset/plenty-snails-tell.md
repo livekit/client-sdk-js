@@ -1,5 +1,5 @@
 ---
-"livekit-client": patch
+"livekit-client": minor
 ---
 
 Rename PacketTrailer to FrameMetadata
