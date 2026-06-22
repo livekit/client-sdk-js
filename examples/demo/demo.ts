@@ -347,6 +347,13 @@ const appActions = {
                   `\nReceive:  ${fmt(receiveTime)}` +
                   `\nLatency:  ${latencyDisplay}`;
               }
+              if (meta.userData && meta.userData.byteLength > 0) {
+                const hex = Array.from(meta.userData.subarray(0, 6))
+                  .map((b) => b.toString(16).padStart(2, '0'))
+                  .join(' ');
+                const ellipsis = meta.userData.byteLength > 6 ? ' ...' : '';
+                text += `${text ? '\n' : ''}user data: ${meta.userData.byteLength} bytes [${hex}${ellipsis}]`;
+              }
               overlayElm.textContent = text;
             }
           });

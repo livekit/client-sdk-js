@@ -3,6 +3,7 @@ import type { FrameMetadataPayload } from './frameMetadata';
 export interface FrameMetadata {
   userTimestamp: bigint;
   frameId: number;
+  userData?: Uint8Array;
 }
 
 /** @deprecated Use {@link FrameMetadata} instead. */

@@ -1,6 +1,7 @@
 import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
 import log, { LogLevel, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
@@ -246,7 +247,7 @@ export class E2EEManager
     trackId: string,
     rtpTimestamp: number,
     ssrc: number,
-    metadata: { userTimestamp: bigint; frameId: number },
+    metadata: FrameMetadata,
   ) {
     if (!this.room) {
       return;
