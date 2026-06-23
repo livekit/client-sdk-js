@@ -861,10 +861,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     /**
      * Native libwebrtc does not support pre-populating the media sections,
      * so we skip it for React Native.
-     * 
+     *
      * Related: https://github.com/livekit/rust-sdks/pull/1151
      */
-    if(!isReactNative()) {
+    if (!isReactNative()) {
       this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
     }
   }
