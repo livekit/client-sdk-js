@@ -174,6 +174,12 @@ describe('customSimulcastLayers', () => {
     expect(sortedPresets[1].encoding.maxFramerate).toBe(15);
     expect(sortedPresets[2].encoding.maxFramerate).toBe(20);
   });
+  it('does not mutate the passed-in array', () => {
+    const presets = [VideoPresets.h1440, VideoPresets.h360, VideoPresets.h1080, VideoPresets.h90];
+    const original = [...presets];
+    sortPresets(presets);
+    expect(presets).toEqual(original);
+  });
 });
 
 describe('screenShareSimulcastDefaults', () => {
