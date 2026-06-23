@@ -1,5 +1,29 @@
 # Change Log
 
+## 2.20.0
+
+### Minor Changes
+
+- Rename PacketTrailer to FrameMetadata - [#1982](https://github.com/livekit/client-sdk-js/pull/1982) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Properly handle maxPayloadLength of 0, upper bound maxMessageSize - [#1966](https://github.com/livekit/client-sdk-js/pull/1966) ([@1egoman](https://github.com/1egoman))
+
+- Add restrictOwnAudio experimental param to AudioCaptureOptions - [#1974](https://github.com/livekit/client-sdk-js/pull/1974) ([@1egoman](https://github.com/1egoman))
+
+- chore: add logging around signal connection closing for reconnections - [#1980](https://github.com/livekit/client-sdk-js/pull/1980) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data channel close race condition - [#1978](https://github.com/livekit/client-sdk-js/pull/1978) ([@1egoman](https://github.com/1egoman))
+
+- Enforce a maximum size of the sdp defined maxMessageSize on individual data packets sent via `publishData` - [#1962](https://github.com/livekit/client-sdk-js/pull/1962) ([@1egoman](https://github.com/1egoman))
+
+- Add deployment to TokenSourceFetch options - [#1971](https://github.com/livekit/client-sdk-js/pull/1971) ([@lukasIO](https://github.com/lukasIO))
+
+- Skip pre-populated media sections for single peer connections on React Native - [#1984](https://github.com/livekit/client-sdk-js/pull/1984) ([@davidliu](https://github.com/davidliu))
+
+- Ensure that sortPresets does NOT mutate values passed in via options into Room - [#1979](https://github.com/livekit/client-sdk-js/pull/1979) ([@1egoman](https://github.com/1egoman))
+
 ## 2.19.2
 
 ### Patch Changes
