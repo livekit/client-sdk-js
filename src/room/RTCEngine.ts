@@ -92,6 +92,7 @@ import type { LoggerOptions } from './types';
 import {
   Future,
   isPublisherOfferWithJoinSupported,
+  isReactNative,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -857,7 +858,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   private applyInitialPublisherLayout() {
     this.createDataChannels();
-    this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+    /**
+     * Native libwebrtc does not support pre-populating the media sections,
+     * so we skip it for React Native.
+     * 
+     * Related: https://github.com/livekit/rust-sdks/pull/1151
+     */
+    if(!isReactNative()) {
+      this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+    }
   }
 
   private addMediaSections(numAudios: number, numVideos: number) {
