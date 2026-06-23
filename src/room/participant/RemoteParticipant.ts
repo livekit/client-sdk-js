@@ -83,10 +83,7 @@ export default class RemoteParticipant extends Participant {
         return new RemoteDataTrack(info, manager, { publisherIdentity: pi.identity });
       }),
       pi.clientProtocol,
-      // FIXME: ParticipantInfo does not yet carry client capabilities. Until the
-      // protocol/server propagates `capabilities` onto ParticipantInfo, mock every remote as
-      // advertising deflate-raw compression support so compression stays enabled.
-      [ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW],
+      pi.capabilities,
     );
   }
 

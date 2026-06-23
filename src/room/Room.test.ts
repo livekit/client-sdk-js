@@ -81,7 +81,10 @@ describe('Room signaling options', () => {
       'wss://test.livekit.io',
       'test-token',
       expect.objectContaining({
-        clientInfoCapabilities: [ClientInfo_Capability.CAP_PACKET_TRAILER],
+        clientInfoCapabilities: [
+          ClientInfo_Capability.CAP_PACKET_TRAILER,
+          ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW,
+        ],
         e2eeEnabled: true,
       }),
       expect.any(AbortSignal),

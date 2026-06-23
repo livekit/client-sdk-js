@@ -2502,11 +2502,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
-  private getClientInfoCapabilities(roomOptions: InternalRoomOptions): Array<ClientInfo_Capability> {
+  private getClientInfoCapabilities(
+    roomOptions: InternalRoomOptions,
+  ): Array<ClientInfo_Capability> {
     const capabilities: Array<ClientInfo_Capability> = [];
     if (isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) || !!this.e2eeManager) {
       capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
     }
+    // Advertise deflate-raw decompression support so peers know they can send us compressed data
+    // streams (gated separately from clientProtocol — see the data streams v2 spec).
     if (isCompressionStreamSupported()) {
       capabilities.push(ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW);
     }

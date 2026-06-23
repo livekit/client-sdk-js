@@ -1,6 +1,7 @@
 import {
   type DataPacket,
   DataStream_Chunk,
+  DataStream_CompressionType,
   DataStream_Header,
   DataStream_Trailer,
   Encryption_Type,
@@ -8,13 +9,8 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber, decodeBase64, isCompressionStreamSupported, numberToBigInt } from '../../utils';
+import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawStream } from '../compression';
-import {
-  COMPRESSION_ATTRIBUTE,
-  COMPRESSION_DEFLATE_RAW,
-  INLINE_PAYLOAD_ATTRIBUTE,
-} from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -165,43 +161,36 @@ export default class IncomingDataStreamManager {
         };
 
         // Both inline and chunked byte payloads are deflate-raw compressed; inline as a one-shot
-        // base64 buffer, chunked as a single stream spanning all chunks (mirrors text).
-        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
+        // buffer, chunked as a single stream spanning all chunks (mirrors text). The compression
+        // flag rides in the header's `compression` field.
+        const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
 
         if (compressed && !isCompressionStreamSupported()) {
           // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
           // isn't properly abiding by the data streams v2 protocol.
           log.warn(
-            `Data stream ${streamHeader.streamId} received with ${info.attributes![COMPRESSION_ATTRIBUTE]} compression, but this browser does not have support for DecompressionStream. Dropping...`,
+            `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
           );
           return;
         }
 
-        // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+        // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-        const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
-        if (typeof inlinePayload !== 'undefined') {
-          delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
-          delete info.attributes![COMPRESSION_ATTRIBUTE];
-          // Inline bytes are always base64 (binary isn't a valid attribute string), optionally
-          // deflate-raw compressed.
-          const bytes = decodeBase64(inlinePayload);
+        const inlineContent = streamHeader.inlineContent;
+        if (typeof inlineContent !== 'undefined') {
+          // Inline bytes are the raw payload, optionally deflate-raw compressed.
           streamHandlerCallback(
             new ByteStreamReader(
               info,
               createInlineStream(
                 streamHeader.streamId,
-                compressed ? deflateRawDecompress(bytes) : bytes,
+                compressed ? deflateRawDecompress(inlineContent) : inlineContent,
               ),
               bigIntToNumber(streamHeader.totalLength),
             ),
             { identity: participantIdentity },
           );
           return;
-        }
-
-        if (compressed) {
-          delete info.attributes![COMPRESSION_ATTRIBUTE];
         }
 
         const stream = new ReadableStream<DataStream_Chunk>({
@@ -261,28 +250,25 @@ export default class IncomingDataStreamManager {
         };
 
         // Both inline and chunked text payloads are deflate-raw compressed; inline as a one-shot
-        // buffer, chunked as a single stream spanning all chunks (see COMPRESSION_DEFLATE_RAW).
-        const compressed = info.attributes![COMPRESSION_ATTRIBUTE] === COMPRESSION_DEFLATE_RAW;
+        // buffer, chunked as a single stream spanning all chunks. The compression flag rides in the
+        // header's `compression` field.
+        const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
 
         if (compressed && !isCompressionStreamSupported()) {
           // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
           // isn't properly abiding by the data streams v2 protocol.
           log.warn(
-            `Data stream ${streamHeader.streamId} received with ${info.attributes![COMPRESSION_ATTRIBUTE]} compression, but this browser does not have support for DecompressionStream. Dropping...`,
+            `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
           );
           return;
         }
 
-        // Single-packet stream: the entire payload was smuggled into a reserved header attribute.
+        // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-        const inlinePayload = streamHeader.attributes[INLINE_PAYLOAD_ATTRIBUTE];
-        if (typeof inlinePayload !== 'undefined') {
-          delete info.attributes![INLINE_PAYLOAD_ATTRIBUTE];
-          delete info.attributes![COMPRESSION_ATTRIBUTE];
-          // Compressed text is base64(deflate-raw(utf-8)); uncompressed text is the raw string.
-          const content = compressed
-            ? deflateRawDecompress(decodeBase64(inlinePayload))
-            : new TextEncoder().encode(inlinePayload);
+        const inlineContent = streamHeader.inlineContent;
+        if (typeof inlineContent !== 'undefined') {
+          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
+          const content = compressed ? deflateRawDecompress(inlineContent) : inlineContent;
           streamHandlerCallback(
             new TextStreamReader(
               info,
@@ -292,10 +278,6 @@ export default class IncomingDataStreamManager {
             { identity: participantIdentity },
           );
           return;
-        }
-
-        if (compressed) {
-          delete info.attributes![COMPRESSION_ATTRIBUTE];
         }
 
         const stream = new ReadableStream<DataStream_Chunk>({

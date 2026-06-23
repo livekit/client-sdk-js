@@ -1,17 +1,16 @@
-import { ClientInfo_Capability, type DataPacket } from '@livekit/protocol';
+import {
+  ClientInfo_Capability,
+  type DataPacket,
+  DataStream_CompressionType,
+} from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
 import {
-    CLIENT_PROTOCOL_DATA_STREAM_RPC,
+  CLIENT_PROTOCOL_DATA_STREAM_RPC,
   CLIENT_PROTOCOL_DATA_STREAM_V2,
   CLIENT_PROTOCOL_DEFAULT,
 } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
-import {
-  COMPRESSION_ATTRIBUTE,
-  COMPRESSION_DEFLATE_RAW,
-  INLINE_PAYLOAD_ATTRIBUTE,
-} from '../constants';
 import OutgoingDataStreamManager from './OutgoingDataStreamManager';
 
 /** Builds a low quality random string of the given length. */
@@ -38,7 +37,9 @@ function randomBytes(length: number): Uint8Array {
  *   protocol each advertises. Defaults to a single v2 participant named "bob".
  */
 function createManager(
-  participants: Record<string, number | [number, Array<number>]> = { bob: CLIENT_PROTOCOL_DATA_STREAM_V2 },
+  participants: Record<string, number | [number, Array<number>]> = {
+    bob: CLIENT_PROTOCOL_DATA_STREAM_V2,
+  },
 ) {
   const sentPackets: DataPacket[] = [];
   const engine = {
@@ -52,8 +53,14 @@ function createManager(
   const manager = new OutgoingDataStreamManager(
     engine,
     log,
-    (identity) => (Array.isArray(participants[identity]) ? participants[identity][0] : participants[identity]) ?? CLIENT_PROTOCOL_DEFAULT,
-    (identity) => Array.isArray(participants[identity]) ? participants[identity][1] : [ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW],
+    (identity) =>
+      (Array.isArray(participants[identity])
+        ? participants[identity][0]
+        : participants[identity]) ?? CLIENT_PROTOCOL_DEFAULT,
+    (identity) =>
+      Array.isArray(participants[identity])
+        ? participants[identity][1]
+        : [ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW],
     () => Object.keys(participants),
   );
   return { manager, sentPackets };
@@ -154,8 +161,8 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       for (let i = 0; i < 3; i += 1) {
-        expect(sentPackets[i+1].value.case).toStrictEqual('streamChunk');
-        const chunk = chunkOf(sentPackets[i+1]);
+        expect(sentPackets[i + 1].value.case).toStrictEqual('streamChunk');
+        const chunk = chunkOf(sentPackets[i + 1]);
         expect(chunk.streamId).toStrictEqual(info.id);
         expect(chunk.chunkIndex).toStrictEqual(BigInt(i));
         expect(chunk.content.every((char) => char === 'A'.charCodeAt(0))).toBeTruthy();
@@ -235,7 +242,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.streamId).toStrictEqual(info.id);
       expect(header.topic).toStrictEqual('my-topic');
       expect(header.contentHeader.case).toBe('byteHeader');
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
 
       expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
       let chunk = chunkOf(sentPackets[1]);
@@ -282,9 +289,11 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeTypeOf('string');
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).not.toStrictEqual('hello hello compressible world');
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+      expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+      expect(header.inlineContent).not.toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
     });
     it('should send short TEXT data stream with uncompressible payload in single packet', async () => {
       const info = await manager.sendText('short', {
@@ -304,8 +313,8 @@ describe('OutgoingDataStreamManager', () => {
 
       // Make sure the contents of that packet was uncompressed - "short" isn't long enough to
       // meaningfully compress with DEFLATE
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toStrictEqual('short');
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(new TextEncoder().encode('short'));
     });
     it('should send short data stream with single packet and NO compression if remote participant does not support compression', async () => {
       const info = await manager.sendText('hello hello compressible world', {
@@ -324,8 +333,10 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was NOT compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toStrictEqual('hello hello compressible world');
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
     });
     it('should send long but highly compressible TEXT data stream as single packet', async () => {
       // A phrase which repeats over and over should compress extremely well.
@@ -347,14 +358,19 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeTypeOf('string');
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]?.startsWith('hello world')).toBeFalsy();
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+      expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+      // Compressed bytes must not begin with the raw UTF-8 prefix of the payload.
+      const helloWorld = new TextEncoder().encode('hello world');
+      expect(header.inlineContent!.slice(0, helloWorld.length)).not.toStrictEqual(helloWorld);
     });
     it('should send long but somewhat compressible data stream as a compressed multi packet data stream', async () => {
       // Mostly incompressible, but the hello world parts repeating should mean that the compressed
       // contents is smaller than the full uncompressed data.
-      const text = new Array(50).fill(null).map(() => `hello world${randomText(1_000)}`).join('');
+      const text = new Array(50)
+        .fill(null)
+        .map(() => `hello world${randomText(1_000)}`)
+        .join('');
 
       const info = await manager.sendText(text, {
         topic: 'my-topic',
@@ -374,7 +390,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
 
       // Verify there are three data packets:
       expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
@@ -411,7 +427,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('byteHeader');
 
       // Make sure the contents of that packet was NOT compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
 
       // Verify there are four data packets:
       let totalLength = 0;
@@ -463,15 +479,19 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.topic).toStrictEqual('my-topic');
       expect(header.contentHeader.case).toBe('textHeader');
 
-      // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeTypeOf('string');
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toStrictEqual('hello hello compressible world');
+      // Make sure the contents of that packet was NOT compressed (compress: false opt-out)
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
     });
     it('should send long but somewhat compressible data stream but skip compression due to compress: false being passed', async () => {
       // Mostly incompressible, but the hello world parts repeating should mean that the compressed
       // contents is smaller than the full uncompressed data.
-      const text = new Array(50).fill(null).map(() => `hello world${randomText(1_000)}`).join('');
+      const text = new Array(50)
+        .fill(null)
+        .map(() => `hello world${randomText(1_000)}`)
+        .join('');
 
       const info = await manager.sendText(text, {
         topic: 'my-topic',
@@ -490,7 +510,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was uncompressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
 
       // Verify there are four data packets:
       expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
@@ -524,7 +544,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.streamId).toStrictEqual(writer.info.id);
       expect(header.topic).toStrictEqual('my-topic');
       expect(header.contentHeader.case).toBe('textHeader');
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined(); // Make sure compression is disabled
+      expect(header.compression).toBe(DataStream_CompressionType.NONE); // Make sure compression is disabled
 
       await writer.write('hello world');
 
@@ -556,7 +576,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.streamId).toStrictEqual(writer.info.id);
       expect(header.topic).toStrictEqual('my-topic');
       expect(header.contentHeader.case).toBe('byteHeader');
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined(); // Make sure compression is disabled
+      expect(header.compression).toBe(DataStream_CompressionType.NONE); // Make sure compression is disabled
 
       await writer.write(new Uint8Array([0x00, 0x01, 0x02, 0x03]));
 
@@ -584,7 +604,7 @@ describe('OutgoingDataStreamManager', () => {
       });
 
       // Should be a multi-packet result
-      // 
+      //
       // Sending single packet data streams for files is tricky because it's really difficult to
       // determine ahead of time if a file can fit into a single packet without a ton of ahead of
       // time in memory buffering.
@@ -597,7 +617,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('byteHeader');
 
       // Make sure the contents of that packet was NOT compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
 
       expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
       let chunk = chunkOf(sentPackets[1]);
@@ -628,8 +648,8 @@ describe('OutgoingDataStreamManager', () => {
       const header = headerOf(sentPackets[0]);
       expect(header.streamId).toStrictEqual(info.id);
       expect(header.contentHeader.case).toBe('byteHeader');
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeUndefined();
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toBeUndefined();
 
       expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
       const chunk = chunkOf(sentPackets[1]);
@@ -654,7 +674,7 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.streamId).toStrictEqual(info.id);
       expect(header.contentHeader.case).toBe('byteHeader');
       expect(header.totalLength).toStrictEqual(0n);
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
 
       const last = sentPackets[sentPackets.length - 1];
       expect(last.value.case).toStrictEqual('streamTrailer');
@@ -717,9 +737,11 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toStrictEqual(COMPRESSION_DEFLATE_RAW);
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toBeTypeOf('string');
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).not.toStrictEqual('hello hello compressible world');
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+      expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+      expect(header.inlineContent).not.toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
     });
     it('should send data stream using data stream v2 format but NO compression when only sending to a subset of participants where one does NOT support compression', async () => {
       const info = await manager.sendText('hello hello compressible world', {
@@ -738,8 +760,10 @@ describe('OutgoingDataStreamManager', () => {
       expect(header.contentHeader.case).toBe('textHeader');
 
       // Make sure the contents of that packet was compressed
-      expect(header.attributes?.[COMPRESSION_ATTRIBUTE]).toBeUndefined();
-      expect(header.attributes?.[INLINE_PAYLOAD_ATTRIBUTE]).toStrictEqual('hello hello compressible world');
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
     });
   });
 });
