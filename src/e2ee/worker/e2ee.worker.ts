@@ -64,7 +64,7 @@ onmessage = (ev) => {
         break;
       case 'decode':
         let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-        cryptor.setHasPacketTrailer(data.hasPacketTrailer);
+        cryptor.setHasFrameMetadata(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
           data.readableStream,
@@ -76,7 +76,7 @@ onmessage = (ev) => {
         break;
       case 'encode':
         let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-        pubCryptor.setHasPacketTrailer(data.hasPacketTrailer);
+        pubCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         pubCryptor.setupTransform(
           kind,
           data.readableStream,
@@ -84,7 +84,7 @@ onmessage = (ev) => {
           data.trackId,
           data.isReuse,
           data.codec,
-          data.packetTrailer,
+          data.packetTrailer, // wire format still uses 'packetTrailer' field name
         );
         break;
 
@@ -164,7 +164,7 @@ onmessage = (ev) => {
       case 'updateCodec':
         const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
         trackCryptor.setVideoCodec(data.codec);
-        trackCryptor.setHasPacketTrailer(data.hasPacketTrailer);
+        trackCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
@@ -343,7 +343,7 @@ if (self.RTCTransformEvent) {
     const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(participantIdentity, trackId);
-      cryptor.setHasPacketTrailer(hasPacketTrailer);
+      cryptor.setHasFrameMetadata(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(
         kind,

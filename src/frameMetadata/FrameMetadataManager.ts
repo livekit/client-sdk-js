@@ -2,13 +2,13 @@ import type { TrackInfo } from '@livekit/protocol';
 import log from '../logger';
 import type Room from '../room/Room';
 import { RoomEvent } from '../room/events';
-import { PacketTrailerExtractor } from '../room/track/PacketTrailerExtractor';
+import { FrameMetadataExtractor } from '../room/track/FrameMetadataExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
-import { isPacketTrailerSupported, shouldUsePacketTrailerScriptTransform } from './utils';
+import { isFrameMetadataSupported, shouldUseFrameMetadataScriptTransform } from './utils';
 
-export interface PacketTrailerOptions {
+export interface FrameMetadataOptions {
   /**
    * Dedicated worker for extracting packet trailers off the main thread.
    *
@@ -34,12 +34,12 @@ export interface PacketTrailerOptions {
  *
  * @experimental
  */
-export class PacketTrailerManager {
+export class FrameMetadataManager {
   private worker?: Worker;
 
   private room?: Room;
 
-  private extractors = new Map<string, PacketTrailerExtractor>();
+  private extractors = new Map<string, FrameMetadataExtractor>();
 
   /**
    * Tracks the trackId associated with each receiver that has had its
@@ -49,7 +49,7 @@ export class PacketTrailerManager {
    */
   private workerPipelines = new Map<RTCRtpReceiver, string>();
 
-  constructor(options?: PacketTrailerOptions) {
+  constructor(options?: FrameMetadataOptions) {
     this.worker = options?.worker;
   }
 
@@ -100,18 +100,18 @@ export class PacketTrailerManager {
     }
 
     if (
-      !isPacketTrailerSupported(this.worker ? { worker: this.worker } : undefined) &&
+      !isFrameMetadataSupported(this.worker ? { worker: this.worker } : undefined) &&
       !this.room?.hasE2EESetup
     ) {
-      log.warn('packet trailer transform not supported; skipping extraction');
+      log.warn('frame metadata transform not supported; skipping extraction');
       return;
     }
 
-    const extractor = new PacketTrailerExtractor();
+    const extractor = new FrameMetadataExtractor();
     const trackId = track.mediaStreamID;
 
     this.extractors.set(trackId, extractor);
-    track.packetTrailerExtractor = extractor;
+    track.frameMetadataExtractor = extractor;
 
     if (this.room?.hasE2EESetup) {
       // E2EE worker strips the trailer and injects metadata directly into
@@ -123,7 +123,7 @@ export class PacketTrailerManager {
   }
 
   private setupPassthroughReceiver(receiver: RTCRtpReceiver, trackId: string) {
-    if (shouldUsePacketTrailerScriptTransform()) {
+    if (shouldUseFrameMetadataScriptTransform()) {
       if ('transform' in receiver) {
         // @ts-ignore
         receiver.transform = null;
@@ -133,7 +133,7 @@ export class PacketTrailerManager {
 
     if (
       this.worker &&
-      isPacketTrailerSupported({ worker: this.worker }) &&
+      isFrameMetadataSupported({ worker: this.worker }) &&
       !this.workerPipelines.has(receiver)
     ) {
       this.setupWorkerReceiver(receiver, trackId, false);
@@ -155,7 +155,7 @@ export class PacketTrailerManager {
       return;
     }
 
-    if (shouldUsePacketTrailerScriptTransform()) {
+    if (shouldUseFrameMetadataScriptTransform()) {
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(worker, {
         kind: 'decode',
@@ -215,7 +215,7 @@ export class PacketTrailerManager {
     }
 
     if (track instanceof RemoteVideoTrack) {
-      track.packetTrailerExtractor = undefined;
+      track.frameMetadataExtractor = undefined;
     }
 
     // The receiver pipeline is intentionally left running. If the receiver is
@@ -245,6 +245,12 @@ export class PacketTrailerManager {
   };
 
   private onWorkerError = (ev: ErrorEvent) => {
-    log.error('packet trailer worker encountered an error:', { error: ev.error });
+    log.error('frame metadata worker encountered an error:', { error: ev.error });
   };
 }
+
+/** @deprecated Use {@link FrameMetadataManager} instead. */
+export const PacketTrailerManager = FrameMetadataManager;
+
+/** @deprecated Use {@link FrameMetadataOptions} instead. */
+export type PacketTrailerOptions = FrameMetadataOptions;

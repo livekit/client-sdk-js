@@ -1,25 +1,25 @@
 import { PacketTrailerFeature } from '@livekit/protocol';
 import { isInsertableStreamSupported } from '../e2ee/utils';
 import { isScriptTransformSupportedForWorker } from '../room/utils';
-import type { PacketTrailerOptions } from './PacketTrailerManager';
-import type { PacketTrailerPublishOptions } from './types';
+import type { FrameMetadataOptions } from './FrameMetadataManager';
+import type { FrameMetadataPublishOptions } from './types';
 
-export function shouldUsePacketTrailerScriptTransform() {
+export function shouldUseFrameMetadataScriptTransform() {
   return isScriptTransformSupportedForWorker();
 }
 
-export function isPacketTrailerSupported(options?: PacketTrailerOptions) {
+export function isFrameMetadataSupported(options?: FrameMetadataOptions) {
   return (
-    !!options?.worker && (isInsertableStreamSupported() || shouldUsePacketTrailerScriptTransform())
+    !!options?.worker && (isInsertableStreamSupported() || shouldUseFrameMetadataScriptTransform())
   );
 }
 
-export function hasPacketTrailerPublishOptions(options?: PacketTrailerPublishOptions): boolean {
+export function hasFrameMetadataPublishOptions(options?: FrameMetadataPublishOptions): boolean {
   return !!(options?.timestamp || options?.frameId);
 }
 
-export function getPacketTrailerFeatures(
-  options?: PacketTrailerPublishOptions,
+export function getFrameMetadataFeatures(
+  options?: FrameMetadataPublishOptions,
 ): PacketTrailerFeature[] {
   const features: PacketTrailerFeature[] = [];
   if (options?.timestamp) {
@@ -31,14 +31,14 @@ export function getPacketTrailerFeatures(
   return features;
 }
 
-export function getPacketTrailerPublishOptions(
+export function getFrameMetadataPublishOptions(
   features?: PacketTrailerFeature[],
-): PacketTrailerPublishOptions | undefined {
+): FrameMetadataPublishOptions | undefined {
   if (!features || features.length === 0) {
     return undefined;
   }
 
-  const options: PacketTrailerPublishOptions = {};
+  const options: FrameMetadataPublishOptions = {};
   if (features.includes(PacketTrailerFeature.PTF_USER_TIMESTAMP)) {
     options.timestamp = true;
   }

@@ -58,12 +58,12 @@ describe('RTCEngine', () => {
     ).makeRTCConfiguration();
   }
 
-  function setupPacketTrailerSender(engine: RTCEngine, sender: RTCRtpSender, opts = {}) {
+  function setupFrameMetadataSender(engine: RTCEngine, sender: RTCRtpSender, opts = {}) {
     (
       engine as unknown as {
-        setupPacketTrailerSender: (sender: RTCRtpSender, opts?: unknown) => void;
+        setupFrameMetadataSender: (sender: RTCRtpSender, opts?: unknown) => void;
       }
-    ).setupPacketTrailerSender(sender, opts);
+    ).setupFrameMetadataSender(sender, opts);
   }
 
   it('does not enable encoded insertable streams without E2EE or a packet trailer worker', () => {
@@ -130,7 +130,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender);
+    setupFrameMetadataSender(engine, sender);
 
     expect(createEncodedStreams).not.toHaveBeenCalled();
   });
@@ -147,7 +147,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender);
+    setupFrameMetadataSender(engine, sender);
 
     expect(createEncodedStreams).not.toHaveBeenCalled();
   });
@@ -167,7 +167,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true, frameId: true } });
+    setupFrameMetadataSender(engine, sender, { packetTrailer: { timestamp: true, frameId: true } });
 
     expect(createEncodedStreams).toHaveBeenCalledTimes(1);
     expect(worker.postMessage).toHaveBeenCalledWith(
@@ -211,7 +211,7 @@ describe('RTCEngine', () => {
       createEncodedStreams,
     } as unknown as RTCRtpSender;
 
-    setupPacketTrailerSender(engine, sender, { packetTrailer: { timestamp: true } });
+    setupFrameMetadataSender(engine, sender, { packetTrailer: { timestamp: true } });
 
     expect(RTCRtpScriptTransform).toHaveBeenCalledWith(worker, {
       kind: 'encode',

@@ -37,6 +37,8 @@ import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
+import { FrameMetadataManager } from '../frameMetadata/FrameMetadataManager';
+import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -44,8 +46,6 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
-import { PacketTrailerManager } from '../packetTrailer/PacketTrailerManager';
-import { isPacketTrailerSupported } from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { CLIENT_PROTOCOL_DEFAULT } from '../version';
@@ -198,7 +198,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
-  private packetTrailerManager: PacketTrailerManager | undefined;
+  private frameMetadataManager: FrameMetadataManager | undefined;
 
   private e2eeStateMutex: Mutex = new Mutex();
 
@@ -343,7 +343,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.rpcServerManager,
     );
 
-    this.setupPacketTrailer();
+    this.setupFrameMetadata();
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -514,11 +514,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private setupPacketTrailer() {
-    // The manager is always created so tracks that advertise packet trailer
-    // features can be wired up when the app passes a packet trailer worker.
-    this.packetTrailerManager = new PacketTrailerManager(this.options.packetTrailer);
-    this.packetTrailerManager.setup(this);
+  private setupFrameMetadata() {
+    const opts = this.options.frameMetadata ?? this.options.packetTrailer;
+    this.frameMetadataManager = new FrameMetadataManager(opts);
+    this.frameMetadataManager.setup(this);
   }
 
   private get logContext() {
@@ -972,7 +971,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         clientInfoCapabilities:
-          isPacketTrailerSupported(roomOptions.packetTrailer) || !!this.e2eeManager
+          isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
+          !!this.e2eeManager
             ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
             : undefined,
         maxRetries: connectOptions.maxRetries,

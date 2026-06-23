@@ -1,4 +1,4 @@
-import type { PacketTrailerMetadata } from '../../packetTrailer/types';
+import type { FrameMetadata } from '../../frameMetadata/types';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -7,7 +7,7 @@ import CriticalTimers from '../timers';
 import type { LoggerOptions } from '../types';
 import type { ObservableMediaElement } from '../utils';
 import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
-import type { PacketTrailerExtractor } from './PacketTrailerExtractor';
+import type { FrameMetadataExtractor } from './FrameMetadataExtractor';
 import RemoteTrack from './RemoteTrack';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
@@ -26,7 +26,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private lastDimensions?: Track.Dimensions;
 
   /** @internal */
-  packetTrailerExtractor?: PacketTrailerExtractor;
+  frameMetadataExtractor?: FrameMetadataExtractor;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -48,16 +48,12 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
    * Use with the `TrackEvent.TimeSyncUpdate` event to correlate displayed frames
    * with their capture-time metadata.
    *
-   * Requires the room to be configured with the `packetTrailer` worker option
-   * and the publishing track to have packet trailer features enabled.
+   * Requires the room to be configured with the `frameMetadata` worker option
+   * and the publishing track to have frame metadata features enabled.
    *
    */
-  lookupFrameMetadata({
-    rtpTimestamp,
-  }: {
-    rtpTimestamp: number;
-  }): PacketTrailerMetadata | undefined {
-    return this.packetTrailerExtractor?.lookupMetadata(rtpTimestamp);
+  lookupFrameMetadata({ rtpTimestamp }: { rtpTimestamp: number }): FrameMetadata | undefined {
+    return this.frameMetadataExtractor?.lookupMetadata(rtpTimestamp);
   }
 
   override setStreamState(value: Track.StreamState) {

@@ -17,9 +17,14 @@
       "require": "./dist/livekit-client.e2ee.worker.js"
     },
     "./packet-trailer-worker": {
-      "types": "./dist/src/packetTrailer/worker/packetTrailer.worker.d.ts",
-      "import": "./dist/livekit-client.pt.worker.mjs",
-      "require": "./dist/livekit-client.pt.worker.js"
+      "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
+      "import": "./dist/livekit-client.fm.worker.mjs",
+      "require": "./dist/livekit-client.fm.worker.js"
+    },
+    "./frame-metadata-worker": {
+      "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
+      "import": "./dist/livekit-client.fm.worker.mjs",
+      "require": "./dist/livekit-client.fm.worker.js"
     }
   },
   "files": [
@@ -35,8 +40,8 @@
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
       ],
-      "./dist/src/packetTrailer/worker/packetTrailer.worker.d.ts": [
-        "./dist/ts4.2/packetTrailer/worker/packetTrailer.worker.d.ts"
+      "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts": [
+        "./dist/ts4.2/frameMetadata/worker/frameMetadata.worker.d.ts"
       ]
     }
   },
@@ -44,7 +49,7 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.pt-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",

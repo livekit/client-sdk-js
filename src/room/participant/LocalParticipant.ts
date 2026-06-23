@@ -22,13 +22,13 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
-import type { InternalRoomOptions } from '../../options';
 import {
-  getPacketTrailerFeatures,
-  getPacketTrailerPublishOptions,
-  hasPacketTrailerPublishOptions,
-  isPacketTrailerSupported,
-} from '../../packetTrailer/utils';
+  getFrameMetadataFeatures,
+  getFrameMetadataPublishOptions,
+  hasFrameMetadataPublishOptions,
+  isFrameMetadataSupported,
+} from '../../frameMetadata/utils';
+import type { InternalRoomOptions } from '../../options';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -1085,7 +1085,7 @@ export default class LocalParticipant extends Participant {
       audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
     }
     const packetTrailerFeatures: PacketTrailerFeature[] =
-      this.normalizeRequestedPacketTrailerOptions(track, opts);
+      this.normalizeRequestedFrameMetadataOptions(track, opts);
 
     // create track publication from track
     const req = new AddTrackRequest({
@@ -1416,31 +1416,36 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
-  private canPublishPacketTrailer() {
+  private canPublishFrameMetadata() {
     return !!(
       this.roomOptions.e2ee ||
       this.roomOptions.encryption ||
-      isPacketTrailerSupported(this.roomOptions.packetTrailer)
+      isFrameMetadataSupported(this.roomOptions.frameMetadata ?? this.roomOptions.packetTrailer)
     );
   }
 
-  private normalizeRequestedPacketTrailerOptions(track: LocalTrack, opts: TrackPublishOptions) {
-    if (track.kind !== Track.Kind.Video || !hasPacketTrailerPublishOptions(opts.packetTrailer)) {
+  private normalizeRequestedFrameMetadataOptions(track: LocalTrack, opts: TrackPublishOptions) {
+    const fmOpts = opts.frameMetadata ?? opts.packetTrailer;
+    if (track.kind !== Track.Kind.Video || !hasFrameMetadataPublishOptions(fmOpts)) {
+      opts.frameMetadata = undefined;
       opts.packetTrailer = undefined;
       return [];
     }
 
-    if (!this.canPublishPacketTrailer()) {
-      this.log.warn('packet trailer transform not supported; not advertising features', {
+    if (!this.canPublishFrameMetadata()) {
+      this.log.warn('frame metadata transform not supported; not advertising features', {
         ...this.logContext,
         ...getLogContextFromTrack(track),
       });
+      opts.frameMetadata = undefined;
       opts.packetTrailer = undefined;
       return [];
     }
 
-    const features = getPacketTrailerFeatures(opts.packetTrailer);
-    opts.packetTrailer = getPacketTrailerPublishOptions(features);
+    const features = getFrameMetadataFeatures(fmOpts);
+    const normalized = getFrameMetadataPublishOptions(features);
+    opts.frameMetadata = normalized;
+    opts.packetTrailer = normalized;
     return features;
   }
 
@@ -1496,7 +1501,7 @@ export default class LocalParticipant extends Participant {
     if (!simulcastTrack) {
       return;
     }
-    const packetTrailerFeatures = this.normalizeRequestedPacketTrailerOptions(track, opts);
+    const packetTrailerFeatures = this.normalizeRequestedFrameMetadataOptions(track, opts);
 
     const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,

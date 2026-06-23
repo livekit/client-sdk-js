@@ -54,13 +54,13 @@ import {
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import {
+  hasFrameMetadataPublishOptions,
+  isFrameMetadataSupported,
+  shouldUseFrameMetadataScriptTransform,
+} from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
-import {
-  hasPacketTrailerPublishOptions,
-  isPacketTrailerSupported,
-  shouldUsePacketTrailerScriptTransform,
-} from '../packetTrailer/utils';
 import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
@@ -805,7 +805,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // used; RTCRtpScriptTransform does not need the PeerConnection flag.
     const needsInsertableStreams =
       this.signalOpts?.e2eeEnabled ||
-      (this.options.packetTrailer?.worker && !shouldUsePacketTrailerScriptTransform());
+      (this.frameMetadataWorker && !shouldUseFrameMetadataScriptTransform());
 
     if (needsInsertableStreams && isInsertableStreamSupported()) {
       this.log.debug('E2EE - setting up transports with insertable streams');
@@ -1101,7 +1101,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    this.setupPacketTrailerSender(sender, opts);
+    this.setupFrameMetadataSender(sender, opts);
     return sender;
   }
 
@@ -1121,50 +1121,55 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('Cannot stream on this device');
     }
     if (sender) {
-      this.setupPacketTrailerSender(sender, opts);
+      this.setupFrameMetadataSender(sender, opts);
     }
     return sender;
   }
 
-  private setupPacketTrailerSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
-    if (!this.options.packetTrailer?.worker || this.signalOpts?.e2eeEnabled) {
+  private get frameMetadataWorker(): Worker | undefined {
+    return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
+  }
+
+  private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
+    const worker = this.frameMetadataWorker;
+    if (!worker || this.signalOpts?.e2eeEnabled) {
       return;
     }
 
-    const packetTrailer = opts.packetTrailer;
-    const hasPacketTrailer = hasPacketTrailerPublishOptions(packetTrailer);
+    const frameMetadata = opts.frameMetadata ?? opts.packetTrailer;
+    const hasMetadata = hasFrameMetadataPublishOptions(frameMetadata);
 
-    if (shouldUsePacketTrailerScriptTransform()) {
-      if (hasPacketTrailer) {
+    if (shouldUseFrameMetadataScriptTransform()) {
+      if (hasMetadata) {
         // @ts-ignore
-        sender.transform = new RTCRtpScriptTransform(this.options.packetTrailer.worker, {
+        sender.transform = new RTCRtpScriptTransform(worker, {
           kind: 'encode',
-          packetTrailer,
+          packetTrailer: frameMetadata,
         });
       }
       return;
     }
 
     if (
-      !isPacketTrailerSupported(this.options.packetTrailer) ||
+      !isFrameMetadataSupported(this.options.frameMetadata ?? this.options.packetTrailer) ||
       !('createEncodedStreams' in sender)
     ) {
-      if (hasPacketTrailer) {
-        this.log.warn('packet trailer transform not supported; skipping write', this.logContext);
+      if (hasMetadata) {
+        this.log.warn('frame metadata transform not supported; skipping write', this.logContext);
       }
       return;
     }
 
     // @ts-ignore
     const { readable, writable } = sender.createEncodedStreams();
-    if (hasPacketTrailer) {
-      this.options.packetTrailer.worker.postMessage(
+    if (hasMetadata) {
+      worker.postMessage(
         {
           kind: 'encode',
           data: {
             readableStream: readable,
             writableStream: writable,
-            packetTrailer,
+            packetTrailer: frameMetadata,
           },
         },
         [readable, writable],

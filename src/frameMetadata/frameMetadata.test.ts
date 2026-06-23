@@ -4,7 +4,7 @@ import {
   appendPacketTrailerToEncodedFrame,
   extractPacketTrailer,
   processPacketTrailer,
-} from './packetTrailer';
+} from './frameMetadata';
 
 describe('packetTrailer', () => {
   afterEach(() => {

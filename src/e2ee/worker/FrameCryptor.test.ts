@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
-import { appendPacketTrailer, extractPacketTrailer } from '../../packetTrailer/packetTrailer';
-import type { PacketTrailerPublishOptions } from '../../packetTrailer/types';
+import { appendPacketTrailer, extractPacketTrailer } from '../../frameMetadata/frameMetadata';
+import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
@@ -69,7 +69,7 @@ function prepareParticipantTestDecoder(
 function prepareParticipantTestEncoder(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
-  packetTrailer?: PacketTrailerPublishOptions,
+  packetTrailer?: FrameMetadataPublishOptions,
 ) {
   return prepareParticipantTest(
     'encode',
@@ -83,7 +83,7 @@ function prepareParticipantTest(
   mode: 'encode' | 'decode',
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
-  packetTrailer?: PacketTrailerPublishOptions,
+  packetTrailer?: FrameMetadataPublishOptions,
 ): {
   keys: ParticipantKeyHandler;
   cryptor: FrameCryptor;
@@ -536,7 +536,7 @@ describe('FrameCryptor', () => {
         const postMessage = vitest.fn();
         vitest.stubGlobal('postMessage', postMessage);
         encryptionEnabledMap.set(participantIdentity, false);
-        cryptor.setHasPacketTrailer(true);
+        cryptor.setHasFrameMetadata(true);
 
         const payload = Uint8Array.from([1, 2, 3, 4]);
         const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456n, 0);
