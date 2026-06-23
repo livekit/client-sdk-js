@@ -2,17 +2,17 @@ import {
   DataPacket,
   DataStream_ByteHeader,
   DataStream_Chunk,
+  DataStream_CompressionType,
   DataStream_Header,
   DataStream_TextHeader,
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { encodeBase64 } from '../../utils';
-import { INLINE_PAYLOAD_ATTRIBUTE, COMPRESSION_ATTRIBUTE, COMPRESSION_DEFLATE_RAW, STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import { deflateRawCompress } from '../compression';
+import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
-import { deflateRawCompress } from '../compression';
 
 /** Builds a low quality random string of the given length. */
 function randomText(length: number): string {
@@ -171,7 +171,8 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: BigInt(text.length),
-              attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: text, foo: 'bar' },
+              attributes: { foo: 'bar' },
+              inlineContent: new TextEncoder().encode(text),
               contentHeader: {
                 case: 'textHeader',
                 value: new DataStream_TextHeader({
@@ -234,7 +235,9 @@ describe('IncomingDataStreamManager', () => {
       expect(streamReader.info.attachedStreamIds).toHaveLength(1);
 
       const attachmentStreamReader = await attachmentStreamReaderPromise;
-      expect(await attachmentStreamReader.readAll()).toStrictEqual([new Uint8Array([0x01, 0x02, 0x03])]);
+      expect(await attachmentStreamReader.readAll()).toStrictEqual([
+        new Uint8Array([0x01, 0x02, 0x03]),
+      ]);
       expect(streamReader.info.attachedStreamIds).toHaveLength(1);
     });
 
@@ -357,7 +360,10 @@ describe('IncomingDataStreamManager', () => {
           participantIdentity: 'alice',
           value: {
             case: 'streamTrailer',
-            value: new DataStream_Trailer({ streamId, attributes: { hello: 'world', foo: 'updated' } }),
+            value: new DataStream_Trailer({
+              streamId,
+              attributes: { hello: 'world', foo: 'updated' },
+            }),
           },
         }),
         Encryption_Type.NONE,
@@ -581,7 +587,9 @@ describe('IncomingDataStreamManager', () => {
 
       // Make sure an error is thrown from the reader
       const reader = await readerPromise;
-      await expect(reader.readAll()).rejects.toThrow('Participant alice unexpectedly disconnected in the middle of sending data');
+      await expect(reader.readAll()).rejects.toThrow(
+        'Participant alice unexpectedly disconnected in the middle of sending data',
+      );
     });
   });
 
@@ -608,7 +616,8 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: BigInt(text.length),
-              attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: text, foo: 'bar' },
+              attributes: { foo: 'bar' },
+              inlineContent: new TextEncoder().encode(text),
               contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
             }),
           },
@@ -630,7 +639,7 @@ describe('IncomingDataStreamManager', () => {
       });
 
       const streamId = crypto.randomUUID();
-      const bytes = encodeBase64(new Uint8Array([0x01, 0x02, 0x03]));
+      const bytes = new Uint8Array([0x01, 0x02, 0x03]);
 
       manager.handleDataStreamPacket(
         new DataPacket({
@@ -643,7 +652,7 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: 3n,
-              attributes: { [INLINE_PAYLOAD_ATTRIBUTE]: bytes },
+              inlineContent: bytes,
               contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({}) },
             }),
           },
@@ -665,7 +674,7 @@ describe('IncomingDataStreamManager', () => {
 
       const streamId = crypto.randomUUID();
       const text = 'hello world';
-      const compressed = encodeBase64(await deflateRawCompress(new TextEncoder().encode(text)));
+      const compressed = await deflateRawCompress(new TextEncoder().encode(text));
 
       manager.handleDataStreamPacket(
         new DataPacket({
@@ -678,11 +687,9 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: BigInt(text.length),
-              attributes: {
-                [INLINE_PAYLOAD_ATTRIBUTE]: compressed,
-                [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW,
-                foo: 'bar'
-              },
+              attributes: { foo: 'bar' },
+              compression: DataStream_CompressionType.DEFLATE_RAW,
+              inlineContent: compressed,
               contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
             }),
           },
@@ -705,7 +712,7 @@ describe('IncomingDataStreamManager', () => {
 
       const streamId = crypto.randomUUID();
       const bytes = new Uint8Array([0x01, 0x02, 0x03]);
-      const compressed = encodeBase64(await deflateRawCompress(bytes));
+      const compressed = await deflateRawCompress(bytes);
 
       manager.handleDataStreamPacket(
         new DataPacket({
@@ -718,10 +725,8 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: BigInt(bytes.length),
-              attributes: {
-                [INLINE_PAYLOAD_ATTRIBUTE]: compressed,
-                [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW,
-              },
+              compression: DataStream_CompressionType.DEFLATE_RAW,
+              inlineContent: compressed,
               contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({}) },
             }),
           },
@@ -745,7 +750,10 @@ describe('IncomingDataStreamManager', () => {
 
       // NOTE: mostly incompressible, but the hello world parts repeating should mean that the compressed
       // contents is smaller than the full uncompressed data.
-      const text = new Array(30).fill(null).map(() => `hello world${randomText(1_000)}`).join('');
+      const text = new Array(30)
+        .fill(null)
+        .map(() => `hello world${randomText(1_000)}`)
+        .join('');
 
       const compressed = await deflateRawCompress(new TextEncoder().encode(text));
 
@@ -763,7 +771,7 @@ describe('IncomingDataStreamManager', () => {
               mimeType: 'text/plain',
               timestamp: 0n,
               totalLength: BigInt(text.length),
-              attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+              compression: DataStream_CompressionType.DEFLATE_RAW,
               contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
             }),
           },
@@ -819,7 +827,8 @@ describe('IncomingDataStreamManager', () => {
       const text = 'hello world';
       const compressed = await deflateRawCompress(new TextEncoder().encode(text));
 
-      let originalCompressionStream: typeof CompressionStream, originalDecompressionStream: typeof DecompressionStream;
+      let originalCompressionStream: typeof CompressionStream,
+        originalDecompressionStream: typeof DecompressionStream;
       try {
         originalCompressionStream = CompressionStream;
         (CompressionStream as any) = undefined;
@@ -846,7 +855,7 @@ describe('IncomingDataStreamManager', () => {
                 mimeType: 'text/plain',
                 timestamp: 0n,
                 totalLength: BigInt(text.length),
-                attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+                compression: DataStream_CompressionType.DEFLATE_RAW,
                 contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
               }),
             },
@@ -893,7 +902,8 @@ describe('IncomingDataStreamManager', () => {
       const bytes = new Uint8Array([0x01, 0x02, 0x03]);
       const compressed = await deflateRawCompress(bytes);
 
-      let originalCompressionStream: typeof CompressionStream, originalDecompressionStream: typeof DecompressionStream;
+      let originalCompressionStream: typeof CompressionStream,
+        originalDecompressionStream: typeof DecompressionStream;
       try {
         originalCompressionStream = CompressionStream;
         (CompressionStream as any) = undefined;
@@ -920,7 +930,7 @@ describe('IncomingDataStreamManager', () => {
                 mimeType: 'text/plain',
                 timestamp: 0n,
                 totalLength: BigInt(bytes.length),
-                attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
+                compression: DataStream_CompressionType.DEFLATE_RAW,
                 contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
               }),
             },

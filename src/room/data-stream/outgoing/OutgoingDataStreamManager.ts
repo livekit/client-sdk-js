@@ -3,6 +3,7 @@ import {
   ClientInfo_Capability,
   DataPacket,
   DataStream_Chunk,
+  DataStream_CompressionType,
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
@@ -21,7 +22,6 @@ import type {
   TextStreamInfo,
 } from '../../types';
 import {
-  encodeBase64,
   isCompressionStreamSupported,
   numberToBigInt,
   readBytesInChunks,
@@ -29,12 +29,7 @@ import {
   splitUtf8,
 } from '../../utils';
 import { deflateRawCompress, deflateRawCompressReadable } from '../compression';
-import {
-  COMPRESSION_ATTRIBUTE,
-  COMPRESSION_DEFLATE_RAW,
-  INLINE_PAYLOAD_ATTRIBUTE,
-  STREAM_CHUNK_SIZE_BYTES,
-} from '../constants';
+import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
 import {
   buildByteStreamHeader,
@@ -105,23 +100,25 @@ export default class OutgoingDataStreamManager {
     // Phase 1: Try to send as a single packet data stream
     const noAttachments = !options?.attachments || options.attachments.length === 0;
     if (noAttachments && this.allRecipientsSupportV2(options?.destinationIdentities)) {
-      // Compress when the runtime supports it, but only keep the result if it actually shrinks the
-      // payload (deflate framing plus the base64 expansion makes tiny strings larger). Uncompressed
-      // inline payloads stay as the raw string; compressed ones are base64'd and flagged via an
-      // attribute.
-      const inlineAttributes: Record<string, string> = {
-        ...info.attributes,
-        [INLINE_PAYLOAD_ATTRIBUTE]: text,
-      };
-      if (compress && isCompressionStreamSupported() && this.allRecipientsSupportCompression(options?.destinationIdentities)) {
+      // The payload rides in the header's `inlineContent` (raw bytes). Compress when the runtime
+      // supports it, but only keep the result if it actually shrinks the payload (deflate framing
+      // makes tiny strings larger). The compression flag is carried in the header's `compression`
+      // field; user attributes are left untouched.
+      let inlineContent: Uint8Array = textInBytes;
+      let compression = DataStream_CompressionType.NONE;
+      if (
+        compress &&
+        isCompressionStreamSupported() &&
+        this.allRecipientsSupportCompression(options?.destinationIdentities)
+      ) {
         const compressed = await deflateRawCompress(textInBytes);
         if (compressed.byteLength < textInBytes.byteLength) {
-          inlineAttributes[INLINE_PAYLOAD_ATTRIBUTE] = encodeBase64(compressed);
-          inlineAttributes[COMPRESSION_ATTRIBUTE] = COMPRESSION_DEFLATE_RAW;
+          inlineContent = compressed;
+          compression = DataStream_CompressionType.DEFLATE_RAW;
         }
       }
 
-      const header = buildTextStreamHeader({ ...info, attributes: inlineAttributes });
+      const header = buildTextStreamHeader(info, undefined, { compression, inlineContent });
       const packet = createStreamHeaderPacket(header, options?.destinationIdentities);
 
       if (packet.toBinary().byteLength <= STREAM_CHUNK_SIZE_BYTES) {
@@ -148,10 +145,11 @@ export default class OutgoingDataStreamManager {
       this.allRecipientsSupportV2(options?.destinationIdentities) &&
       this.allRecipientsSupportCompression(options?.destinationIdentities)
     ) {
-      info.attributes = { ...info.attributes, [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW };
       info.attachedStreamIds = fileIds;
 
-      const header = buildTextStreamHeader(info);
+      const header = buildTextStreamHeader(info, undefined, {
+        compression: DataStream_CompressionType.DEFLATE_RAW,
+      });
       const packet = createStreamHeaderPacket(header, options?.destinationIdentities);
       await this.sendChunkedByteStream(
         packet,
@@ -383,13 +381,14 @@ export default class OutgoingDataStreamManager {
         topic: options?.topic ?? '',
         timestamp: Date.now(),
         size: file.size,
-        attributes: { [COMPRESSION_ATTRIBUTE]: COMPRESSION_DEFLATE_RAW },
         encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
           ? Encryption_Type.GCM
           : Encryption_Type.NONE,
       };
 
-      const header = buildByteStreamHeader(info);
+      const header = buildByteStreamHeader(info, {
+        compression: DataStream_CompressionType.DEFLATE_RAW,
+      });
       const packet = createStreamHeaderPacket(header, destinationIdentities);
       await this.sendChunkedByteStream(
         packet,
