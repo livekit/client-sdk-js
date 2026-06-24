@@ -10,6 +10,7 @@ export const PACKET_TRAILER_MAGIC = Uint8Array.from([
 
 export const PACKET_TRAILER_TIMESTAMP_TAG = 0x01;
 export const PACKET_TRAILER_FRAME_ID_TAG = 0x02;
+export const PACKET_TRAILER_USER_DATA_TAG = 0x03;
 export const PACKET_TRAILER_ENVELOPE_SIZE = 5;
 
 const TIMESTAMP_TLV_SIZE = 10;
@@ -126,6 +127,13 @@ export function extractPacketTrailer(data: ArrayBuffer | Uint8Array): ExtractPac
       foundAny = true;
     } else if (tag === PACKET_TRAILER_FRAME_ID_TAG && length === 4) {
       metadata.frameId = readUint32Xor(bytes, offset, length);
+      foundAny = true;
+    } else if (tag === PACKET_TRAILER_USER_DATA_TAG) {
+      const userData = new Uint8Array(length);
+      for (let index = 0; index < length; index += 1) {
+        userData[index] = bytes[offset + index] ^ 0xff;
+      }
+      metadata.userData = userData;
       foundAny = true;
     }
 
