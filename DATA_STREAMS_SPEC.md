@@ -208,8 +208,7 @@ Common options: `topic`, `destinationIdentities` (omit ⇒ broadcast), `attribut
 
 The v2 signals are carried in dedicated header fields, **not** attributes: `inlineContent` (the
 single-packet payload, as raw bytes) and `compression` (`NONE` / `DEFLATE_RAW`). `attributes` carries
-only caller-supplied metadata. (Earlier drafts smuggled these into reserved `lk.inline_payload` /
-`lk.compression` attributes; that is gone — there is no attribute fallback.)
+only caller-supplied metadata.
 
 ### `sendText` send algorithm
 
