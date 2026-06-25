@@ -193,7 +193,7 @@ Five send operations, three finite (full payload known up front) and two increme
 |-----|---------|-------------------------|----------------------|---------------------------|
 | `sendText(text, opts)` | text | yes | yes | yes |
 | `sendBytes(bytes, opts)` | bytes | yes | yes | yes |
-| `sendFile(file, opts)` | bytes | yes (streamed from disk) | **no** | yes |
+| `sendFile(file, opts)` _(optional)_ | bytes | yes (streamed from disk) | **no** | yes |
 | `streamText(opts) -> writer` | text | no (incremental writes) | no | **no** |
 | `streamBytes(opts) -> writer` | bytes | no (incremental writes) | no | **no** |
 
@@ -202,6 +202,16 @@ gets the same inline single-packet fast path and one-shot compression. `sendFile
 case for files — the payload is streamed from disk (never buffered) and so does **not** get the
 inline path. `sendBytes` does not infer a `name`/`mimeType` from its input; its byte-stream header
 defaults to `name = "unknown"` and `mimeType = "application/octet-stream"`.
+
+**`sendBytes`, `sendText`, `streamText`, and `streamBytes` are the required send APIs; `sendFile` is
+optional and platform-dependent.** Since `sendBytes` already covers sending an in-memory byte
+payload, `sendFile` is only worth adding on platforms that have a native streamable file type whose
+contents can be read without buffering the whole thing into memory (e.g. the `File`/`Blob` object in
+browser JS, which exposes a `ReadableStream`). On such platforms `sendFile` is a thin convenience
+wrapper that derives the `name`/`mimeType` from the file and streams its contents. On platforms with
+no such type, omit `sendFile` entirely — callers read the bytes themselves and use `sendBytes`. The
+two produce identical wire output for the same bytes (a `byteHeader` stream), so there is no
+interop concern in omitting it.
 
 Common options: `topic`, `destinationIdentities` (omit ⇒ broadcast), `attributes`
 (map<string,string>), and for the finite APIs a `compress` boolean (default `true`, opt-out).
@@ -247,6 +257,10 @@ only caller-supplied metadata.
    chunk packets, then the trailer.
 
 ### `sendFile` send algorithm
+
+> `sendFile` is **optional** (see the note under the API table): implement it only where the
+> platform has a native streamable file type. Where present, it behaves as below; where absent,
+> callers use `sendBytes` instead.
 
 `sendFile` is fully streamed from the file's byte stream and is **never** sent inline (file uploads
 are an edge case; the inline single-packet optimization is intentionally dropped for them):
@@ -445,6 +459,9 @@ trailer's `streamId`. Three participant rooms are used:
 - **all v2** — `alice`, `bob` at `clientProtocol 2` with `CAP_COMPRESSION_DEFLATE_RAW`; `noCompression`
   at `clientProtocol 2` with **no** capabilities.
 - **mixed** — `alice` (0), `bob`/`jim` (2 + cap), `mallory` (1), `noCompression` (2, no cap).
+
+The `sendFile` cases below apply only to SDKs that implement the optional `sendFile` API (see Part 3);
+omit them on platforms without a native streamable file type.
 
 #### Sending to a room where every recipient is pre-v2
 
