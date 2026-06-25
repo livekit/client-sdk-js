@@ -831,9 +831,9 @@ describe('IncomingDataStreamManager', () => {
         originalDecompressionStream: typeof DecompressionStream;
       try {
         originalCompressionStream = CompressionStream;
-        (CompressionStream as any) = undefined;
+        (globalThis as any).CompressionStream = undefined;
         originalDecompressionStream = DecompressionStream;
-        (DecompressionStream as any) = undefined;
+        (globalThis as any).DecompressionStream = undefined;
 
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
@@ -893,8 +893,8 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        CompressionStream = originalCompressionStream!;
-        DecompressionStream = originalDecompressionStream!;
+        (globalThis as any).CompressionStream = originalCompressionStream!;
+        (globalThis as any).DecompressionStream = originalDecompressionStream!;
       }
     });
 
@@ -906,9 +906,9 @@ describe('IncomingDataStreamManager', () => {
         originalDecompressionStream: typeof DecompressionStream;
       try {
         originalCompressionStream = CompressionStream;
-        (CompressionStream as any) = undefined;
+        (globalThis as any).CompressionStream = undefined;
         originalDecompressionStream = DecompressionStream;
-        (DecompressionStream as any) = undefined;
+        (globalThis as any).DecompressionStream = undefined;
 
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
@@ -968,8 +968,8 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        CompressionStream = originalCompressionStream!;
-        DecompressionStream = originalDecompressionStream!;
+        (globalThis as any).CompressionStream = originalCompressionStream!;
+        (globalThis as any).DecompressionStream = originalDecompressionStream!;
       }
     });
   });
