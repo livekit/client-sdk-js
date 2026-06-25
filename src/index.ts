@@ -104,6 +104,8 @@ export type {
   TranscriptionSegment,
   ChatMessage,
   SendTextOptions,
+  SendBytesOptions,
+  ByteStreamInfo,
 } from './room/types';
 export * from './version';
 export {

@@ -26,6 +26,16 @@ export interface SendTextOptions {
   compress?: boolean;
 }
 
+export interface SendBytesOptions {
+  topic?: string;
+  destinationIdentities?: Array<string>;
+  attributes?: Record<string, string>;
+  onProgress?: (progress: number) => void;
+  /** Whether to compress the payload (deflate-raw). Defaults to true. Compression is only applied
+   * when every recipient supports data streams v2 and the runtime can compress. */
+  compress?: boolean;
+}
+
 export interface StreamTextOptions {
   topic?: string;
   destinationIdentities?: Array<string>;

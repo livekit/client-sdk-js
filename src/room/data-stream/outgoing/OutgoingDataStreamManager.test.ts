@@ -766,4 +766,192 @@ describe('OutgoingDataStreamManager', () => {
       );
     });
   });
+
+  describe('sendBytes', () => {
+    describe('v2 -> room of all v2', () => {
+      let manager: OutgoingDataStreamManager, sentPackets: Array<DataPacket>;
+      beforeEach(() => {
+        const result = createManager({
+          alice: CLIENT_PROTOCOL_DATA_STREAM_V2,
+          bob: CLIENT_PROTOCOL_DATA_STREAM_V2,
+          noCompression: [CLIENT_PROTOCOL_DATA_STREAM_V2, []],
+        });
+        manager = result.manager;
+        sentPackets = result.sentPackets;
+      });
+
+      it('should send short compressible BYTE payload as a single compressed packet (happy path)', async () => {
+        const bytes = new TextEncoder().encode('hello hello compressible world');
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          attributes: { foo: 'bar' },
+          destinationIdentities: ['alice', 'bob'],
+        });
+
+        expect(sentPackets).toHaveLength(1);
+        expect(sentPackets[0].value.case).toBe('streamHeader');
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.topic).toStrictEqual('my-topic');
+        expect(header.contentHeader.case).toBe('byteHeader');
+
+        // Compressed inline payload
+        expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+        expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+        expect(header.inlineContent).not.toStrictEqual(bytes);
+
+        // Returned info uses the byte-stream defaults
+        expect(info.name).toStrictEqual('unknown');
+        expect(info.mimeType).toStrictEqual('application/octet-stream');
+        expect(info.size).toStrictEqual(bytes.byteLength);
+        expect(info.attributes).toStrictEqual({ foo: 'bar' });
+      });
+
+      it('should send short uncompressible BYTE payload inline without compression', async () => {
+        const bytes = new Uint8Array([0x00, 0x01, 0x02, 0x03]);
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['alice', 'bob'],
+        });
+
+        expect(sentPackets).toHaveLength(1);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        // Tiny payload doesn't shrink under DEFLATE framing, so it's sent raw.
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toStrictEqual(bytes);
+      });
+
+      it('should send BYTE payload inline with NO compression if a recipient does not support compression', async () => {
+        const bytes = new TextEncoder().encode('hello hello compressible world');
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['noCompression'],
+        });
+
+        // Inline still applies (gated on v2 alone), but compression is skipped.
+        expect(sentPackets).toHaveLength(1);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toStrictEqual(bytes);
+      });
+
+      it('should send long, highly compressible BYTE payload as a single compressed packet', async () => {
+        // Repeating bytes compress well under the 15k MTU even though the raw payload is 50k.
+        const bytes = new Uint8Array(50_000).fill(0x01);
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['alice', 'bob'],
+        });
+
+        expect(sentPackets).toHaveLength(1);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+        expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+        expect(header.inlineContent!.byteLength).toBeLessThan(bytes.byteLength);
+      });
+
+      it('should send long but somewhat compressible BYTE payload as a compressed multi packet stream', async () => {
+        const bytes = new TextEncoder().encode(
+          new Array(50)
+            .fill(null)
+            .map(() => `hello world${randomText(1_000)}`)
+            .join(''),
+        );
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['alice', 'bob'],
+        });
+
+        // 1 header + 3 chunks + 1 trailer (compressed ~45k -> 3 MTU chunks)
+        expect(sentPackets).toHaveLength(5);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+        expect(header.inlineContent).toBeUndefined();
+
+        expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
+        const chunk = chunkOf(sentPackets[1]);
+        expect(chunk.chunkIndex).toStrictEqual(0n);
+        expect(chunk.content).toHaveLength(15_000); // MTU
+        expect(sentPackets[2].value.case).toStrictEqual('streamChunk');
+        expect(sentPackets[3].value.case).toStrictEqual('streamChunk');
+        expect(sentPackets[4].value.case).toStrictEqual('streamTrailer');
+        expect(trailerOf(sentPackets[4]).streamId).toStrictEqual(info.id);
+      });
+
+      it('should skip compression for an inline payload when compress: false', async () => {
+        const bytes = new TextEncoder().encode('hello hello compressible world');
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['alice', 'bob'],
+          compress: false,
+        });
+
+        expect(sentPackets).toHaveLength(1);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toStrictEqual(bytes);
+      });
+
+      it('should send an uncompressed multi packet stream when compress: false and payload exceeds the MTU', async () => {
+        const bytes = new Uint8Array(40_000).fill(0x07);
+        const info = await manager.sendBytes(bytes, {
+          topic: 'my-topic',
+          destinationIdentities: ['alice', 'bob'],
+          compress: false,
+        });
+
+        // 40k -> 15k + 15k + 10k chunks. 1 header + 3 chunks + 1 trailer = 5 packets.
+        expect(sentPackets).toHaveLength(5);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toBeUndefined();
+
+        expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
+        let chunk = chunkOf(sentPackets[1]);
+        expect(chunk.chunkIndex).toStrictEqual(0n);
+        expect(chunk.content).toHaveLength(15_000);
+        expect(chunk.content.every((byte) => byte === 0x07)).toBeTruthy();
+        chunk = chunkOf(sentPackets[3]);
+        expect(chunk.content).toHaveLength(10_000);
+        expect(sentPackets[4].value.case).toStrictEqual('streamTrailer');
+      });
+    });
+
+    describe('v2 -> room of all v1', () => {
+      it('should send a legacy uncompressed multi packet stream', async () => {
+        const { manager, sentPackets } = createManager({
+          alice: CLIENT_PROTOCOL_DEFAULT,
+          jim: CLIENT_PROTOCOL_DATA_STREAM_RPC,
+        });
+        const bytes = new Uint8Array([0x00, 0x01, 0x02, 0x03]);
+        const info = await manager.sendBytes(bytes, { topic: 'my-topic' });
+
+        // No v2 recipients: header + chunk + trailer, never inline, never compressed.
+        expect(sentPackets).toHaveLength(3);
+        const header = headerOf(sentPackets[0]);
+        expect(header.streamId).toStrictEqual(info.id);
+        expect(header.contentHeader.case).toBe('byteHeader');
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toBeUndefined();
+
+        expect(sentPackets[1].value.case).toStrictEqual('streamChunk');
+        const chunk = chunkOf(sentPackets[1]);
+        expect(chunk.chunkIndex).toStrictEqual(0n);
+        expect(chunk.content).toStrictEqual(bytes);
+        expect(sentPackets[2].value.case).toStrictEqual('streamTrailer');
+        expect(trailerOf(sentPackets[2]).streamId).toStrictEqual(info.id);
+      });
+    });
+  });
 });
