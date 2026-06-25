@@ -161,8 +161,7 @@ export default class IncomingDataStreamManager {
         };
 
         // Both inline and chunked byte payloads are deflate-raw compressed; inline as a one-shot
-        // buffer, chunked as a single stream spanning all chunks (mirrors text). The compression
-        // flag rides in the header's `compression` field.
+        // buffer, chunked as a single stream spanning all chunks (mirrors text).
         const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
 
         if (compressed && !isCompressionStreamSupported()) {
@@ -174,7 +173,7 @@ export default class IncomingDataStreamManager {
           return;
         }
 
-        // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
+        // Single-packet stream: the entire payload was packaged into the header's `inlineContent`.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
         const inlineContent = streamHeader.inlineContent;
         if (typeof inlineContent !== 'undefined') {
@@ -250,8 +249,7 @@ export default class IncomingDataStreamManager {
         };
 
         // Both inline and chunked text payloads are deflate-raw compressed; inline as a one-shot
-        // buffer, chunked as a single stream spanning all chunks. The compression flag rides in the
-        // header's `compression` field.
+        // buffer, chunked as a single stream spanning all chunks.
         const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
 
         if (compressed && !isCompressionStreamSupported()) {
@@ -530,7 +528,8 @@ function inflateRawChunkStream(
         }
         const text = decodeOrThrow(value.content);
         if (text.length > 0) {
-          controller.enqueue(makeChunk(streamId, outIndex++, encoder.encode(text)));
+          controller.enqueue(makeChunk(streamId, outIndex, encoder.encode(text)));
+          outIndex += 1;
           return;
         }
         // Everything so far was a partial codepoint; keep pulling.
