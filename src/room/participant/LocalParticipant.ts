@@ -81,8 +81,10 @@ import {
   sourceToKind,
 } from '../track/utils';
 import {
+  type ByteStreamInfo,
   type ChatMessage,
   type DataPublishOptions,
+  type SendBytesOptions,
   type SendFileOptions,
   type SendTextOptions,
   type StreamBytesOptions,
@@ -1838,6 +1840,17 @@ export default class LocalParticipant extends Participant {
    */
   async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
     return this.roomOutgoingDataStreamManager.sendFile(file, options);
+  }
+
+  /**
+   * Sends the given bytes to participants in the room via the data channel.
+   * For files, consider using {@link sendFile}; for longer/incremental payloads, {@link streamBytes}.
+   *
+   * @param bytes The byte payload
+   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
+   */
+  async sendBytes(bytes: Uint8Array, options?: SendBytesOptions): Promise<ByteStreamInfo> {
+    return this.roomOutgoingDataStreamManager.sendBytes(bytes, options);
   }
 
   /**

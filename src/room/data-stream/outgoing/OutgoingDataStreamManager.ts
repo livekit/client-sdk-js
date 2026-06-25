@@ -15,6 +15,7 @@ import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { EngineEvent } from '../../events';
 import type {
   ByteStreamInfo,
+  SendBytesOptions,
   SendFileOptions,
   SendTextOptions,
   StreamBytesOptions,
@@ -196,6 +197,83 @@ export default class OutgoingDataStreamManager {
   }
 
   /**
+   * Sends a complete in-memory byte payload. Mirrors {@link sendText}'s semantics: when every
+   * recipient supports data streams v2 the payload rides inline in a single header packet
+   * (optionally deflate-raw compressed), otherwise it is sent as a (optionally compressed)
+   * chunked byte stream. Unlike {@link sendFile}, the whole payload is already in memory, so the
+   * inline single-packet fast path applies.
+   */
+  async sendBytes(bytes: Uint8Array, options?: SendBytesOptions): Promise<ByteStreamInfo> {
+    const streamId = crypto.randomUUID();
+    const destinationIdentities = options?.destinationIdentities;
+    const compress = options?.compress ?? true;
+
+    const info: ByteStreamInfo = {
+      id: streamId,
+      name: 'unknown',
+      mimeType: 'application/octet-stream',
+      timestamp: Date.now(),
+      topic: options?.topic ?? '',
+      size: bytes.byteLength, // NOTE: size is always the pre-compression byte length
+      attributes: options?.attributes,
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
+    };
+
+    // Phase 1: Try to send as a single packet data stream
+    if (this.allRecipientsSupportV2(destinationIdentities)) {
+      // The payload rides in the header's `inlineContent` (raw bytes). Compress when the runtime
+      // supports it, but only keep the result if it actually shrinks the payload (deflate framing
+      // makes tiny payloads larger). The compression flag is carried in the header's `compression`
+      // field; user attributes are left untouched.
+      let inlineContent: Uint8Array = bytes;
+      let compression = DataStream_CompressionType.NONE;
+      if (
+        compress &&
+        isCompressionStreamSupported() &&
+        this.allRecipientsSupportCompression(destinationIdentities)
+      ) {
+        const compressed = await deflateRawCompress(bytes);
+        if (compressed.byteLength < bytes.byteLength) {
+          inlineContent = compressed;
+          compression = DataStream_CompressionType.DEFLATE_RAW;
+        }
+      }
+
+      const header = buildByteStreamHeader(info, { compression, inlineContent });
+      const packet = createStreamHeaderPacket(header, destinationIdentities);
+
+      if (packet.toBinary().byteLength <= STREAM_CHUNK_SIZE_BYTES) {
+        await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
+        options?.onProgress?.(1);
+        return info;
+      }
+    }
+
+    // Phase 2/3: header + (optionally compressed) chunk packets + trailer.
+    const compressEligible =
+      compress &&
+      isCompressionStreamSupported() &&
+      this.allRecipientsSupportV2(destinationIdentities) &&
+      this.allRecipientsSupportCompression(destinationIdentities);
+
+    const header = buildByteStreamHeader(info, {
+      compression: compressEligible
+        ? DataStream_CompressionType.DEFLATE_RAW
+        : DataStream_CompressionType.NONE,
+    });
+    const packet = createStreamHeaderPacket(header, destinationIdentities);
+    const source = compressEligible
+      ? deflateRawCompressReadable(readableFromBytes(bytes))
+      : readableFromBytes(bytes);
+    await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
+    options?.onProgress?.(1);
+
+    return info;
+  }
+
+  /**
    * Returns true only if every recipient is known to support data streams v2 (single-packet inline
    * streams and compression). For a targeted send this checks the named destination identities; for
    * a broadcast (no explicit destinations) it checks every remote participant currently in the room.
@@ -350,8 +428,9 @@ export default class OutgoingDataStreamManager {
   /**
    * Streams a file as a chunked byte stream, compressed (deflate-raw) when the runtime supports it
    * and every recipient is on data streams v2. The file is piped `file.stream()` →
-   * (`CompressionStream`) → chunk packets, so it is never fully buffered in memory — unlike
-   * `sendText`, there is no inline single-packet fast path for files.
+   * (`CompressionStream`) → chunk packets via {@link sendChunkedByteStream}, so it is never fully
+   * buffered in memory — unlike {@link sendBytes}, there is no inline single-packet fast path for
+   * files (the compressed size can't be known up front without buffering the whole file).
    */
   private async _sendFile(
     streamId: string,
@@ -359,7 +438,23 @@ export default class OutgoingDataStreamManager {
     options?: SendFileOptions,
   ): Promise<ByteStreamInfo> {
     const destinationIdentities = options?.destinationIdentities;
-    const compress = options?.compress ?? true;
+    const compress =
+      (options?.compress ?? true) &&
+      isCompressionStreamSupported() &&
+      this.allRecipientsSupportV2(destinationIdentities) &&
+      this.allRecipientsSupportCompression(destinationIdentities);
+
+    const info: ByteStreamInfo = {
+      id: streamId,
+      name: file.name,
+      mimeType: options?.mimeType ?? file.type,
+      topic: options?.topic ?? '',
+      timestamp: Date.now(),
+      size: file.size,
+      encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
+        ? Encryption_Type.GCM
+        : Encryption_Type.NONE,
+    };
 
     // Phase 1: Try to send as a single packet data stream
     //
@@ -367,58 +462,19 @@ export default class OutgoingDataStreamManager {
     // time how well the file contents will compress (and whether the total output will be under the
     // MTU). Revisit this in the future though.
 
-    // Phase 2: Try to send a multi packet data stream with compressed bytes
-    if (
-      compress &&
-      isCompressionStreamSupported() &&
-      this.allRecipientsSupportV2(destinationIdentities) &&
-      this.allRecipientsSupportCompression(destinationIdentities)
-    ) {
-      const info: ByteStreamInfo = {
-        id: streamId,
-        name: file.name,
-        mimeType: options?.mimeType ?? file.type,
-        topic: options?.topic ?? '',
-        timestamp: Date.now(),
-        size: file.size,
-        encryptionType: this.engine.e2eeManager?.isDataChannelEncryptionEnabled
-          ? Encryption_Type.GCM
-          : Encryption_Type.NONE,
-      };
-
-      const header = buildByteStreamHeader(info, {
-        compression: DataStream_CompressionType.DEFLATE_RAW,
-      });
-      const packet = createStreamHeaderPacket(header, destinationIdentities);
-      await this.sendChunkedByteStream(
-        packet,
-        streamId,
-        destinationIdentities,
-        deflateRawCompressReadable(file.stream()),
-      );
-
-      return info;
-    }
-
-    // Phase 3 / fallback: header + plain uncompressed chunk packets + trailer.
-    const writer = await this.streamBytes({
-      streamId,
-      totalSize: file.size,
-      name: file.name,
-      mimeType: options?.mimeType ?? file.type,
-      topic: options?.topic,
-      destinationIdentities: options?.destinationIdentities,
+    // Phase 2 (compressed) / Phase 3 (uncompressed fallback): header + chunk packets + trailer. Both
+    // funnel through the shared sendChunkedByteStream primitive, differing only by whether the file
+    // stream is wrapped in the deflate-raw compressor; the file is never fully buffered in memory.
+    const header = buildByteStreamHeader(info, {
+      compression: compress
+        ? DataStream_CompressionType.DEFLATE_RAW
+        : DataStream_CompressionType.NONE,
     });
-    const reader = file.stream().getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      await writer.write(value);
-    }
-    await writer.close();
-    return writer.info;
+    const packet = createStreamHeaderPacket(header, destinationIdentities);
+    const source = compress ? deflateRawCompressReadable(file.stream()) : file.stream();
+    await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
+
+    return info;
   }
 
   async streamBytes(options?: StreamBytesOptions) {

@@ -18,7 +18,7 @@ negotiated per-recipient via the participant's advertised `clientProtocol` and c
 
 1. **Single-packet (inline) sends** — small finite payloads are smuggled entirely into the header
    packet, skipping the chunk/trailer packets (1 packet instead of 3). Gated on `clientProtocol`.
-2. **Compression** — finite, fully-known payloads (`sendText`/`sendFile`) are deflate-raw
+2. **Compression** — finite, fully-known payloads (`sendText`/`sendBytes`/`sendFile`) are deflate-raw
    compressed; incremental writers (`streamText`/`streamBytes`) are never compressed. Gated on the
    `CAP_COMPRESSION_DEFLATE_RAW` capability (separately from `clientProtocol`).
 3. **Header size limit** — the header packet must fit the MTU budget, bounding attribute size and
@@ -187,14 +187,21 @@ if the stream ends short, or if more bytes than declared arrive.
 
 ## Part 3: Send APIs
 
-Four send operations, two finite (full payload known up front) and two incremental:
+Five send operations, three finite (full payload known up front) and two incremental:
 
 | API | Content | Payload known up front? | Eligible for inline? | Eligible for compression? |
 |-----|---------|-------------------------|----------------------|---------------------------|
 | `sendText(text, opts)` | text | yes | yes | yes |
+| `sendBytes(bytes, opts)` | bytes | yes | yes | yes |
 | `sendFile(file, opts)` | bytes | yes (streamed from disk) | **no** | yes |
 | `streamText(opts) -> writer` | text | no (incremental writes) | no | **no** |
 | `streamBytes(opts) -> writer` | bytes | no (incremental writes) | no | **no** |
+
+`sendBytes` is the byte-stream analogue of `sendText`: the whole payload is already in memory, so it
+gets the same inline single-packet fast path and one-shot compression. `sendFile` is the special
+case for files — the payload is streamed from disk (never buffered) and so does **not** get the
+inline path. `sendBytes` does not infer a `name`/`mimeType` from its input; its byte-stream header
+defaults to `name = "unknown"` and `mimeType = "application/octet-stream"`.
 
 Common options: `topic`, `destinationIdentities` (omit ⇒ broadcast), `attributes`
 (map<string,string>), and for the finite APIs a `compress` boolean (default `true`, opt-out).
@@ -223,6 +230,21 @@ only caller-supplied metadata.
    (UTF-8-boundary-split chunks), header has `compression = NONE`.
 5. Send each attachment as its own byte stream (`sendFile` semantics), referenced by
    `attachedStreamIds` in the text header.
+
+### `sendBytes` send algorithm
+
+`sendBytes` mirrors `sendText` for an in-memory `Uint8Array` (byte-stream header, no attachments):
+
+1. `totalLength` is the payload's byte length.
+2. **Inline attempt** (when all recipients are v2): build a byte-stream header carrying the raw
+   payload in `inlineContent` with `compression = NONE`. If `compress` and the runtime supports
+   compression, deflate-raw the payload and, **only if the compressed form is smaller**, put the
+   compressed bytes in `inlineContent` and set `compression = DEFLATE_RAW`. If the serialized header
+   packet is `<= STREAM_CHUNK_SIZE_BYTES`, send it as a single packet and finish. Otherwise fall
+   through.
+3. **Chunked** (fallback): send a byte-stream header (`compression = DEFLATE_RAW` iff
+   compression-eligible, else `NONE`) then the payload — deflate-raw compressed when eligible — as
+   chunk packets, then the trailer.
 
 ### `sendFile` send algorithm
 
@@ -261,8 +283,8 @@ field (raw bytes) and sent as **one** packet (no chunks, no trailer). The decisi
 naturally accounts for attributes, topic, framing, and (when used) the compressed payload all
 together.
 
-- Inline applies to `sendText` only (not `sendFile`, not incremental writers), and only when all
-  recipients are v2 and there are no attachments.
+- Inline applies to `sendText` and `sendBytes` (not `sendFile`, not incremental writers), and only
+  when all recipients are v2 (and, for `sendText`, there are no attachments).
 - The receiver detects an inline stream by the presence of `inlineContent` on the header. It
   synthesizes an already-complete stream from those bytes (decompressing first if `compression` is
   `DEFLATE_RAW`) and never waits for chunk/trailer packets.
@@ -272,7 +294,7 @@ together.
 ## Part 5: Compression
 
 Compression is **deflate-raw** (raw DEFLATE, no zlib/gzip wrapper). It is applied only by the finite
-send APIs (`sendText`/`sendFile`), where the full payload is known up front. Two forms:
+send APIs (`sendText`/`sendBytes`/`sendFile`), where the full payload is known up front. Two forms:
 
 ### Inline payload compression (single packet)
 
@@ -556,6 +578,49 @@ trailer's `streamId`. Three participant rooms are used:
     - Call `sendText('hello hello compressible world', { ..., destinationIdentities: ['bob','jim','noCompression'] })`.
     - Expect **1** packet. `compression` is `NONE`; `inlineContent` equals the raw UTF-8 of the text —
       inline still happens (all three are v2) but compression is gated off by `noCompression`.
+
+#### `sendBytes` (in-memory byte payloads)
+
+`sendBytes` mirrors `sendText`'s inline + compression behavior on a `byteHeader`. Every emitted
+header has `contentHeader.case === 'byteHeader'`, and the returned `info` defaults `name` to
+`'unknown'` and `mimeType` to `'application/octet-stream'` (and threads `topic`/`attributes`/`size`).
+
+22. **Short compressible bytes → single inline packet, compressed** (all-v2 room)
+    - Call `sendBytes(utf8('hello hello compressible world'), { topic, attributes: { foo: 'bar' }, destinationIdentities: ['alice','bob'] })`.
+    - Expect **1** packet: a `byteHeader` with `compression === DEFLATE_RAW`; `inlineContent` is a
+      `Uint8Array` that is **not** the raw payload. `info.name === 'unknown'`,
+      `info.mimeType === 'application/octet-stream'`, `info.size === payload.byteLength`,
+      `info.attributes === { foo: 'bar' }`.
+
+23. **Short incompressible bytes → single inline packet, raw** (all-v2 room)
+    - Call `sendBytes([0x00,0x01,0x02,0x03], { ..., destinationIdentities: ['alice','bob'] })`.
+    - Expect **1** packet. `compression` is `NONE`; `inlineContent` equals the four raw bytes.
+
+24. **Bytes to a recipient lacking the compression capability → single inline packet, raw**
+    - Call `sendBytes(utf8('hello hello compressible world'), { ..., destinationIdentities: ['noCompression'] })`.
+    - Expect **1** packet. `compression` is `NONE`; `inlineContent` equals the raw payload (inline is
+      gated on `clientProtocol`; compression on the capability).
+
+25. **Large highly-compressible bytes → single inline packet, compressed** (all-v2 room)
+    - Call `sendBytes(Uint8Array(50_000).fill(0x01), { ..., destinationIdentities: ['alice','bob'] })`.
+    - Expect **1** packet. `compression === DEFLATE_RAW`; `inlineContent` byte length is **less** than
+      50 000 (compresses well under the MTU, so it still goes inline).
+
+26. **Large somewhat-compressible bytes → compressed multi-packet** (all-v2 room)
+    - `sendBytes` a ~50 KB payload of 50 × (`'hello world'` + 1 000 random chars) (UTF-8 encoded) to
+      `['alice','bob']`.
+    - Expect **5** packets: `byteHeader` (`compression = DEFLATE_RAW`, **no** `inlineContent`) + **3**
+      chunks (first is 15 000 bytes) + trailer.
+
+27. **`compress: false`, large bytes → uncompressed multi-packet** (all-v2 room)
+    - Call `sendBytes(Uint8Array(40_000).fill(0x07), { ..., destinationIdentities: ['alice','bob'], compress: false })`.
+    - Expect **5** packets: `byteHeader` (`compression = NONE`, no `inlineContent`) + **3** chunks
+      (15 000, 15 000, 10 000; all `0x07`) + trailer.
+
+28. **Bytes to a pre-v2 room → legacy uncompressed multi-packet**
+    - Call `sendBytes([0x00,0x01,0x02,0x03], { topic })` with only pre-v2 recipients.
+    - Expect **3** packets: `byteHeader` (`compression = NONE`, no `inlineContent`) + one chunk
+      (`chunkIndex 0`, the four raw bytes) + trailer. Never inline, never compressed.
 
 ### `IncomingDataStreamManager` (receive side)
 
