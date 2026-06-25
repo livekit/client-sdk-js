@@ -159,6 +159,9 @@ Sender                                Receiver
 - Content is delivered incrementally as chunks arrive — a receiver must not wait for the trailer to
   begin yielding content.
 - Chunk content larger than the MTU budget is split across multiple chunks with contiguous indices.
+    - Text data streams should ALWAYS split text at valid UTF-8 boundaries, which should already be
+    implemented for data streams v1. For an example of this behavior, see the relevant web sdk
+    code: https://github.com/livekit/client-sdk-js/blob/23326f9c9b85d6babb562d54b6a663f132189880/src/room/utils.ts#L758
 
 ### Topics and handlers
 
@@ -179,13 +182,6 @@ encryptionType, etc.) and lets the consumer either:
 
 The reader counts received content bytes against `totalLength` (when present) and surfaces an error
 if the stream ends short, or if more bytes than declared arrive.
-
-### E2EE
-
-When data-channel encryption is enabled, the header's `encryptionType` is `GCM` and each chunk
-carries an `iv`. The receiver MUST enforce a consistent `encryptionType` across a stream's
-header and chunks; a mismatch errors the stream. `totalLength` and `attributes` semantics are
-unchanged by encryption.
 
 ---
 
