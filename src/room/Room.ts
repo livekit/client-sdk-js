@@ -2506,7 +2506,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     roomOptions: InternalRoomOptions,
   ): Array<ClientInfo_Capability> {
     const capabilities: Array<ClientInfo_Capability> = [];
-    if (isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) || !!this.e2eeManager) {
+    if (
+      isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
+      !!this.e2eeManager
+    ) {
       capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
     }
     // Advertise deflate-raw decompression support so peers know they can send us compressed data
