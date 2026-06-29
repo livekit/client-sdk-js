@@ -435,7 +435,9 @@ function createInlineStream(
  * dropped (with a warning - in-order delivery is expected on the reliable channel, but reconnect
  * handling may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
  */
-function ensureOrderedChunks(streamId: string): TransformStream<DataStream_Chunk, DataStream_Chunk> {
+function ensureOrderedChunks(
+  streamId: string,
+): TransformStream<DataStream_Chunk, DataStream_Chunk> {
   let lastChunkIndex = -1;
   return new TransformStream({
     transform: (value, controller) => {
@@ -479,7 +481,7 @@ function bytesToChunks(streamId: string): TransformStream<Uint8Array, DataStream
             streamId,
             chunkIndex: numberToBigInt(outIndex),
             content: value,
-          })
+          }),
         );
         outIndex += 1;
       }
@@ -518,7 +520,7 @@ function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataS
             streamId,
             chunkIndex: numberToBigInt(outIndex),
             content: encoder.encode(text),
-          })
+          }),
         );
         outIndex += 1;
       }
@@ -531,7 +533,7 @@ function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataS
             streamId,
             chunkIndex: numberToBigInt(outIndex),
             content: encoder.encode(tail),
-          })
+          }),
         );
         outIndex += 1;
       }

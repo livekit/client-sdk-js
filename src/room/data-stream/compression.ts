@@ -1,57 +1,37 @@
 /**
  * Compression helpers for data streams. The buffered deflate-raw variant ({@link deflateRawCompress})
  * is for the inline (single-packet) case where the payload is small and bounded;
- * {@link deflateRawCompressReadable} / {@link inflateRawTransform} serve the chunked (multi-packet)
- * `sendText`/`sendBytes`/`sendFile` paths, streaming the compressed bytes through without buffering
- * the whole payload.
+ * {@link deflateRawTransform} / {@link inflateRawTransform} serve the chunked (multi-packet)
+ * `sendText`/`sendBytes`/`sendFile` paths, streaming the bytes through without buffering the whole
+ * payload.
  *
  * These operate on bytes (not strings) so a single set of helpers serves both text and byte streams;
  * the `TextEncoder`/`TextDecoder` boundary lives at the manager/reader edges.
  *
- * Note the asymmetry between the two platform-codec wrappers: the inflate side
- * ({@link inflateRawTransform}) is exposed as a `ReadableWritablePair` so it drops straight into the
- * receive-side `pipeThrough` chain, at the cost of one localized cast to bridge a DOM lib-type
- * mismatch (see that function). The compress side ({@link deflateRawCompressReadable}) is consumed as
- * a plain readable on the send path, so it drives `getWriter()`/`getReader()` directly and needs no
- * cast.
+ * Both streaming variants are exposed as `ReadableWritablePair`s so they drop straight into a
+ * `pipeThrough` chain. Each needs one localized cast to bridge a DOM lib-type mismatch: the platform
+ * `CompressionStream`/`DecompressionStream` type their `writable` as `WritableStream<BufferSource>`
+ * (a wider element type than `Uint8Array`), and `WritableStream<W>` is covariant in `W`, so neither
+ * is structurally a `ReadableWritablePair<Uint8Array, Uint8Array>` without help.
  *
  * @internal
  */
 
 /**
- * Pipes a byte stream through `CompressionStream('deflate-raw')`, exposing the compressed output as
- * a readable — the compression counterpart of {@link inflateRawTransform}. Drives the source into the
- * compressor in the background (forwarding source errors via `abort`), so callers can forward the
- * compressed output incrementally without buffering the whole payload. Used for the chunked
- * `sendText`/`sendFile` paths, where the full payload is known up front but is streamed (e.g. from
- * `file.stream()`) rather than held in memory.
+ * A `deflate-raw` compression transform (inverse of {@link inflateRawTransform}): pipe a byte stream
+ * through it to get the compressed bytes without buffering the whole payload. Used for the chunked
+ * `sendText`/`sendBytes`/`sendFile` paths, where the full payload is known up front but is streamed
+ * (e.g. from `file.stream()`) rather than held in memory.
  */
-export function deflateRawCompressReadable(
-  input: ReadableStream<Uint8Array>,
-): ReadableStream<Uint8Array> {
-  const cs = new CompressionStream('deflate-raw');
-  const writer = cs.writable.getWriter();
-  const pipe = (async () => {
-    const reader = input.getReader();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        await writer.write(value as NonSharedUint8Array);
-      }
-      await writer.close();
-    } catch (err) {
-      await writer.abort(err).catch(() => {});
-    }
-  })();
-  pipe.catch(() => {});
-  return cs.readable;
+export function deflateRawTransform(): ReadableWritablePair<Uint8Array, Uint8Array> {
+  return new CompressionStream('deflate-raw') as unknown as ReadableWritablePair<
+    Uint8Array,
+    Uint8Array
+  >;
 }
 
 /**
- * A `deflate-raw` decompression transform (inverse of {@link deflateRawCompressReadable}): pipe a
+ * A `deflate-raw` decompression transform (inverse of {@link deflateRawTransform}): pipe a
  * stream of compressed bytes through it to get the decompressed bytes. Inflate emits output greedily,
  * so as long as the sender flushed at write boundaries each write's content is produced as soon as
  * its compressed bytes arrive.
