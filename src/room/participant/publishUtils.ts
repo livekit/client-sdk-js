@@ -19,7 +19,6 @@ import {
   isSVCCodec,
   isSafariBased,
   isSafariSvcApi,
-  unwrapConstraint,
 } from '../utils';
 
 /** @internal */
