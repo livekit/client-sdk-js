@@ -19,7 +19,6 @@ import {
   isSVCCodec,
   isSafariBased,
   isSafariSvcApi,
-  unwrapConstraint,
 } from '../utils';
 
 /** @internal */
@@ -468,16 +467,9 @@ export class ScalabilityMode {
   }
 }
 
-export function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference {
-  // a few of reasons we have different default paths:
-  // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
-  // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
-  if (
-    track.source === Track.Source.ScreenShare ||
-    (track.constraints.height && unwrapConstraint(track.constraints.height) >= 1080)
-  ) {
-    return 'maintain-resolution';
-  } else {
-    return 'balanced';
-  }
+export function getDefaultDegradationPreference(_track: LocalVideoTrack): RTCDegradationPreference {
+  // Default to 'maintain-resolution' for all video tracks to prevent initial blurriness.
+  // When bandwidth is constrained, this prefers dropping frames over reducing resolution,
+  // which maintains video clarity at the cost of smoothness.
+  return 'maintain-resolution';
 }
