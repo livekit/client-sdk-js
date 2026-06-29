@@ -10,7 +10,7 @@ import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
-import { deflateRawDecompress, inflateRawStream } from '../compression';
+import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -429,103 +429,73 @@ function createInlineStream(
 }
 
 /**
- * Unwraps a stream of compressed `DataStream_Chunk`s to their compressed bytes (in `chunkIndex`
- * order), guarding ordering for the stateful decompressor that consumes them. A stateful
- * decompressor silently corrupts on duplicated or out-of-order input, so duplicates are dropped
- * (with a warning - in-order delivery is expected on the reliable channel, but reconnect handling
- * may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
+ * Validates that chunks are received in order, dropping duplicates and throwing if gaps are found.
+ *
+ * A stateful decompressor silently corrupts on duplicated or out-of-order input, so duplicates are
+ * dropped (with a warning - in-order delivery is expected on the reliable channel, but reconnect
+ * handling may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
  */
-function orderedCompressedBytes(
-  srcReader: ReadableStreamDefaultReader<DataStream_Chunk>,
-  streamId: string,
-): ReadableStream<Uint8Array> {
+function ensureOrderedChunks(streamId: string): TransformStream<DataStream_Chunk, DataStream_Chunk> {
   let lastChunkIndex = -1;
-  return new ReadableStream<Uint8Array>({
-    pull: async (controller) => {
-      while (true) {
-        const { done, value } = await srcReader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-        const index = bigIntToNumber(value.chunkIndex);
-        if (index <= lastChunkIndex) {
-          log.warn(
-            `ignoring duplicate chunk ${index} for compressed data stream ${streamId} (last processed: ${lastChunkIndex})`,
-          );
-          continue;
-        }
-        if (index > lastChunkIndex + 1) {
-          throw new DataStreamError(
-            `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
-            DataStreamErrorReason.Incomplete,
-          );
-        }
-        lastChunkIndex = index;
-        controller.enqueue(value.content);
+  return new TransformStream({
+    transform: (value, controller) => {
+      const index = bigIntToNumber(value.chunkIndex);
+      if (index <= lastChunkIndex) {
+        log.warn(
+          `ignoring duplicate chunk ${index} for compressed data stream ${streamId} (last processed: ${lastChunkIndex})`,
+        );
         return;
       }
+      if (index > lastChunkIndex + 1) {
+        throw new DataStreamError(
+          `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
+          DataStreamErrorReason.Incomplete,
+        );
+      }
+      lastChunkIndex = index;
+      controller.enqueue(value);
     },
-    cancel: (reason) => srcReader.cancel(reason),
   });
 }
 
-/**
- * Transforms a stream of deflate-raw-compressed byte `DataStream_Chunk`s into a stream of
- * decompressed chunks, so `ByteStreamReader` consumes it unchanged. All chunk contents are fed (in
- * `chunkIndex` order) through ONE raw-deflate decompressor for the stream's lifetime; decompressed
- * output is re-wrapped as chunks as soon as it is produced. The sender (sendFile) compresses the
- * whole payload in one shot, but the format also supports a single context-takeover stream
- * sync-flushed at write boundaries, so a future incremental streamBytes could compress with no
- * protocol change. Errors on the source stream propagate to the reader.
- */
-function inflateRawByteChunkStream(
-  raw: ReadableStream<DataStream_Chunk>,
-  streamId: string,
-): ReadableStream<DataStream_Chunk> {
-  const srcReader = raw.getReader();
-  const decompressedReader = inflateRawStream(
-    orderedCompressedBytes(srcReader, streamId),
-  ).getReader();
+/** Unwraps compressed `DataStream_Chunk`s to their compressed bytes (in `chunkIndex` order), */
+function chunksToBytes(): TransformStream<DataStream_Chunk, Uint8Array> {
+  return new TransformStream({
+    transform: (value, controller) => {
+      controller.enqueue(value.content);
+    },
+  });
+}
 
+/** Re-wraps decompressed bytes into contiguous `DataStream_Chunk`s, skipping inflate's empty reads. */
+function bytesToChunks(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
   let outIndex = 0;
-  return new ReadableStream<DataStream_Chunk>({
-    pull: async (controller) => {
-      while (true) {
-        const { done, value } = await decompressedReader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-        if (value.byteLength > 0) {
-          controller.enqueue(makeChunk(streamId, outIndex++, value));
-          return;
-        }
-        // Inflate can emit empty reads; keep pulling until there is content or the stream ends.
+  return new TransformStream({
+    transform: (value, controller) => {
+      // Inflate can emit empty reads; only synthesize a chunk when there is content.
+      if (value.byteLength > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: value,
+          })
+        );
+        outIndex += 1;
       }
     },
-    cancel: (reason) => {
-      decompressedReader.cancel(reason).catch(() => {});
-      srcReader.cancel(reason).catch(() => {});
-    },
   });
 }
 
 /**
- * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
- * decompressed chunks, so `TextStreamReader` consumes it unchanged. Builds on
- * {@link inflateRawByteChunkStream} (single decompressor + ordering guard) and adds a streaming
- * `TextDecoder` that reframes the decompressed bytes on UTF-8 character boundaries (a write larger
- * than the MTU spans several packets, which may split a codepoint) so each synthesized chunk
- * decodes independently. Errors on the source stream propagate to the reader.
+ * Reframes decompressed byte chunks onto UTF-8 character boundaries via a streaming `TextDecoder`
+ * (a write larger than the MTU spans several packets, which may split a codepoint), so each
+ * synthesized text chunk decodes independently. The `flush` emits the decoder's trailing bytes.
  */
-function inflateRawChunkStream(
-  raw: ReadableStream<DataStream_Chunk>,
-  streamId: string,
-): ReadableStream<DataStream_Chunk> {
-  const byteReader = inflateRawByteChunkStream(raw, streamId).getReader();
-
+function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
   const decoder = new TextDecoder('utf-8', { fatal: true });
+  const encoder = new TextEncoder();
+
   let outIndex = 0;
   const decodeOrThrow = (bytes?: Uint8Array): string => {
     try {
@@ -538,39 +508,71 @@ function inflateRawChunkStream(
     }
   };
 
-  const encoder = new TextEncoder();
-  return new ReadableStream<DataStream_Chunk>({
-    pull: async (controller) => {
-      while (true) {
-        const { done, value } = await byteReader.read();
-        if (done) {
-          const tail = decodeOrThrow();
-          if (tail.length > 0) {
-            controller.enqueue(makeChunk(streamId, outIndex, encoder.encode(tail)));
-            outIndex += 1;
-          }
-          controller.close();
-          return;
-        }
-        const text = decodeOrThrow(value.content);
-        if (text.length > 0) {
-          controller.enqueue(makeChunk(streamId, outIndex, encoder.encode(text)));
-          outIndex += 1;
-          return;
-        }
-        // Everything so far was a partial codepoint; keep pulling.
+  return new TransformStream({
+    transform: (value, controller) => {
+      const text = decodeOrThrow(value);
+      // Everything so far may have been a partial codepoint; only emit once we have characters.
+      if (text.length > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: encoder.encode(text),
+          })
+        );
+        outIndex += 1;
       }
     },
-    cancel: (reason) => {
-      byteReader.cancel(reason).catch(() => {});
+    flush: (controller) => {
+      const tail = decodeOrThrow();
+      if (tail.length > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: encoder.encode(tail),
+          })
+        );
+        outIndex += 1;
+      }
     },
   });
 }
 
-function makeChunk(streamId: string, chunkIndex: number, content: Uint8Array): DataStream_Chunk {
-  return new DataStream_Chunk({
-    streamId,
-    chunkIndex: numberToBigInt(chunkIndex),
-    content: content as NonSharedUint8Array,
-  });
+/**
+ * Transforms a stream of deflate-raw-compressed byte `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `ByteStreamReader` consumes it unchanged. All chunk contents are fed (in
+ * `chunkIndex` order) through ONE raw-deflate decompressor for the stream's lifetime; decompressed
+ * output is re-wrapped as chunks as soon as it is produced. The sender (sendFile) compresses the
+ * whole payload in one shot, but the format also supports a single context-takeover stream
+ * sync-flushed at write boundaries, so a future incremental streamBytes could compress with no
+ * protocol change. Errors and cancellation propagate through the pipe chain.
+ */
+function inflateRawByteChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  return raw
+    .pipeThrough(ensureOrderedChunks(streamId))
+    .pipeThrough(chunksToBytes())
+    .pipeThrough(inflateRawTransform())
+    .pipeThrough(bytesToChunks(streamId));
+}
+
+/**
+ * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `TextStreamReader` consumes it unchanged. Builds on
+ * {@link inflateRawByteChunkStream} (single decompressor + ordering guard) and adds a streaming
+ * `TextDecoder` that reframes the decompressed bytes on UTF-8 character boundaries so each
+ * synthesized chunk decodes independently. Errors and cancellation propagate through the pipe chain.
+ */
+function inflateRawChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  return raw
+    .pipeThrough(ensureOrderedChunks(streamId))
+    .pipeThrough(chunksToBytes())
+    .pipeThrough(inflateRawTransform())
+    .pipeThrough(bytesToDecodedUtf8(streamId));
 }
