@@ -160,17 +160,30 @@ export default class IncomingDataStreamManager {
           encryptionType,
         };
 
-        // Both inline and chunked byte payloads are deflate-raw compressed; inline as a one-shot
-        // buffer, chunked as a single stream spanning all chunks (mirrors text).
-        const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
-
-        if (compressed && !isCompressionStreamSupported()) {
-          // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
-          // isn't properly abiding by the data streams v2 protocol.
-          log.warn(
-            `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
-          );
-          return;
+        // Determine if the byte payload needs to be decompressed.
+        let compressed;
+        switch (streamHeader.compression) {
+          case DataStream_CompressionType.DEFLATE_RAW:
+            if (!isCompressionStreamSupported()) {
+              // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+              // isn't properly abiding by the data streams v2 protocol.
+              log.warn(
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+              );
+              return;
+            }
+            compressed = true;
+            break;
+          case DataStream_CompressionType.NONE:
+            compressed = false;
+            break;
+          default:
+            // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+            // isn't properly abiding by the data streams v2 protocol.
+            log.warn(
+              `Data stream ${streamHeader.streamId} received with unknown compression type ${streamHeader.compression}, dropping...`,
+            );
+            return;
         }
 
         // Single-packet stream: the entire payload was packaged into the header's `inlineContent`.
@@ -248,17 +261,30 @@ export default class IncomingDataStreamManager {
           attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
         };
 
-        // Both inline and chunked text payloads are deflate-raw compressed; inline as a one-shot
-        // buffer, chunked as a single stream spanning all chunks.
-        const compressed = streamHeader.compression === DataStream_CompressionType.DEFLATE_RAW;
-
-        if (compressed && !isCompressionStreamSupported()) {
-          // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
-          // isn't properly abiding by the data streams v2 protocol.
-          log.warn(
-            `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
-          );
-          return;
+        // Determine if the byte payload needs to be decompressed.
+        let compressed;
+        switch (streamHeader.compression) {
+          case DataStream_CompressionType.DEFLATE_RAW:
+            if (!isCompressionStreamSupported()) {
+              // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+              // isn't properly abiding by the data streams v2 protocol.
+              log.warn(
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+              );
+              return;
+            }
+            compressed = true;
+            break;
+          case DataStream_CompressionType.NONE:
+            compressed = false;
+            break;
+          default:
+            // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+            // isn't properly abiding by the data streams v2 protocol.
+            log.warn(
+              `Data stream ${streamHeader.streamId} received with unknown compression type ${streamHeader.compression}, dropping...`,
+            );
+            return;
         }
 
         // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
