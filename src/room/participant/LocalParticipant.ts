@@ -112,7 +112,6 @@ import type RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
-  getDefaultDegradationPreference,
 } from './publishUtils';
 
 export default class LocalParticipant extends Participant {
@@ -1221,7 +1220,7 @@ export default class LocalParticipant extends Participant {
       this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
-        opts.degradationPreference ??= getDefaultDegradationPreference(track);
+        opts.degradationPreference ??= 'maintain-resolution';
         track.setDegradationPreference(opts.degradationPreference);
       }
 
