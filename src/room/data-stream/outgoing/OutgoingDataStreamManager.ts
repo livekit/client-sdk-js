@@ -29,7 +29,7 @@ import {
   readableFromBytes,
   splitUtf8,
 } from '../../utils';
-import { deflateRawCompress, deflateRawCompressReadable } from '../compression';
+import { deflateRawCompress, deflateRawTransform } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
 import {
@@ -156,7 +156,7 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        deflateRawCompressReadable(readableFromBytes(textEncoder.encode(text))),
+        readableFromBytes(textEncoder.encode(text)).pipeThrough(deflateRawTransform()),
       );
 
       // set text part of progress to 1
@@ -265,7 +265,7 @@ export default class OutgoingDataStreamManager {
     });
     const packet = createStreamHeaderPacket(header, destinationIdentities);
     const source = compressEligible
-      ? deflateRawCompressReadable(readableFromBytes(bytes))
+      ? readableFromBytes(bytes).pipeThrough(deflateRawTransform())
       : readableFromBytes(bytes);
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
     options?.onProgress?.(1);
@@ -471,7 +471,7 @@ export default class OutgoingDataStreamManager {
         : DataStream_CompressionType.NONE,
     });
     const packet = createStreamHeaderPacket(header, destinationIdentities);
-    const source = compress ? deflateRawCompressReadable(file.stream()) : file.stream();
+    const source = compress ? file.stream().pipeThrough(deflateRawTransform()) : file.stream();
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
 
     return info;
