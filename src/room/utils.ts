@@ -145,13 +145,59 @@ export function isSVCCodec(codec?: string): boolean {
   return codec === 'av1' || codec === 'vp9';
 }
 
+/** A shared relay element + destination node attached to an AudioContext on iOS 26.
+ *  iOS 26 grants setSinkId permission per-element (not per-origin), so a new <audio> element
+ *  created when a remote participant joins would fail setSinkId without a user gesture.
+ *  Routing all remote tracks through a single shared relay element (created once, setSinkId'd
+ *  once during the user gesture in Room.switchActiveDevice) sidesteps this. */
+const SHARED_RELAY_KEY = '_livekitSharedRelay';
+
+type AudioContextWithSharedRelay = AudioContext & {
+  [SHARED_RELAY_KEY]?: {
+    destinationNode: MediaStreamAudioDestinationNode;
+    relayElement: HTMLAudioElement;
+  };
+};
+
+export function getOrCreateSharedRelay(context: AudioContext): {
+  destinationNode: MediaStreamAudioDestinationNode;
+  relayElement: HTMLAudioElement;
+} {
+  const ctx = context as AudioContextWithSharedRelay;
+  if (!ctx[SHARED_RELAY_KEY]) {
+    const destinationNode = context.createMediaStreamDestination();
+    const relayElement = document.createElement('audio');
+    relayElement.hidden = true;
+    relayElement.autoplay = true;
+    relayElement.srcObject = destinationNode.stream;
+    document.body?.appendChild(relayElement);
+    relayElement.play().catch(() => {});
+    ctx[SHARED_RELAY_KEY] = { destinationNode, relayElement };
+  }
+  return ctx[SHARED_RELAY_KEY]!;
+}
+
+export function disposeSharedRelay(context: AudioContext) {
+  const ctx = context as AudioContextWithSharedRelay;
+  const relay = ctx[SHARED_RELAY_KEY];
+  if (relay) {
+    relay.relayElement.pause();
+    relay.relayElement.srcObject = null;
+    relay.relayElement.parentElement?.removeChild(relay.relayElement);
+    relay.destinationNode.disconnect();
+    delete ctx[SHARED_RELAY_KEY];
+  }
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document || isSafariBased()) {
-    return false;
-  }
-  if (!elm) {
-    elm = document.createElement('audio');
-  }
+  if (!document) return false;
+  // iOS/Safari 26+ has Speaker Selection API — trust the version check rather than
+  // feature-detecting via 'in', because Apple may not expose setSinkId on the prototype
+  // until the element is actually in a document context.
+  if (isSafariSpeakerSelectionSupported()) return true;
+  // Older Safari has no setSinkId at all.
+  if (isSafariBased()) return false;
+  if (!elm) elm = document.createElement('audio');
   return 'setSinkId' in elm;
 }
 
@@ -219,6 +265,20 @@ export function isSafariSvcApi(browser?: BrowserDetails): boolean {
     (browser?.os === 'iOS' &&
       !!browser?.osVersion &&
       compareVersions(browser.osVersion, '18.3') > 0)
+  );
+}
+
+export function isSafariSpeakerSelectionSupported(browser?: BrowserDetails): boolean {
+  if (!browser) {
+    browser = getBrowser();
+  }
+  // Safari (macOS or iOS) since version 26.
+  // https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes#WebRTC
+  // The iOS clause also catches WebKit-based browsers other than Safari on iOS 26+ (e.g. Chrome iOS),
+  // which inherit Safari's setSinkId behaviour because Apple requires them to use WebKit.
+  return (
+    (browser?.name === 'Safari' && compareVersions(browser.version, '26') >= 0) ||
+    (browser?.os === 'iOS' && !!browser?.osVersion && compareVersions(browser.osVersion, '26') >= 0)
   );
 }
 
