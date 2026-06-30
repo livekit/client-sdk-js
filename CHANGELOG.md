@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.20.1
+
+### Patch Changes
+
+- Add support for user_data frame metadata trailer type - [#1983](https://github.com/livekit/client-sdk-js/pull/1983) ([@chenosaurus](https://github.com/chenosaurus))
+
 ## 2.20.0
 
 ### Minor Changes
