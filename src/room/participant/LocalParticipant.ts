@@ -99,6 +99,7 @@ import {
   isLocalVideoTrack,
   isSVCCodec,
   isSafari17Based,
+  isVideoCodec,
   isVideoTrack,
   isWeb,
   sleep,
@@ -1248,7 +1249,8 @@ export default class LocalParticipant extends Participant {
               maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
             });
           }
-        } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+        } else if (track.codec && isVideoCodec(track.codec) && encodings[0]?.maxBitrate) {
+          // Apply start bitrate for all video codecs to prevent initial blurriness
           this.engine.pcManager.publisher.setTrackCodecBitrate({
             cid: req.cid,
             codec: track.codec,

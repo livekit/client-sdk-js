@@ -17,13 +17,17 @@ interface TrackBitrateInfo {
   maxbr: number;
 }
 
-/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
-increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at
-the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
-eliminate this issue.
-*/
-const startBitrateForSVC = 0.7;
+/*
+ * Video codecs use a very low bitrate at the beginning and increase slowly by
+ * the bandwidth estimator until they reach the target bitrate. The process commonly
+ * costs more than 10 seconds causing subscribers to get blurry video at the first
+ * few seconds. We use x-google-start-bitrate to hint the BWE to start higher.
+ *
+ * Why 90%: Gives ~10% headroom for bandwidth estimation while starting close to target.
+ * Why same for all codecs: Target bitrate already accounts for codec efficiency
+ * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
+ */
+const startBitrateMultiplier = 0.9;
 
 const debounceInterval = 20;
 
@@ -379,11 +383,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             // mung sdp for bitrate setting that can't apply by sendEncoding
-            if (!isSVCCodec(trackbr.codec)) {
-              return true;
-            }
-
-            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
+            const startBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
 
             for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
