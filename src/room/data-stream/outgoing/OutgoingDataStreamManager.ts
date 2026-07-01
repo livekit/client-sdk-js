@@ -119,10 +119,17 @@ export default class OutgoingDataStreamManager {
       let inlineContent: Uint8Array = textInBytes;
       let compression = DataStream_CompressionType.NONE;
       if (compressedStream) {
-        const collectedBytes = await compressedStream.collect();
-        if (collectedBytes.byteLength < textInBytes.byteLength) {
-          inlineContent = collectedBytes;
-          compression = DataStream_CompressionType.DEFLATE_RAW;
+        // The compressed form is only worth inlining if it's both smaller than the raw payload and
+        // small enough to fit in a single packet. Probe just up to that budget so a large payload
+        // isn't fully buffered here — if it's over budget it stays streamable for Phase 2.
+        const inlineBudget = Math.min(textInBytes.byteLength, STREAM_CHUNK_SIZE_BYTES);
+        const tooLong = await compressedStream.lengthLargerThan(inlineBudget);
+        if (!tooLong) {
+          const collectedBytes = await compressedStream.collect();
+          if (collectedBytes.byteLength < textInBytes.byteLength) {
+            inlineContent = collectedBytes;
+            compression = DataStream_CompressionType.DEFLATE_RAW;
+          }
         }
       }
 
@@ -243,10 +250,17 @@ export default class OutgoingDataStreamManager {
       let inlineContent: Uint8Array = bytes;
       let compression = DataStream_CompressionType.NONE;
       if (compressedStream) {
-        const collectedBytes = await compressedStream.collect();
-        if (collectedBytes.byteLength < bytes.byteLength) {
-          inlineContent = collectedBytes;
-          compression = DataStream_CompressionType.DEFLATE_RAW;
+        // The compressed form is only worth inlining if it's both smaller than the raw payload and
+        // small enough to fit in a single packet. Probe just up to that budget so a large payload
+        // isn't fully buffered here — if it's over budget it stays streamable for Phase 2.
+        const inlineBudget = Math.min(bytes.byteLength, STREAM_CHUNK_SIZE_BYTES);
+        const tooLong = await compressedStream.lengthLargerThan(inlineBudget);
+        if (!tooLong) {
+          const collectedBytes = await compressedStream.collect();
+          if (collectedBytes.byteLength < bytes.byteLength) {
+            inlineContent = collectedBytes;
+            compression = DataStream_CompressionType.DEFLATE_RAW;
+          }
         }
       }
 
@@ -561,15 +575,22 @@ export default class OutgoingDataStreamManager {
  * length — and the only way to learn that is to compress everything and add up the bytes. That
  * forces us to buffer the entire compressed output before we can make the decision.
  *
- * This class lets us have it both ways. It holds the compressed stream unread by default and only
- * collects it into memory ({@link collect}) when a caller needs the length for the single-packet
- * size check. If that check never happens, the stream is instead {@link stream|passed straight
- * through} to the downstream consumer without ever being fully buffered. Once collected, later
- * calls reuse the buffered bytes rather than re-collecting.
+ * This class lets us have it both ways. It holds the compressed stream unread by default. When a
+ * caller needs to know whether the payload fits in a single packet, {@link lengthLargerThan} reads
+ * only far enough to answer that (stopping the moment the length exceeds the budget) rather than
+ * buffering — and waiting for — the whole stream. If the stream turns out to be small it ends up
+ * fully {@link collect|collected}; if it's too large the read prefix is retained and the remainder
+ * can still be {@link stream|streamed through} incrementally to the downstream consumer, so nothing
+ * is buffered twice or dropped. Once fully collected, later calls reuse the buffered bytes.
  */
 class CompressedStreamState {
   private state:
     | { type: 'stream'; stream: ReadableStream<Uint8Array> }
+    | {
+        type: 'partial';
+        buffered: Uint8Array;
+        reader: ReadableStreamDefaultReader<Uint8Array>;
+      }
     | { type: 'collected'; bytes: Uint8Array };
 
   private constructor(state: typeof this.state) {
@@ -580,6 +601,58 @@ class CompressedStreamState {
     return new CompressedStreamState({ type: 'stream', stream });
   }
 
+  /**
+   * Reads from the compressed stream only far enough to decide whether its total length exceeds
+   * `n`, stopping early the moment it does. Avoids buffering (and waiting for) the whole stream just
+   * to learn it is too large to inline.
+   *
+   * Returns true if the stream is longer than `n` bytes. On a `false` result the stream was shorter,
+   * so it is now fully `collected`; on a `true` result the read prefix is retained in a `partial`
+   * state and the rest can still be streamed via {@link stream} or drained via {@link collect}.
+   * Intended to be called once, before {@link collect}/{@link stream}.
+   */
+  async lengthLargerThan(n: number): Promise<boolean> {
+    switch (this.state.type) {
+      case 'collected':
+        return this.state.bytes.byteLength > n;
+      case 'partial':
+        // Already read past `n` to get here (that's the only way we enter this state).
+        return true;
+      case 'stream': {
+        const reader = this.state.stream.getReader();
+        const chunks: Array<Uint8Array> = [];
+        let total = 0;
+        let exceeded = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          chunks.push(value);
+          total += value.byteLength;
+          if (total > n) {
+            exceeded = true;
+            break;
+          }
+        }
+        // Merge whatever we've read into one contiguous buffer.
+        const buffered = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          buffered.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        if (exceeded) {
+          this.state = { type: 'partial', buffered, reader };
+          return true;
+        }
+        reader.releaseLock();
+        this.state = { type: 'collected', bytes: buffered };
+        return buffered.byteLength > n;
+      }
+    }
+  }
+
   /** Collect data from the stream into memory and return as a Uint8Array. */
   async collect() {
     switch (this.state.type) {
@@ -587,18 +660,48 @@ class CompressedStreamState {
         const bytes = await collect(this.state.stream);
         this.state = { type: 'collected', bytes };
         return bytes;
+      case 'partial': {
+        // Drain the reconstructed stream (buffered prefix + rest of the reader) in one pass.
+        const collectedBytes = await collect(this.stream());
+        this.state = { type: 'collected', bytes: collectedBytes };
+        return collectedBytes;
+      }
       case 'collected':
         return this.state.bytes;
     }
   }
 
   /** Pass wrapped stream through to downstream consumer. */
-  stream() {
+  stream(): ReadableStream<Uint8Array> {
     switch (this.state.type) {
       case 'stream':
         return this.state.stream;
       case 'collected':
         return readableFromBytes(this.state.bytes);
+      case 'partial': {
+        // Emit the already-read prefix as one chunk, then resume pumping the retained reader.
+        const { buffered, reader } = this.state;
+        let prefixSent = false;
+        return new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            if (!prefixSent) {
+              prefixSent = true;
+              controller.enqueue(buffered);
+              return;
+            }
+            const { done, value } = await reader.read();
+            if (done) {
+              reader.releaseLock();
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          },
+          cancel(reason) {
+            return reader.cancel(reason);
+          },
+        });
+      }
     }
   }
 }
