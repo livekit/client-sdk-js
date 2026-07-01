@@ -239,7 +239,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       // recvonly placeholder sections with defaults. Conform the placeholders so
       // each shared payload type is consistent across the bundle, otherwise
       // recent libwebrtc rejects the answer with a "payload type collision".
-      const placeholderMids = this.getRecvOnlyPlaceholderMids();
+      const placeholderMids = this.getPlaceholderMids();
       if (placeholderMids.size > 0) {
         conformBundledCodecFmtp(sdpParsed.media, (media) =>
           placeholderMids.has(getMidString(media.mid!)),
@@ -411,10 +411,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
-      // Conform the pre-populated recvonly placeholder sections so every shared
-      // payload type carries identical fmtp across the bundle, otherwise recent
-      // libwebrtc rejects the offer with a "payload type collision".
-      conformBundledCodecFmtp(sdpParsed.media, isPlaceholderOfferSection);
+      // Conform the placeholder sections (pre-populated, or reverted after an
+      // unpublish) so every shared payload type carries identical fmtp across the
+      // bundle, otherwise recent libwebrtc rejects the offer with a "payload type
+      // collision". Detection is by transceiver (mids are stable across
+      // renegotiations) since an unpublished section keeps its `a=msid`.
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
           ...this.logContext,
@@ -444,19 +451,14 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   }
 
   /**
-   * Returns the mids of the pre-populated recvonly placeholder transceivers
-   * (added by `RTCEngine.applyInitialPublisherLayout`): recvonly transceivers
-   * with no outgoing track. Used to conform their codec fmtp to the published
-   * tracks so a shared payload type stays consistent across the bundle.
+   * Returns the mids of transceivers that carry no outgoing track on this
+   * (publisher) connection: the pre-populated placeholders added by
+   * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
+   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
+   * published tracks so a shared payload type stays consistent across the bundle.
    */
-  private getRecvOnlyPlaceholderMids(): Set<string> {
-    const mids = new Set<string>();
-    this._pc?.getTransceivers().forEach((transceiver) => {
-      if (transceiver.mid && transceiver.direction === 'recvonly' && !transceiver.sender.track) {
-        mids.add(transceiver.mid);
-      }
-    });
-    return mids;
+  private getPlaceholderMids(): Set<string> {
+    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -735,13 +737,25 @@ function ensureAudioNackAndStereo(
 }
 
 /**
- * A pre-populated recvonly media section carries no outgoing media, so it has
- * neither an `a=msid` nor any `a=ssrc` line. These are the placeholder sections
- * added by `RTCEngine.applyInitialPublisherLayout` on the publisher connection.
+ * Returns the mids of transceivers that carry no outgoing track: the
+ * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
+ * plus any transceiver that was used for a track and reverted on unpublish. The
+ * `sender.track` check is the reliable signal — an unpublished section keeps its
+ * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
+ * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * this works for every offer/answer after the first.
+ * @internal
  */
-/** @internal */
-export function isPlaceholderOfferSection(media: MediaDescription): boolean {
-  return media.direction === 'recvonly' && !media.msid && (media.ssrcs?.length ?? 0) === 0;
+export function placeholderMidsFromTransceivers(
+  transceivers: readonly RTCRtpTransceiver[],
+): Set<string> {
+  const mids = new Set<string>();
+  for (const transceiver of transceivers) {
+    if (transceiver.mid && !transceiver.sender.track) {
+      mids.add(transceiver.mid);
+    }
+  }
+  return mids;
 }
 
 /**
@@ -753,27 +767,34 @@ export function isPlaceholderOfferSection(media: MediaDescription): boolean {
  * between a published video track and a placeholder — failing with a
  * "Bundled payload type collision" (INVALID_PARAMETER).
  *
- * Copy the fmtp advertised by the real (non-placeholder) sections onto the
- * placeholder sections that share a payload type. This only ever rewrites the
- * throwaway placeholder sections, never the encoder parameters of a real track,
- * and is codec-agnostic (opus, H.265, ...). `isPlaceholder` identifies the
- * sections to conform.
+ * Rewrite the placeholder sections so every shared payload type carries the
+ * same fmtp. Real (non-placeholder) sections always win the canonical value, so
+ * a published track's encoder parameters are never altered. When no real
+ * section declares a payload type — e.g. a placeholder that was reused for a
+ * track and then reverted to recvonly keeps its send-derived `level-id` while
+ * fresh placeholders use the default — the placeholders still converge on the
+ * first value seen, so two placeholders can't disagree either. Only placeholder
+ * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * `isPlaceholder` identifies the sections to conform.
  * @internal
  */
 export function conformBundledCodecFmtp(
   media: MediaDescription[],
   isPlaceholder: (media: MediaDescription) => boolean,
 ) {
-  // Canonical fmtp per payload type, taken from the real (non-placeholder)
-  // sections. Payload types are unique within a BUNDLE group, so keying by
-  // payload alone (across audio and video) is safe.
+  // Canonical fmtp per payload type. Payload types are unique within a BUNDLE
+  // group, so keying by payload alone (across audio and video) is safe. A real
+  // section's value always takes precedence; otherwise the first placeholder
+  // value seen is used so divergent placeholders still converge.
   const canonicalByPayload = new Map<number, string>();
+  const fromRealSection = new Set<number>();
   for (const m of media) {
-    if (isPlaceholder(m)) {
-      continue;
-    }
+    const placeholder = isPlaceholder(m);
     for (const fmtp of m.fmtp ?? []) {
-      if (!canonicalByPayload.has(fmtp.payload)) {
+      if (!placeholder) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+        fromRealSection.add(fmtp.payload);
+      } else if (!canonicalByPayload.has(fmtp.payload)) {
         canonicalByPayload.set(fmtp.payload, fmtp.config);
       }
     }
