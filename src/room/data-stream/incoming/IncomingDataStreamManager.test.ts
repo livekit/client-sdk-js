@@ -972,5 +972,73 @@ describe('IncomingDataStreamManager', () => {
         (globalThis as any).DecompressionStream = originalDecompressionStream!;
       }
     });
+
+    it('should receive a v2 SINGLE PACKET text data stream with zero length', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'text/plain',
+              timestamp: 0n,
+              totalLength: 0n,
+              attributes: { foo: 'bar' },
+              inlineContent: new Uint8Array(0), // Empty buffer that is 0 bytes long
+              contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual('');
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
+    });
+
+    it('should receive a v2 SINGLE PACKET byte data stream with zero length', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        new DataPacket({
+          participantIdentity: 'alice',
+          value: {
+            case: 'streamHeader',
+            value: new DataStream_Header({
+              streamId,
+              topic: 'my-topic',
+              mimeType: 'byte/plain',
+              timestamp: 0n,
+              totalLength: 0n,
+              attributes: { foo: 'bar' },
+              inlineContent: new Uint8Array(0), // Empty buffer that is 0 bytes long
+              contentHeader: { case: 'byteHeader', value: new DataStream_ByteHeader({}) },
+            }),
+          },
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual([new Uint8Array(0)]);
+      expect(reader.info.attributes?.foo).toStrictEqual('bar');
+    });
   });
 });
