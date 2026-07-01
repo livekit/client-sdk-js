@@ -212,8 +212,8 @@ export default class OutgoingDataStreamManager {
 
     const info: ByteStreamInfo = {
       id: streamId,
-      name: 'unknown',
-      mimeType: 'application/octet-stream',
+      name: options?.name ?? 'unknown',
+      mimeType: options?.mimeType ?? 'application/octet-stream',
       timestamp: Date.now(),
       topic: options?.topic ?? '',
       size: bytes.byteLength, // NOTE: size is always the pre-compression byte length

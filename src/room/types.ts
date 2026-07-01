@@ -34,6 +34,8 @@ export interface SendBytesOptions {
   /** Whether to compress the payload (deflate-raw). Defaults to true. Compression is only applied
    * when every recipient supports data streams v2 and the runtime can compress. */
   compress?: boolean;
+  name?: string;
+  mimeType?: string;
 }
 
 export interface StreamTextOptions {
