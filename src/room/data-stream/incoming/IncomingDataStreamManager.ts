@@ -236,7 +236,7 @@ export default class IncomingDataStreamManager {
             identity: participantIdentity,
           },
         );
-        break;
+        return;
       }
       case 'textHeader': {
         const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
@@ -333,7 +333,7 @@ export default class IncomingDataStreamManager {
           ),
           { identity: participantIdentity },
         );
-        break;
+        return;
       }
     }
   }
