@@ -62,12 +62,12 @@ export async function deflateRawDecompress(data: Uint8Array): Promise<Uint8Array
   return collect(ds.readable);
 }
 
-/** Concatenates all chunks of a byte stream into one array. */
-async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+/** Drains a byte stream, concatenating all of its chunks into a single array. */
+export async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
+  while (true) {
     const { done, value } = await reader.read();
     if (done) {
       break;
