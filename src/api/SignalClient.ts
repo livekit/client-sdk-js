@@ -56,7 +56,11 @@ import {
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
-import { DataTrackFrameEncoding, DataTrackSchemaId, type DataTrackSid } from '../room/data-track/types';
+import {
+  DataTrackFrameEncoding,
+  DataTrackSchemaId,
+  type DataTrackSid,
+} from '../room/data-track/types';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
