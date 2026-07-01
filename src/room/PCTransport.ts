@@ -238,7 +238,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       // the sections mapped to a published track, but leaves the pre-populated
       // recvonly placeholder sections with defaults. Conform the placeholders so
       // each shared payload type is consistent across the bundle, otherwise
-      // recent libwebrtc rejects the answer with a "payload type collision".
+      // libwebrtc flags a "bundled payload type collision".
       const placeholderMids = this.getPlaceholderMids();
       if (placeholderMids.size > 0) {
         conformBundledCodecFmtp(sdpParsed.media, (media) =>
@@ -413,9 +413,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       });
       // Conform the placeholder sections (pre-populated, or reverted after an
       // unpublish) so every shared payload type carries identical fmtp across the
-      // bundle, otherwise recent libwebrtc rejects the offer with a "payload type
-      // collision". Detection is by transceiver (mids are stable across
-      // renegotiations) since an unpublished section keeps its `a=msid`.
+      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // Detection is by transceiver (mids are stable across renegotiations) since
+      // an unpublished section keeps its `a=msid`.
       const placeholderMids = this.getPlaceholderMids();
       if (placeholderMids.size > 0) {
         conformBundledCodecFmtp(sdpParsed.media, (media) =>
@@ -760,12 +760,11 @@ export function placeholderMidsFromTransceivers(
 
 /**
  * Within a BUNDLE group a payload type must map to identical codec parameters
- * across every m-line. Newer libwebrtc (shipping in recent Chromium/Electron)
- * rejects a description where the same payload type carries different fmtp
- * between sections — e.g. opus `usedtx=1` on the published microphone but not on
- * the pre-populated recvonly placeholders, or H.265 with different `level-id`
- * between a published video track and a placeholder — failing with a
- * "Bundled payload type collision" (INVALID_PARAMETER).
+ * across every m-line. When the same payload type carries different fmtp between
+ * sections — e.g. opus `usedtx=1` on the published microphone but not on the
+ * pre-populated recvonly placeholders, or H.265 with different `level-id` between
+ * a published video track and a placeholder — libwebrtc flags a "bundled payload
+ * type collision".
  *
  * Rewrite the placeholder sections so every shared payload type carries the
  * same fmtp. Real (non-placeholder) sections always win the canonical value, so
