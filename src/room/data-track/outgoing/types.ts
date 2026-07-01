@@ -1,11 +1,22 @@
 import type LocalDataTrack from '../LocalDataTrack';
 import { type DataTrackHandle } from '../handle';
-import { type DataTrackInfo, type DataTrackSid } from '../types';
+import {
+  type DataTrackFrameEncoding,
+  type DataTrackInfo,
+  type DataTrackSchemaId,
+  type DataTrackSid,
+} from '../types';
 import { type DataTrackPublishError, type DataTrackPublishErrorReason } from './errors';
 
 /** Options for publishing a data track. */
 export type DataTrackOptions = {
   name: string;
+
+  /** Schema describing frames sent on the track. */
+  schema?: DataTrackSchemaId;
+
+  /** Encoding of frames sent on the track. */
+  frameEncoding?: DataTrackFrameEncoding;
 };
 
 /** Encodes whether a data track publish request to the SFU has been successful or not. */
@@ -26,6 +37,8 @@ export type EventSfuPublishRequest = {
   handle: DataTrackHandle;
   name: string;
   usesE2ee: boolean;
+  schema?: DataTrackSchemaId;
+  frameEncoding?: DataTrackFrameEncoding;
 };
 
 /** Request sent to the SFU to unpublish a track. */

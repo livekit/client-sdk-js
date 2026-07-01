@@ -56,7 +56,7 @@ import {
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
-import { type DataTrackSid } from '../room/data-track/types';
+import { DataTrackFrameEncoding, DataTrackSchemaId, type DataTrackSid } from '../room/data-track/types';
 import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
@@ -711,13 +711,21 @@ export class SignalClient {
     });
   }
 
-  sendPublishDataTrackRequest(handle: DataTrackHandle, name: string, usesE2ee: boolean) {
+  sendPublishDataTrackRequest(
+    handle: DataTrackHandle,
+    name: string,
+    usesE2ee: boolean,
+    schema?: DataTrackSchemaId,
+    frameEncoding?: DataTrackFrameEncoding,
+  ) {
     return this.sendRequest({
       case: 'publishDataTrackRequest',
       value: new PublishDataTrackRequest({
         pubHandle: handle,
         name: name,
         encryption: usesE2ee ? Encryption_Type.GCM : Encryption_Type.NONE,
+        schema: schema ? DataTrackSchemaId.toProtobuf(schema) : undefined,
+        frameEncoding: frameEncoding ? DataTrackFrameEncoding.toProtobuf(frameEncoding) : undefined,
       }),
     });
   }

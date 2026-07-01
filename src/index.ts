@@ -178,6 +178,11 @@ export type {
   DataTrackSubscribeOptions,
   RemoteDataTrackPipelineOptions,
 };
+export type {
+  DataTrackSchemaId,
+  DataTrackSchemaEncoding,
+  DataTrackFrameEncoding,
+} from './room/data-track/types';
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {
   type DataTrackExtensions,
