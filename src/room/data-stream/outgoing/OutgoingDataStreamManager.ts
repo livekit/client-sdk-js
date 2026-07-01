@@ -557,7 +557,7 @@ export default class OutgoingDataStreamManager {
 class CompressedStreamState {
   private state:
     | { type: 'stream'; stream: ReadableStream<Uint8Array> }
-    | { type: 'collected'; bytes: Uint8Array<ArrayBufferLike> };
+    | { type: 'collected'; bytes: Uint8Array };
 
   private constructor(state: typeof this.state) {
     this.state = state;
