@@ -234,6 +234,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
+      // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
+      // the sections mapped to a published track, but leaves the pre-populated
+      // recvonly placeholder sections with defaults. Conform the placeholders so
+      // each shared payload type is consistent across the bundle, otherwise
+      // libwebrtc flags a "bundled payload type collision".
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       mungedSDP = write(sdpParsed);
     }
     await this.setMungedSDP(sd, mungedSDP, true);
@@ -400,6 +411,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
+      // Conform the placeholder sections (pre-populated, or reverted after an
+      // unpublish) so every shared payload type carries identical fmtp across the
+      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // Detection is by transceiver (mids are stable across renegotiations) since
+      // an unpublished section keeps its `a=msid`.
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
           ...this.logContext,
@@ -426,6 +448,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     });
     await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
+  }
+
+  /**
+   * Returns the mids of transceivers that carry no outgoing track on this
+   * (publisher) connection: the pre-populated placeholders added by
+   * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
+   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
+   * published tracks so a shared payload type stays consistent across the bundle.
+   */
+  private getPlaceholderMids(): Set<string> {
+    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -699,6 +732,86 @@ function ensureAudioNackAndStereo(
         }
         return false;
       });
+    }
+  }
+}
+
+/**
+ * Returns the mids of transceivers that carry no outgoing track: the
+ * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
+ * plus any transceiver that was used for a track and reverted on unpublish. The
+ * `sender.track` check is the reliable signal — an unpublished section keeps its
+ * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
+ * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * this works for every offer/answer after the first.
+ * @internal
+ */
+export function placeholderMidsFromTransceivers(
+  transceivers: readonly RTCRtpTransceiver[],
+): Set<string> {
+  const mids = new Set<string>();
+  for (const transceiver of transceivers) {
+    if (transceiver.mid && !transceiver.sender.track) {
+      mids.add(transceiver.mid);
+    }
+  }
+  return mids;
+}
+
+/**
+ * Within a BUNDLE group a payload type must map to identical codec parameters
+ * across every m-line. When the same payload type carries different fmtp between
+ * sections — e.g. opus `usedtx=1` on the published microphone but not on the
+ * pre-populated recvonly placeholders, or H.265 with different `level-id` between
+ * a published video track and a placeholder — libwebrtc flags a "bundled payload
+ * type collision".
+ *
+ * Rewrite the placeholder sections so every shared payload type carries the
+ * same fmtp. Real (non-placeholder) sections always win the canonical value, so
+ * a published track's encoder parameters are never altered. When no real
+ * section declares a payload type — e.g. a placeholder that was reused for a
+ * track and then reverted to recvonly keeps its send-derived `level-id` while
+ * fresh placeholders use the default — the placeholders still converge on the
+ * first value seen, so two placeholders can't disagree either. Only placeholder
+ * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * `isPlaceholder` identifies the sections to conform.
+ * @internal
+ */
+export function conformBundledCodecFmtp(
+  media: MediaDescription[],
+  isPlaceholder: (media: MediaDescription) => boolean,
+) {
+  // Canonical fmtp per payload type. Payload types are unique within a BUNDLE
+  // group, so keying by payload alone (across audio and video) is safe. A real
+  // section's value always takes precedence; otherwise the first placeholder
+  // value seen is used so divergent placeholders still converge.
+  const canonicalByPayload = new Map<number, string>();
+  const fromRealSection = new Set<number>();
+  for (const m of media) {
+    const placeholder = isPlaceholder(m);
+    for (const fmtp of m.fmtp ?? []) {
+      if (!placeholder) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+        fromRealSection.add(fmtp.payload);
+      } else if (!canonicalByPayload.has(fmtp.payload)) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+      }
+    }
+  }
+  if (canonicalByPayload.size === 0) {
+    return;
+  }
+
+  // Conform placeholder sections to the canonical fmtp for each shared payload.
+  for (const m of media) {
+    if (!isPlaceholder(m)) {
+      continue;
+    }
+    for (const fmtp of m.fmtp ?? []) {
+      const config = canonicalByPayload.get(fmtp.payload);
+      if (config !== undefined && fmtp.config !== config) {
+        fmtp.config = config;
+      }
     }
   }
 }
