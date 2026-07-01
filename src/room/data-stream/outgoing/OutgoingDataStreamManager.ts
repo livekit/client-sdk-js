@@ -29,7 +29,7 @@ import {
   readableFromBytes,
   splitUtf8,
 } from '../../utils';
-import { deflateRawCompress, deflateRawTransform } from '../compression';
+import { collect, deflateRawTransform } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
 import {
@@ -98,23 +98,30 @@ export default class OutgoingDataStreamManager {
         : Encryption_Type.NONE,
     };
 
+    const compressEligible =
+      compress &&
+      isCompressionStreamSupported() &&
+      this.allRecipientsSupportV2(options?.destinationIdentities) &&
+      this.allRecipientsSupportCompression(options?.destinationIdentities);
+    let compressedStream = compressEligible
+      ? CompressedStreamState.fromStream(
+          readableFromBytes(textInBytes).pipeThrough(deflateRawTransform()),
+        )
+      : null;
+
     // Phase 1: Try to send as a single packet data stream
     const noAttachments = !options?.attachments || options.attachments.length === 0;
     if (noAttachments && this.allRecipientsSupportV2(options?.destinationIdentities)) {
-      // The payload rides in the header's `inlineContent` (raw bytes). Compress when the runtime
-      // supports it, but only keep the result if it actually shrinks the payload (deflate framing
-      // makes tiny strings larger). The compression flag is carried in the header's `compression`
-      // field; user attributes are left untouched.
+      // The payload rides in the header's `inlineContent` (raw bytes). Keep the compressed form only
+      // if it actually shrinks the payload (deflate framing makes tiny strings larger). The
+      // compression flag is carried in the header's `compression` field; user attributes are left
+      // untouched.
       let inlineContent: Uint8Array = textInBytes;
       let compression = DataStream_CompressionType.NONE;
-      if (
-        compress &&
-        isCompressionStreamSupported() &&
-        this.allRecipientsSupportCompression(options?.destinationIdentities)
-      ) {
-        const compressed = await deflateRawCompress(textInBytes);
-        if (compressed.byteLength < textInBytes.byteLength) {
-          inlineContent = compressed;
+      if (compressedStream) {
+        const collectedBytes = await compressedStream.collect();
+        if (collectedBytes.byteLength < textInBytes.byteLength) {
+          inlineContent = collectedBytes;
           compression = DataStream_CompressionType.DEFLATE_RAW;
         }
       }
@@ -140,12 +147,7 @@ export default class OutgoingDataStreamManager {
     };
 
     // Phase 2: Try to send a multi packet data stream with compressed bytes
-    if (
-      compress &&
-      isCompressionStreamSupported() &&
-      this.allRecipientsSupportV2(options?.destinationIdentities) &&
-      this.allRecipientsSupportCompression(options?.destinationIdentities)
-    ) {
+    if (compressedStream) {
       info.attachedStreamIds = fileIds;
 
       const header = buildTextStreamHeader(info, undefined, {
@@ -156,7 +158,7 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        readableFromBytes(textEncoder.encode(text)).pipeThrough(deflateRawTransform()),
+        compressedStream.stream(),
       );
 
       // set text part of progress to 1
@@ -221,22 +223,29 @@ export default class OutgoingDataStreamManager {
         : Encryption_Type.NONE,
     };
 
+    const compressEligible =
+      compress &&
+      isCompressionStreamSupported() &&
+      this.allRecipientsSupportV2(destinationIdentities) &&
+      this.allRecipientsSupportCompression(destinationIdentities);
+    let compressedStream = compressEligible
+      ? CompressedStreamState.fromStream(
+          readableFromBytes(bytes).pipeThrough(deflateRawTransform()),
+        )
+      : null;
+
     // Phase 1: Try to send as a single packet data stream
     if (this.allRecipientsSupportV2(destinationIdentities)) {
-      // The payload rides in the header's `inlineContent` (raw bytes). Compress when the runtime
-      // supports it, but only keep the result if it actually shrinks the payload (deflate framing
-      // makes tiny payloads larger). The compression flag is carried in the header's `compression`
-      // field; user attributes are left untouched.
+      // The payload rides in the header's `inlineContent` (raw bytes). Keep the compressed form only
+      // if it actually shrinks the payload (deflate framing makes tiny payloads larger). The
+      // compression flag is carried in the header's `compression` field; user attributes are left
+      // untouched.
       let inlineContent: Uint8Array = bytes;
       let compression = DataStream_CompressionType.NONE;
-      if (
-        compress &&
-        isCompressionStreamSupported() &&
-        this.allRecipientsSupportCompression(destinationIdentities)
-      ) {
-        const compressed = await deflateRawCompress(bytes);
-        if (compressed.byteLength < bytes.byteLength) {
-          inlineContent = compressed;
+      if (compressedStream) {
+        const collectedBytes = await compressedStream.collect();
+        if (collectedBytes.byteLength < bytes.byteLength) {
+          inlineContent = collectedBytes;
           compression = DataStream_CompressionType.DEFLATE_RAW;
         }
       }
@@ -252,21 +261,13 @@ export default class OutgoingDataStreamManager {
     }
 
     // Phase 2/3: header + (optionally compressed) chunk packets + trailer.
-    const compressEligible =
-      compress &&
-      isCompressionStreamSupported() &&
-      this.allRecipientsSupportV2(destinationIdentities) &&
-      this.allRecipientsSupportCompression(destinationIdentities);
-
     const header = buildByteStreamHeader(info, {
-      compression: compressEligible
+      compression: compressedStream
         ? DataStream_CompressionType.DEFLATE_RAW
         : DataStream_CompressionType.NONE,
     });
     const packet = createStreamHeaderPacket(header, destinationIdentities);
-    const source = compressEligible
-      ? readableFromBytes(bytes).pipeThrough(deflateRawTransform())
-      : readableFromBytes(bytes);
+    const source = compressedStream ? compressedStream.stream() : readableFromBytes(bytes);
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
     options?.onProgress?.(1);
 
@@ -547,6 +548,45 @@ export default class OutgoingDataStreamManager {
     const byteWriter = new ByteStreamWriter(writableStream, info);
 
     return byteWriter;
+  }
+}
+
+/** A utility to handle lazily calling {@link collect} on a stream of compressed bytes only when
+ * requested, to avoid buffering lots of data into memory until the program needs it.
+ */
+class CompressedStreamState {
+  private state:
+    | { type: 'stream'; stream: ReadableStream<Uint8Array> }
+    | { type: 'collected'; bytes: Uint8Array<ArrayBufferLike> };
+
+  private constructor(state: typeof this.state) {
+    this.state = state;
+  }
+
+  static fromStream(stream: ReadableStream<Uint8Array>) {
+    return new CompressedStreamState({ type: 'stream', stream });
+  }
+
+  /** Collect data from the stream into memory and return as a Uint8Array. */
+  async collect() {
+    switch (this.state.type) {
+      case 'stream':
+        const bytes = await collect(this.state.stream);
+        this.state = { type: 'collected', bytes };
+        return bytes;
+      case 'collected':
+        return this.state.bytes;
+    }
+  }
+
+  /** Pass wrapped stream through to downstream consumer. */
+  stream() {
+    switch (this.state.type) {
+      case 'stream':
+        return this.state.stream;
+      case 'collected':
+        return readableFromBytes(this.state.bytes);
+    }
   }
 }
 
