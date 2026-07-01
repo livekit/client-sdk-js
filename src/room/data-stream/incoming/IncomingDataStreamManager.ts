@@ -1,6 +1,7 @@
 import {
   type DataPacket,
   DataStream_Chunk,
+  DataStream_CompressionType,
   DataStream_Header,
   DataStream_Trailer,
   Encryption_Type,
@@ -8,7 +9,8 @@ import {
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
+import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
+import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -134,99 +136,205 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    if (streamHeader.contentHeader.case === 'byteHeader') {
-      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming byte stream due to no handler for topic',
-          streamHeader.topic,
+    switch (streamHeader.contentHeader.case) {
+      case 'byteHeader': {
+        const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
+        if (!streamHandlerCallback) {
+          this.log.debug(
+            'ignoring incoming byte stream due to no handler for topic',
+            streamHeader.topic,
+          );
+          return;
+        }
+
+        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+
+        const info: ByteStreamInfo = {
+          id: streamHeader.streamId,
+          name: streamHeader.contentHeader.value.name ?? 'unknown',
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+          topic: streamHeader.topic,
+          timestamp: bigIntToNumber(streamHeader.timestamp),
+          attributes: streamHeader.attributes,
+          encryptionType,
+        };
+
+        // Determine if the byte payload needs to be decompressed.
+        let compressed;
+        switch (streamHeader.compression) {
+          case DataStream_CompressionType.DEFLATE_RAW:
+            if (!isCompressionStreamSupported()) {
+              // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+              // isn't properly abiding by the data streams v2 protocol.
+              log.warn(
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+              );
+              return;
+            }
+            compressed = true;
+            break;
+          case DataStream_CompressionType.NONE:
+            compressed = false;
+            break;
+          default:
+            // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+            // isn't properly abiding by the data streams v2 protocol.
+            log.warn(
+              `Data stream ${streamHeader.streamId} received with unknown compression type ${streamHeader.compression}, dropping...`,
+            );
+            return;
+        }
+
+        // Single-packet stream: the entire payload was packaged into the header's `inlineContent`.
+        // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+        const inlineContent = streamHeader.inlineContent;
+        if (typeof inlineContent !== 'undefined') {
+          // Inline bytes are the raw payload, optionally deflate-raw compressed.
+          streamHandlerCallback(
+            new ByteStreamReader(
+              info,
+              createInlineStream(
+                streamHeader.streamId,
+                compressed ? deflateRawDecompress(inlineContent) : inlineContent,
+              ),
+              bigIntToNumber(streamHeader.totalLength),
+            ),
+            { identity: participantIdentity },
+          );
+          return;
+        }
+
+        const stream = new ReadableStream<DataStream_Chunk>({
+          start: (controller) => {
+            streamController = controller;
+
+            if (this.textStreamControllers.has(streamHeader.streamId)) {
+              throw new DataStreamError(
+                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+                DataStreamErrorReason.AlreadyOpened,
+              );
+            }
+
+            this.byteStreamControllers.set(streamHeader.streamId, {
+              info,
+              controller: streamController,
+              startTime: Date.now(),
+              sendingParticipantIdentity: participantIdentity,
+            });
+          },
+        });
+        streamHandlerCallback(
+          new ByteStreamReader(
+            info,
+            compressed ? inflateRawByteChunkStream(stream, streamHeader.streamId) : stream,
+            // `totalLength` is the pre-compression size, and the reader counts decompressed bytes,
+            // so it applies to both paths (mirrors text).
+            bigIntToNumber(streamHeader.totalLength),
+          ),
+          {
+            identity: participantIdentity,
+          },
         );
         return;
       }
+      case 'textHeader': {
+        const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
+        if (!streamHandlerCallback) {
+          this.log.debug(
+            'ignoring incoming text stream due to no handler for topic',
+            streamHeader.topic,
+          );
+          return;
+        }
 
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
 
-      const info: ByteStreamInfo = {
-        id: streamHeader.streamId,
-        name: streamHeader.contentHeader.value.name ?? 'unknown',
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: bigIntToNumber(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-        encryptionType,
-      };
-      const stream = new ReadableStream({
-        start: (controller) => {
-          streamController = controller;
+        const info: TextStreamInfo = {
+          id: streamHeader.streamId,
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+          topic: streamHeader.topic,
+          timestamp: Number(streamHeader.timestamp),
+          attributes: streamHeader.attributes,
+          encryptionType,
+          attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
+        };
 
-          if (this.textStreamControllers.has(streamHeader.streamId)) {
-            throw new DataStreamError(
-              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-              DataStreamErrorReason.AlreadyOpened,
+        // Determine if the byte payload needs to be decompressed.
+        let compressed;
+        switch (streamHeader.compression) {
+          case DataStream_CompressionType.DEFLATE_RAW:
+            if (!isCompressionStreamSupported()) {
+              // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+              // isn't properly abiding by the data streams v2 protocol.
+              log.warn(
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+              );
+              return;
+            }
+            compressed = true;
+            break;
+          case DataStream_CompressionType.NONE:
+            compressed = false;
+            break;
+          default:
+            // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
+            // isn't properly abiding by the data streams v2 protocol.
+            log.warn(
+              `Data stream ${streamHeader.streamId} received with unknown compression type ${streamHeader.compression}, dropping...`,
             );
-          }
+            return;
+        }
 
-          this.byteStreamControllers.set(streamHeader.streamId, {
+        // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
+        // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
+        const inlineContent = streamHeader.inlineContent;
+        if (typeof inlineContent !== 'undefined') {
+          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
+          const content = compressed ? deflateRawDecompress(inlineContent) : inlineContent;
+          streamHandlerCallback(
+            new TextStreamReader(
+              info,
+              createInlineStream(streamHeader.streamId, content),
+              bigIntToNumber(streamHeader.totalLength),
+            ),
+            { identity: participantIdentity },
+          );
+          return;
+        }
+
+        const stream = new ReadableStream<DataStream_Chunk>({
+          start: (controller) => {
+            streamController = controller;
+
+            if (this.textStreamControllers.has(streamHeader.streamId)) {
+              throw new DataStreamError(
+                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+                DataStreamErrorReason.AlreadyOpened,
+              );
+            }
+
+            this.textStreamControllers.set(streamHeader.streamId, {
+              info,
+              controller: streamController,
+              startTime: Date.now(),
+              sendingParticipantIdentity: participantIdentity,
+            });
+          },
+        });
+        streamHandlerCallback(
+          new TextStreamReader(
             info,
-            controller: streamController,
-            startTime: Date.now(),
-            sendingParticipantIdentity: participantIdentity,
-          });
-        },
-      });
-      streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        {
-          identity: participantIdentity,
-        },
-      );
-    } else if (streamHeader.contentHeader.case === 'textHeader') {
-      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming text stream due to no handler for topic',
-          streamHeader.topic,
+            compressed ? inflateRawChunkStream(stream, streamHeader.streamId) : stream,
+            // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
+            // it applies to both paths.
+            bigIntToNumber(streamHeader.totalLength),
+          ),
+          { identity: participantIdentity },
         );
         return;
       }
-
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-
-      const info: TextStreamInfo = {
-        id: streamHeader.streamId,
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: Number(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-        encryptionType,
-        attachedStreamIds: streamHeader.contentHeader.value.attachedStreamIds,
-      };
-
-      const stream = new ReadableStream<DataStream_Chunk>({
-        start: (controller) => {
-          streamController = controller;
-
-          if (this.textStreamControllers.has(streamHeader.streamId)) {
-            throw new DataStreamError(
-              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-              DataStreamErrorReason.AlreadyOpened,
-            );
-          }
-
-          this.textStreamControllers.set(streamHeader.streamId, {
-            info,
-            controller: streamController,
-            startTime: Date.now(),
-            sendingParticipantIdentity: participantIdentity,
-          });
-        },
-      });
-      streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        { identity: participantIdentity },
-      );
     }
   }
 
@@ -294,4 +402,179 @@ export default class IncomingDataStreamManager {
       this.byteStreamControllers.delete(trailer.streamId);
     }
   }
+}
+
+/**
+ * Builds a `ReadableStream` that yields the given content as a single chunk and then immediately
+ * closes - used to surface an inline (single-packet) data stream as a fully-formed stream. `content`
+ * may be a promise (e.g. async gzip decompression); a rejection errors the stream.
+ */
+function createInlineStream(
+  streamId: string,
+  content: Uint8Array | Promise<Uint8Array>,
+): ReadableStream<DataStream_Chunk> {
+  return new ReadableStream<DataStream_Chunk>({
+    start: async (controller) => {
+      try {
+        const bytes = await content;
+        controller.enqueue(
+          new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content: bytes }),
+        );
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+}
+
+/**
+ * Validates that chunks are received in order, dropping duplicates and throwing if gaps are found.
+ *
+ * A stateful decompressor silently corrupts on duplicated or out-of-order input, so duplicates are
+ * dropped (with a warning - in-order delivery is expected on the reliable channel, but reconnect
+ * handling may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
+ */
+function ensureOrderedChunks(
+  streamId: string,
+): TransformStream<DataStream_Chunk, DataStream_Chunk> {
+  let lastChunkIndex = -1;
+  return new TransformStream({
+    transform: (value, controller) => {
+      const index = bigIntToNumber(value.chunkIndex);
+      if (index <= lastChunkIndex) {
+        log.warn(
+          `ignoring duplicate chunk ${index} for compressed data stream ${streamId} (last processed: ${lastChunkIndex})`,
+        );
+        return;
+      }
+      if (index > lastChunkIndex + 1) {
+        throw new DataStreamError(
+          `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
+          DataStreamErrorReason.Incomplete,
+        );
+      }
+      lastChunkIndex = index;
+      controller.enqueue(value);
+    },
+  });
+}
+
+/** Unwraps compressed `DataStream_Chunk`s to their compressed bytes (in `chunkIndex` order), */
+function chunksToBytes(): TransformStream<DataStream_Chunk, Uint8Array> {
+  return new TransformStream({
+    transform: (value, controller) => {
+      controller.enqueue(value.content);
+    },
+  });
+}
+
+/** Re-wraps decompressed bytes into contiguous `DataStream_Chunk`s, skipping inflate's empty reads. */
+function bytesToChunks(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
+  let outIndex = 0;
+  return new TransformStream({
+    transform: (value, controller) => {
+      // Inflate can emit empty reads; only synthesize a chunk when there is content.
+      if (value.byteLength > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: value,
+          }),
+        );
+        outIndex += 1;
+      }
+    },
+  });
+}
+
+/**
+ * Reframes decompressed byte chunks onto UTF-8 character boundaries via a streaming `TextDecoder`
+ * (a write larger than the MTU spans several packets, which may split a codepoint), so each
+ * synthesized text chunk decodes independently. The `flush` emits the decoder's trailing bytes.
+ */
+function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const encoder = new TextEncoder();
+
+  let outIndex = 0;
+  const decodeOrThrow = (bytes?: Uint8Array): string => {
+    try {
+      return bytes ? decoder.decode(bytes, { stream: true }) : decoder.decode();
+    } catch (err) {
+      throw new DataStreamError(
+        `Cannot decode compressed data stream ${streamId} as text: ${err}`,
+        DataStreamErrorReason.DecodeFailed,
+      );
+    }
+  };
+
+  return new TransformStream({
+    transform: (value, controller) => {
+      const text = decodeOrThrow(value);
+      // Everything so far may have been a partial codepoint; only emit once we have characters.
+      if (text.length > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: encoder.encode(text),
+          }),
+        );
+        outIndex += 1;
+      }
+    },
+    flush: (controller) => {
+      const tail = decodeOrThrow();
+      if (tail.length > 0) {
+        controller.enqueue(
+          new DataStream_Chunk({
+            streamId,
+            chunkIndex: numberToBigInt(outIndex),
+            content: encoder.encode(tail),
+          }),
+        );
+        outIndex += 1;
+      }
+    },
+  });
+}
+
+/**
+ * Transforms a stream of deflate-raw-compressed byte `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `ByteStreamReader` consumes it unchanged. All chunk contents are fed (in
+ * `chunkIndex` order) through ONE raw-deflate decompressor for the stream's lifetime; decompressed
+ * output is re-wrapped as chunks as soon as it is produced. The sender (sendFile) compresses the
+ * whole payload in one shot, but the format also supports a single context-takeover stream
+ * sync-flushed at write boundaries, so a future incremental streamBytes could compress with no
+ * protocol change. Errors and cancellation propagate through the pipe chain.
+ */
+function inflateRawByteChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  return raw
+    .pipeThrough(ensureOrderedChunks(streamId))
+    .pipeThrough(chunksToBytes())
+    .pipeThrough(inflateRawTransform())
+    .pipeThrough(bytesToChunks(streamId));
+}
+
+/**
+ * Transforms a stream of deflate-raw-compressed text `DataStream_Chunk`s into a stream of
+ * decompressed chunks, so `TextStreamReader` consumes it unchanged. Builds on
+ * {@link inflateRawByteChunkStream} (single decompressor + ordering guard) and adds a streaming
+ * `TextDecoder` that reframes the decompressed bytes on UTF-8 character boundaries so each
+ * synthesized chunk decodes independently. Errors and cancellation propagate through the pipe chain.
+ */
+function inflateRawChunkStream(
+  raw: ReadableStream<DataStream_Chunk>,
+  streamId: string,
+): ReadableStream<DataStream_Chunk> {
+  return raw
+    .pipeThrough(ensureOrderedChunks(streamId))
+    .pipeThrough(chunksToBytes())
+    .pipeThrough(inflateRawTransform())
+    .pipeThrough(bytesToDecodedUtf8(streamId));
 }

@@ -117,6 +117,7 @@ import {
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
+  isCompressionStreamSupported,
   isLocalAudioTrack,
   isLocalParticipant,
   isReactNative,
@@ -267,7 +268,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.maybeCreateEngine();
 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(
+      this.engine,
+      this.log,
+      this.getRemoteParticipantClientProtocol,
+      this.getRemoteParticipantCapabilities,
+      this.getAllRemoteParticipantIdentities,
+    );
 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager
@@ -970,11 +977,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
-        clientInfoCapabilities:
-          isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
-          !!this.e2eeManager
-            ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
-            : undefined,
+        clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,
@@ -2498,8 +2501,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
+  private getClientInfoCapabilities(
+    roomOptions: InternalRoomOptions,
+  ): Array<ClientInfo_Capability> {
+    const capabilities: Array<ClientInfo_Capability> = [];
+    if (
+      isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
+      !!this.e2eeManager
+    ) {
+      capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
+    }
+    // Advertise deflate-raw decompression support so peers know they can send us compressed data
+    // streams (gated separately from clientProtocol — see the data streams v2 spec).
+    if (isCompressionStreamSupported()) {
+      capabilities.push(ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW);
+    }
+    return capabilities;
+  }
+
   private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
+  };
+
+  private getRemoteParticipantCapabilities = (
+    identity: Participant['identity'],
+  ): Array<ClientInfo_Capability> => {
+    return this.remoteParticipants.get(identity)?.capabilities ?? [];
+  };
+
+  private getAllRemoteParticipantIdentities = () => {
+    return Array.from(this.remoteParticipants.keys());
   };
 
   private registerRpcDataStreamHandler() {

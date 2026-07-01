@@ -1,8 +1,9 @@
-import type {
-  ParticipantInfo,
-  SubscriptionError,
-  UpdateSubscription,
-  UpdateTrackSettings,
+import {
+  ClientInfo_Capability,
+  type ParticipantInfo,
+  type SubscriptionError,
+  type UpdateSubscription,
+  type UpdateTrackSettings,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
@@ -47,6 +48,16 @@ export default class RemoteParticipant extends Participant {
    **/
   clientProtocol: number;
 
+  /** The client capabilities the remote participant advertises (e.g. deflate-raw compression
+   * support). Used to decide which peer-to-peer features can be used when sending to them.
+   *
+   * Differs from clientProtocol in that these are truely optional "additions" which can be used
+   * or not depending on client specific attributes rather than protocol level invariants.
+   *
+   * @internal
+   **/
+  capabilities: Array<ClientInfo_Capability>;
+
   private volumeMap: Map<Track.Source, number>;
 
   private audioOutput?: AudioOutputOptions;
@@ -72,6 +83,7 @@ export default class RemoteParticipant extends Participant {
         return new RemoteDataTrack(info, manager, { publisherIdentity: pi.identity });
       }),
       pi.clientProtocol,
+      pi.capabilities,
     );
   }
 
@@ -95,6 +107,7 @@ export default class RemoteParticipant extends Participant {
     kind: ParticipantKind = ParticipantKind.STANDARD,
     remoteDataTracks: Array<RemoteDataTrack> = [],
     clientProtocol: number = CLIENT_PROTOCOL_DEFAULT,
+    capabilities: Array<ClientInfo_Capability> = [],
   ) {
     super(sid, identity || '', name, metadata, attributes, loggerOptions, kind);
     this.signalClient = signalClient;
@@ -108,6 +121,7 @@ export default class RemoteParticipant extends Participant {
     );
     this.volumeMap = new Map();
     this.clientProtocol = clientProtocol;
+    this.capabilities = capabilities;
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {

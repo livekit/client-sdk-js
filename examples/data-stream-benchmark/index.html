@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LiveKit Data Stream Benchmark</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>LiveKit v2 Data Stream Benchmark</h1>
+
+      <div class="controls">
+        <button id="run" class="btn">Run Benchmark</button>
+        <button id="stop" class="btn">Stop</button>
+      </div>
+
+      <div id="status" class="status">Idle</div>
+
+      <table id="grid" class="grid"></table>
+
+      <p class="hint">
+        Each box does a fresh connect → send for a fixed window with several concurrent senders →
+        disconnect. The large number is <strong>throughput</strong> (data streams received per
+        second). The status line below shows ↑sent ✓valid ✗mismatch ⊘lost · success&nbsp;% and
+        one-way latency percentiles (p50/p95/p99). Box fill scales with throughput; full per-box
+        stats are printed to the log.
+      </p>
+
+      <div id="log-area">
+        <textarea id="log" rows="12" readonly></textarea>
+      </div>
+    </div>
+    <script type="module" src="./benchmark.ts"></script>
+  </body>
+</html>
