@@ -551,8 +551,21 @@ export default class OutgoingDataStreamManager {
   }
 }
 
-/** A utility to handle lazily calling {@link collect} on a stream of compressed bytes only when
- * requested, to avoid buffering lots of data into memory until the program needs it.
+/**
+ * Wraps a stream of compressed bytes and defers buffering it into memory until (and only if) the
+ * full length is actually needed.
+ *
+ * The ideal way to send a compressed stream is incrementally: compress each chunk and send it as
+ * soon as it's ready, without ever holding the whole payload in memory. But to decide whether a
+ * payload is small enough to fit in a single-packet data stream, we have to know the compressed
+ * length — and the only way to learn that is to compress everything and add up the bytes. That
+ * forces us to buffer the entire compressed output before we can make the decision.
+ *
+ * This class lets us have it both ways. It holds the compressed stream unread by default and only
+ * collects it into memory ({@link collect}) when a caller needs the length for the single-packet
+ * size check. If that check never happens, the stream is instead {@link stream|passed straight
+ * through} to the downstream consumer without ever being fully buffered. Once collected, later
+ * calls reuse the buffered bytes rather than re-collecting.
  */
 class CompressedStreamState {
   private state:
