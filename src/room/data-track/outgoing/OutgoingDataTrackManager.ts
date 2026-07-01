@@ -263,6 +263,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       handle,
       name: options.name,
       usesE2ee: this.e2eeManager !== null,
+      schema: options.schema,
+      frameEncoding: options.frameEncoding,
     });
 
     await descriptor.completionFuture.promise;
@@ -395,6 +397,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
             handle: descriptor.info.pubHandle,
             name: descriptor.info.name,
             usesE2ee: descriptor.info.usesE2ee,
+            schema: descriptor.info.schema,
+            frameEncoding: descriptor.info.frameEncoding,
           });
       }
     }

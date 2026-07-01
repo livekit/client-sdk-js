@@ -252,6 +252,56 @@ describe('DataTrackOutgoingManager', () => {
   });
 
   it.each([
+    {
+      title: 'well-known encodings',
+      schema: { name: 'my_schema', encoding: 'jsonSchema' },
+      frameEncoding: 'json',
+    },
+    {
+      title: 'custom encodings',
+      schema: { name: 'my_schema', encoding: { custom: 'a' } },
+      frameEncoding: { custom: 'b' },
+    },
+  ] as const)(
+    'should forward schema and frame encoding on publish ($title)',
+    async ({ schema, frameEncoding }) => {
+      const manager = new OutgoingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'sfuPublishRequest',
+      ]);
+
+      const localDataTrack = new LocalDataTrack({ name: 'test', schema, frameEncoding }, manager);
+
+      // 1. Publish a data track with schema metadata
+      const publishRequestPromise = localDataTrack.publish();
+
+      // 2. The publish request sent to the SFU carries the schema and frame encoding
+      const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+      expect(sfuPublishEvent.schema).toStrictEqual(schema);
+      expect(sfuPublishEvent.frameEncoding).toStrictEqual(frameEncoding);
+      const handle = sfuPublishEvent.handle;
+
+      // 3. Respond as the SFU would, echoing the metadata back on the DataTrackInfo
+      manager.receivedSfuPublishResponse(handle, {
+        type: 'ok',
+        data: {
+          sid: 'bogus-sid',
+          pubHandle: handle,
+          name: 'test',
+          usesE2ee: false,
+          schema,
+          frameEncoding,
+        },
+      });
+      await publishRequestPromise;
+
+      // 4. The metadata is reflected on the local track's info
+      expect(localDataTrack.info?.schema).toStrictEqual(schema);
+      expect(localDataTrack.info?.frameEncoding).toStrictEqual(frameEncoding);
+    },
+  );
+
+  it.each([
     // Single packet payload case
     [
       new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]),
