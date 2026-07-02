@@ -99,17 +99,9 @@ const SCHEMA_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownSchemaEncod
   jsonSchema: ProtocolWellKnownSchemaEncoding.JSON_SCHEMA,
 };
 
-const WELL_KNOWN_TO_SCHEMA_ENCODING: Partial<
-  Record<ProtocolWellKnownSchemaEncoding, DataTrackSchemaEncoding>
-> = {
-  [ProtocolWellKnownSchemaEncoding.PROTOBUF]: 'protobuf',
-  [ProtocolWellKnownSchemaEncoding.FLATBUFFER]: 'flatbuffer',
-  [ProtocolWellKnownSchemaEncoding.ROS1_MSG]: 'ros1Msg',
-  [ProtocolWellKnownSchemaEncoding.ROS2_MSG]: 'ros2Msg',
-  [ProtocolWellKnownSchemaEncoding.ROS2_IDL]: 'ros2Idl',
-  [ProtocolWellKnownSchemaEncoding.OMG_IDL]: 'omgIdl',
-  [ProtocolWellKnownSchemaEncoding.JSON_SCHEMA]: 'jsonSchema',
-};
+const WELL_KNOWN_TO_SCHEMA_ENCODING = Object.fromEntries(
+  Object.entries(SCHEMA_ENCODING_TO_WELL_KNOWN).map(([key, value]) => [value, key]),
+) as Partial<Record<ProtocolWellKnownSchemaEncoding, DataTrackSchemaEncoding>>;
 
 const FRAME_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownFrameEncoding> = {
   ros1: ProtocolWellKnownFrameEncoding.ROS1,
@@ -121,17 +113,9 @@ const FRAME_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownFrameEncodin
   json: ProtocolWellKnownFrameEncoding.JSON,
 };
 
-const WELL_KNOWN_TO_FRAME_ENCODING: Partial<
-  Record<ProtocolWellKnownFrameEncoding, DataTrackFrameEncoding>
-> = {
-  [ProtocolWellKnownFrameEncoding.ROS1]: 'ros1',
-  [ProtocolWellKnownFrameEncoding.CDR]: 'cdr',
-  [ProtocolWellKnownFrameEncoding.PROTOBUF]: 'protobuf',
-  [ProtocolWellKnownFrameEncoding.FLATBUFFER]: 'flatbuffer',
-  [ProtocolWellKnownFrameEncoding.CBOR]: 'cbor',
-  [ProtocolWellKnownFrameEncoding.MSGPACK]: 'msgpack',
-  [ProtocolWellKnownFrameEncoding.JSON]: 'json',
-};
+const WELL_KNOWN_TO_FRAME_ENCODING = Object.fromEntries(
+  Object.entries(FRAME_ENCODING_TO_WELL_KNOWN).map(([key, value]) => [value, key]),
+) as Partial<Record<ProtocolWellKnownFrameEncoding, DataTrackFrameEncoding>>;
 
 export const DataTrackSchemaEncoding = {
   from(protocol: ProtocolDataTrackSchemaEncoding): DataTrackSchemaEncoding {
