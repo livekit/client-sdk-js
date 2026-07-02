@@ -2,7 +2,7 @@ import { Encryption_Type, DataTrackInfo as ProtocolDataTrackInfo } from '@liveki
 import { type DataTrackHandle } from './handle';
 import { DataTrackFrameEncoding, DataTrackSchemaId } from './schema';
 
-export * from './schema';
+export { DataTrackFrameEncoding, DataTrackSchemaEncoding, DataTrackSchemaId } from './schema';
 
 export type DataTrackSid = string;
 
