@@ -21,33 +21,35 @@ describe('DataTrackSchemaEncoding', () => {
 
   it.each(wellKnown)('round-trips well-known encoding %s', (encoding) => {
     const protobuf = DataTrackSchemaEncoding.toProtobuf(encoding);
-    expect(protobuf.value.case).toEqual('wellKnown');
-    expect(DataTrackSchemaEncoding.from(protobuf)).toEqual(encoding);
+    expect(protobuf.value.case).toStrictEqual('wellKnown');
+    expect(DataTrackSchemaEncoding.from(protobuf)).toStrictEqual(encoding);
   });
 
   it('round-trips a custom encoding', () => {
     const encoding: DataTrackSchemaEncoding = { custom: 'my_encoding' };
     const protobuf = DataTrackSchemaEncoding.toProtobuf(encoding);
-    expect(protobuf.value).toEqual({ case: 'custom', value: 'my_encoding' });
-    expect(DataTrackSchemaEncoding.from(protobuf)).toEqual(encoding);
+    expect(protobuf.value).toStrictEqual({ case: 'custom', value: 'my_encoding' });
+    expect(DataTrackSchemaEncoding.from(protobuf)).toStrictEqual(encoding);
   });
 
   it('maps an unspecified well-known value to "other"', () => {
     const protobuf = new ProtocolDataTrackSchemaEncoding({
       value: { case: 'wellKnown', value: ProtocolWellKnownSchemaEncoding.UNSPECIFIED },
     });
-    expect(DataTrackSchemaEncoding.from(protobuf)).toEqual('other');
+    expect(DataTrackSchemaEncoding.from(protobuf)).toStrictEqual('other');
   });
 
   it('maps a well-known value introduced after this version to "other"', () => {
     const protobuf = new ProtocolDataTrackSchemaEncoding({
       value: { case: 'wellKnown', value: 999 as ProtocolWellKnownSchemaEncoding },
     });
-    expect(DataTrackSchemaEncoding.from(protobuf)).toEqual('other');
+    expect(DataTrackSchemaEncoding.from(protobuf)).toStrictEqual('other');
   });
 
   it('maps an absent oneof to "other"', () => {
-    expect(DataTrackSchemaEncoding.from(new ProtocolDataTrackSchemaEncoding())).toEqual('other');
+    expect(DataTrackSchemaEncoding.from(new ProtocolDataTrackSchemaEncoding())).toStrictEqual(
+      'other',
+    );
   });
 });
 
@@ -64,29 +66,29 @@ describe('DataTrackFrameEncoding', () => {
 
   it.each(wellKnown)('round-trips well-known encoding %s', (encoding) => {
     const protobuf = DataTrackFrameEncoding.toProtobuf(encoding);
-    expect(protobuf.value.case).toEqual('wellKnown');
-    expect(DataTrackFrameEncoding.from(protobuf)).toEqual(encoding);
+    expect(protobuf.value.case).toStrictEqual('wellKnown');
+    expect(DataTrackFrameEncoding.from(protobuf)).toStrictEqual(encoding);
   });
 
   it('round-trips a custom encoding', () => {
     const encoding: DataTrackFrameEncoding = { custom: 'my_encoding' };
     const protobuf = DataTrackFrameEncoding.toProtobuf(encoding);
-    expect(protobuf.value).toEqual({ case: 'custom', value: 'my_encoding' });
-    expect(DataTrackFrameEncoding.from(protobuf)).toEqual(encoding);
+    expect(protobuf.value).toStrictEqual({ case: 'custom', value: 'my_encoding' });
+    expect(DataTrackFrameEncoding.from(protobuf)).toStrictEqual(encoding);
   });
 
   it('maps an unspecified well-known value to "other"', () => {
     const protobuf = new ProtocolDataTrackFrameEncoding({
       value: { case: 'wellKnown', value: ProtocolWellKnownFrameEncoding.UNSPECIFIED },
     });
-    expect(DataTrackFrameEncoding.from(protobuf)).toEqual('other');
+    expect(DataTrackFrameEncoding.from(protobuf)).toStrictEqual('other');
   });
 
   it('maps a well-known value introduced after this version to "other"', () => {
     const protobuf = new ProtocolDataTrackFrameEncoding({
       value: { case: 'wellKnown', value: 999 as ProtocolWellKnownFrameEncoding },
     });
-    expect(DataTrackFrameEncoding.from(protobuf)).toEqual('other');
+    expect(DataTrackFrameEncoding.from(protobuf)).toStrictEqual('other');
   });
 });
 
@@ -95,12 +97,12 @@ describe('DataTrackSchemaId', () => {
     const schemaId: DataTrackSchemaId = { name: 'rgb', encoding: 'protobuf' };
     const protobuf = DataTrackSchemaId.toProtobuf(schemaId);
     expect(protobuf).toBeInstanceOf(ProtocolDataTrackSchemaId);
-    expect(protobuf.name).toEqual('rgb');
-    expect(DataTrackSchemaId.from(protobuf)).toEqual(schemaId);
+    expect(protobuf.name).toStrictEqual('rgb');
+    expect(DataTrackSchemaId.from(protobuf)).toStrictEqual(schemaId);
   });
 
   it('defaults encoding to "other" when the protobuf encoding is absent', () => {
     const protobuf = new ProtocolDataTrackSchemaId({ name: 'rgb' });
-    expect(DataTrackSchemaId.from(protobuf)).toEqual({ name: 'rgb', encoding: 'other' });
+    expect(DataTrackSchemaId.from(protobuf)).toStrictEqual({ name: 'rgb', encoding: 'other' });
   });
 });
