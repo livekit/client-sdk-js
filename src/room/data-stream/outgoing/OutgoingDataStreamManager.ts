@@ -104,7 +104,7 @@ export default class OutgoingDataStreamManager {
       this.allRecipientsSupportV2(options?.destinationIdentities) &&
       this.allRecipientsSupportCompression(options?.destinationIdentities);
     let compressedStream = compressEligible
-      ? CompressedStreamState.fromStream(
+      ? MaybeCollectedStream.fromStream(
           readableFromBytes(textInBytes).pipeThrough(deflateRawTransform()),
         )
       : null;
@@ -229,9 +229,7 @@ export default class OutgoingDataStreamManager {
       this.allRecipientsSupportV2(destinationIdentities) &&
       this.allRecipientsSupportCompression(destinationIdentities);
     let compressedStream = compressEligible
-      ? CompressedStreamState.fromStream(
-          readableFromBytes(bytes).pipeThrough(deflateRawTransform()),
-        )
+      ? MaybeCollectedStream.fromStream(readableFromBytes(bytes).pipeThrough(deflateRawTransform()))
       : null;
 
     // Phase 1: Try to send as a single packet data stream
@@ -567,7 +565,7 @@ export default class OutgoingDataStreamManager {
  * through} to the downstream consumer without ever being fully buffered. Once collected, later
  * calls reuse the buffered bytes rather than re-collecting.
  */
-class CompressedStreamState {
+class MaybeCollectedStream {
   private state:
     | { type: 'stream'; stream: ReadableStream<Uint8Array> }
     | { type: 'collected'; bytes: Uint8Array };
@@ -577,7 +575,7 @@ class CompressedStreamState {
   }
 
   static fromStream(stream: ReadableStream<Uint8Array>) {
-    return new CompressedStreamState({ type: 'stream', stream });
+    return new MaybeCollectedStream({ type: 'stream', stream });
   }
 
   /** Collect data from the stream into memory and return as a Uint8Array. */
