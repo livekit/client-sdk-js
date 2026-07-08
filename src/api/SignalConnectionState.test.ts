@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import vectors from '../../specs/signal-connection-vectors.json';
-import { ConnectionErrorReason } from '../room/errors';
 import {
-  type ConnectionFailure,
-  type PingConfig,
-  SignalConnectionMachine,
+  type SignalEffectType,
   SignalConnectionStatus,
-  type SignalEffect,
-  type SignalMessage,
-  type SignalState,
-  type SignalTrigger,
+  type SignalEventType,
+  transition,
 } from './SignalConnectionState';
-
-// ---------------------------------------------------------------------------
-// Mapping from spec-domain strings to SDK types
-// ---------------------------------------------------------------------------
 
 const STATUS_MAP: Record<string, SignalConnectionStatus> = {
   new: SignalConnectionStatus.NEW,
@@ -26,162 +17,60 @@ const STATUS_MAP: Record<string, SignalConnectionStatus> = {
   closed: SignalConnectionStatus.CLOSED,
 };
 
-const FAILURE_REASON_MAP: Record<string, ConnectionErrorReason> = {
-  not_allowed: ConnectionErrorReason.NotAllowed,
-  server_unreachable: ConnectionErrorReason.ServerUnreachable,
-  internal_error: ConnectionErrorReason.InternalError,
-  cancelled: ConnectionErrorReason.Cancelled,
-  leave_request: ConnectionErrorReason.LeaveRequest,
-  connection_timeout: ConnectionErrorReason.Timeout,
-  ping_timeout: ConnectionErrorReason.Timeout,
-  transport_error: ConnectionErrorReason.WebSocket,
-  service_not_found: ConnectionErrorReason.ServiceNotFound,
-};
-
-// ---------------------------------------------------------------------------
-// Vector → SDK type converters
-// ---------------------------------------------------------------------------
-
-function toPingConfig(v: { interval_s: number; timeout_s: number } | null): PingConfig | null {
-  return v ? { intervalS: v.interval_s, timeoutS: v.timeout_s } : null;
-}
-
-function toMessage(v: { payload: unknown }): SignalMessage {
-  return { payload: v.payload };
-}
-
-function toFailure(v: {
-  reason: string;
-  message?: string;
-  retryable: boolean;
-  supports_region_failover: boolean;
-}): ConnectionFailure {
-  return {
-    reason: FAILURE_REASON_MAP[v.reason]!,
-    ...(v.message !== undefined ? { message: v.message } : {}),
-    retryable: v.retryable,
-    supportsRegionFailover: v.supports_region_failover,
-  };
-}
-
-function toState(v: {
-  status: string;
-  queued_messages: Array<{ payload: unknown }>;
-  ping_config: { interval_s: number; timeout_s: number } | null;
-  url: string | null;
-}): SignalState {
-  return {
-    status: STATUS_MAP[v.status]!,
-    queuedMessages: v.queued_messages.map(toMessage),
-    pingConfig: toPingConfig(v.ping_config),
-    url: v.url,
-  };
-}
-
-function toTrigger(v: Record<string, any>): SignalTrigger {
-  switch (v.type) {
-    case 'connect':
-      return { type: 'connect', url: v.url };
-    case 'connection_established':
-      return { type: 'connection_established', pingConfig: toPingConfig(v.ping_config)! };
-    case 'connection_failed':
-      return { type: 'connection_failed', failure: toFailure(v.failure) };
-    case 'connection_timed_out':
-      return { type: 'connection_timed_out' };
-    case 'start_reconnect':
-      return { type: 'start_reconnect' };
-    case 'reconnect_established':
-      return { type: 'reconnect_established', pingConfig: toPingConfig(v.ping_config)! };
-    case 'reconnect_attempt_failed':
-      return { type: 'reconnect_attempt_failed', failure: toFailure(v.failure) };
-    case 'reconnect_timed_out':
-      return { type: 'reconnect_timed_out' };
-    case 'leave_received_during_reconnect':
-      return {
-        type: 'leave_received_during_reconnect',
-        failure: toFailure(v.failure),
-        leaveAction: v.leave_action,
-      };
-    case 'send_passthrough':
-      return { type: 'send_passthrough', message: toMessage(v.message) };
-    case 'enqueue_message':
-      return { type: 'enqueue_message', message: toMessage(v.message) };
-    case 'drain_queue':
-      return { type: 'drain_queue' };
-    case 'ping_timeout':
-      return { type: 'ping_timeout' };
-    case 'transport_closed':
-      return { type: 'transport_closed', reason: v.reason };
-    case 'close':
-      return { type: 'close' };
-    case 'close_completed':
-      return { type: 'close_completed' };
-    default:
-      throw new Error(`Unknown trigger type: ${v.type}`);
-  }
-}
-
-function toEffect(v: Record<string, any>): SignalEffect {
-  switch (v.type) {
-    case 'open_transport':
-      return { type: 'open_transport', url: v.url, reconnect: v.reconnect };
-    case 'close_transport':
-      return { type: 'close_transport' };
-    case 'start_ping':
-      return { type: 'start_ping', config: toPingConfig(v.config)! };
-    case 'stop_ping':
-      return { type: 'stop_ping' };
-    case 'dispatch_message':
-      return { type: 'dispatch_message', message: toMessage(v.message) };
-    case 'queue_message':
-      return { type: 'queue_message', message: toMessage(v.message) };
-    case 'drain_queue':
-      return { type: 'drain_queue', messages: v.messages.map(toMessage) };
-    case 'clear_queue':
-      return { type: 'clear_queue' };
-    case 'connection_lost':
-      return { type: 'connection_lost', failure: toFailure(v.failure) };
-    case 'reconnect_completed':
-      return { type: 'reconnect_completed' };
-    case 'leave_received':
-      return { type: 'leave_received', leaveAction: v.leave_action };
-    default:
-      throw new Error(`Unknown effect type: ${v.type}`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Helper: hydrate a machine to match a vector's initial state
-// ---------------------------------------------------------------------------
-
-function createMachineFromState(state: SignalState): SignalConnectionMachine {
-  const machine = new SignalConnectionMachine(state.status);
-  machine.queuedMessages = state.queuedMessages;
-  machine.pingConfig = state.pingConfig;
-  machine.url = state.url;
-  return machine;
-}
-
-// ---------------------------------------------------------------------------
-// Test runner
-// ---------------------------------------------------------------------------
-
-describe('SignalConnectionState (spec vectors)', () => {
+describe('signal connection transitions', () => {
   for (const vector of vectors.vectors) {
     it(vector.name, () => {
-      const initialState = toState(vector.initial_state);
-      const machine = createMachineFromState(initialState);
-      const trigger = toTrigger(vector.trigger);
-      const effects = machine.handle(trigger);
+      const result = transition(STATUS_MAP[vector.status]!, {
+        type: vector.event as SignalEventType,
+      });
 
-      if ('expected_result' in vector && vector.expected_result === 'rejected') {
-        expect(effects).toBeNull();
-        return;
+      if (vector.next === null) {
+        expect(result.handled).toBe(false);
+        expect(result.nextStatus).toBe(STATUS_MAP[vector.status]!);
+      } else {
+        expect(result.handled).toBe(true);
+        expect(result.nextStatus).toBe(STATUS_MAP[vector.next]!);
       }
-
-      expect(effects).not.toBeNull();
-      expect(machine.state).toEqual(toState(vector.expected_state!));
-      expect(effects).toEqual(vector.expected_effects!.map(toEffect));
     });
   }
+});
+
+describe('signal connection effects', () => {
+  const effectTypes = (status: SignalConnectionStatus, event: SignalEventType): SignalEffectType[] =>
+    transition(status, { type: event }).effects.map((e) => e.type);
+
+  it('connect opens the transport', () => {
+    expect(effectTypes(SignalConnectionStatus.NEW, 'connect')).toEqual(['open_transport']);
+  });
+
+  it('connection_established starts the ping', () => {
+    expect(effectTypes(SignalConnectionStatus.CONNECTING, 'connection_established')).toEqual(['start_ping']);
+  });
+
+  it('every path into closed flushes the buffer via onEntry', () => {
+    const intoClosed: Array<[SignalConnectionStatus, SignalEventType]> = [
+      [SignalConnectionStatus.CONNECTING, 'connection_failed'],
+      [SignalConnectionStatus.CONNECTING, 'close'],
+      [SignalConnectionStatus.SUSPENDED, 'close'],
+      [SignalConnectionStatus.RECONNECTING, 'leave_received_during_reconnect'],
+      [SignalConnectionStatus.RECONNECTING, 'close'],
+      [SignalConnectionStatus.DISCONNECTING, 'close_completed'],
+      [SignalConnectionStatus.DISCONNECTING, 'transport_closed'],
+    ];
+    for (const [status, event] of intoClosed) {
+      const result = transition(status, { type: event });
+      expect(result.nextStatus).toBe(SignalConnectionStatus.CLOSED);
+      expect(result.effects.at(-1)?.type).toBe('clear_queue');
+    }
+  });
+
+  it('leaving connected always stops the ping', () => {
+    for (const event of ['transport_closed', 'ping_timeout', 'start_reconnect', 'close'] as SignalEventType[]) {
+      expect(effectTypes(SignalConnectionStatus.CONNECTED, event)).toContain('stop_ping');
+    }
+  });
+
+  it('ignored events emit no effects', () => {
+    expect(transition(SignalConnectionStatus.NEW, { type: 'close' }).effects).toEqual([]);
+  });
 });

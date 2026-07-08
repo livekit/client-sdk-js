@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Signal Connection State Machine — LiveKit Client SDK
+
+  7-state FSM governing the CONNECTION LIFECYCLE of a signal connection.
+  This machine is a pure Mealy machine: no extended/datamodel state. Every
+  transition is a function of (current state, event) → (next state, effects).
+
+  Scope — lifecycle only:
+  - The machine owns the connection lifecycle and the effects that flow from
+    lifecycle transitions (open/close transport, start/stop ping, notify).
+  - Message ROUTING and BUFFERING are NOT part of this machine. Whether a
+    given message is dispatched, buffered, or rejected is a pure projection
+    of the current state, decided by the executor via a routing policy that
+    reads this machine's state. See specs/signal-connection.routing.md (the
+    route(state, message) table) and specs/signal-connection.buffer.md (the
+    buffer ownership/ordering/drain/clear contract) for that layer.
+  - The executor owns the message buffer and the connection endpoint (url).
+    On reconnect the machine emits open_transport(reconnect=true) with no
+    url; the executor reuses the endpoint it was given at connect time.
+
+  Conventions:
+  - <send> elements represent effects (commands) emitted to the executor.
+    They are output actions, not events routed within the machine.
+  - clear_queue is a lifecycle-driven effect: entering the terminal state
+    flushes the executor's buffer (see closed/onentry). Harmless no-op when
+    the buffer is already empty.
+  - Unhandled events are silently ignored (matches TypeScript: handle()
+    returns null).
+-->
+<scxml xmlns="http://www.w3.org/2005/07/scxml"
+       version="1.0"
+       datamodel="ecmascript"
+       initial="new"
+       name="SignalConnection">
+
+  <!-- ===================================================================
+       NEW — initial state, before any connection attempt
+       =================================================================== -->
+  <state id="new">
+    <transition event="connect" target="connecting">
+      <!-- url travels on the event; executor retains it for later reconnects -->
+      <send event="open_transport">
+        <param name="url" expr="_event.data.url"/>
+        <param name="reconnect" expr="false"/>
+      </send>
+    </transition>
+  </state>
+
+  <!-- ===================================================================
+       CONNECTING — transport opening, waiting for first server message
+       =================================================================== -->
+  <state id="connecting">
+    <transition event="connection_established" target="connected">
+      <send event="start_ping">
+        <param name="config" expr="_event.data.pingConfig"/>
+      </send>
+    </transition>
+
+    <transition event="connection_failed" target="closed">
+      <send event="connection_lost">
+        <param name="failure" expr="_event.data.failure"/>
+      </send>
+    </transition>
+
+    <transition event="connection_timed_out" target="closed">
+      <send event="connection_lost">
+        <param name="failure" expr="{
+          reason: 'connection_timeout',
+          message: 'Connection timed out',
+          retryable: true,
+          supportsRegionFailover: true
+        }"/>
+      </send>
+    </transition>
+
+    <!-- Transport dropped before the connection was established -->
+    <transition event="transport_closed" target="closed">
+      <send event="connection_lost">
+        <param name="failure" expr="{
+          reason: 'transport_error',
+          message: _event.data.reason,
+          retryable: true,
+          supportsRegionFailover: false
+        }"/>
+      </send>
+    </transition>
+
+    <!-- Abort an in-flight connection attempt. Go straight to closed and
+         best-effort abort the half-open transport (no close_completed
+         handshake to wait on). -->
+    <transition event="close" target="closed">
+      <send event="close_transport"/>
+    </transition>
+  </state>
+
+  <!-- ===================================================================
+       CONNECTED — transport open, ping active, messages flow normally
+       =================================================================== -->
+  <state id="connected">
+    <transition event="transport_closed" target="suspended">
+      <send event="stop_ping"/>
+      <send event="connection_lost">
+        <param name="failure" expr="{
+          reason: 'transport_error',
+          message: _event.data.reason,
+          retryable: true,
+          supportsRegionFailover: false
+        }"/>
+      </send>
+    </transition>
+
+    <transition event="ping_timeout" target="suspended">
+      <send event="stop_ping"/>
+      <send event="connection_lost">
+        <param name="failure" expr="{
+          reason: 'ping_timeout',
+          message: 'Ping timeout',
+          retryable: true,
+          supportsRegionFailover: false
+        }"/>
+      </send>
+    </transition>
+
+    <transition event="start_reconnect" target="reconnecting">
+      <send event="stop_ping"/>
+      <!-- no url: executor reuses the endpoint from connect time -->
+      <send event="open_transport">
+        <param name="reconnect" expr="true"/>
+      </send>
+    </transition>
+
+    <transition event="close" target="disconnecting">
+      <send event="stop_ping"/>
+      <send event="close_transport"/>
+    </transition>
+  </state>
+
+  <!-- ===================================================================
+       SUSPENDED — transport lost, awaiting reconnect (executor buffers)
+       =================================================================== -->
+  <state id="suspended">
+    <transition event="start_reconnect" target="reconnecting">
+      <send event="open_transport">
+        <param name="reconnect" expr="true"/>
+      </send>
+    </transition>
+
+    <!-- Transport already lost; nothing to close. onentry flushes buffer. -->
+    <transition event="close" target="closed"/>
+  </state>
+
+  <!-- ===================================================================
+       RECONNECTING — new transport opening (executor buffers meanwhile)
+       =================================================================== -->
+  <state id="reconnecting">
+    <transition event="reconnect_established" target="connected">
+      <send event="reconnect_completed"/>
+      <send event="start_ping">
+        <param name="config" expr="_event.data.pingConfig"/>
+      </send>
+    </transition>
+
+    <transition event="reconnect_attempt_failed" target="suspended">
+      <send event="connection_lost">
+        <param name="failure" expr="_event.data.failure"/>
+      </send>
+    </transition>
+
+    <transition event="reconnect_timed_out" target="suspended">
+      <send event="connection_lost">
+        <param name="failure" expr="{
+          reason: 'connection_timeout',
+          message: 'Connection timed out',
+          retryable: true,
+          supportsRegionFailover: true
+        }"/>
+      </send>
+    </transition>
+
+    <transition event="leave_received_during_reconnect" target="closed">
+      <send event="connection_lost">
+        <param name="failure" expr="_event.data.failure"/>
+      </send>
+      <send event="leave_received">
+        <param name="leaveAction" expr="_event.data.leaveAction"/>
+      </send>
+    </transition>
+
+    <!-- Abort a reconnect in progress. Best-effort abort the in-flight
+         transport, then terminate. onentry flushes buffer. -->
+    <transition event="close" target="closed">
+      <send event="close_transport"/>
+    </transition>
+  </state>
+
+  <!-- ===================================================================
+       DISCONNECTING — graceful close in progress, waiting for transport
+       =================================================================== -->
+  <state id="disconnecting">
+    <transition event="close_completed" target="closed"/>
+
+    <!-- Transport dropped instead of closing cleanly — don't hang here -->
+    <transition event="transport_closed" target="closed"/>
+  </state>
+
+  <!-- ===================================================================
+       CLOSED — terminal state. Entering it flushes the executor buffer.
+       =================================================================== -->
+  <final id="closed">
+    <onentry>
+      <send event="clear_queue"/>
+    </onentry>
+  </final>
+
+</scxml>

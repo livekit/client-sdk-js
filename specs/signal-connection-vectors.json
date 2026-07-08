@@ -1,0 +1,42 @@
+{
+  "$schema": "./signal-connection-vectors.schema.json",
+  "description": "Conformance test vectors for the SignalConnection lifecycle transition table. Each vector specifies a status, an event, and the expected next status (or rejection). The machine has no extended state; effects are defined in the SCXML spec, and message routing/buffering in the routing and buffer contracts.",
+  "vectors": [
+    { "name": "connect_from_new", "status": "new", "event": "connect", "next": "connecting" },
+    { "name": "connect_rejected_when_connected", "status": "connected", "event": "connect", "next": null },
+
+    { "name": "connection_established", "status": "connecting", "event": "connection_established", "next": "connected" },
+    { "name": "connection_failed_to_closed", "status": "connecting", "event": "connection_failed", "next": "closed" },
+    { "name": "connection_timed_out_from_connecting", "status": "connecting", "event": "connection_timed_out", "next": "closed" },
+    { "name": "connection_timed_out_rejected_when_connected", "status": "connected", "event": "connection_timed_out", "next": null },
+    { "name": "connection_timed_out_rejected_when_reconnecting", "status": "reconnecting", "event": "connection_timed_out", "next": null },
+
+    { "name": "close_aborts_connecting", "status": "connecting", "event": "close", "next": "closed" },
+    { "name": "transport_closed_from_connecting", "status": "connecting", "event": "transport_closed", "next": "closed" },
+
+    { "name": "transport_closed_from_connected", "status": "connected", "event": "transport_closed", "next": "suspended" },
+    { "name": "transport_closed_rejected_when_reconnecting", "status": "reconnecting", "event": "transport_closed", "next": null },
+
+    { "name": "ping_timeout_from_connected", "status": "connected", "event": "ping_timeout", "next": "suspended" },
+    { "name": "ping_timeout_rejected_when_reconnecting", "status": "reconnecting", "event": "ping_timeout", "next": null },
+
+    { "name": "start_reconnect_from_connected", "status": "connected", "event": "start_reconnect", "next": "reconnecting" },
+    { "name": "start_reconnect_from_suspended", "status": "suspended", "event": "start_reconnect", "next": "reconnecting" },
+    { "name": "start_reconnect_rejected_when_new", "status": "new", "event": "start_reconnect", "next": null },
+
+    { "name": "reconnect_established", "status": "reconnecting", "event": "reconnect_established", "next": "connected" },
+    { "name": "reconnect_attempt_failed_to_suspended", "status": "reconnecting", "event": "reconnect_attempt_failed", "next": "suspended" },
+    { "name": "reconnect_timed_out_to_suspended", "status": "reconnecting", "event": "reconnect_timed_out", "next": "suspended" },
+    { "name": "leave_received_during_reconnect", "status": "reconnecting", "event": "leave_received_during_reconnect", "next": "closed" },
+    { "name": "close_aborts_reconnecting", "status": "reconnecting", "event": "close", "next": "closed" },
+
+    { "name": "close_from_connected", "status": "connected", "event": "close", "next": "disconnecting" },
+    { "name": "close_from_suspended", "status": "suspended", "event": "close", "next": "closed" },
+    { "name": "close_rejected_when_new", "status": "new", "event": "close", "next": null },
+    { "name": "close_completed", "status": "disconnecting", "event": "close_completed", "next": "closed" },
+    { "name": "transport_dropped_while_disconnecting", "status": "disconnecting", "event": "transport_closed", "next": "closed" },
+
+    { "name": "closed_is_terminal_connect", "status": "closed", "event": "connect", "next": null },
+    { "name": "closed_is_terminal_close", "status": "closed", "event": "close", "next": null }
+  ]
+}

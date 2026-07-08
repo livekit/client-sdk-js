@@ -1,9 +1,17 @@
-import { SyncStateMachine, t } from 'typescript-fsm';
-import { ConnectionErrorReason } from '../room/errors';
-
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
+/**
+ * Signal Connection lifecycle state machine.
+ *
+ * Canonical implementation of specs/signal-connection.scxml — a pure Mealy
+ * machine with NO extended state. `transition(status, event)` is a pure
+ * function returning the next status plus the effects (commands) for an
+ * executor to perform.
+ *
+ * The machine emits only the SCXML's lifecycle effect vocabulary. Everything
+ * the spec excludes — endpoint/url reuse, message routing, buffering, failure
+ * classification (validate), and promise/abort orchestration — lives in the
+ * executor, not here. See specs/signal-connection.routing.md and
+ * specs/signal-connection.buffer.md.
+ */
 
 export enum SignalConnectionStatus {
   NEW = 'new',
@@ -15,313 +23,238 @@ export enum SignalConnectionStatus {
   CLOSED = 'closed',
 }
 
-export enum SignalEvent {
-  CONNECT = 'connect',
-  CONNECTION_ESTABLISHED = 'connection_established',
-  CONNECTION_FAILED = 'connection_failed',
-  CONNECTION_TIMED_OUT = 'connection_timed_out',
-  START_RECONNECT = 'start_reconnect',
-  RECONNECT_ESTABLISHED = 'reconnect_established',
-  RECONNECT_ATTEMPT_FAILED = 'reconnect_attempt_failed',
-  RECONNECT_TIMED_OUT = 'reconnect_timed_out',
-  LEAVE_RECEIVED_DURING_RECONNECT = 'leave_received_during_reconnect',
-  SEND_PASSTHROUGH = 'send_passthrough',
-  ENQUEUE_MESSAGE = 'enqueue_message',
-  DRAIN_QUEUE = 'drain_queue',
-  PING_TIMEOUT = 'ping_timeout',
-  TRANSPORT_CLOSED = 'transport_closed',
-  CLOSE = 'close',
-  CLOSE_COMPLETED = 'close_completed',
-}
+const S = SignalConnectionStatus;
 
-export interface SignalMessage {
-  payload: unknown;
-}
-
-export interface ConnectionFailure {
-  reason: ConnectionErrorReason;
-  message?: string;
-  retryable: boolean;
-  supportsRegionFailover: boolean;
-}
+export type SignalEventType =
+  | 'connect'
+  | 'connection_established'
+  | 'connection_failed'
+  | 'connection_timed_out'
+  | 'transport_closed'
+  | 'ping_timeout'
+  | 'start_reconnect'
+  | 'reconnect_established'
+  | 'reconnect_attempt_failed'
+  | 'reconnect_timed_out'
+  | 'leave_received_during_reconnect'
+  | 'close'
+  | 'close_completed';
 
 export interface PingConfig {
   intervalS: number;
   timeoutS: number;
 }
 
-export type SignalEffect =
-  // I/O commands
-  | { type: 'open_transport'; url: string; reconnect: boolean }
-  | { type: 'close_transport' }
-  // Ping lifecycle
-  | { type: 'start_ping'; config: PingConfig }
-  | { type: 'stop_ping' }
-  // Message routing
-  | { type: 'dispatch_message'; message: SignalMessage }
-  | { type: 'queue_message'; message: SignalMessage }
-  | { type: 'drain_queue'; messages: SignalMessage[] }
-  | { type: 'clear_queue' }
-  // Notifications to orchestrator
-  | { type: 'connection_lost'; failure: ConnectionFailure }
-  | { type: 'reconnect_completed' }
-  | { type: 'leave_received'; leaveAction: number };
-
-export type SignalTrigger =
-  | { type: 'connect'; url: string }
-  | { type: 'connection_established'; pingConfig: PingConfig }
-  | { type: 'connection_failed'; failure: ConnectionFailure }
-  | { type: 'connection_timed_out' }
-  | { type: 'start_reconnect' }
-  | { type: 'reconnect_established'; pingConfig: PingConfig }
-  | { type: 'reconnect_attempt_failed'; failure: ConnectionFailure }
-  | { type: 'reconnect_timed_out' }
-  | { type: 'leave_received_during_reconnect'; failure: ConnectionFailure; leaveAction: number }
-  | { type: 'send_passthrough'; message: SignalMessage }
-  | { type: 'enqueue_message'; message: SignalMessage }
-  | { type: 'drain_queue' }
-  | { type: 'ping_timeout' }
-  | { type: 'transport_closed'; reason: string }
-  | { type: 'close' }
-  | { type: 'close_completed' };
-
-export interface SignalState {
-  status: SignalConnectionStatus;
-  queuedMessages: SignalMessage[];
-  pingConfig: PingConfig | null;
-  url: string | null;
+export interface ConnectionFailure {
+  reason: string;
+  message?: string;
+  retryable: boolean;
+  supportsRegionFailover: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Signal connection state machine
-// ---------------------------------------------------------------------------
+export interface SignalEvent {
+  type: SignalEventType;
+  url?: string;
+  pingConfig?: PingConfig;
+  failure?: ConnectionFailure;
+  reason?: string;
+  leaveAction?: number;
+}
 
-const S = SignalConnectionStatus;
-const E = SignalEvent;
+export type SignalEffectType =
+  | 'open_transport'
+  | 'start_ping'
+  | 'stop_ping'
+  | 'connection_lost'
+  | 'close_transport'
+  | 'reconnect_completed'
+  | 'leave_received'
+  | 'clear_queue';
 
-const EVENT_MAP: Record<string, SignalEvent> = {
-  connect: E.CONNECT,
-  connection_established: E.CONNECTION_ESTABLISHED,
-  connection_failed: E.CONNECTION_FAILED,
-  connection_timed_out: E.CONNECTION_TIMED_OUT,
-  start_reconnect: E.START_RECONNECT,
-  reconnect_established: E.RECONNECT_ESTABLISHED,
-  reconnect_attempt_failed: E.RECONNECT_ATTEMPT_FAILED,
-  reconnect_timed_out: E.RECONNECT_TIMED_OUT,
-  leave_received_during_reconnect: E.LEAVE_RECEIVED_DURING_RECONNECT,
-  send_passthrough: E.SEND_PASSTHROUGH,
-  enqueue_message: E.ENQUEUE_MESSAGE,
-  drain_queue: E.DRAIN_QUEUE,
-  ping_timeout: E.PING_TIMEOUT,
-  transport_closed: E.TRANSPORT_CLOSED,
-  close: E.CLOSE,
-  close_completed: E.CLOSE_COMPLETED,
+/** A command emitted to the executor. Not an event routed within the machine. */
+export interface SignalEffect {
+  type: SignalEffectType;
+  params?: Record<string, unknown>;
+}
+
+export interface TransitionResult {
+  /** Whether the event was handled in the current status (false = ignored). */
+  handled: boolean;
+  nextStatus: SignalConnectionStatus;
+  effects: SignalEffect[];
+}
+
+export const SIGNAL_STATUSES: SignalConnectionStatus[] = [
+  S.NEW,
+  S.CONNECTING,
+  S.CONNECTED,
+  S.SUSPENDED,
+  S.RECONNECTING,
+  S.DISCONNECTING,
+  S.CLOSED,
+];
+
+// ---------------------------------------------------------------------------
+// Failures — the payloads carried by connection_lost.
+// ---------------------------------------------------------------------------
+const CONNECTION_TIMEOUT: ConnectionFailure = {
+  reason: 'connection_timeout',
+  message: 'Connection timed out',
+  retryable: true,
+  supportsRegionFailover: true,
 };
 
-const silentLogger = { error() {} };
+const PING_TIMEOUT: ConnectionFailure = {
+  reason: 'ping_timeout',
+  message: 'Ping timeout',
+  retryable: true,
+  supportsRegionFailover: false,
+};
 
-export class SignalConnectionMachine extends SyncStateMachine<SignalConnectionStatus, SignalEvent> {
-  queuedMessages: SignalMessage[] = [];
+const transportError = (message?: string): ConnectionFailure => ({
+  reason: 'transport_error',
+  message,
+  retryable: true,
+  supportsRegionFailover: false,
+});
 
-  pingConfig: PingConfig | null = null;
+// ---------------------------------------------------------------------------
+// Effect builders — keep the transition table flat and readable.
+// ---------------------------------------------------------------------------
+const openTransport = (url?: string): SignalEffect => ({
+  type: 'open_transport',
+  params: { url, reconnect: false },
+});
+// On reconnect the executor reuses the endpoint from connect time, so no url.
+const reconnectTransport = (): SignalEffect => ({
+  type: 'open_transport',
+  params: { reconnect: true },
+});
+const startPing = (config?: PingConfig): SignalEffect => ({
+  type: 'start_ping',
+  params: { config },
+});
+const stopPing = (): SignalEffect => ({ type: 'stop_ping' });
+const connectionLost = (failure?: ConnectionFailure): SignalEffect => ({
+  type: 'connection_lost',
+  params: { failure },
+});
+const closeTransport = (): SignalEffect => ({ type: 'close_transport' });
+const reconnectCompleted = (): SignalEffect => ({ type: 'reconnect_completed' });
+const leaveReceived = (leaveAction?: number): SignalEffect => ({
+  type: 'leave_received',
+  params: { leaveAction },
+});
+const clearQueue = (): SignalEffect => ({ type: 'clear_queue' });
 
-  url: string | null = null;
+// ---------------------------------------------------------------------------
+// Transition table.
+//
+// Each entry is `{ target, effects }`. `effects` is a plain array, or a
+// function of the event when an effect needs the event's payload. A missing
+// entry means the event is unhandled in that status (silently ignored).
+// ---------------------------------------------------------------------------
+interface Transition {
+  target: SignalConnectionStatus;
+  effects: SignalEffect[] | ((event: SignalEvent) => SignalEffect[]);
+}
 
-  constructor(initial: SignalConnectionStatus = S.NEW) {
-    super(initial, [], silentLogger);
-    this.addTransitions([
-      t(S.NEW, E.CONNECT, S.CONNECTING),
-      t(S.CONNECTING, E.CONNECTION_ESTABLISHED, S.CONNECTED),
-      t(S.CONNECTING, E.CONNECTION_FAILED, S.CLOSED),
-      t(S.CONNECTING, E.CONNECTION_TIMED_OUT, S.CLOSED),
+const TABLE: Record<SignalConnectionStatus, Partial<Record<SignalEventType, Transition>>> = {
+  [S.NEW]: {
+    connect: { target: S.CONNECTING, effects: (e) => [openTransport(e.url)] },
+  },
 
-      t(S.CONNECTED, E.TRANSPORT_CLOSED, S.SUSPENDED),
-      t(S.CONNECTED, E.PING_TIMEOUT, S.SUSPENDED),
+  [S.CONNECTING]: {
+    connection_established: { target: S.CONNECTED, effects: (e) => [startPing(e.pingConfig)] },
+    connection_failed: { target: S.CLOSED, effects: (e) => [connectionLost(e.failure)] },
+    connection_timed_out: { target: S.CLOSED, effects: [connectionLost(CONNECTION_TIMEOUT)] },
+    // transport dropped before the connection was established
+    transport_closed: {
+      target: S.CLOSED,
+      effects: (e) => [connectionLost(transportError(e.reason))],
+    },
+    // abort an in-flight connection attempt
+    close: { target: S.CLOSED, effects: [closeTransport()] },
+  },
 
-      t(S.CONNECTED, E.START_RECONNECT, S.RECONNECTING),
-      t(S.SUSPENDED, E.START_RECONNECT, S.RECONNECTING),
-      t(S.RECONNECTING, E.RECONNECT_ESTABLISHED, S.CONNECTED),
-      t(S.RECONNECTING, E.RECONNECT_ATTEMPT_FAILED, S.SUSPENDED),
-      t(S.RECONNECTING, E.RECONNECT_TIMED_OUT, S.SUSPENDED),
-      t(S.RECONNECTING, E.LEAVE_RECEIVED_DURING_RECONNECT, S.CLOSED),
+  [S.CONNECTED]: {
+    transport_closed: {
+      target: S.SUSPENDED,
+      effects: (e) => [stopPing(), connectionLost(transportError(e.reason))],
+    },
+    ping_timeout: { target: S.SUSPENDED, effects: [stopPing(), connectionLost(PING_TIMEOUT)] },
+    start_reconnect: { target: S.RECONNECTING, effects: [stopPing(), reconnectTransport()] },
+    close: { target: S.DISCONNECTING, effects: [stopPing(), closeTransport()] },
+  },
 
-      t(S.CONNECTING, E.SEND_PASSTHROUGH, S.CONNECTING),
-      t(S.CONNECTED, E.SEND_PASSTHROUGH, S.CONNECTED),
-      t(S.RECONNECTING, E.SEND_PASSTHROUGH, S.RECONNECTING),
+  [S.SUSPENDED]: {
+    start_reconnect: { target: S.RECONNECTING, effects: [reconnectTransport()] },
+    // transport already lost; nothing to close. onEntry(closed) flushes buffer.
+    close: { target: S.CLOSED, effects: [] },
+  },
 
-      t(S.CONNECTED, E.ENQUEUE_MESSAGE, S.CONNECTED),
-      t(S.RECONNECTING, E.ENQUEUE_MESSAGE, S.RECONNECTING),
-      t(S.SUSPENDED, E.ENQUEUE_MESSAGE, S.SUSPENDED),
+  [S.RECONNECTING]: {
+    reconnect_established: {
+      target: S.CONNECTED,
+      effects: (e) => [reconnectCompleted(), startPing(e.pingConfig)],
+    },
+    reconnect_attempt_failed: { target: S.SUSPENDED, effects: (e) => [connectionLost(e.failure)] },
+    reconnect_timed_out: { target: S.SUSPENDED, effects: [connectionLost(CONNECTION_TIMEOUT)] },
+    leave_received_during_reconnect: {
+      target: S.CLOSED,
+      effects: (e) => [connectionLost(e.failure), leaveReceived(e.leaveAction)],
+    },
+    // abort a reconnect in progress
+    close: { target: S.CLOSED, effects: [closeTransport()] },
+  },
 
-      t(S.CONNECTED, E.DRAIN_QUEUE, S.CONNECTED),
+  [S.DISCONNECTING]: {
+    close_completed: { target: S.CLOSED, effects: [] },
+    // transport dropped instead of closing cleanly — don't hang here
+    transport_closed: { target: S.CLOSED, effects: [] },
+  },
 
-      t(S.CONNECTED, E.CLOSE, S.DISCONNECTING),
-      t(S.SUSPENDED, E.CLOSE, S.CLOSED),
-      t(S.DISCONNECTING, E.CLOSE_COMPLETED, S.CLOSED),
-    ]);
+  [S.CLOSED]: {},
+};
+
+/** Effects emitted on entry to a status, regardless of which event caused it. */
+const ON_ENTRY: Partial<Record<SignalConnectionStatus, SignalEffect[]>> = {
+  // Entering the terminal status flushes the executor's message buffer.
+  [S.CLOSED]: [clearQueue()],
+};
+
+/** Pure transition function. Never mutates. */
+export function transition(status: SignalConnectionStatus, event: SignalEvent): TransitionResult {
+  const entry = TABLE[status][event.type];
+  if (!entry) {
+    return { handled: false, nextStatus: status, effects: [] };
   }
+  const { target } = entry;
+  const effects = typeof entry.effects === 'function' ? entry.effects(event) : entry.effects;
+  const onEntry = target !== status ? (ON_ENTRY[target] ?? []) : [];
+  return { handled: true, nextStatus: target, effects: [...effects, ...onEntry] };
+}
 
-  get status(): SignalConnectionStatus {
-    return this.getState();
-  }
+/** Events that are handled (cause a transition) in the given status. */
+export function handledEvents(status: SignalConnectionStatus): SignalEventType[] {
+  return Object.keys(TABLE[status]) as SignalEventType[];
+}
 
-  get state(): SignalState {
-    return {
-      status: this.status,
-      queuedMessages: this.queuedMessages,
-      pingConfig: this.pingConfig,
-      url: this.url,
-    };
-  }
-
-  handle(trigger: SignalTrigger): SignalEffect[] | null {
-    const event = EVENT_MAP[trigger.type];
-    if (!this.can(event)) {
-      return null;
+/** Static edge list (from → to, labelled by event) for visualization/tooling. */
+export function signalEdges(): Array<{
+  from: SignalConnectionStatus;
+  to: SignalConnectionStatus;
+  event: SignalEventType;
+}> {
+  const result: Array<{
+    from: SignalConnectionStatus;
+    to: SignalConnectionStatus;
+    event: SignalEventType;
+  }> = [];
+  for (const from of SIGNAL_STATUSES) {
+    for (const event of handledEvents(from)) {
+      result.push({ from, to: transition(from, { type: event }).nextStatus, event });
     }
-
-    const previousStatus = this.status;
-    this.syncDispatch(event);
-
-    const effects: SignalEffect[] = [];
-
-    switch (trigger.type) {
-      case 'connect':
-        this.url = trigger.url;
-        effects.push({ type: 'open_transport', url: trigger.url, reconnect: false });
-        break;
-
-      case 'connection_established':
-        this.pingConfig = trigger.pingConfig;
-        effects.push({ type: 'start_ping', config: trigger.pingConfig });
-        break;
-
-      case 'connection_failed':
-        this.pingConfig = null;
-        effects.push({ type: 'connection_lost', failure: trigger.failure });
-        break;
-
-      case 'connection_timed_out':
-        this.pingConfig = null;
-        effects.push({
-          type: 'connection_lost',
-          failure: {
-            reason: ConnectionErrorReason.Timeout,
-            message: 'Connection timed out',
-            retryable: true,
-            supportsRegionFailover: true,
-          },
-        });
-        break;
-
-      case 'transport_closed':
-        this.pingConfig = null;
-        effects.push({ type: 'stop_ping' });
-        effects.push({
-          type: 'connection_lost',
-          failure: {
-            reason: ConnectionErrorReason.WebSocket,
-            message: trigger.reason,
-            retryable: true,
-            supportsRegionFailover: false,
-          },
-        });
-        break;
-
-      case 'ping_timeout':
-        this.pingConfig = null;
-        effects.push({ type: 'stop_ping' });
-        effects.push({
-          type: 'connection_lost',
-          failure: {
-            reason: ConnectionErrorReason.Timeout,
-            message: 'Ping timeout',
-            retryable: true,
-            supportsRegionFailover: false,
-          },
-        });
-        break;
-
-      case 'start_reconnect':
-        if (previousStatus === S.CONNECTED) {
-          effects.push({ type: 'stop_ping' });
-        }
-        this.pingConfig = null;
-        effects.push({ type: 'open_transport', url: this.url!, reconnect: true });
-        break;
-
-      case 'reconnect_established':
-        this.pingConfig = trigger.pingConfig;
-        effects.push({ type: 'reconnect_completed' });
-        effects.push({ type: 'start_ping', config: trigger.pingConfig });
-        break;
-
-      case 'reconnect_attempt_failed':
-        effects.push({ type: 'connection_lost', failure: trigger.failure });
-        break;
-
-      case 'reconnect_timed_out':
-        effects.push({
-          type: 'connection_lost',
-          failure: {
-            reason: ConnectionErrorReason.Timeout,
-            message: 'Connection timed out',
-            retryable: true,
-            supportsRegionFailover: true,
-          },
-        });
-        break;
-
-      case 'leave_received_during_reconnect':
-        this.queuedMessages = [];
-        this.pingConfig = null;
-        effects.push({ type: 'clear_queue' });
-        effects.push({ type: 'connection_lost', failure: trigger.failure });
-        effects.push({ type: 'leave_received', leaveAction: trigger.leaveAction });
-        break;
-
-      case 'send_passthrough':
-        effects.push({ type: 'dispatch_message', message: trigger.message });
-        break;
-
-      case 'enqueue_message': {
-        const { message } = trigger;
-        if (previousStatus === S.CONNECTED) {
-          effects.push({ type: 'dispatch_message', message });
-        } else {
-          this.queuedMessages = [...this.queuedMessages, message];
-          effects.push({ type: 'queue_message', message });
-        }
-        break;
-      }
-
-      case 'drain_queue': {
-        const messages = this.queuedMessages;
-        this.queuedMessages = [];
-        if (messages.length > 0) {
-          effects.push({ type: 'drain_queue', messages });
-        }
-        break;
-      }
-
-      case 'close':
-        if (previousStatus === S.CONNECTED) {
-          effects.push({ type: 'stop_ping' });
-          effects.push({ type: 'close_transport' });
-        } else if (previousStatus === S.SUSPENDED) {
-          this.queuedMessages = [];
-          this.pingConfig = null;
-          effects.push({ type: 'clear_queue' });
-        }
-        break;
-
-      case 'close_completed':
-        this.queuedMessages = [];
-        this.pingConfig = null;
-        effects.push({ type: 'clear_queue' });
-        break;
-    }
-
-    return effects;
   }
+  return result;
 }

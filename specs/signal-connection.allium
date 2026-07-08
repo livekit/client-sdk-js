@@ -1,0 +1,476 @@
+-- allium: 3
+-- signal-connection.allium
+
+-- Scope: Signal transport connection lifecycle for the LiveKit client SDK
+-- Includes: Connection establishment, keepalive, validation on failure,
+--           close/disconnect, aborting an in-flight connect or reconnect
+-- Excludes:
+--   - Message routing and buffering (signal-connection.routing.md and
+--     signal-connection.buffer.md — the executor owns the buffer; whether a
+--     message is dispatched/buffered/dropped/rejected is a pure projection of
+--     the lifecycle status, not part of this machine)
+--   - Reconnection decision logic (orchestrator spec)
+--   - Region discovery and selection (region spec)
+--   - PeerConnection management (peer-connection spec)
+--   - Room-level state (room-connection spec)
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+external entity Token {
+    value: String
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum ConnectionFailureReason {
+    not_allowed
+    | room_not_found
+    | server_unreachable
+    | connection_timeout
+    | ping_timeout
+    | cancelled
+    | leave_request
+    | service_not_found
+    | transport_error
+    | internal_error
+}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value ConnectionFailure {
+    reason: ConnectionFailureReason
+    message: String?
+    retryable: Boolean
+    supports_region_failover: Boolean
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+-- Status semantics:
+--   new:           Initial state, never connected.
+--   connecting:    Transport opening in progress (initial connect).
+--                  Can be aborted via CloseConnection.
+--   connected:     Transport active. Keepalive tracked.
+--   suspended:     Transport lost unexpectedly (close / ping timeout).
+--                  Executor buffers queueable messages — orchestrator
+--                  decides next step.
+--   reconnecting:  Orchestrator is driving a reconnect attempt.
+--                  Executor buffers queueable messages.
+--   disconnecting: Graceful close in progress (close frame sent).
+--   closed:        Terminal. Executor buffer cleared, no further operations.
+--
+-- This entity holds no message buffer: message routing and the buffer are
+-- owned by the executor (see signal-connection.buffer.md). The fields below
+-- are the connection identity and keepalive state that drive lifecycle
+-- transitions.
+
+entity SignalConnection {
+    url: String
+    token: Token
+    status: new | connecting | connected | suspended | reconnecting | disconnecting | closed
+
+    transitions status {
+        new -> connecting
+        connecting -> connected
+        connecting -> closed
+        connected -> suspended
+        connected -> reconnecting
+        connected -> disconnecting
+        suspended -> reconnecting
+        suspended -> closed
+        reconnecting -> connected
+        reconnecting -> suspended
+        reconnecting -> closed
+        disconnecting -> closed
+        terminal: closed
+    }
+
+    last_signal_at: Timestamp? when status = connected | reconnecting
+    ping_interval: Duration? when status = connected
+    ping_timeout: Duration? when status = connected
+
+    -- Derived
+    -- Any incoming server message (not just pong) resets the keepalive timer.
+    -- A connection is alive as long as some message arrived within the timeout window.
+    is_alive: last_signal_at != null and last_signal_at + ping_timeout > now when status = connected
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    transport_timeout: Duration = 10.seconds
+    max_close_time: Duration = 1.seconds
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- == Initial connection ==
+
+rule Connect {
+    when: Connect(connection, url, token)
+    requires: connection.status = new
+    ensures:
+        connection.status = connecting
+        connection.url = url
+        connection.token = token
+}
+
+rule ConnectionEstablished {
+    when: ConnectionEstablished(connection, ping_interval, ping_timeout)
+    requires: connection.status = connecting
+    ensures:
+        connection.status = connected
+        connection.ping_interval = ping_interval
+        connection.ping_timeout = ping_timeout
+        connection.last_signal_at = now
+}
+
+rule ConnectionFailed {
+    when: ConnectionFailed(connection, failure)
+    requires: connection.status = connecting
+    ensures:
+        connection.status = closed
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- Initial connection failure is terminal from this connection's
+        -- perspective. The orchestrator may create a new SignalConnection
+        -- to retry, but this instance is done.
+}
+
+rule TransportClosedWhileConnecting {
+    when: TransportClosed(connection, reason)
+    requires: connection.status = connecting
+    ensures:
+        connection.status = closed
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- The transport dropped before the connection was established.
+        -- failure.reason = transport_error, retryable = true,
+        -- supports_region_failover = false. The reason parameter is included
+        -- as the failure message. Terminal for this connection — distinct
+        -- from the connected case, which moves to suspended.
+}
+
+rule CloseFromConnecting {
+    when: CloseConnection(connection)
+    requires: connection.status = connecting
+    ensures:
+        connection.status = closed
+
+    @guidance
+        -- Abort an in-flight connection attempt. Goes straight to closed and
+        -- best-effort aborts the half-open transport — there is no
+        -- close_completed handshake to wait on, so we do not pass through
+        -- disconnecting (which would risk hanging on a transport that never
+        -- confirms close).
+}
+
+-- == Unexpected disconnect ==
+-- Transport closed or ping timeout while connected. The connection
+-- moves to `suspended` and emits ConnectionLost so the orchestrator
+-- can decide whether to reconnect or close.
+
+rule UnexpectedDisconnect {
+    when: TransportClosed(connection, reason)
+    requires: connection.status = connected
+    ensures:
+        connection.status = suspended
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = transport_error, retryable = true,
+        -- supports_region_failover = false.
+        -- The reason parameter from the transport close event is included
+        -- as the failure message.
+}
+
+rule PingTimeoutDetected {
+    when: connection: SignalConnection.last_signal_at + connection.ping_timeout <= now
+    requires: connection.status = connected
+    ensures:
+        connection.status = suspended
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = ping_timeout, retryable = true,
+        -- supports_region_failover = false.
+        -- last_signal_at is reset by ANY incoming server message, not just
+        -- pong responses. Any server activity proves the connection is alive.
+        -- Distinct from connection_timeout for observability, but the
+        -- orchestrator treats both as "signal disconnected, try to reconnect".
+}
+
+-- == Reconnection (signal-level) ==
+-- Driven by the orchestrator. The signal connection transitions from
+-- `suspended` (or `connected` for preemptive reconnect) into `reconnecting`.
+
+rule StartReconnect {
+    when: StartReconnect(connection)
+    requires: connection.status in {connected, suspended}
+    ensures:
+        connection.status = reconnecting
+}
+
+rule ReconnectEstablished {
+    when: ReconnectEstablished(connection, ping_interval, ping_timeout)
+    requires: connection.status = reconnecting
+    ensures:
+        connection.status = connected
+        connection.ping_interval = ping_interval
+        connection.ping_timeout = ping_timeout
+        connection.last_signal_at = now
+        ReconnectCompleted(connection: connection)
+
+    @guidance
+        -- Draining the executor's buffer is orchestrator-timed and happens
+        -- after this rule fires (see signal-connection.buffer.md). It is not
+        -- modeled here.
+}
+
+rule ReconnectAttemptFailed {
+    when: ReconnectAttemptFailed(connection, failure)
+    requires: connection.status = reconnecting
+    ensures:
+        connection.status = suspended
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- A single reconnect attempt failed. The connection returns to
+        -- suspended. The orchestrator may retry (StartReconnect again) or
+        -- give up (CloseConnection).
+}
+
+rule ReconnectTimedOut {
+    when: ConnectionTimedOut(connection)
+    requires: connection.status = reconnecting
+    ensures:
+        connection.status = suspended
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = connection_timeout, retryable = true,
+        -- supports_region_failover = true.
+        -- Fired when the transport_timeout is exceeded during a
+        -- reconnection attempt. Returns to suspended so the
+        -- orchestrator can retry or give up.
+}
+
+rule LeaveReceivedDuringReconnect {
+    when: LeaveReceivedDuringReconnect(connection, leave_action)
+    requires: connection.status = reconnecting
+    ensures:
+        connection.status = closed
+        ConnectionLost(connection: connection, failure: failure)
+        LeaveReceived(connection: connection, action: leave_action)
+
+    @guidance
+        -- failure.reason = leave_request, retryable depends on the leave_action.
+        -- A server Leave during reconnect is terminal for this connection.
+        -- The LeaveReceived trigger is emitted so the orchestrator can decide
+        -- whether to create a new connection (full reconnect) or disconnect
+        -- based on the server's leave action. The executor's buffer is
+        -- cleared on entry to closed (see buffer contract).
+}
+
+rule CloseFromReconnecting {
+    when: CloseConnection(connection)
+    requires: connection.status = reconnecting
+    ensures:
+        connection.status = closed
+
+    @guidance
+        -- Abort a reconnect in progress. Best-effort aborts the in-flight
+        -- transport, then terminates. Like CloseFromConnecting, it does not
+        -- pass through disconnecting — there is no clean transport to wait on.
+}
+
+-- == Keepalive ==
+
+rule ServerMessageReceived {
+    when: ServerMessageReceived(connection)
+    requires: connection.status = connected
+    ensures:
+        connection.last_signal_at = now
+
+    @guidance
+        -- Any incoming server message (pong, signal response, token refresh,
+        -- etc.) resets the keepalive timer. This means a busy connection that
+        -- is actively exchanging messages will never hit a ping timeout, even
+        -- if pong responses are delayed.
+}
+
+-- == Timeouts ==
+
+rule ConnectionTimedOut {
+    when: ConnectionTimedOut(connection)
+    requires: connection.status = connecting
+    ensures:
+        connection.status = closed
+        ConnectionLost(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = connection_timeout, retryable = true,
+        -- supports_region_failover = true.
+        -- Fired when the transport_timeout is exceeded during the
+        -- initial connection attempt. Terminal for this connection.
+}
+
+-- == Graceful close ==
+-- Can be initiated from connected or suspended. From suspended, the
+-- orchestrator has decided not to reconnect — go straight to closed.
+
+rule CloseFromConnected {
+    when: CloseConnection(connection)
+    requires: connection.status = connected
+    ensures:
+        connection.status = disconnecting
+}
+
+rule CloseCompleted {
+    when: CloseCompleted(connection)
+    requires: connection.status = disconnecting
+    ensures:
+        connection.status = closed
+}
+
+rule TransportDroppedWhileDisconnecting {
+    when: TransportClosed(connection, reason)
+    requires: connection.status = disconnecting
+    ensures:
+        connection.status = closed
+
+    @guidance
+        -- The transport dropped instead of closing cleanly. Reaching closed
+        -- here rather than waiting indefinitely for CloseCompleted prevents
+        -- the graceful-close path from hanging.
+}
+
+rule CloseFromSuspended {
+    when: CloseConnection(connection)
+    requires: connection.status = suspended
+    ensures:
+        connection.status = closed
+
+    @guidance
+        -- The orchestrator has given up on reconnecting. No transport
+        -- to close gracefully, so we skip disconnecting and go
+        -- straight to closed.
+}
+
+-- == Validation on connection failure ==
+-- When the transport fails to open (WS open error) — during either the
+-- initial connect OR a reconnect attempt — the signal layer hits a validation
+-- endpoint to classify the specific failure reason. Classification is phase
+-- agnostic: it emits FailureClassified, and the dispatch rules below route it
+-- to the failure event matching the current lifecycle phase (ConnectionFailed
+-- while connecting, ReconnectAttemptFailed while reconnecting).
+
+rule ValidateNotAllowed {
+    when: ValidationResult(connection, status_code, body)
+    requires: status_code in {401, 403}
+    ensures:
+        FailureClassified(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = not_allowed, retryable = false,
+        -- supports_region_failover = false
+}
+
+rule ValidateRoomNotFound {
+    when: ValidationResult(connection, status_code, body)
+    requires:
+        status_code = 404
+        contains(body, "requested room does not exist")
+    ensures:
+        FailureClassified(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = room_not_found, retryable = false,
+        -- supports_region_failover = false
+}
+
+rule ValidateServiceNotFound {
+    when: ValidationResult(connection, status_code, body)
+    requires:
+        status_code = 404
+        not contains(body, "requested room does not exist")
+    ensures:
+        FailureClassified(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = service_not_found, retryable = false,
+        -- supports_region_failover = false
+}
+
+rule ValidateServerUnreachable {
+    when: ValidationFetchFailed(connection)
+    ensures:
+        FailureClassified(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = server_unreachable, retryable = true,
+        -- supports_region_failover = true
+}
+
+rule ValidateInternalError {
+    when: ValidationResult(connection, status_code, body)
+    requires: status_code not in {401, 403, 404}
+    ensures:
+        FailureClassified(connection: connection, failure: failure)
+
+    @guidance
+        -- failure.reason = internal_error, retryable = true,
+        -- supports_region_failover = true
+}
+
+-- Dispatch a classified failure to the failure event for the current phase.
+-- The classification (above) is identical for connect and reconnect; only the
+-- routing differs, so an initial connect ends the connection while a reconnect
+-- stays recoverable.
+
+rule FailureClassifiedWhileConnecting {
+    when: FailureClassified(connection, failure)
+    requires: connection.status = connecting
+    ensures:
+        ConnectionFailed(connection: connection, failure: failure)
+}
+
+rule FailureClassifiedWhileReconnecting {
+    when: FailureClassified(connection, failure)
+    requires: connection.status = reconnecting
+    ensures:
+        ReconnectAttemptFailed(connection: connection, failure: failure)
+
+    @guidance
+        -- The same validate-endpoint classification runs on a reconnect WS-open
+        -- failure. Routing to ReconnectAttemptFailed sends the connection to
+        -- suspended (recoverable) rather than closed, matching the connect()
+        -- path in SignalClient which calls handleConnectionError for both the
+        -- initial connect and reconnect attempts.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- The message-buffer invariant (empty when closed) lives in
+-- signal-connection.buffer.md, since the executor now owns the buffer.
+
+invariant KeepaliveTrackedOnlyWhileLive {
+    for c in SignalConnections:
+        c.ping_interval != null implies c.status = connected
+}

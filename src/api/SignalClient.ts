@@ -57,17 +57,11 @@ import {
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
 import { type DataTrackSid } from '../room/data-track/types';
-import { ConnectionError, ConnectionErrorReason } from '../room/errors';
+import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
-import {
-  type SignalMessage as MachineMessage,
-  SignalConnectionMachine,
-  SignalConnectionStatus,
-  type SignalEffect,
-} from './SignalConnectionState';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
   createRtcUrl,
@@ -123,22 +117,14 @@ export enum SignalConnectionState {
   DISCONNECTED,
 }
 
-const statusToLegacyState: Record<SignalConnectionStatus, SignalConnectionState> = {
-  [SignalConnectionStatus.NEW]: SignalConnectionState.DISCONNECTED,
-  [SignalConnectionStatus.CONNECTING]: SignalConnectionState.CONNECTING,
-  [SignalConnectionStatus.CONNECTED]: SignalConnectionState.CONNECTED,
-  [SignalConnectionStatus.SUSPENDED]: SignalConnectionState.DISCONNECTED,
-  [SignalConnectionStatus.RECONNECTING]: SignalConnectionState.RECONNECTING,
-  [SignalConnectionStatus.DISCONNECTING]: SignalConnectionState.DISCONNECTING,
-  [SignalConnectionStatus.CLOSED]: SignalConnectionState.DISCONNECTED,
-};
-
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
 const MAX_WS_CLOSE_TIME = 250;
 
 /** @internal */
 export class SignalClient {
   requestQueue: AsyncQueue;
+
+  queuedRequests: Array<() => Promise<void>>;
 
   useJSON: boolean;
 
@@ -214,17 +200,21 @@ export class SignalClient {
   ws?: WebSocketStream;
 
   get currentState() {
-    return statusToLegacyState[this.machine.status];
+    return this.state;
   }
 
   get isDisconnected() {
-    const s = this.machine.status;
-    return s === SignalConnectionStatus.DISCONNECTING || s === SignalConnectionStatus.CLOSED;
+    return (
+      this.state === SignalConnectionState.DISCONNECTING ||
+      this.state === SignalConnectionState.DISCONNECTED
+    );
   }
 
   private get isEstablishingConnection() {
-    const s = this.machine.status;
-    return s === SignalConnectionStatus.CONNECTING || s === SignalConnectionStatus.RECONNECTING;
+    return (
+      this.state === SignalConnectionState.CONNECTING ||
+      this.state === SignalConnectionState.RECONNECTING
+    );
   }
 
   private getNextRequestId() {
@@ -244,8 +234,7 @@ export class SignalClient {
 
   private closingLock: Mutex;
 
-  /** @internal */
-  machine: SignalConnectionMachine;
+  private state: SignalConnectionState = SignalConnectionState.DISCONNECTED;
 
   private connectionLock: Mutex;
 
@@ -264,9 +253,10 @@ export class SignalClient {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal, () => this.logContext);
     this.useJSON = useJSON;
     this.requestQueue = new AsyncQueue();
+    this.queuedRequests = [];
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
-    this.machine = new SignalConnectionMachine();
+    this.state = SignalConnectionState.DISCONNECTED;
   }
 
   private get logContext() {
@@ -282,11 +272,8 @@ export class SignalClient {
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
-    // connected — reset the machine for a fresh lifecycle
-    if (this.machine.status !== SignalConnectionStatus.NEW) {
-      this.machine = new SignalConnectionMachine();
-    }
-    this.machine.handle({ type: 'connect', url });
+    // connected
+    this.state = SignalConnectionState.CONNECTING;
     this.options = opts;
     const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
     return res as JoinResponse;
@@ -302,7 +289,9 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    await this.executeEffects(this.machine.handle({ type: 'start_reconnect' }));
+    this.state = SignalConnectionState.RECONNECTING;
+    // clear ping interval and restart it once reconnected
+    this.clearPingInterval();
 
     const res = (await this.connect(
       url,
@@ -415,9 +404,9 @@ export class SignalClient {
                   reason: closeInfo.reason,
                   code: closeInfo.closeCode,
                   wasClean: closeInfo.closeCode === 1000,
-                  state: this.machine.status,
+                  state: this.state,
                 });
-                if (this.machine.status === SignalConnectionStatus.CONNECTED) {
+                if (this.state === SignalConnectionState.CONNECTED) {
                   this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
                 }
               }
@@ -433,15 +422,8 @@ export class SignalClient {
               }
             });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
-            if (this.machine.status !== SignalConnectionStatus.CONNECTED) {
-              this.machine.handle({
-                type: 'connection_failed',
-                failure: {
-                  reason: ConnectionErrorReason.ServerUnreachable,
-                  retryable: true,
-                  supportsRegionFailover: true,
-                },
-              });
+            if (this.state !== SignalConnectionState.CONNECTED) {
+              this.state = SignalConnectionState.DISCONNECTED;
               clearTimeout(wsTimeout);
               const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
@@ -549,22 +531,20 @@ export class SignalClient {
   };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
-    if (!updateState) {
-      await this.closeWebSocket(reason);
+    if (
+      [SignalConnectionState.DISCONNECTING || SignalConnectionState.DISCONNECTED].includes(
+        this.state,
+      )
+    ) {
+      this.log.debug(`ignoring signal close as it's already in disconnecting state`);
       return;
     }
-    const closeEffects = this.machine.handle({ type: 'close' });
-    if (!closeEffects) {
-      this.log.debug(`ignoring signal close in state: ${this.machine.status}`);
-      return;
-    }
-    await this.executeEffects(closeEffects);
-    await this.executeEffects(this.machine.handle({ type: 'close_completed' }));
-  }
-
-  private async closeWebSocket(reason: string) {
     const unlock = await this.closingLock.lock();
     try {
+      this.clearPingInterval();
+      if (updateState) {
+        this.state = SignalConnectionState.DISCONNECTING;
+      }
       if (this.ws) {
         this.ws.close({ closeCode: 1000, reason });
 
@@ -577,6 +557,9 @@ export class SignalClient {
     } catch (e) {
       this.log.debug('websocket error while closing', { error: e });
     } finally {
+      if (updateState) {
+        this.state = SignalConnectionState.DISCONNECTED;
+      }
       unlock();
     }
   }
@@ -762,17 +745,43 @@ export class SignalClient {
   }
 
   private async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
-    if (fromQueue) {
-      await this.writeToWebSocket(message);
+    // capture all requests while reconnecting and put them in a queue
+    // unless the request originates from the queue, then don't enqueue again
+    const canQueue = !fromQueue && !canPassThroughQueue(message);
+    if (canQueue && this.state === SignalConnectionState.RECONNECTING) {
+      this.queuedRequests.push(async () => {
+        await this.sendRequest(message, true);
+      });
       return;
     }
+    // make sure previously queued requests are being sent first
+    if (!fromQueue) {
+      await this.requestQueue.flush();
+    }
+    if (this.signalLatency) {
+      await sleep(this.signalLatency);
+    }
+    if (this.isDisconnected) {
+      // Skip requests if the signal layer is disconnected
+      // This can happen if an event is sent in the mist of room.connect() initializing
+      this.log.debug(`skipping signal request (type: ${message.case}) - SignalClient disconnected`);
+      return;
+    }
+    if (!this.streamWriter) {
+      this.log.error(`cannot send signal request before connected, type: ${message?.case}`);
+      return;
+    }
+    const req = new SignalRequest({ message });
 
-    const priority = canPassThroughQueue(message)
-      ? MessagePriority.PASSTHROUGH
-      : MessagePriority.QUEUEABLE;
-    const machineMsg: MachineMessage = { priority, payload: message };
-    const effects = this.machine.handle({ type: 'send_message', message: machineMsg });
-    await this.executeEffects(effects);
+    try {
+      if (this.useJSON) {
+        await this.streamWriter.write(req.toJsonString());
+      } else {
+        await this.streamWriter.write((req.toBinary() as NonSharedUint8Array).buffer);
+      }
+    } catch (e) {
+      this.log.error('error sending signal message', { error: e });
+    }
   }
 
   private handleSignalResponse(res: SignalResponse) {
@@ -895,89 +904,27 @@ export class SignalClient {
     }
   }
 
-  async setReconnected() {
-    await this.executeEffects(this.machine.drainQueue());
+  setReconnected() {
+    while (this.queuedRequests.length > 0) {
+      const req = this.queuedRequests.shift();
+      if (req) {
+        this.requestQueue.run(req);
+      }
+    }
   }
 
   private async handleOnClose(reason: string) {
-    if (this.machine.status === SignalConnectionStatus.CLOSED) return;
-    const effects = this.machine.handle({ type: 'websocket_closed', reason });
+    if (this.state === SignalConnectionState.DISCONNECTED) return;
+    const onCloseCallback = this.onClose;
+    await this.close(undefined, reason);
     this.log.info(`websocket connection closed: ${reason}`, { reason });
-    this.ws = undefined;
-    this.streamWriter = undefined;
-    await this.executeEffects(effects);
+    if (onCloseCallback) {
+      onCloseCallback(reason);
+    }
   }
 
   private handleWSError(error: unknown) {
     this.log.error('websocket error', { error });
-  }
-
-  private async writeToWebSocket(message: SignalMessage) {
-    await this.requestQueue.flush();
-    if (this.signalLatency) {
-      await sleep(this.signalLatency);
-    }
-    if (!this.streamWriter) {
-      this.log.error(`cannot send signal request before connected, type: ${message?.case}`);
-      return;
-    }
-    const req = new SignalRequest({ message });
-    try {
-      if (this.useJSON) {
-        await this.streamWriter.write(req.toJsonString());
-      } else {
-        await this.streamWriter.write((req.toBinary() as NonSharedUint8Array).buffer);
-      }
-    } catch (e) {
-      this.log.error('error sending signal message', { error: e });
-    }
-  }
-
-  private async executeEffects(effects: SignalEffect[] | null) {
-    if (!effects) return;
-    for (const effect of effects) {
-      switch (effect.type) {
-        case 'open_websocket':
-          break;
-        case 'close_websocket':
-          await this.closeWebSocket('close requested');
-          break;
-        case 'start_ping':
-          this.startPingInterval();
-          break;
-        case 'stop_ping':
-          this.clearPingInterval();
-          break;
-        case 'dispatch_message':
-          await this.writeToWebSocket(effect.message.payload as SignalMessage);
-          break;
-        case 'queue_message':
-          break;
-        case 'drop_message':
-          this.log.debug(
-            `dropping signal request (type: ${(effect.message.payload as SignalMessage)?.case}) - state: ${this.machine.status}`,
-          );
-          break;
-        case 'drain_queue':
-          for (const msg of effect.messages) {
-            this.requestQueue.run(async () => {
-              await this.sendRequest(msg.payload as SignalMessage, true);
-            });
-          }
-          break;
-        case 'clear_queue':
-          break;
-        case 'connection_lost':
-          if (this.onClose) {
-            this.onClose(effect.failure.message ?? 'Connection lost');
-          }
-          break;
-        case 'reconnect_completed':
-          break;
-        case 'leave_received':
-          break;
-      }
-    }
   }
 
   /**
@@ -1037,24 +984,15 @@ export class SignalClient {
    * @param firstMessage Optional first message to process
    * @internal
    */
-  private async handleSignalConnected(
+  private handleSignalConnected(
     connection: WebSocketConnection,
     timeoutHandle: ReturnType<typeof setTimeout>,
     firstMessage?: SignalResponse,
   ) {
-    const pingConfig = {
-      intervalS: this.pingIntervalDuration ?? 0,
-      timeoutS: this.pingTimeoutDuration ?? 0,
-    };
-    const isReconnect = this.machine.status === SignalConnectionStatus.RECONNECTING;
-    const effects = this.machine.handle(
-      isReconnect
-        ? { type: 'reconnect_established', pingConfig }
-        : { type: 'connection_established', pingConfig },
-    );
+    this.state = SignalConnectionState.CONNECTED;
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
-    await this.executeEffects(effects);
+    this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
   }
 
@@ -1080,7 +1018,7 @@ export class SignalClient {
         response: firstSignalResponse.message.value,
       };
     } else if (
-      this.machine.status === SignalConnectionStatus.RECONNECTING &&
+      this.state === SignalConnectionState.RECONNECTING &&
       firstSignalResponse.message?.case !== 'leave'
     ) {
       if (firstSignalResponse.message?.case === 'reconnect') {
