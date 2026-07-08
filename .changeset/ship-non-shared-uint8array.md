@@ -2,7 +2,7 @@
 "livekit-client": patch
 ---
 
-Ship the `NonSharedUint8Array` type polyfill in the published declarations.
+Include the `NonSharedUint8Array` type polyfill in the published declarations.
 
 The type was declared in an ambient `.d.ts` that was resolved during our own
 build but never emitted to `dist`, so the published `.d.ts` files referenced a
