@@ -1,3 +1,4 @@
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import type LocalTrack from './LocalTrack';
 
 // Check if MediaRecorder is available

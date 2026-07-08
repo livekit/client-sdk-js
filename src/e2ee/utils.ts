@@ -1,4 +1,5 @@
 import { type DataPacket, EncryptedPacketPayload } from '@livekit/protocol';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM } from './constants';
 import type { KeyProviderOptions } from './types';
 

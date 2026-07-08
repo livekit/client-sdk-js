@@ -1,4 +1,5 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataTrackHandle, DataTrackHandleError, DataTrackHandleErrorReason } from '../handle';
 import {
   DataTrackTimestamp,

@@ -1,5 +1,6 @@
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../../utils/AsyncQueue';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';

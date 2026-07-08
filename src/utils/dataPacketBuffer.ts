@@ -1,3 +1,5 @@
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
+
 export interface DataPacketItem {
   data: NonSharedUint8Array;
   sequence: number;

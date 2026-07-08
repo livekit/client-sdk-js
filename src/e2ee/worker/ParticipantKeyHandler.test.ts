@@ -1,4 +1,5 @@
 import { describe, expect, it, test, vitest } from 'vitest';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { KeyHandlerEvent } from '../events';
 import { createKeyMaterialFromString, importKey } from '../utils';

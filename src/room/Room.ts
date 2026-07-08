@@ -46,6 +46,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { CLIENT_PROTOCOL_DEFAULT } from '../version';

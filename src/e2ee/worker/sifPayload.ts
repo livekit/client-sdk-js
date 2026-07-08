@@ -1,4 +1,5 @@
 import type { VideoCodec } from '../..';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 
 //  Payload definitions taken from https://github.com/livekit/livekit/blob/master/pkg/sfu/downtrack.go#L104
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
 import { appendPacketTrailer, extractPacketTrailer } from '../../frameMetadata/frameMetadata';
 import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
