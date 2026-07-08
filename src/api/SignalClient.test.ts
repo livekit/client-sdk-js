@@ -626,6 +626,9 @@ describe('SignalClient.handleSignalConnected', () => {
     const mockReadable = new ReadableStream<ArrayBuffer>();
     const mockConnection = createMockConnection(mockReadable);
 
+    // Transition machine to CONNECTING first so connection_established is valid
+    signalClient.machine.handle({ type: 'connect', url: 'wss://test' });
+
     // Access the method through a type assertion for testing
     const handleMethod = (signalClient as any).handleSignalConnected;
     if (handleMethod) {
@@ -701,7 +704,8 @@ describe('SignalClient.validateFirstMessage', () => {
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
     // Set state to RECONNECTING to match the validation logic
-    (signalClient as any).state = SignalConnectionState.RECONNECTING;
+    // Transition machine to RECONNECTING: new → connecting → connected → reconnecting
+signalClient.machine.handle({ type: 'start_reconnect' });
 
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
@@ -725,7 +729,8 @@ describe('SignalClient.validateFirstMessage', () => {
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
     // Set state to reconnecting
-    (signalClient as any).state = SignalConnectionState.RECONNECTING;
+    // Transition machine to RECONNECTING: new → connecting → connected → reconnecting
+signalClient.machine.handle({ type: 'start_reconnect' });
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
@@ -740,7 +745,8 @@ describe('SignalClient.validateFirstMessage', () => {
 
   it('should reject leave request during connection attempt', () => {
     // Set state to CONNECTING to be in establishing connection state
-    (signalClient as any).state = SignalConnectionState.CONNECTING;
+    // Transition machine to CONNECTING: new → connecting
+signalClient.machine.handle({ type: 'connect', url: 'wss://test' });
 
     const leaveRequest = new LeaveRequest({ reason: 1 });
     const signalResponse = createSignalResponse('leave', leaveRequest);
