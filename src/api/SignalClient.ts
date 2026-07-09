@@ -123,8 +123,6 @@ const MAX_WS_CLOSE_TIME = 250;
 
 /**
  * How long (in ms) to wait for the first message after the WebSocket upgrade.
- * `websocketTimeout` only guards the upgrade; this stops a silent server from
- * hanging join() forever. Mirrors the rust-sdk's `JOIN_RESPONSE_TIMEOUT`.
  */
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
