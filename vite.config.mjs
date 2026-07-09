@@ -41,5 +41,8 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
+    // e2e tests need a real server + node WebSocket; run them via the
+    // dedicated `pnpm test:e2e` config (vitest.e2e.config.mts), not the unit run.
+    exclude: ['**/node_modules/**', '**/*.e2e.test.ts'],
   },
 });
