@@ -1,8 +1,8 @@
+import { type LeaveRequest, LeaveRequest_Action } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from 'vitest';
-import { LeaveRequest_Action, type LeaveRequest } from '@livekit/protocol';
 import { ConnectionErrorReason } from '../room/errors';
-import { SignalClient, SignalConnectionState, type SignalOptions } from './SignalClient';
 import { createInvalidToken, createToken } from '../test/signalToken';
+import { SignalClient, SignalConnectionState, type SignalOptions } from './SignalClient';
 
 // Provided by src/test/signalServerSetup.ts (spawns the livekit-server test-server).
 const serverUrl = inject('serverUrl');
@@ -123,7 +123,9 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
         (e) => e as Error,
       );
       expect(err).toBeInstanceOf(Error);
-      expect((err as { reason?: ConnectionErrorReason }).reason).toBe(ConnectionErrorReason.InternalError);
+      expect((err as { reason?: ConnectionErrorReason }).reason).toBe(
+        ConnectionErrorReason.InternalError,
+      );
     });
 
     it('delivers a server-initiated leave while connected', async () => {

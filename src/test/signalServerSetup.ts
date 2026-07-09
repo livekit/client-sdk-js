@@ -139,7 +139,9 @@ export default async function setup(project: { provide: (name: string, value: un
 
   if (!(await waitReady(serverUrl))) {
     kill();
-    return skip(`test-server did not become ready on ${serverUrl}\n--- server output ---\n${serverLog}`);
+    return skip(
+      `test-server did not become ready on ${serverUrl}\n--- server output ---\n${serverLog}`,
+    );
   }
 
   provide(serverUrl);
