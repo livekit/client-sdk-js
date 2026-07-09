@@ -3,6 +3,7 @@ import { babel } from '@rollup/plugin-babel';
 import dns from 'dns';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 
 dns.setDefaultResultOrder('verbatim');
 
@@ -43,6 +44,6 @@ export default defineConfig({
     environment: 'happy-dom',
     // e2e tests need a real server + node WebSocket; run them via the
     // dedicated `pnpm test:e2e` config (vitest.e2e.config.mts), not the unit run.
-    exclude: ['**/node_modules/**', '**/*.e2e.test.ts'],
+    exclude: [...configDefaults.exclude, '**/*.e2e.test.ts'],
   },
 });
