@@ -1,6 +1,6 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { Socket, createServer } from 'node:net';
 import { join } from 'node:path';
 import { createToken } from './signalToken';
 
@@ -116,8 +116,10 @@ export default async function setup(project: { provide: (name: string, value: un
   child.stderr?.on('data', (d: unknown) => {
     serverLog += String(d);
   });
-  child.stdout?.unref?.();
-  child.stderr?.unref?.();
+  // With stdio: 'pipe' these are net.Sockets (typed as Readable, which lacks unref);
+  // unref the pipe handles so their 'data' listeners don't keep the parent alive.
+  if (child.stdout instanceof Socket) child.stdout.unref();
+  if (child.stderr instanceof Socket) child.stderr.unref();
   child.unref();
 
   const kill = () => {
