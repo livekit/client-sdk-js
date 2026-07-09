@@ -2,7 +2,7 @@ name: E2E
 
 on:
   push:
-    branches: [main]
+    branches: [main, "lukas/signal-e2e"]
   pull_request:
     branches: [main]
 
