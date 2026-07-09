@@ -80,9 +80,7 @@
     "sdp-transform": "^2.15.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",
-    "typescript-fsm": "^1.6.0",
-    "webrtc-adapter": "9.0.6",
-    "xstate": "^5.32.4"
+    "webrtc-adapter": "9.0.6"
   },
   "peerDependencies": {
     "@types/dom-mediacapture-record": "^1"
