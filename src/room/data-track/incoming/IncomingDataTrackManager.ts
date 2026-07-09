@@ -458,6 +458,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         if (this.descriptors.has(info.sid)) {
           continue;
         }
+        if (this.handleSidReassigned(publisherIdentity, info)) {
+          continue;
+        }
         await this.handleTrackPublished(publisherIdentity, info);
       }
       publisherParticipantToSidsInUpdate.set(publisherIdentity, sidsInUpdate);
@@ -497,6 +500,62 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
     const track = new RemoteDataTrack(descriptor.info, this, { publisherIdentity });
     this.emit('trackPublished', { track });
+  }
+
+  /**
+   * Detects and handles SID reassignment, which occurs when the publisher
+   * republishes its tracks after a full reconnect.
+   *
+   * Returns `true` if an SID reassignment occurred, `false` otherwise.
+   */
+  private handleSidReassigned(
+    publisherIdentity: Participant['identity'],
+    info: DataTrackInfo,
+  ): boolean {
+    // Publisher identity and pub handle are stable across republications.
+    const existingEntry = Array.from(this.descriptors.entries()).find(
+      ([_sid, descriptor]) =>
+        descriptor.publisherIdentity === publisherIdentity &&
+        descriptor.info.pubHandle === info.pubHandle,
+    );
+    if (!existingEntry) {
+      return false;
+    }
+    const [oldSid, descriptor] = existingEntry;
+
+    // Invariant: other than SID, info should not have changed.
+    // TODO: consider refactoring to move SID out of info to allow for direct comparison.
+    const { name, usesE2ee } = descriptor.info;
+    if (name !== info.name || usesE2ee !== info.usesE2ee) {
+      log.warn(`Info mismatch for ${oldSid}, treating as new publication`);
+      return false;
+    }
+
+    const newSid = info.sid;
+    log.debug(`SID reassigned: ${oldSid} -> ${newSid}`);
+
+    if (!this.descriptors.delete(oldSid)) {
+      return false;
+    }
+    descriptor.info.sid = newSid;
+
+    switch (descriptor.subscription.type) {
+      case 'none':
+        break;
+      case 'pending':
+      case 'active':
+        // The SFU does not carry subscriptions across a publisher's full
+        // reconnect; re-request the subscription under the new SID.
+        this.emit('sfuUpdateSubscription', { sid: newSid, subscribe: true });
+        break;
+    }
+    if (descriptor.subscription.type === 'active') {
+      // Keep the routing index consistent until the SFU assigns a new handle
+      // (see `registerSubscriberHandle`).
+      this.subscriptionHandles.set(descriptor.subscription.subcriptionHandle, newSid);
+    }
+    this.descriptors.set(newSid, descriptor);
+    return true;
   }
 
   handleTrackUnpublished(sid: DataTrackSid) {
