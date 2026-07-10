@@ -98,7 +98,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
     this.loggerOptions = loggerOptions;
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport, () => this.logContext);
+    this.log = getLogger(
+      loggerOptions.loggerName ?? LoggerNames.PCTransport,
+      () => this.logContext,
+    );
     this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
     this.config = config;
     this._pc = this.createPC();

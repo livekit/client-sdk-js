@@ -1,10 +1,10 @@
 import { Mutex } from '@livekit/mutex';
 import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import { LoggerNames, getLogger } from '../logger';
-
-const log = getLogger(LoggerNames.Region);
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { extractMaxAgeFromRequestHeaders, isCloud } from './utils';
+
+const log = getLogger(LoggerNames.Region);
 
 export const DEFAULT_MAX_AGE_MS = 5_000;
 export const STOP_REFETCH_DELAY_MS = 30_000;
