@@ -1,5 +1,6 @@
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../../utils/AsyncQueue';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
@@ -29,7 +30,7 @@ let isEncryptionEnabled: boolean = false;
 
 let useSharedKey: boolean = false;
 
-let sifTrailer: Uint8Array | undefined;
+let sifTrailer: NonSharedUint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
@@ -64,6 +65,7 @@ onmessage = (ev) => {
         break;
       case 'decode':
         let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        cryptor.setHasFrameMetadata(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
           data.readableStream,
@@ -75,6 +77,7 @@ onmessage = (ev) => {
         break;
       case 'encode':
         let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        pubCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         pubCryptor.setupTransform(
           kind,
           data.readableStream,
@@ -82,6 +85,7 @@ onmessage = (ev) => {
           data.trackId,
           data.isReuse,
           data.codec,
+          data.packetTrailer, // wire format still uses 'packetTrailer' field name
         );
         break;
 
@@ -159,11 +163,14 @@ onmessage = (ev) => {
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
-        getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        trackCryptor.setVideoCodec(data.codec);
+        trackCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
           codec: data.codec,
+          hasPacketTrailer: data.hasPacketTrailer,
         });
         break;
       case 'setRTPMap':
@@ -319,7 +326,7 @@ function emitRatchetedKeys(
   postMessage(msg);
 }
 
-function handleSifTrailer(trailer: Uint8Array) {
+function handleSifTrailer(trailer: NonSharedUint8Array) {
   sifTrailer = trailer;
   participantCryptors.forEach((c) => {
     c.setSifTrailer(trailer);
@@ -333,10 +340,11 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event: RTCTransformEvent) => {
     // @ts-ignore
     const transformer = event.transformer;
-    const { kind, participantIdentity, trackId, codec } =
-      transformer.options as ScriptTransformOptions;
+    const options = transformer.options as ScriptTransformOptions;
+    const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(participantIdentity, trackId);
+      cryptor.setHasFrameMetadata(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(
         kind,
@@ -345,6 +353,7 @@ if (self.RTCTransformEvent) {
         trackId,
         false,
         codec,
+        kind === 'encode' ? options.packetTrailer : undefined,
       );
     });
   };

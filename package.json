@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.18.4",
+  "version": "2.20.1",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -15,6 +15,16 @@
       "types": "./dist/src/e2ee/worker/e2ee.worker.d.ts",
       "import": "./dist/livekit-client.e2ee.worker.mjs",
       "require": "./dist/livekit-client.e2ee.worker.js"
+    },
+    "./packet-trailer-worker": {
+      "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
+      "import": "./dist/livekit-client.fm.worker.mjs",
+      "require": "./dist/livekit-client.fm.worker.js"
+    },
+    "./frame-metadata-worker": {
+      "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
+      "import": "./dist/livekit-client.fm.worker.mjs",
+      "require": "./dist/livekit-client.fm.worker.js"
     }
   },
   "files": [
@@ -29,6 +39,9 @@
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
+      ],
+      "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts": [
+        "./dist/ts4.2/frameMetadata/worker/frameMetadata.worker.d.ts"
       ]
     }
   },
@@ -36,7 +49,7 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
@@ -50,49 +63,50 @@
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
     "throws:check": "pnpm --package=@livekit/throws-transformer dlx throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
-    "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
+    "type:check": "tsc --noEmit",
+    "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
-    "@livekit/protocol": "1.45.3",
+    "@livekit/protocol": "1.46.6",
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",
-    "webrtc-adapter": "9.0.5"
+    "webrtc-adapter": "9.0.6"
   },
   "peerDependencies": {
     "@types/dom-mediacapture-record": "^1"
   },
   "devDependencies": {
-    "@babel/core": "7.29.0",
-    "@babel/preset-env": "7.29.0",
+    "@babel/core": "7.29.7",
+    "@babel/preset-env": "7.29.7",
     "@bufbuild/protoc-gen-es": "^1.10.0",
-    "@changesets/cli": "2.29.8",
-    "@eslint/js": "9.39.2",
+    "@changesets/cli": "2.31.0",
+    "@eslint/js": "10.0.1",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@livekit/throws-transformer": "^0.1.3",
     "@rollup/plugin-babel": "7.0.0",
-    "@rollup/plugin-commonjs": "28.0.9",
+    "@rollup/plugin-commonjs": "29.0.2",
     "@rollup/plugin-json": "6.1.0",
     "@rollup/plugin-node-resolve": "16.0.3",
-    "@rollup/plugin-terser": "^0.4.4",
-    "@size-limit/file": "^11.2.0",
-    "@size-limit/webpack": "^11.2.0",
-    "@stylistic/eslint-plugin": "^3.1.0",
-    "@trivago/prettier-plugin-sort-imports": "^5.0.0",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@size-limit/file": "^12.1.0",
+    "@size-limit/webpack": "^12.1.0",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/events": "^3.0.3",
     "@types/sdp-transform": "2.15.0",
     "@types/ua-parser-js": "0.7.39",
-    "@typescript-eslint/eslint-plugin": "7.18.0",
-    "@typescript-eslint/parser": "7.18.0",
+    "@typescript-eslint/eslint-plugin": "8.59.4",
+    "@typescript-eslint/parser": "8.59.4",
     "downlevel-dts": "^0.11.0",
-    "eslint": "9.39.2",
+    "eslint": "10.4.0",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-compat": "^6.0.2",
@@ -103,17 +117,18 @@
     "happy-dom": "^20.0.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
-    "rollup": "4.59.0",
+    "publint": "^0.3.21",
+    "rollup": "4.60.4",
     "rollup-plugin-delete": "^2.1.0",
-    "rollup-plugin-typescript2": "0.36.0",
+    "rollup-plugin-typescript2": "0.37.0",
     "size-limit": "^11.2.0",
     "tsx": "^4.21.0",
-    "typedoc": "0.28.16",
+    "typedoc": "0.28.19",
     "typedoc-plugin-no-inherit": "1.6.1",
-    "typescript": "5.8.3",
+    "typescript": "5.9.3",
     "typescript-eslint": "^8.47.0",
-    "vite": "7.3.1",
-    "vitest": "^3.0.0"
+    "vite": "7.3.5",
+    "vitest": "^4.0.0"
   },
   "packageManager": "pnpm@10.33.0"
 }

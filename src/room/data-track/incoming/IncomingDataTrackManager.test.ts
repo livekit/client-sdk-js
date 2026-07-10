@@ -327,7 +327,7 @@ describe('DataTrackIncomingManager', () => {
       expect(sfuUpdateSubscriptionEvent.subscribe).toStrictEqual(false);
 
       // 7. Make sure shutting down the manager doesn't throw errors
-      manager.shutdown();
+      manager.reset();
     });
 
     it('should NOT terminate the sfu subscription if the abortsignal is triggered on one of two active subscriptions', async () => {
@@ -675,7 +675,7 @@ describe('DataTrackIncomingManager', () => {
       );
 
       // 4. Shutdown the manager, and make sure it doesn't throw
-      manager.shutdown();
+      manager.reset();
 
       // 5. Make sure the trackUnpublished event fires for the descriptor
       const trackUnpublishedEvent = await managerEvents.waitFor('trackUnpublished');
@@ -866,5 +866,269 @@ describe('DataTrackIncomingManager', () => {
       // 8. Make sure the in flight stream is now complete
       await expect(reader.read()).resolves.toStrictEqual({ value: undefined, done: true });
     });
+
+    it(`should not produce an unhandled promise rejection when RemoteDataTrack.subscribe()'s signal is aborted`, async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const sid = 'data track sid';
+
+      // 1. Register the data track so we can get a RemoteDataTrack via trackPublished.
+      await manager.receiveSfuPublicationUpdates(
+        new Map([
+          [
+            'identity',
+            [{ sid, pubHandle: DataTrackHandle.fromNumber(5), name: 'test', usesE2ee: false }],
+          ],
+        ]),
+      );
+      const { track } = await managerEvents.waitFor('trackPublished');
+
+      // 2. Listen for unhandled rejections (coming from sfuSubscriptionComplete) and throw
+      // them so the test will terminate.
+      const onUnhandled = (reason: unknown) => {
+        throw reason;
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const controller = new AbortController();
+        const stream = track.subscribe({ signal: controller.signal });
+
+        // 3. Consume the stream the way a user would, catching the rejection.
+        const caughtByUser: unknown[] = [];
+        const consumerDone = (async () => {
+          try {
+            const reader = stream.getReader();
+            while (true) {
+              const { done } = await reader.read();
+              if (done) {
+                return;
+              }
+            }
+          } catch (err) {
+            caughtByUser.push(err);
+          }
+        })();
+
+        // Wait until subscribeRequest has kicked off so we abort during the
+        // 'pending' state — the path that rejects sfuSubscriptionComplete.
+        await managerEvents.waitFor('sfuUpdateSubscription');
+
+        // 4. Abort the subscription
+        controller.abort();
+        await consumerDone;
+
+        // Drain microtasks so any unhandledRejection has a chance to fire.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // 5. Make sure that no `unhandledrejection`s occur and get bubbled up as user
+        // facing errors.
+
+        // But, the error should still get raised by the user so they can catch it / do with it as
+        // they please.
+        expect(caughtByUser).toHaveLength(1);
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+    });
+
+    it('should depacketize multiple interleaved partial frames when setMaxPartialFrames is called before subscribe', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      const trackPublishedEvent = await managerEvents.waitFor('trackPublished');
+
+      // Configure the track BEFORE any subscribe.
+      trackPublishedEvent.track.setPipelineOptions({ maxPartialFrames: 3 });
+
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
+      const reader = stream.getReader();
+
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionComplete;
+
+      // Two interleaved partial frames: Start(1), Start(2), Final(1), Final(2). With the default
+      // maxPartialFrames=1 frame 1 would be evicted by frame 2; with maxPartialFrames=3 both
+      // frames coexist and emerge.
+      pushInterleavedTwoFramePair(manager, handle, {
+        frameOneNumber: 1,
+        frameOneStartSequence: 0,
+        frameOnePayloads: [new Uint8Array([0xa1]), new Uint8Array([0xa2])],
+        frameTwoNumber: 2,
+        frameTwoStartSequence: 100,
+        frameTwoPayloads: [new Uint8Array([0xb1]), new Uint8Array([0xb2])],
+      });
+
+      const first = await reader.read();
+      expect(first.done).toStrictEqual(false);
+      expect(first.value?.payload).toStrictEqual(new Uint8Array([0xa1, 0xa2]));
+
+      const second = await reader.read();
+      expect(second.done).toStrictEqual(false);
+      expect(second.value?.payload).toStrictEqual(new Uint8Array([0xb1, 0xb2]));
+    });
+
+    it('should pick up setMaxPartialFrames live on an already-active subscription', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      const trackPublishedEvent = await managerEvents.waitFor('trackPublished');
+
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
+      const reader = stream.getReader();
+
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionComplete;
+
+      // Subscription is now active; flip the cap on the live pipeline.
+      trackPublishedEvent.track.setPipelineOptions({ maxPartialFrames: 3 });
+
+      pushInterleavedTwoFramePair(manager, handle, {
+        frameOneNumber: 1,
+        frameOneStartSequence: 0,
+        frameOnePayloads: [new Uint8Array([0xa1]), new Uint8Array([0xa2])],
+        frameTwoNumber: 2,
+        frameTwoStartSequence: 100,
+        frameTwoPayloads: [new Uint8Array([0xb1]), new Uint8Array([0xb2])],
+      });
+
+      const first = await reader.read();
+      expect(first.value?.payload).toStrictEqual(new Uint8Array([0xa1, 0xa2]));
+
+      const second = await reader.read();
+      expect(second.value?.payload).toStrictEqual(new Uint8Array([0xb1, 0xb2]));
+    });
+
+    it('should drop the older partial frame by default (no setMaxPartialFrames call)', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const senderIdentity = 'identity';
+      const sid = 'data track sid';
+      const handle = DataTrackHandle.fromNumber(5);
+
+      await manager.receiveSfuPublicationUpdates(
+        new Map([[senderIdentity, [{ sid, pubHandle: handle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(sid);
+      const reader = stream.getReader();
+
+      await managerEvents.waitFor('sfuUpdateSubscription');
+      manager.receivedSfuSubscriberHandles(new Map([[handle, sid]]));
+      await sfuSubscriptionComplete;
+
+      // Default cap of 1: Start(2) evicts Start(1), so Final(1) is unknown and only frame 2
+      // makes it through.
+      pushInterleavedTwoFramePair(manager, handle, {
+        frameOneNumber: 1,
+        frameOneStartSequence: 0,
+        frameOnePayloads: [new Uint8Array([0xa1]), new Uint8Array([0xa2])],
+        frameTwoNumber: 2,
+        frameTwoStartSequence: 100,
+        frameTwoPayloads: [new Uint8Array([0xb1]), new Uint8Array([0xb2])],
+      });
+
+      const onlyFrame = await reader.read();
+      expect(onlyFrame.done).toStrictEqual(false);
+      expect(onlyFrame.value?.payload).toStrictEqual(new Uint8Array([0xb1, 0xb2]));
+    });
   });
 });
+
+/** Pushes Start(frame1), Start(frame2), Final(frame1), Final(frame2) packets through the manager
+ * to exercise the depacketizer's concurrent-partial-frame handling. */
+function pushInterleavedTwoFramePair(
+  manager: IncomingDataTrackManager,
+  trackHandle: DataTrackHandle,
+  args: {
+    frameOneNumber: number;
+    frameOneStartSequence: number;
+    frameOnePayloads: [Uint8Array, Uint8Array];
+    frameTwoNumber: number;
+    frameTwoStartSequence: number;
+    frameTwoPayloads: [Uint8Array, Uint8Array];
+  },
+) {
+  const buildPacket = (
+    frameNumber: number,
+    sequence: number,
+    marker: FrameMarker,
+    payload: Uint8Array,
+  ) =>
+    new DataTrackPacket(
+      new DataTrackPacketHeader({
+        extensions: new DataTrackExtensions(),
+        frameNumber: WrapAroundUnsignedInt.u16(frameNumber),
+        marker,
+        sequence: WrapAroundUnsignedInt.u16(sequence),
+        timestamp: DataTrackTimestamp.fromRtpTicks(0),
+        trackHandle,
+      }),
+      payload,
+    ).toBinary();
+
+  manager.packetReceived(
+    buildPacket(
+      args.frameOneNumber,
+      args.frameOneStartSequence,
+      FrameMarker.Start,
+      args.frameOnePayloads[0],
+    ),
+  );
+  manager.packetReceived(
+    buildPacket(
+      args.frameTwoNumber,
+      args.frameTwoStartSequence,
+      FrameMarker.Start,
+      args.frameTwoPayloads[0],
+    ),
+  );
+  manager.packetReceived(
+    buildPacket(
+      args.frameOneNumber,
+      args.frameOneStartSequence + 1,
+      FrameMarker.Final,
+      args.frameOnePayloads[1],
+    ),
+  );
+  manager.packetReceived(
+    buildPacket(
+      args.frameTwoNumber,
+      args.frameTwoStartSequence + 1,
+      FrameMarker.Final,
+      args.frameTwoPayloads[1],
+    ),
+  );
+}

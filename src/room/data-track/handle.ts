@@ -66,4 +66,8 @@ export class DataTrackHandleAllocator {
     }
     return this.value;
   }
+
+  reset() {
+    this.value = 0;
+  }
 }

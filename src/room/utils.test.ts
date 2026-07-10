@@ -1,5 +1,6 @@
+import { ClientInfo_Capability } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { extractMaxAgeFromRequestHeaders, splitUtf8, toWebsocketUrl } from './utils';
+import { extractMaxAgeFromRequestHeaders, getClientInfo, splitUtf8, toWebsocketUrl } from './utils';
 
 describe('toWebsocketUrl', () => {
   it('leaves wss urls alone', () => {
@@ -12,6 +13,18 @@ describe('toWebsocketUrl', () => {
 
   it('does not convert other parts of URL', () => {
     expect(toWebsocketUrl('https://httpsmywebsite.com')).toEqual('wss://httpsmywebsite.com');
+  });
+});
+
+describe('getClientInfo', () => {
+  it('does not advertise packet trailer capability by default', () => {
+    expect(getClientInfo().capabilities).toEqual([]);
+  });
+
+  it('advertises packet trailer capability when provided', () => {
+    expect(getClientInfo([ClientInfo_Capability.CAP_PACKET_TRAILER]).capabilities).toEqual([
+      ClientInfo_Capability.CAP_PACKET_TRAILER,
+    ]);
   });
 });
 

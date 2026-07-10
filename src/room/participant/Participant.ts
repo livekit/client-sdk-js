@@ -12,6 +12,7 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type LocalVideoTrack from '../track/LocalVideoTrack';
@@ -418,7 +419,7 @@ export type ParticipantEventCallbacks = {
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (
-    payload: Uint8Array,
+    payload: NonSharedUint8Array,
     kind: DataPacket_Kind,
     encryptionType?: Encryption_Type,
   ) => void;

@@ -586,7 +586,7 @@ describe('DataTrackOutgoingManager', () => {
     ]);
 
     // Shut down the manager
-    const shutdownPromise = manager.shutdown();
+    const shutdownPromise = manager.reset();
 
     // The pending data track should be cancelled
     await expect(pendingDescriptor.completionFuture.promise).rejects.toThrowError(
@@ -601,5 +601,391 @@ describe('DataTrackOutgoingManager', () => {
     manager.receivedSfuUnpublishResponse(DataTrackHandle.fromNumber(6));
 
     await shutdownPromise;
+  });
+
+  describe('localDataTrack.flush()', () => {
+    it('should resolve flush() after a single tryPush once the packet is acknowledged', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetAvailable',
+        'packetsFlushedChange',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Push a single-packet payload
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
+
+      // 2. The packet should have been emitted to be sent over the data channel
+      const packetEvent = await managerEvents.waitFor('packetAvailable');
+      expect(packetEvent.handle).toStrictEqual(pubHandle);
+
+      // 3. A event should be sent indicating that the data track is no longer "flushed"
+      const noLongerFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(noLongerFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(noLongerFlushedEvent.isFlushed).toStrictEqual(false);
+
+      // 3. Calling flush() right after tryPush() should not resolve until the packet
+      // is acknowledged via handlePacketSendComplete
+      let flushed = false;
+      const flushPromise = localDataTrack.flush().then(() => {
+        flushed = true;
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(flushed).toStrictEqual(false);
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+
+      // 4. Acknowledge that the packet has been sent over the data channel
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+
+      // 5. The packetsFlushed event fires once the in-flight packet counter reaches 0
+      const flushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(flushedEvent.handle).toStrictEqual(pubHandle);
+      expect(flushedEvent.isFlushed).toStrictEqual(true);
+
+      // 6. The flush() promise resolves
+      await flushPromise;
+      expect(flushed).toStrictEqual(true);
+    });
+
+    it('should resolve flush() only after all packets in a multi-packet payload are acknowledged', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetAvailable',
+        'packetsFlushedChange',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Push a payload large enough to span multiple packets (24k > single packet mtu)
+      await localDataTrack.tryPush({ payload: new Uint8Array(24_000).fill(0xbe) });
+
+      // 2. A event should be sent indicating that the data track is no longer "flushed"
+      const noLongerFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(noLongerFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(noLongerFlushedEvent.isFlushed).toStrictEqual(false);
+
+      // 3. Two packetAvailable events should be emitted for this payload
+      await managerEvents.waitFor('packetAvailable');
+      await managerEvents.waitFor('packetAvailable');
+
+      // 4. Call flush() before any of the packets have been acknowledged
+      let flushed = false;
+      const flushPromise = localDataTrack.flush().then(() => {
+        flushed = true;
+      });
+
+      // 5. Acknowledge the first packet -- flush should not resolve yet, in-flight counter still > 0
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(flushed).toStrictEqual(false);
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+
+      // 6. Acknowledge the second packet -- flush resolves once the counter reaches 0
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+
+      const flushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(flushedEvent.handle).toStrictEqual(pubHandle);
+      expect(flushedEvent.isFlushed).toStrictEqual(true);
+
+      await flushPromise;
+      expect(flushed).toStrictEqual(true);
+    });
+
+    it('should resolve any pending flush() calls when the manager is reset', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetAvailable',
+        'packetsFlushedChange',
+        'reset',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Push a single-packet payload
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
+
+      // 2. A event should be sent indicating that the data track is no longer "flushed"
+      const noLongerFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(noLongerFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(noLongerFlushedEvent.isFlushed).toStrictEqual(false);
+
+      await managerEvents.waitFor('packetAvailable');
+
+      // 3. Call flush() before the in-flight packet is acknowledged -- it should remain
+      // pending because the in-flight counter is still > 0
+      let flushed = false;
+      const flushPromise = localDataTrack.flush().then(() => {
+        flushed = true;
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(flushed).toStrictEqual(false);
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+
+      // 4. Reset the manager. This simulates a RTCEngine disconnect and should resolve
+      // the pending flush() even though the packet was never acknowledged.
+      await manager.reset();
+      await managerEvents.waitFor('reset');
+
+      // 5. The flush() promise resolves
+      await flushPromise;
+      expect(flushed).toStrictEqual(true);
+
+      // 6. No packetsFlushed event was emitted -- reset short-circuits the flush directly
+      // on the LocalDataTrack rather than going through the in-flight counter.
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+    });
+
+    it('should resolve flush() at the end of a batch of tryPush calls after all packets are later acknowledged as "sent"', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetAvailable',
+        'packetsFlushedChange',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Run a batch of tryPush calls
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x01]) });
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x02]) });
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x03]) });
+
+      // 2. A event should have been sent indicating that the data track is no longer "flushed"
+      const noLongerFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(noLongerFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(noLongerFlushedEvent.isFlushed).toStrictEqual(false);
+
+      // 3. Three packetAvailable events should be emitted, one per pushed frame
+      await managerEvents.waitFor('packetAvailable');
+      await managerEvents.waitFor('packetAvailable');
+      await managerEvents.waitFor('packetAvailable');
+
+      // 4. After the batch is enqueued, call flush() to wait for the SFU to drain them
+      let flushed = false;
+      const flushPromise = localDataTrack.flush().then(() => {
+        flushed = true;
+      });
+
+      // 5. Acknowledge two of the three packets -- flush should not resolve yet
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(flushed).toStrictEqual(false);
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+
+      // 6. Acknowledge the last packet -- flush resolves once the counter reaches 0
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+
+      const flushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(flushedEvent.handle).toStrictEqual(pubHandle);
+
+      await flushPromise;
+      expect(flushed).toStrictEqual(true);
+    });
+
+    it('should resolve flush() if there are no tryPush calls in flight', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // Call flush, make sure it resolves on its own
+      await localDataTrack.flush();
+    });
+
+    it('should resolve flush() at the end of a batch of tryPush calls which have all fully sent their data', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetAvailable',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Run a batch of tryPush calls
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x01]) });
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x02]) });
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x03]) });
+
+      // 2. Three packetAvailable events should be emitted, one per pushed frame
+      await managerEvents.waitFor('packetAvailable');
+      await managerEvents.waitFor('packetAvailable');
+      await managerEvents.waitFor('packetAvailable');
+
+      // 3. Acknowledge all three packets
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+
+      // 4. Call flush and ensure that it resolves immediately
+      await localDataTrack.flush();
+    });
+
+    it('should send packetsFlushedChange events in between tryPush / handlePacketSendComplete calls', async () => {
+      const pubHandle = 5;
+      const manager = OutgoingDataTrackManager.withDescriptors(
+        new Map([
+          [
+            DataTrackHandle.fromNumber(pubHandle),
+            Descriptor.active(
+              {
+                sid: 'bogus-sid',
+                pubHandle,
+                name: 'test',
+                usesE2ee: false,
+              },
+              null,
+            ),
+          ],
+        ]),
+      );
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'packetsFlushedChange',
+      ]);
+      const localDataTrack = LocalDataTrack.withExplicitHandle(
+        { name: 'track name' },
+        manager,
+        pubHandle,
+      );
+
+      // 1. Send a single packet frame
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x01]) });
+
+      // 2. Ensure the data track is no longer "flushed"
+      const noLongerFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(noLongerFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(noLongerFlushedEvent.isFlushed).toStrictEqual(false);
+
+      // 3. Send more single packet frames
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x02]) });
+      await localDataTrack.tryPush({ payload: new Uint8Array([0x03]) });
+
+      // 3. Acknowledge the first two packets
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+      expect(managerEvents.areThereBufferedEvents('packetsFlushedChange')).toBe(false);
+
+      // 4. Acknowledge the last packet
+      manager.handlePacketSendComplete(DataTrackHandle.fromNumber(pubHandle));
+
+      // 4. The data track should now be "flushed" again
+      const isFlushedEvent = await managerEvents.waitFor('packetsFlushedChange');
+      expect(isFlushedEvent.handle).toStrictEqual(pubHandle);
+      expect(isFlushedEvent.isFlushed).toStrictEqual(true);
+    });
   });
 });

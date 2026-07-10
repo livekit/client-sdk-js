@@ -2,6 +2,7 @@
  * NALU (Network Abstraction Layer Unit) utilities for H.264 and H.265 video processing
  * Contains functions for parsing and working with NALUs in video frames
  */
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 
 /**
  * Mask for extracting NALU type from H.264 header byte
@@ -200,7 +201,7 @@ export interface NALUProcessingResult {
  * @param naluIndices Indices where NALUs start
  * @returns Detected codec type
  */
-function detectCodecFromNALUs(data: Uint8Array, naluIndices: number[]): DetectedCodec {
+function detectCodecFromNALUs(data: NonSharedUint8Array, naluIndices: number[]): DetectedCodec {
   for (const naluIndex of naluIndices) {
     if (isH264SliceNALU(parseH264NALUType(data[naluIndex]))) return 'h264';
     if (isH265SliceNALU(parseH265NALUType(data[naluIndex]))) return 'h265';
@@ -216,7 +217,7 @@ function detectCodecFromNALUs(data: Uint8Array, naluIndices: number[]): Detected
  * @returns Number of unencrypted bytes (index + 2) or null if no slice found
  */
 function findSliceNALUUnencryptedBytes(
-  data: Uint8Array,
+  data: NonSharedUint8Array,
   naluIndices: number[],
   codec: 'h264' | 'h265',
 ): number | null {
@@ -246,7 +247,7 @@ function findSliceNALUUnencryptedBytes(
  * @param stream Byte stream containing NALUs
  * @returns Array of indices where NALUs start (after the start code)
  */
-function findNALUIndices(stream: Uint8Array): number[] {
+function findNALUIndices(stream: NonSharedUint8Array): number[] {
   const result: number[] = [];
   let start = 0,
     pos = 0,
@@ -309,7 +310,7 @@ function findNALUIndices(stream: Uint8Array): number[] {
  * @returns NALU processing result
  */
 export function processNALUsForEncryption(
-  data: Uint8Array,
+  data: NonSharedUint8Array,
   knownCodec?: 'h264' | 'h265',
 ): NALUProcessingResult {
   const naluIndices = findNALUIndices(data);

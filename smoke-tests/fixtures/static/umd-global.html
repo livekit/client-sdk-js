@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>livekit-client smoke — UMD global (CDN)</title>
+  </head>
+  <body>
+    <h1>livekit-client smoke — UMD global (CDN-style)</h1>
+    <pre id="result">pending</pre>
+    <script src="/shared/assertions.js"></script>
+    <script src="/node_modules/livekit-client/dist/livekit-client.umd.js"></script>
+    <script>
+      (function () {
+        const lk = window.LivekitClient;
+        if (!lk) {
+          window.__smoke = {
+            ok: false,
+            errors: ['window.LivekitClient is not defined after loading UMD bundle'],
+          };
+        } else {
+          window.__smoke = window.__livekitRunSmoke(lk, window.__expectedVersion);
+        }
+        document.getElementById('result').textContent = JSON.stringify(window.__smoke, null, 2);
+      })();
+    </script>
+  </body>
+</html>

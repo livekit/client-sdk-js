@@ -11,6 +11,11 @@
       integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2"
       crossorigin="anonymous"
     />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -69,6 +74,24 @@
             <div>
               <input type="checkbox" class="form-check-input" id="e2ee" />
               <label for="e2ee" class="form-check-label"> E2E Encryption </label>
+            </div>
+            <div>
+              <input type="checkbox" class="form-check-input" id="frame-metadata" />
+              <label for="frame-metadata" class="form-check-label"> Frame Metadata </label>
+            </div>
+            <div id="frame-metadata-features" style="display: none">
+              <div class="ml-3">
+                <input type="checkbox" class="form-check-input" id="frame-metadata-timestamp" />
+                <label for="frame-metadata-timestamp" class="form-check-label">
+                  Attach Timestamp
+                </label>
+              </div>
+              <div class="ml-3">
+                <input type="checkbox" class="form-check-input" id="frame-metadata-frame-id" />
+                <label for="frame-metadata-frame-id" class="form-check-label">
+                  Attach Frame ID
+                </label>
+              </div>
             </div>
             <div>
               <select id="preferred-codec" class="custom-select" style="width: auto"></select>
@@ -342,6 +365,77 @@
 
           <div id="data-tracks-remote-list">
             <!-- data track entries dynamically inserted in here -->
+          </div>
+
+          <h3 class="mt-4">RPC</h3>
+
+          <div class="input-group input-group-sm">
+            <select class="form-control text-monospace" id="rpc-send-destination">
+              <option value="">(no remote participants)</option>
+            </select>
+          </div>
+          <div class="input-group input-group-sm mt-1">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-send-topic"
+              placeholder="Topic (method)"
+            />
+          </div>
+          <div class="input-group input-group-sm mt-1">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-send-payload"
+              placeholder="Payload"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                onclick="appActions.fillRpcPreset('rpc-send-payload', 'hello')"
+              >
+                Hello
+              </button>
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                onclick="appActions.fillRpcPreset('rpc-send-payload', '20k')"
+              >
+                20k
+              </button>
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="rpc-send-button"
+                onclick="appActions.sendRpc()"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+          <div id="rpc-send-result" class="text-monospace mt-1" style="font-size: 0.75rem"></div>
+
+          <div class="input-group input-group-sm mt-3">
+            <input
+              type="text"
+              class="form-control text-monospace"
+              id="rpc-handler-topic"
+              placeholder="Topic (method)"
+            />
+            <div class="input-group-append">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                id="rpc-handler-register-button"
+                onclick="appActions.registerRpcHandler()"
+              >
+                Register Handler
+              </button>
+            </div>
+          </div>
+          <div id="rpc-handlers-list">
+            <!-- rpc handler cards dynamically inserted in here -->
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   ChatMessage as ChatMessageModel,
+  ClientInfo_Capability,
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
@@ -36,6 +37,8 @@ import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
+import { FrameMetadataManager } from '../frameMetadata/FrameMetadataManager';
+import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -43,8 +46,10 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
+import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
@@ -78,7 +83,14 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
+import {
+  RPC_REQUEST_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
+  RpcClientManager,
+  RpcError,
+  type RpcInvocationData,
+  RpcServerManager,
+} from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -187,6 +199,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: BaseE2EEManager | undefined;
 
+  private frameMetadataManager: FrameMetadataManager | undefined;
+
   private e2eeStateMutex: Mutex = new Mutex();
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
@@ -216,7 +230,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private outgoingDataTrackManager: OutgoingDataTrackManager;
 
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
+  private rpcClientManager: RpcClientManager;
+
+  private rpcServerManager: RpcServerManager;
 
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
@@ -290,9 +306,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on('trackUnpublished', (event) => {
         this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
       })
-      .on('packetAvailable', ({ bytes }) => {
-        this.engine.sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait');
+      .on('packetAvailable', ({ handle, bytes }) => {
+        this.engine
+          .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
+          .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
+
+    this.registerRpcDataStreamHandler();
+
+    this.rpcClientManager = new RpcClientManager(
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+      () => this.engine.latestJoinResponse?.serverInfo?.version,
+    );
+    this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    });
+    this.rpcServerManager = new RpcServerManager(
+      this.log,
+      this.outgoingDataStreamManager,
+      this.getRemoteParticipantClientProtocol,
+    );
+    this.rpcServerManager.on('sendDataPacket', ({ packet }) => {
+      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
+    });
 
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant(
@@ -300,10 +338,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       '',
       this.engine,
       this.options,
-      this.rpcHandlers,
       this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
+      this.rpcClientManager,
+      this.rpcServerManager,
     );
+
+    this.setupFrameMetadata();
 
     if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
@@ -333,18 +374,34 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (isWeb()) {
-      const abortController = new AbortController();
-
-      // in order to catch device changes prior to room connection we need to register the event in the constructor
-      navigator.mediaDevices?.addEventListener?.('devicechange', this.handleDeviceChange, {
-        signal: abortController.signal,
-      });
+      const cleanupController = new AbortController();
+      let onDeviceChange: () => void;
 
       if (Room.cleanupRegistry) {
+        // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
+        // strongly retain the Room. When the user drops their Room ref, the
+        // FinalizationRegistry callback aborts the controller and removes the listener.
+        const roomRef = new WeakRef(this);
+        onDeviceChange = () => {
+          const self = roomRef.deref();
+          if (!self) {
+            return;
+          }
+          self.handleDeviceChange();
+        };
         Room.cleanupRegistry.register(this, () => {
-          abortController.abort();
+          cleanupController.abort();
         });
+      } else {
+        // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
+        // direct listener (matches pre-#1944 behavior).
+        onDeviceChange = this.handleDeviceChange;
       }
+
+      // in order to catch device changes prior to room connection we need to register the event in the constructor
+      navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange, {
+        signal: cleanupController.signal,
+      });
     }
   }
 
@@ -391,12 +448,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    if (this.rpcHandlers.has(method)) {
-      throw Error(
-        `RPC handler already registered for method ${method}, unregisterRpcMethod before trying to register again`,
-      );
-    }
-    this.rpcHandlers.set(method, handler);
+    this.rpcServerManager.registerRpcMethod(method, handler);
   }
 
   /**
@@ -405,7 +457,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param method - The name of the RPC method to unregister
    */
   unregisterRpcMethod(method: string) {
-    this.rpcHandlers.delete(method);
+    this.rpcServerManager.unregisterRpcMethod(method);
   }
 
   /**
@@ -461,6 +513,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager?.setup(this);
       this.e2eeManager?.setupEngine(this.engine);
     }
+  }
+
+  private setupFrameMetadata() {
+    const opts = this.options.frameMetadata ?? this.options.packetTrailer;
+    this.frameMetadataManager = new FrameMetadataManager(opts);
+    this.frameMetadataManager.setup(this);
   }
 
   private get logContext() {
@@ -713,6 +771,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
+    typeof WeakRef !== 'undefined' &&
     new FinalizationRegistry((cleanup: () => void) => {
       cleanup();
     });
@@ -912,6 +971,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
+        clientInfoCapabilities:
+          isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
+          !!this.e2eeManager
+            ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
+            : undefined,
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,
@@ -944,7 +1008,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.e2eeManager) {
       try {
-        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer as NonSharedUint8Array);
       } catch (e: any) {
         this.log.error(e instanceof Error ? e.message : 'Could not set SifTrailer', {
           error: e,
@@ -1730,6 +1794,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
     this.incomingDataStreamManager.clearControllers();
+    this.incomingDataTrackManager.reset();
+    this.outgoingDataTrackManager.reset();
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
@@ -1821,7 +1887,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleParticipantDisconnected(info.identity, remoteParticipant);
       } else {
         // create participant if doesn't exist
-        remoteParticipant = this.getOrCreateParticipant(info.identity, info);
+        this.getOrCreateParticipant(info.identity, info);
       }
     }
 
@@ -1851,7 +1917,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
     participant.setDisconnected();
-    this.localParticipant?.handleParticipantDisconnected(participant.identity);
+    this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -1995,14 +2061,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
-      this.handleIncomingRpcRequest(
-        packet.participantIdentity,
-        rpc.id,
-        rpc.method,
-        rpc.payload,
-        rpc.responseTimeoutMs,
-        rpc.version,
-      );
+      this.rpcServerManager.handleIncomingRpcRequest(packet.participantIdentity, rpc);
+    } else if (packet.value.case === 'rpcResponse') {
+      const rpcResponse = packet.value.value;
+      switch (rpcResponse.value.case) {
+        case 'payload':
+          this.rpcClientManager.handleIncomingRpcResponseSuccess(
+            rpcResponse.requestId,
+            rpcResponse.value.value,
+          );
+          break;
+        case 'error':
+          this.rpcClientManager.handleIncomingRpcResponseFailure(
+            rpcResponse.requestId,
+            RpcError.fromProto(rpcResponse.value.value),
+          );
+          break;
+        default:
+          this.log.warn(
+            `Unknown rpcResponse.value.case: ${rpcResponse.value.case}`,
+            this.logContext,
+          );
+          break;
+      }
+    } else if (packet.value.case === 'rpcAck') {
+      this.rpcClientManager.handleIncomingRpcAck(packet.value.value.requestId);
     }
   };
 
@@ -2014,7 +2097,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     this.emit(
       RoomEvent.DataReceived,
-      userPacket.payload,
+      userPacket.payload as NonSharedUint8Array,
       participant,
       kind,
       userPacket.topic,
@@ -2022,7 +2105,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
 
     // also emit on the participant
-    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind, encryptionType);
+    participant?.emit(
+      ParticipantEvent.DataReceived,
+      userPacket.payload as NonSharedUint8Array,
+      kind,
+      encryptionType,
+    );
   };
 
   private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
@@ -2065,68 +2153,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
     this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
-
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
-    try {
-      const response = await handler({
-        requestId,
-        callerIdentity,
-        payload,
-        responseTimeout,
-      });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
-        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        this.log.warn(`RPC Response payload too large for ${method}`);
-      } else {
-        responsePayload = response;
-      }
-    } catch (error) {
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        this.log.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-    }
-    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
-  }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
@@ -2471,6 +2497,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (identity) {
       return this.remoteParticipants.get(identity);
     }
+  }
+
+  private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
+    return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
+  };
+
+  private registerRpcDataStreamHandler() {
+    this.incomingDataStreamManager.registerTextStreamHandler(
+      RPC_REQUEST_DATA_STREAM_TOPIC,
+      async (reader, { identity }) => {
+        const attributes = reader.info.attributes ?? {};
+        await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
+      },
+    );
+    this.incomingDataStreamManager.registerTextStreamHandler(
+      RPC_RESPONSE_DATA_STREAM_TOPIC,
+      async (reader, { identity }) => {
+        const attributes = reader.info.attributes ?? {};
+        await this.rpcClientManager.handleIncomingDataStream(reader, identity, attributes);
+      },
+    );
   }
 
   private registerConnectionReconcile() {
@@ -2870,7 +2917,7 @@ export type RoomEventCallbacks = {
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
   roomMetadataChanged: (metadata: string) => void;
   dataReceived: (
-    payload: Uint8Array,
+    payload: NonSharedUint8Array,
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
     topic?: string,

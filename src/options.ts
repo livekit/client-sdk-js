@@ -1,4 +1,5 @@
 import type { E2EEOptions } from './e2ee/types';
+import type { FrameMetadataOptions } from './frameMetadata/FrameMetadataManager';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -99,6 +100,18 @@ export interface InternalRoomOptions {
   encryption?: E2EEOptions;
 
   loggerName?: string;
+
+  /**
+   * @experimental
+   * Options for enabling frame metadata on video tracks.
+   * Frame metadata carries frame-level information such as user timestamps and frame IDs.
+   */
+  frameMetadata?: FrameMetadataOptions;
+
+  /**
+   * @deprecated Use {@link InternalRoomOptions.frameMetadata} instead.
+   */
+  packetTrailer?: FrameMetadataOptions;
 
   /**
    * will attempt to connect via single peer connection mode.

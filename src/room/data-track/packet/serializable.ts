@@ -1,4 +1,5 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataTrackSerializeError } from './errors';
 
 /** An abstract class implementing common behavior related to data track binary serialization. */
@@ -10,7 +11,7 @@ export default abstract class Serializable {
   abstract toBinaryInto(dataView: DataView): Throws<number, DataTrackSerializeError>;
 
   /** Encodes the instance as binary and returns the data as a Uint8Array. */
-  toBinary(): Throws<Uint8Array, DataTrackSerializeError> {
+  toBinary(): Throws<NonSharedUint8Array, DataTrackSerializeError> {
     const lengthBytes = this.toBinaryLengthBytes();
     const output = new ArrayBuffer(lengthBytes);
     const view = new DataView(output);

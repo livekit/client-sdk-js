@@ -42,47 +42,12 @@ export type StructuredLogger = log.Logger & {
 
 export type ContextProvider = () => object | undefined;
 
-let livekitLogger = log.getLogger('livekit');
+let livekitLogger = log.getLogger(LoggerNames.Default);
 const livekitLoggers = Object.values(LoggerNames).map((name) => log.getLogger(name));
 
 livekitLogger.setDefaultLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
-
-/**
- * Keys lifted from a logger's bound context into the human-readable log
- * message prefix. Ordering here defines ordering in the rendered prefix.
- * Values that are `undefined` or empty strings are skipped.
- */
-const DISPLAY_KEYS = [
-  'room',
-  'roomID',
-  'participant',
-  'participantID',
-  'trackID',
-  'source',
-  'target',
-  'transport',
-  'reconnectAttempt',
-  'region',
-] as const;
-
-/**
- * Render the subset of `ctx` listed in `DISPLAY_KEYS` as a bracketed prefix
- * suitable for prepending to a log message. Returns an empty string when
- * no display keys are present. Pure function — safe to unit test directly.
- */
-export function formatDisplayContext(ctx: object | undefined): string {
-  if (!ctx) return '';
-  const parts: string[] = [];
-  const record = ctx as Record<string, unknown>;
-  for (const key of DISPLAY_KEYS) {
-    const value = record[key];
-    if (value === undefined || value === null || value === '') continue;
-    parts.push(`${key}=${String(value)}`);
-  }
-  return parts.length === 0 ? '' : `[${parts.join(' ')}]`;
-}
 
 /**
  * @internal
@@ -110,15 +75,11 @@ function wrapWithContext(base: StructuredLogger, ctxFn: ContextProvider): Struct
   // Resolve the underlying method on every call so that later
   // setLogExtension installations (which replace the base logger's
   // methods via loglevel's methodFactory) are picked up.
-  const wrap =
-    (method: LogMethod) =>
-    (msg: string, extra?: object) => {
-      const ctx = ctxFn();
-      const prefix = formatDisplayContext(ctx);
-      const finalMsg = prefix ? `${prefix} ${msg}` : msg;
-      const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
-      base[method](finalMsg, merged);
-    };
+  const wrap = (method: LogMethod) => (msg: string, extra?: object) => {
+    const ctx = ctxFn();
+    const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
+    base[method](msg, merged);
+  };
 
   const proxy = Object.create(base) as StructuredLogger;
   proxy.trace = wrap('trace');
@@ -169,4 +130,4 @@ export function setLogExtension(extension: LogExtension, logger?: StructuredLogg
   });
 }
 
-export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;
+export const workerLogger = log.getLogger(LoggerNames.E2EE) as StructuredLogger;

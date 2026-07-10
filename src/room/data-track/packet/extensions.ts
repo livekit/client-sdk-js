@@ -1,4 +1,5 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { coerceToDataView } from '../utils';
 import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';
@@ -75,9 +76,9 @@ export class DataTrackE2eeExtension extends DataTrackExtension {
 
   keyIndex: number;
 
-  iv: Uint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
+  iv: NonSharedUint8Array; /* NOTE: According to the rust implementation, this should be 12 bytes long. */
 
-  constructor(keyIndex: number, iv: Uint8Array) {
+  constructor(keyIndex: number, iv: NonSharedUint8Array) {
     super();
     this.keyIndex = keyIndex;
     this.iv = iv;

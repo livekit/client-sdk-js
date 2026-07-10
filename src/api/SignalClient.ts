@@ -3,6 +3,7 @@ import {
   AddTrackRequest,
   AudioTrackFeature,
   ClientInfo,
+  ClientInfo_Capability,
   ConnectionQualityUpdate,
   ConnectionSettings,
   DataTrackSubscriberHandles,
@@ -60,6 +61,7 @@ import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -83,6 +85,7 @@ interface ConnectOpts extends SignalOptions {
 export interface SignalOptions {
   autoSubscribe: boolean;
   adaptiveStream?: boolean;
+  clientInfoCapabilities?: ClientInfo_Capability[];
   maxRetries: number;
   e2eeEnabled: boolean;
   websocketTimeout: number;
@@ -320,7 +323,7 @@ export class SignalClient {
     this.connectOptions = opts;
     this.useV0SignalPath = useV0Path;
 
-    const clientInfo = getClientInfo();
+    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
     const params = useV0Path
       ? createConnectionParams(token, clientInfo, opts)
       : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
@@ -374,13 +377,17 @@ export class SignalClient {
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
+
+        if (this.ws) {
+          const startClose = performance.now();
+          await this.close(false);
+          this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
+        }
+
         this.log.info(`signal connecting to ${redactedUrl}`, {
           reconnect: opts.reconnect,
           reconnectReason: opts.reconnectReason,
         });
-        if (this.ws) {
-          await this.close(false);
-        }
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
@@ -771,7 +778,7 @@ export class SignalClient {
       if (this.useJSON) {
         await this.streamWriter.write(req.toJsonString());
       } else {
-        await this.streamWriter.write(req.toBinary());
+        await this.streamWriter.write((req.toBinary() as NonSharedUint8Array).buffer);
       }
     } catch (e) {
       this.log.error('error sending signal message', { error: e });
@@ -1155,6 +1162,7 @@ function createConnectionParams(
   params.set('sdk', isReactNative() ? 'reactnative' : 'js');
   params.set('version', info.version!);
   params.set('protocol', info.protocol!.toString());
+  params.set('client_protocol', info.clientProtocol!.toString());
   if (info.deviceModel) {
     params.set('device_model', info.deviceModel);
   }

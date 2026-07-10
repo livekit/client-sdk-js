@@ -1,3 +1,4 @@
+import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
 import type { Track } from './Track';
 import type {
   AudioProcessorOptions,
@@ -128,6 +129,21 @@ export interface TrackPublishDefaults {
    * Defaults to false.
    */
   preConnectBuffer?: boolean;
+
+  /**
+   * Frame metadata to append to published video frames.
+   *
+   * Requires either room-level frame metadata worker configuration or E2EE,
+   * because encoded frame transforms are used to write the metadata.
+   *
+   * @experimental
+   */
+  frameMetadata?: FrameMetadataPublishOptions;
+
+  /**
+   * @deprecated Use {@link TrackPublishDefaults.frameMetadata} instead.
+   */
+  packetTrailer?: FrameMetadataPublishOptions;
 }
 
 /**
@@ -280,6 +296,15 @@ export interface AudioCaptureOptions {
    * @see https://w3c.github.io/mediacapture-extensions/#voiceisolation-constraint
    */
   voiceIsolation?: ConstrainBoolean;
+
+  /**
+   * @experimental
+   * when capturing system/screen-share audio, excludes the local participant's own audio
+   * from the captured stream to prevent echo. Browser support is not widespread yet
+   * (as of mid 2026, Chromium-based browsers only).
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/restrictOwnAudio
+   */
+  restrictOwnAudio?: ConstrainBoolean;
 
   /**
    * the sample rate or range of sample rates which are acceptable and/or required.

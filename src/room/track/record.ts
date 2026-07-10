@@ -1,3 +1,4 @@
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import type LocalTrack from './LocalTrack';
 
 // Check if MediaRecorder is available
@@ -51,7 +52,7 @@ export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
       start: (controller) => {
         streamController = controller;
         dataListener = async (event: BlobEvent) => {
-          let data: Uint8Array;
+          let data: NonSharedUint8Array;
 
           if (event.data.arrayBuffer) {
             const arrayBuffer = await event.data.arrayBuffer();

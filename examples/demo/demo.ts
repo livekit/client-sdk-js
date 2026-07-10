@@ -1,11 +1,14 @@
 //@ts-ignore
 import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
+//@ts-ignore
+import FrameMetadataWorker from '../../src/frameMetadata/worker/frameMetadata.worker?worker';
 import type {
   ChatMessage,
   LocalDataTrack,
   RemoteDataTrack,
   RoomConnectOptions,
   RoomOptions,
+  RpcInvocationData,
   ScalabilityMode,
   SimulationScenario,
   VideoCaptureOptions,
@@ -23,8 +26,10 @@ import {
   ParticipantEvent,
   RemoteParticipant,
   RemoteTrackPublication,
+  RemoteVideoTrack,
   Room,
   RoomEvent,
+  RpcError,
   ScreenSharePresets,
   Track,
   TrackPublication,
@@ -36,11 +41,13 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isVideoTrack,
   setLogLevel,
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
+import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
@@ -65,6 +72,19 @@ let streamReaderAbortController: AbortController | undefined;
 let localDataTracks: Array<LocalDataTrack> = [];
 let remoteDataTracks: Array<RemoteDataTrack> = [];
 
+type RpcHandlerEntry = {
+  topic: string;
+  reply: string;
+  invocationCount: number;
+};
+const rpcHandlers: Map<string, RpcHandlerEntry> = new Map();
+
+const RPC_PRESETS = {
+  hello: 'hello world',
+  '20k': 'X'.repeat(20_000),
+} as const;
+type RpcPresetKey = keyof typeof RPC_PRESETS;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
@@ -81,6 +101,61 @@ function updateSearchParams(url: string, token: string, key: string) {
   const params = new URLSearchParams({ url, token, key });
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
+
+function getFrameMetadataPublishOptions() {
+  const enabled = (<HTMLInputElement>$('frame-metadata')).checked;
+  const timestamp = enabled && (<HTMLInputElement>$('frame-metadata-timestamp')).checked;
+  const frameId = enabled && (<HTMLInputElement>$('frame-metadata-frame-id')).checked;
+
+  return timestamp || frameId ? { timestamp, frameId } : undefined;
+}
+
+function syncFrameMetadataPublishOptions(room = currentRoom) {
+  const frameMetadata = getFrameMetadataPublishOptions();
+  if (!room) {
+    return frameMetadata;
+  }
+
+  room.options.publishDefaults.frameMetadata = frameMetadata;
+  room.localParticipant.trackPublications.forEach((pub) => {
+    if (pub.kind !== Track.Kind.Video) {
+      return;
+    }
+    pub.options = { ...pub.options, frameMetadata };
+    if (pub.track && isVideoTrack(pub.track)) {
+      pub.track.publishOptions = { ...pub.track.publishOptions, frameMetadata };
+    }
+  });
+  return frameMetadata;
+}
+
+function syncFrameMetadataFeatureControls() {
+  const enabled = (<HTMLInputElement>$('frame-metadata')).checked;
+  const featureControls = $('frame-metadata-features');
+  const timestamp = <HTMLInputElement>$('frame-metadata-timestamp');
+  const frameId = <HTMLInputElement>$('frame-metadata-frame-id');
+
+  featureControls.style.display = enabled ? 'block' : 'none';
+  timestamp.disabled = !enabled;
+  frameId.disabled = !enabled;
+  if (!enabled) {
+    timestamp.checked = false;
+    frameId.checked = false;
+  }
+  syncFrameMetadataPublishOptions();
+}
+
+(<HTMLInputElement>$('frame-metadata')).addEventListener(
+  'change',
+  syncFrameMetadataFeatureControls,
+);
+(<HTMLInputElement>$('frame-metadata-timestamp')).addEventListener('change', () =>
+  syncFrameMetadataPublishOptions(),
+);
+(<HTMLInputElement>$('frame-metadata-frame-id')).addEventListener('change', () =>
+  syncFrameMetadataPublishOptions(),
+);
+syncFrameMetadataFeatureControls();
 
 // handles actions from the HTML
 const appActions = {
@@ -106,6 +181,8 @@ const appActions = {
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
+    const frameMetadataEnabled = (<HTMLInputElement>$('frame-metadata')).checked;
+    const frameMetadata = getFrameMetadataPublishOptions();
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
@@ -130,6 +207,7 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
+        frameMetadata,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -137,6 +215,7 @@ const appActions = {
       encryption: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
+      frameMetadata: frameMetadataEnabled ? { worker: new FrameMetadataWorker() } : undefined,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
@@ -243,6 +322,42 @@ const appActions = {
         appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
         renderScreenShare(room);
+        if (track instanceof RemoteVideoTrack) {
+          let lastLatencyUpdate = 0;
+          let latencyDisplay = '';
+          track.on(TrackEvent.TimeSyncUpdate, ({ rtpTimestamp }) => {
+            const meta = track.lookupFrameMetadata({ rtpTimestamp });
+            const overlayElm = document.getElementById(`pt-overlay-${participant.identity}`);
+            if (overlayElm && meta) {
+              let text = meta.frameId ? `Frame ID: ${meta.frameId}` : '';
+              if (meta.userTimestamp) {
+                const now = Date.now();
+                const receiveTime = new Date(now);
+                const publishTime = new Date(Number(meta.userTimestamp / 1000n));
+                if (now - lastLatencyUpdate >= 500) {
+                  lastLatencyUpdate = now;
+                  latencyDisplay = `${(receiveTime.getTime() - publishTime.getTime()).toFixed(1)}ms`;
+                }
+                const fmt = (d: Date) => {
+                  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+                  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}:${pad(d.getMilliseconds(), 3)}`;
+                };
+                text +=
+                  `\nPublish:  ${fmt(publishTime)}` +
+                  `\nReceive:  ${fmt(receiveTime)}` +
+                  `\nLatency:  ${latencyDisplay}`;
+              }
+              if (meta.userData && meta.userData.byteLength > 0) {
+                const hex = Array.from(meta.userData.subarray(0, 6))
+                  .map((b) => b.toString(16).padStart(2, '0'))
+                  .join(' ');
+                const ellipsis = meta.userData.byteLength > 6 ? ' ...' : '';
+                text += `${text ? '\n' : ''}user data: ${meta.userData.byteLength} bytes [${hex}${ellipsis}]`;
+              }
+              overlayElm.textContent = text;
+            }
+          });
+        }
       })
       .on(RoomEvent.TrackUnsubscribed, (_, pub, participant) => {
         appendLog('unsubscribed from track', pub.trackSid);
@@ -463,6 +578,7 @@ const appActions = {
     // read and set current key from input
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     state.e2eeKeyProvider.setKey(cryptoKey);
+    syncFrameMetadataPublishOptions(currentRoom);
 
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },
@@ -540,7 +656,10 @@ const appActions = {
     } else {
       appendLog('enabling video');
     }
-    await currentRoom.localParticipant.setCameraEnabled(!enabled);
+    const publishOptions = syncFrameMetadataPublishOptions(currentRoom);
+    await currentRoom.localParticipant.setCameraEnabled(!enabled, undefined, {
+      frameMetadata: publishOptions,
+    });
     setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);
 
@@ -727,6 +846,74 @@ const appActions = {
       button.removeAttribute('disabled');
     }
   },
+
+  fillRpcPreset: (inputId: string, key: RpcPresetKey) => {
+    const input = <HTMLInputElement>$(inputId);
+    input.value = RPC_PRESETS[key];
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  },
+
+  sendRpc: async () => {
+    const destinationIdentity = (<HTMLSelectElement>$('rpc-send-destination')).value;
+    const method = (<HTMLInputElement>$('rpc-send-topic')).value.trim();
+    const payload = (<HTMLInputElement>$('rpc-send-payload')).value;
+    const result = $('rpc-send-result');
+    const button = <HTMLButtonElement>$('rpc-send-button');
+    if (!currentRoom) {
+      result.textContent = '✕ Not connected';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    if (!destinationIdentity) {
+      result.textContent = '✕ Choose a destination';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    if (!method) {
+      result.textContent = '✕ Topic is required';
+      result.className = 'text-monospace mt-1 text-danger';
+      return;
+    }
+    result.textContent = `→ ${destinationIdentity} ${method}...`;
+    result.className = 'text-monospace mt-1 text-muted';
+    button.disabled = true;
+    try {
+      const response = await currentRoom.localParticipant.performRpc({
+        destinationIdentity,
+        method,
+        payload,
+      });
+      const preview =
+        response.length > 20 ? `${response.slice(0, 20)}... (${response.length}B)` : response;
+      result.textContent = `✓ ${preview}`;
+      result.className = 'text-monospace mt-1 text-success';
+    } catch (err) {
+      const msg = err instanceof RpcError ? `${err.code}: ${err.message}` : String(err);
+      result.textContent = `✕ ${msg}`;
+      result.className = 'text-monospace mt-1 text-danger';
+    } finally {
+      button.disabled = false;
+    }
+  },
+
+  registerRpcHandler: () => {
+    const topicInput = <HTMLInputElement>$('rpc-handler-topic');
+    const topic = topicInput.value.trim();
+    if (!currentRoom || !topic || rpcHandlers.has(topic)) {
+      topicInput.classList.add('is-invalid');
+      return;
+    }
+    topicInput.classList.remove('is-invalid');
+    const entry: RpcHandlerEntry = { topic, reply: '', invocationCount: 0 };
+    rpcHandlers.set(topic, entry);
+    currentRoom.registerRpcMethod(topic, async (data: RpcInvocationData) => {
+      entry.invocationCount += 1;
+      appendRpcInvocation(topic, entry.invocationCount, data.callerIdentity, data.payload);
+      return entry.reply;
+    });
+    topicInput.value = '';
+    renderRpcHandlers();
+  },
 };
 
 declare global {
@@ -781,12 +968,14 @@ async function participantConnected(participant: Participant) {
     .on(ParticipantEvent.ConnectionQualityChanged, () => {
       renderParticipant(participant);
     });
+  refreshRpcDestinations();
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
   appendLog('participant', participant.sid, 'disconnected');
 
   renderParticipant(participant, true);
+  refreshRpcDestinations();
 }
 
 function handleRoomDisconnect(reason?: DisconnectReason) {
@@ -804,6 +993,11 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
 
   remoteDataTracks = [];
   renderRemoteDataTracks();
+
+  rpcHandlers.clear();
+  renderRpcHandlers();
+  $('rpc-send-result').textContent = '';
+  refreshRpcDestinations();
 
   const container = $('participants-area');
   if (container) {
@@ -850,6 +1044,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div.innerHTML = `
       <video id="video-${identity}"></video>
       <audio id="audio-${identity}"></audio>
+      <div id="pt-overlay-${identity}" class="pt-overlay"></div>
       <div class="info-bar">
         <div id="name-${identity}" class="name">
         </div>
@@ -967,19 +1162,19 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       micPub?.audioTrack?.attach(audioElm);
     }
     micElm.className = 'mic-on';
-    micElm.innerHTML = '<i class="fas fa-microphone"></i>';
+    micElm.innerHTML = '<i class="ph-fill ph-microphone"></i>';
   } else {
     micElm.className = 'mic-off';
-    micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    micElm.innerHTML = '<i class="ph-fill ph-microphone-slash"></i>';
   }
 
   const e2eeElm = container.querySelector(`#e2ee-${identity}`)!;
   if (participant.isEncrypted) {
     e2eeElm.className = 'e2ee-on';
-    e2eeElm.innerHTML = '<i class="fas fa-lock"></i>';
+    e2eeElm.innerHTML = '<i class="ph-fill ph-lock-simple"></i>';
   } else {
     e2eeElm.className = 'e2ee-off';
-    e2eeElm.innerHTML = '<i class="fas fa-unlock"></i>';
+    e2eeElm.innerHTML = '';
   }
 
   switch (participant.connectionQuality) {
@@ -987,7 +1182,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     case ConnectionQuality.Good:
     case ConnectionQuality.Poor:
       signalElm.className = `connection-${participant.connectionQuality}`;
-      signalElm.innerHTML = '<i class="fas fa-circle"></i>';
+      signalElm.innerHTML = '<i class="ph-fill ph-circle"></i>';
       break;
     default:
       signalElm.innerHTML = '';
@@ -1401,6 +1596,162 @@ function renderRemoteDataTracks() {
 
   for (const remoteDataTrack of remoteDataTracks.filter((r) => !renderedSids.has(r.info.sid))) {
     wrapper.appendChild(createRemoteDataTrackElement(remoteDataTrack));
+  }
+}
+
+function createRpcHandlerElement(topic: string): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'list-group-item local-data-track-item p-2 mt-2';
+  item.dataset.topic = topic;
+
+  const safeId = encodeURIComponent(topic).replace(/%/g, '_');
+  const replyInputId = `rpc-handler-reply-${safeId}`;
+  const unregisterId = `rpc-handler-unregister-${safeId}`;
+
+  item.innerHTML = `
+    <div class="d-flex align-items-start justify-content-between mt-1">
+      <span class="font-weight-bold text-truncate mr-2" title="${topic}">${topic}</span>
+      <button id="${unregisterId}" class="btn btn-outline-danger btn-sm" type="button">✕</button>
+    </div>
+    <div class="input-group input-group-sm mt-2">
+      <input
+        id="${replyInputId}"
+        type="text"
+        class="form-control text-monospace"
+        placeholder="Reply payload"
+      />
+      <div class="input-group-append">
+        <button class="btn btn-outline-secondary rpc-handler-preset-hello" type="button">Hello</button>
+        <button class="btn btn-outline-secondary rpc-handler-preset-20k" type="button">20k</button>
+      </div>
+    </div>
+    <div
+      class="rpc-handler-well bg-dark rounded p-2 text-monospace mt-2"
+      style="max-height: 180px; overflow-y: auto; font-size: 0.7rem; min-height: 60px; display: flex; align-items: center; justify-content: center;"
+    >
+      <span class="rpc-handler-placeholder text-muted">No invocations yet</span>
+    </div>
+  `;
+
+  const replyInput = item.querySelector<HTMLInputElement>(`#${replyInputId}`)!;
+  replyInput.addEventListener('input', () => {
+    const entry = rpcHandlers.get(topic);
+    if (entry) {
+      entry.reply = replyInput.value;
+    }
+  });
+
+  item
+    .querySelector<HTMLButtonElement>('.rpc-handler-preset-hello')!
+    .addEventListener('click', () => {
+      replyInput.value = RPC_PRESETS.hello;
+      const entry = rpcHandlers.get(topic);
+      if (entry) {
+        entry.reply = replyInput.value;
+      }
+    });
+  item
+    .querySelector<HTMLButtonElement>('.rpc-handler-preset-20k')!
+    .addEventListener('click', () => {
+      replyInput.value = RPC_PRESETS['20k'];
+      const entry = rpcHandlers.get(topic);
+      if (entry) {
+        entry.reply = replyInput.value;
+      }
+    });
+
+  const unregisterBtn = item.querySelector<HTMLButtonElement>(`#${unregisterId}`)!;
+  unregisterBtn.addEventListener('click', () => {
+    if (currentRoom) {
+      currentRoom.unregisterRpcMethod(topic);
+    }
+    rpcHandlers.delete(topic);
+    renderRpcHandlers();
+  });
+
+  return item;
+}
+
+function renderRpcHandlers() {
+  const wrapper = $('rpc-handlers-list');
+  const rendered = new Set<string>();
+
+  for (const child of Array.from(wrapper.children)) {
+    const el = child as HTMLElement;
+    const topic = el.dataset.topic!;
+    if (!rpcHandlers.has(topic)) {
+      el.remove();
+    } else {
+      rendered.add(topic);
+    }
+  }
+
+  for (const topic of rpcHandlers.keys()) {
+    if (!rendered.has(topic)) {
+      wrapper.appendChild(createRpcHandlerElement(topic));
+    }
+  }
+}
+
+function appendRpcInvocation(topic: string, n: number, caller: string, payload: string): void {
+  const card = $('rpc-handlers-list').querySelector<HTMLElement>(
+    `[data-topic="${CSS.escape(topic)}"]`,
+  );
+  if (!card) return;
+  const well = card.querySelector<HTMLElement>('.rpc-handler-well')!;
+  const placeholder = well.querySelector('.rpc-handler-placeholder');
+  if (placeholder) {
+    placeholder.remove();
+    well.style.display = 'block';
+  }
+
+  const entry = document.createElement('div');
+  entry.className = 'border-bottom border-secondary pb-1 mb-1';
+
+  const sizeString =
+    payload.length < 1024 ? `${payload.length}B` : `${(payload.length / 1024).toFixed(2)}KB`;
+
+  const meta = document.createElement('div');
+  meta.className = 'text-muted';
+  meta.style.cssText = 'font-size: 0.65rem;';
+  meta.textContent = `#${n} · ${caller} · ${sizeString} · ${new Date().toISOString()}`;
+  entry.appendChild(meta);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'white-space: pre-wrap; word-break: break-word; color: #e9ecef;';
+  body.textContent = payload;
+  entry.appendChild(body);
+
+  well.appendChild(entry);
+  well.scrollTop = well.scrollHeight;
+}
+
+function refreshRpcDestinations(): void {
+  const select = <HTMLSelectElement>$('rpc-send-destination');
+  const previous = select.value;
+
+  const identities: string[] = [];
+  if (currentRoom) {
+    currentRoom.remoteParticipants.forEach((p) => identities.push(p.identity));
+  }
+  identities.sort();
+
+  select.innerHTML = '';
+  if (identities.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no remote participants)';
+    select.appendChild(opt);
+  } else {
+    for (const identity of identities) {
+      const opt = document.createElement('option');
+      opt.value = identity;
+      opt.textContent = identity;
+      select.appendChild(opt);
+    }
+    if (identities.includes(previous)) {
+      select.value = previous;
+    }
   }
 }
 

@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite';
-import mix from 'vite-plugin-mix';
+import { handler } from './api.ts';
 
 export default defineConfig({
   plugins: [
-    mix.default({
-      handler: './api.ts',
-    }),
+    {
+      name: 'api-handler',
+      configureServer(server) {
+        server.middlewares.use(handler);
+      },
+      configurePreviewServer(server) {
+        server.middlewares.use(handler);
+      },
+    },
   ],
 });

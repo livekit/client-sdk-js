@@ -1,4 +1,5 @@
 import { type DataPacket, EncryptedPacketPayload } from '@livekit/protocol';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM } from './constants';
 import type { KeyProviderOptions } from './types';
 
@@ -8,11 +9,12 @@ export function isE2EESupported() {
 
 export function isScriptTransformSupported() {
   // @ts-ignore
-  return typeof window.RTCRtpScriptTransform !== 'undefined';
+  return typeof window !== 'undefined' && typeof window.RTCRtpScriptTransform !== 'undefined';
 }
 
 export function isInsertableStreamSupported() {
   return (
+    typeof window !== 'undefined' &&
     typeof window.RTCRtpSender !== 'undefined' &&
     // @ts-ignore
     typeof window.RTCRtpSender.prototype.createEncodedStreams !== 'undefined'
@@ -26,7 +28,7 @@ export function isVideoFrame(
 }
 
 export async function importKey(
-  keyBytes: Uint8Array | ArrayBuffer,
+  keyBytes: NonSharedUint8Array | ArrayBuffer,
   algorithm: string | { name: string } = { name: ENCRYPTION_ALGORITHM },
   usage: 'derive' | 'encrypt' = 'encrypt',
 ) {
@@ -112,7 +114,7 @@ export async function deriveKeys(material: CryptoKey, options: KeyProviderOption
   return { material, encryptionKey };
 }
 
-export function createE2EEKey(): Uint8Array {
+export function createE2EEKey(): NonSharedUint8Array {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }
 
@@ -127,14 +129,14 @@ export async function ratchet(material: CryptoKey, salt: string): Promise<ArrayB
   return crypto.subtle.deriveBits(algorithmOptions, material, 256);
 }
 
-export function needsRbspUnescaping(frameData: Uint8Array) {
+export function needsRbspUnescaping(frameData: NonSharedUint8Array) {
   for (var i = 0; i < frameData.length - 3; i++) {
     if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
   }
   return false;
 }
 
-export function parseRbsp(stream: Uint8Array): Uint8Array {
+export function parseRbsp(stream: NonSharedUint8Array): NonSharedUint8Array {
   const dataOut: number[] = [];
   var length = stream.length;
   for (var i = 0; i < stream.length; ) {
@@ -159,7 +161,7 @@ export function parseRbsp(stream: Uint8Array): Uint8Array {
 const kZerosInStartSequence = 2;
 const kEmulationByte = 3;
 
-export function writeRbsp(data_in: Uint8Array): Uint8Array {
+export function writeRbsp(data_in: NonSharedUint8Array): NonSharedUint8Array {
   const dataOut: number[] = [];
   var numConsecutiveZeros = 0;
   for (var i = 0; i < data_in.length; ++i) {

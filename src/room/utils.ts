@@ -1,15 +1,17 @@
 import {
   ChatMessage as ChatMessageModel,
   ClientInfo,
+  ClientInfo_Capability,
   ClientInfo_SDK,
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
-import { protocolVersion, version } from '../version';
+import { clientProtocol, protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -177,6 +179,18 @@ export function isFireFox(): boolean {
 export function isChromiumBased(): boolean {
   const browser = getBrowser();
   return !!browser && browser.name === 'Chrome' && browser.os !== 'iOS';
+}
+
+export function isScriptTransformSupportedForWorker(): boolean {
+  // Chrome occasionally throws an `InvalidState` error when using script transforms directly after introducing this API in 141.
+  // Disabling it for Chrome based browsers until the API has stabilized.
+  // @ts-ignore
+  return (
+    typeof window !== 'undefined' &&
+    // @ts-ignore
+    typeof window.RTCRtpScriptTransform !== 'undefined' &&
+    !isChromiumBased()
+  );
 }
 
 export function isSafari(): boolean {
@@ -364,10 +378,12 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
-export function getClientInfo(): ClientInfo {
+export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
   const info = new ClientInfo({
+    capabilities,
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
+    clientProtocol,
     version,
   });
 
@@ -740,12 +756,12 @@ export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
   return !p.isLocal;
 }
 
-export function splitUtf8(s: string, n: number): Uint8Array[] {
+export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
   if (n < 4) {
     throw new Error('n must be at least 4 due to utf8 encoding rules');
   }
   // adapted from https://stackoverflow.com/a/6043797
-  const result: Uint8Array[] = [];
+  const result: NonSharedUint8Array[] = [];
   let encoded = new TextEncoder().encode(s);
   while (encoded.length > n) {
     let k = n;
@@ -778,4 +794,9 @@ export function extractMaxAgeFromRequestHeaders(headers: Headers): number | unde
 
 export function isCompressionStreamSupported() {
   return typeof CompressionStream !== 'undefined';
+}
+
+export function isPublisherOfferWithJoinSupported() {
+  // we have connectivity issue about publisher offer with join on firefox #1919
+  return isCompressionStreamSupported() && !isFireFox();
 }

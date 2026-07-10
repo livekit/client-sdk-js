@@ -1,5 +1,130 @@
 # Change Log
 
+## 2.20.1
+
+### Patch Changes
+
+- Conform placeholder sections to the canonical fmtp for each shared payload - [#1993](https://github.com/livekit/client-sdk-js/pull/1993) ([@lukasIO](https://github.com/lukasIO))
+
+- Include the `NonSharedUint8Array` type polyfill in the published declarations. - [#1997](https://github.com/livekit/client-sdk-js/pull/1997) ([@1egoman](https://github.com/1egoman))
+
+  The type was declared in an ambient `.d.ts` that was resolved during our own
+  build but never emitted to `dist`, so the published `.d.ts` files referenced a
+  type consumers could not resolve — surfacing as `Cannot find name
+'NonSharedUint8Array'` under `skipLibCheck: false` and as `Unable to follow
+symbol for "NonSharedUint8Array"` in API Extractor (which broke downstream
+  packages such as `@livekit/components-*`). The polyfill is now an exported type
+  that is imported explicitly wherever it is used, so it ships in `dist` and the
+  published types type-check standalone.
+
+- Add support for user_data frame metadata trailer type - [#1983](https://github.com/livekit/client-sdk-js/pull/1983) ([@chenosaurus](https://github.com/chenosaurus))
+
+## 2.20.0
+
+### Minor Changes
+
+- Rename PacketTrailer to FrameMetadata - [#1982](https://github.com/livekit/client-sdk-js/pull/1982) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Properly handle maxPayloadLength of 0, upper bound maxMessageSize - [#1966](https://github.com/livekit/client-sdk-js/pull/1966) ([@1egoman](https://github.com/1egoman))
+
+- Add restrictOwnAudio experimental param to AudioCaptureOptions - [#1974](https://github.com/livekit/client-sdk-js/pull/1974) ([@1egoman](https://github.com/1egoman))
+
+- chore: add logging around signal connection closing for reconnections - [#1980](https://github.com/livekit/client-sdk-js/pull/1980) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data channel close race condition - [#1978](https://github.com/livekit/client-sdk-js/pull/1978) ([@1egoman](https://github.com/1egoman))
+
+- Enforce a maximum size of the sdp defined maxMessageSize on individual data packets sent via `publishData` - [#1962](https://github.com/livekit/client-sdk-js/pull/1962) ([@1egoman](https://github.com/1egoman))
+
+- Add deployment to TokenSourceFetch options - [#1971](https://github.com/livekit/client-sdk-js/pull/1971) ([@lukasIO](https://github.com/lukasIO))
+
+- Skip pre-populated media sections for single peer connections on React Native - [#1984](https://github.com/livekit/client-sdk-js/pull/1984) ([@davidliu](https://github.com/davidliu))
+
+- Ensure that sortPresets does NOT mutate values passed in via options into Room - [#1979](https://github.com/livekit/client-sdk-js/pull/1979) ([@1egoman](https://github.com/1egoman))
+
+## 2.19.2
+
+### Patch Changes
+
+- fix: rtpMap event leak on multiple negotiations without video tracks - [#1961](https://github.com/livekit/client-sdk-js/pull/1961) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure clearTimeout(responseTimeoutId) is skipped when timeout isn't set yet - [#1958](https://github.com/livekit/client-sdk-js/pull/1958) ([@1egoman](https://github.com/1egoman))
+
+- Send initial media sections with v1 signalling for FF - [#1963](https://github.com/livekit/client-sdk-js/pull/1963) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.19.1
+
+### Patch Changes
+
+- Disable publisher offer with join in firefox - [#1954](https://github.com/livekit/client-sdk-js/pull/1954) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Fix memory leak where the constructor-registered `devicechange` listener on `navigator.mediaDevices` was not removed when a `Room` was constructed but never connected. The listener kept the `Room` instance reachable from the global `navigator.mediaDevices` EventTarget, defeating the `FinalizationRegistry` cleanup. - [#1944](https://github.com/livekit/client-sdk-js/pull/1944) ([@nikhilgupta58](https://github.com/nikhilgupta58))
+
+- Ensure that client protocol is set in the dual peer connection case - [#1942](https://github.com/livekit/client-sdk-js/pull/1942) ([@1egoman](https://github.com/1egoman))
+
+## 2.19.0
+
+### Minor Changes
+
+- Add new RPC protocol updates to support infinite payload length in requests / responses - [#1832](https://github.com/livekit/client-sdk-js/pull/1832) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.10
+
+### Patch Changes
+
+- Improved data tracks depacketizer to support mutliple in flight packets - [#1923](https://github.com/livekit/client-sdk-js/pull/1923) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.9
+
+### Patch Changes
+
+- Ensure that flush called when there are no in flight data track packets works - [#1929](https://github.com/livekit/client-sdk-js/pull/1929) ([@1egoman](https://github.com/1egoman))
+
+## 2.18.8
+
+### Patch Changes
+
+- Add local data track flush method - [#1925](https://github.com/livekit/client-sdk-js/pull/1925) ([@1egoman](https://github.com/1egoman))
+
+- Implement negotiation tracking based on offerId - [#1927](https://github.com/livekit/client-sdk-js/pull/1927) ([@lukasIO](https://github.com/lukasIO))
+
+- Ignore data track promise rejections after a subscription readable stream is discarded - [#1917](https://github.com/livekit/client-sdk-js/pull/1917) ([@1egoman](https://github.com/1egoman))
+
+- chore: improve logging foundation for implicit context retrieval - [#1907](https://github.com/livekit/client-sdk-js/pull/1907) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.7
+
+### Patch Changes
+
+- Pass optional LocalTrack reference to processors - [#1916](https://github.com/livekit/client-sdk-js/pull/1916) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure priority isn't set on all simulcast layers when using Firefox on iOS - [#1920](https://github.com/livekit/client-sdk-js/pull/1920) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.18.6
+
+### Patch Changes
+
+- Fix data tracks extension encoding - [#1913](https://github.com/livekit/client-sdk-js/pull/1913) ([@ladvoc](https://github.com/ladvoc))
+
+## 2.18.5
+
+### Patch Changes
+
+- Defer `onEnterPiP` visibility update until after the next microtask and animation frame so Document Picture-in-Picture embedders can append DOM into the PiP window before `isElementInPiP` runs. - [#1868](https://github.com/livekit/client-sdk-js/pull/1868) ([@gparant](https://github.com/gparant))
+
+- Differentiate different 404 responses on validate path - [#1901](https://github.com/livekit/client-sdk-js/pull/1901) ([@lukasIO](https://github.com/lukasIO))
+
+- await screen share audio unpublish before returning setEnabled - [#1899](https://github.com/livekit/client-sdk-js/pull/1899) ([@lukasIO](https://github.com/lukasIO))
+
+- Avoid attaching a new Closing event listener for each waitForBufferStatusLow call - [#1896](https://github.com/livekit/client-sdk-js/pull/1896) ([@1egoman](https://github.com/1egoman))
+
+- Re-compute encoding params after track replace - [#1902](https://github.com/livekit/client-sdk-js/pull/1902) ([@lukasIO](https://github.com/lukasIO))
+
+- Harden extension id computation and retry publishing on negotiation failure - [#1895](https://github.com/livekit/client-sdk-js/pull/1895) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure udpated tokens get set on the regionUrlProvider - [#1900](https://github.com/livekit/client-sdk-js/pull/1900) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.18.4
 
 ### Patch Changes

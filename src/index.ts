@@ -13,6 +13,7 @@ import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
 import LocalDataTrack from './room/data-track/LocalDataTrack';
 import RemoteDataTrack, { type DataTrackSubscribeOptions } from './room/data-track/RemoteDataTrack';
+import { type RemoteDataTrackPipelineOptions } from './room/data-track/types';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, {
   ConnectionQuality,
@@ -63,6 +64,22 @@ import {
 import { getBrowser } from './utils/browserParser';
 
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
+export type {
+  FrameMetadata,
+  FrameMetadataPublishOptions,
+  /** @deprecated Use {@link FrameMetadata} instead. */
+  PacketTrailerMetadata,
+  /** @deprecated Use {@link FrameMetadataPublishOptions} instead. */
+  PacketTrailerPublishOptions,
+} from './frameMetadata/types';
+export {
+  FrameMetadataManager,
+  /** @deprecated Use {@link FrameMetadataManager} instead. */
+  PacketTrailerManager,
+  type FrameMetadataOptions,
+  /** @deprecated Use {@link FrameMetadataOptions} instead. */
+  type PacketTrailerOptions,
+} from './frameMetadata/FrameMetadataManager';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';
@@ -159,6 +176,7 @@ export type {
   ParticipantEventCallbacks,
   PublicationEventCallbacks,
   DataTrackSubscribeOptions,
+  RemoteDataTrackPipelineOptions,
 };
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {

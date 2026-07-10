@@ -27,29 +27,7 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       return false;
     }
 
-    for (const key of Object.keys(this.cachedFetchOptions) as Array<
-      keyof TokenSourceFetchOptions
-    >) {
-      switch (key) {
-        case 'roomName':
-        case 'participantName':
-        case 'participantIdentity':
-        case 'participantMetadata':
-        case 'participantAttributes':
-        case 'agentName':
-        case 'agentMetadata':
-          if (this.cachedFetchOptions[key] !== options[key]) {
-            return false;
-          }
-          break;
-        default:
-          // ref: https://stackoverflow.com/a/58009992
-          const exhaustiveCheckedKey: never = key;
-          throw new Error(`Options key ${exhaustiveCheckedKey} not being checked for equality!`);
-      }
-    }
-
-    return true;
+    return areTokenSourceFetchOptionsEqual(options, this.cachedFetchOptions);
   }
 
   private shouldReturnCachedValueFromFetch(fetchOptions: TokenSourceFetchOptions) {
@@ -189,6 +167,14 @@ class TokenSourceEndpoint extends TokenSourceCached {
             request.roomConfig.agents.push(new RoomAgentDispatch());
           }
           request.roomConfig.agents[0].metadata = options.agentMetadata!;
+          break;
+
+        case 'deployment':
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].deployment = options.deployment!;
           break;
 
         default:

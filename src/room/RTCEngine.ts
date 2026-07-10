@@ -26,7 +26,6 @@ import {
   Room as RoomModel,
   RoomMovedResponse,
   RpcAck,
-  RpcResponse,
   ServerInfo,
   SessionDescription,
   SignalTarget,
@@ -54,9 +53,15 @@ import {
   toProtoSessionDescription,
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
-import { asEncryptablePacket } from '../e2ee/utils';
+import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import {
+  hasFrameMetadataPublishOptions,
+  isFrameMetadataSupported,
+  shouldUseFrameMetadataScriptTransform,
+} from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
@@ -69,12 +74,12 @@ import {
   ConnectionError,
   ConnectionErrorReason,
   NegotiationError,
+  PublishDataError,
   SignalReconnectError,
   TrackInvalidError,
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
@@ -87,7 +92,8 @@ import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
   Future,
-  isCompressionStreamSupported,
+  isPublisherOfferWithJoinSupported,
+  isReactNative,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -105,6 +111,7 @@ const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 const lossyDataChannelBufferThresholdMin = 8 * 1024;
 const lossyDataChannelBufferThresholdMax = 256 * 1024;
+
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
 
@@ -119,8 +126,13 @@ enum PCState {
 export enum DataChannelKind {
   RELIABLE = DataPacket_Kind.RELIABLE,
   LOSSY = DataPacket_Kind.LOSSY,
-  DATA_TRACK_LOSSY,
+  DATA_TRACK_LOSSY = 2,
 }
+
+// Default data-channel max message size (bytes), used when the remote SDP
+// answer does not advertise an `a=max-message-size` attribute (RFC 8841).
+// `0` means "no limit".
+const DEFAULT_MAX_MESSAGE_SIZE = 64_000;
 
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
@@ -257,7 +269,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
-    this.reconnectLog = getLogger(LoggerNames.Reconnection, () => this.logContext);
     this.loggerOptions = {
       loggerName: options.loggerName,
       loggerContextCb: () => this.logContext,
@@ -324,12 +335,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
+      // Whether the initial publisher offer is bundled with the join request. Computed once and
+      // reused after the join below. Only the (non-Firefox) offer-with-join path does this.
+      const sendOfferWithJoin = !useV0Path && isPublisherOfferWithJoinSupported();
+
       let offerProto: SessionDescription | undefined;
-      if (!useV0Path && isCompressionStreamSupported()) {
+      if (sendOfferWithJoin) {
         if (!this.pcManager) {
+          // Firefox is excluded from offer-with-join (see isPublisherOfferWithJoinSupported):
+          // customers reported ICE connectivity problems for FF on this path (#1919) that we were
+          // never able to reproduce, so out of caution FF stays on the deferred path below. The
+          // exact cause is unknown — note that ICE gathering does not actually start here, since
+          // createInitialOffer() defers setLocalDescription (via pendingInitialOffer) until the
+          // answer is applied, after updateConfiguration() has set the server's TURN servers.
           await this.configure();
-          this.createDataChannels();
-          this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+          this.applyInitialPublisherLayout();
         }
         const offer = await this.pcManager?.publisher.createInitialOffer();
         if (offer) {
@@ -358,11 +378,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.participantSid = joinResponse.participant?.sid;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!useV0Path && isCompressionStreamSupported()) {
+      if (sendOfferWithJoin) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
       } else {
         if (!this.pcManager) {
+          // Deferred path (Firefox, and V0): configure with the join response so the PC picks up
+          // the server's ICE servers and topology, then negotiate separately rather than bundling
+          // the offer with the join.
           await this.configure(joinResponse, !useV0Path);
+          if (!useV0Path) {
+            // The V1 first offer must carry the media layout so Firefox binds receive decoders for
+            // subscribed tracks — without it, subscribed audio/video arrive as RTP but
+            // never decode. V0 (legacy dual-PC) keeps its original lazy behavior.
+            this.applyInitialPublisherLayout();
+          }
         }
         // create offer
         if (!this.subscriberPrimary || joinResponse.fastPublish) {
@@ -431,18 +460,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
-    await this.pcManager?.close();
-    this.pcManager = undefined;
-
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
-      if (!dc) return;
-      dc.close();
+      if (!dc) {
+        return;
+      }
+
+      // Detach the data channel handlers before closing anything. Closing a peer connection tears
+      // down the SCTP transport, which can dispatch `error`/`close` events on the still-open data
+      // channels; if our handlers are still attached at that point, handleDataError logs a spurious
+      // "Unknown DataChannel error" during an otherwise graceful disconnect. Removing the handlers
+      // before dc.close()/pcManager.close() makes this deterministic regardless of how/when the
+      // browser dispatches those teardown events. See livekit/client-sdk-js#1953.
       dc.onbufferedamountlow = null;
       dc.onclose = null;
       dc.onclosing = null;
       dc.onerror = null;
       dc.onmessage = null;
       dc.onopen = null;
+
+      dc.close();
     };
     dcCleanup(this.lossyDC);
     dcCleanup(this.lossyDCSub);
@@ -450,6 +486,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     dcCleanup(this.reliableDCSub);
     dcCleanup(this.dataTrackDC);
     dcCleanup(this.dataTrackDCSub);
+
+    await this.pcManager?.close();
+    this.pcManager = undefined;
 
     this.lossyDC = undefined;
     this.lossyDCSub = undefined;
@@ -765,7 +804,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
 
-    if (this.signalOpts?.e2eeEnabled) {
+    // E2EE and packet trailer extraction both rely on encoded frame transforms.
+    // Only opt into the createEncodedStreams flavor when that path will be
+    // used; RTCRtpScriptTransform does not need the PeerConnection flag.
+    const needsInsertableStreams =
+      this.signalOpts?.e2eeEnabled ||
+      (this.frameMetadataWorker && !shouldUseFrameMetadataScriptTransform());
+
+    if (needsInsertableStreams && isInsertableStreamSupported()) {
       this.log.debug('E2EE - setting up transports with insertable streams');
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
@@ -807,6 +853,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return rtcConfig;
   }
 
+  /**
+   * Populate the publisher PC so its first offer carries the data channels + recvonly media
+   * sections. Required for every V1 connection: Firefox only binds receive decoders for media
+   * present in that first offer, and the offer-with-join path needs the sections to
+   * build a meaningful initial offer. Must be called on a configured pcManager.
+   */
+  private applyInitialPublisherLayout() {
+    this.createDataChannels();
+    /**
+     * Native libwebrtc does not support pre-populating the media sections,
+     * so we skip it for React Native.
+     *
+     * Related: https://github.com/livekit/rust-sdks/pull/1151
+     */
+    if (!isReactNative()) {
+      this.addMediaSections(initialMediaSectionsAudio, initialMediaSectionsVideo);
+    }
+  }
+
   private addMediaSections(numAudios: number, numVideos: number) {
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
     for (let i: number = 0; i < numAudios; i++) {
@@ -826,14 +891,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.lossyDC) {
       this.lossyDC.onmessage = null;
       this.lossyDC.onerror = null;
+      this.lossyDC.onclose = null;
     }
     if (this.reliableDC) {
       this.reliableDC.onmessage = null;
       this.reliableDC.onerror = null;
+      this.reliableDC.onclose = null;
     }
     if (this.dataTrackDC) {
       this.dataTrackDC.onmessage = null;
       this.dataTrackDC.onerror = null;
+      this.dataTrackDC.onclose = null;
     }
 
     // create data channels
@@ -858,6 +926,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
     this.dataTrackDC.onerror = this.handleDataError;
+
+    // detect unexpected publisher data channel closes
+    this.lossyDC.onclose = this.handleDataChannelClose(DataChannelKind.LOSSY);
+    this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
+    this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
     // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
     this.lossyDC.bufferedAmountLowThreshold = 65535;
@@ -943,8 +1016,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           return;
         }
         const decryptedData = await this.e2eeManager?.handleEncryptedData(
-          dp.value.value.encryptedValue,
-          dp.value.value.iv,
+          dp.value.value.encryptedValue as NonSharedUint8Array,
+          dp.value.value.iv as NonSharedUint8Array,
           dp.participantIdentity,
           dp.value.value.keyIndex,
         );
@@ -987,14 +1060,38 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   private handleDataError = (event: Event) => {
+    // Errors fired while we're tearing the connection down (e.g. the SCTP transport aborting as
+    // the peer connection closes) carry no actionable information — the channel is going away
+    // regardless. Suppress them so a graceful disconnect doesn't surface spurious errors.
+    // See livekit/client-sdk-js#1953.
+    if (this._isClosed) {
+      return;
+    }
+
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
-    if (event instanceof ErrorEvent && event.error) {
-      const { error } = event.error;
-      this.log.error(`DataChannel error on ${channelKind}: ${event.message}`, { error });
+    if (typeof RTCErrorEvent !== 'undefined' && event instanceof RTCErrorEvent && event.error) {
+      const { error } = event;
+      this.log.error(`DataChannel error on ${channelKind}: ${error.message}`, {
+        error,
+        errorDetail: error.errorDetail,
+        sctpCauseCode: error.sctpCauseCode,
+      });
     } else {
       this.log.error(`Unknown DataChannel error on ${channelKind}`, { event });
+    }
+  };
+
+  private handleDataChannelClose = (kind: DataChannelKind) => () => {
+    // A publisher DC closing while the session is up and the publisher PC is still
+    // connected is the signature of an oversized message having aborted the channel
+    // (see livekit/rust-sdks#1137). Surface it; do not attempt renegotiation.
+    if (!this._isClosed && this.pcManager?.publisher.getConnectionState() === 'connected') {
+      this.log.error(
+        `publisher data channel '${DataChannelKind[kind]}' closed unexpectedly`,
+        this.logContext,
+      );
     }
   };
 
@@ -1007,16 +1104,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
+    let sender: RTCRtpSender;
     if (supportsTransceiver()) {
-      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      return sender;
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.warn('using add-track fallback');
-      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
-      return sender;
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+    this.setupFrameMetadataSender(sender, opts);
+    return sender;
   }
 
   async createSimulcastSender(
@@ -1025,16 +1123,72 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    // store RTCRtpSender
+    let sender: RTCRtpSender | undefined;
     if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
-    }
-    if (supportsAddTrack()) {
+      sender = await this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    } else if (supportsAddTrack()) {
       this.log.debug('using add-track fallback');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+    } else {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
+    }
+    if (sender) {
+      this.setupFrameMetadataSender(sender, opts);
+    }
+    return sender;
+  }
+
+  private get frameMetadataWorker(): Worker | undefined {
+    return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
+  }
+
+  private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
+    const worker = this.frameMetadataWorker;
+    if (!worker || this.signalOpts?.e2eeEnabled) {
+      return;
     }
 
-    throw new UnexpectedConnectionState('Cannot stream on this device');
+    const frameMetadata = opts.frameMetadata ?? opts.packetTrailer;
+    const hasMetadata = hasFrameMetadataPublishOptions(frameMetadata);
+
+    if (shouldUseFrameMetadataScriptTransform()) {
+      if (hasMetadata) {
+        // @ts-ignore
+        sender.transform = new RTCRtpScriptTransform(worker, {
+          kind: 'encode',
+          packetTrailer: frameMetadata,
+        });
+      }
+      return;
+    }
+
+    if (
+      !isFrameMetadataSupported(this.options.frameMetadata ?? this.options.packetTrailer) ||
+      !('createEncodedStreams' in sender)
+    ) {
+      if (hasMetadata) {
+        this.log.warn('frame metadata transform not supported; skipping write', this.logContext);
+      }
+      return;
+    }
+
+    // @ts-ignore
+    const { readable, writable } = sender.createEncodedStreams();
+    if (hasMetadata) {
+      worker.postMessage(
+        {
+          kind: 'encode',
+          data: {
+            readableStream: readable,
+            writableStream: writable,
+            packetTrailer: frameMetadata,
+          },
+        },
+        [readable, writable],
+      );
+    } else {
+      readable.pipeTo(writable);
+    }
   }
 
   private async createTransceiverRTCRtpSender(
@@ -1109,7 +1263,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    this.reconnectLog.warn(`${connection} disconnected`);
+    this.log.warn(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
@@ -1137,7 +1291,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delay = 0;
     }
 
-    this.reconnectLog.debug(`reconnecting in ${delay}ms`);
+    this.log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
     if (this.token) {
@@ -1158,7 +1312,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
-      this.reconnectLog.warn('already attempting reconnect, returning early');
+      this.log.warn('already attempting reconnect, returning early');
       return;
     }
     if (
@@ -1183,7 +1337,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reconnectAttempts += 1;
       let recoverable = true;
       if (e instanceof UnexpectedConnectionState) {
-        this.reconnectLog.debug('received unrecoverable error', { error: e });
+        this.log.debug('received unrecoverable error', { error: e });
         // unrecoverable
         recoverable = false;
       } else if (!(e instanceof SignalReconnectError)) {
@@ -1211,7 +1365,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
-      this.reconnectLog.warn('encountered error in reconnect policy', { error: e });
+      this.log.warn('encountered error in reconnect policy', { error: e });
     }
 
     // error in user code with provided reconnect policy, stop reconnecting
@@ -1225,7 +1379,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
       }
 
-      this.reconnectLog.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1237,7 +1391,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let joinResponse: JoinResponse;
       try {
         if (!this.signalOpts) {
-          this.reconnectLog.warn('attempted connection restart, without signal options present');
+          this.log.warn('attempted connection restart, without signal options present');
           throw new SignalReconnectError();
         }
         // in case a regionUrl is passed, the region URL takes precedence
@@ -1298,7 +1452,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
 
-    this.reconnectLog.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
+    this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     this.emit(EngineEvent.Resuming);
     let res: ReconnectResponse | undefined;
     try {
@@ -1308,7 +1462,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (error instanceof Error) {
         message = error.message;
-        this.reconnectLog.error(error.message, { error });
+        this.log.error(error.message, { error });
       }
       if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
@@ -1327,7 +1481,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.latestJoinResponse.serverInfo = res.serverInfo;
       }
     } else {
-      this.reconnectLog.warn('Did not receive reconnect response');
+      this.log.warn('Did not receive reconnect response');
     }
 
     if (this.shouldFailNext) {
@@ -1370,7 +1524,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async waitForPCReconnected() {
     this.pcState = PCState.Reconnecting;
 
-    this.reconnectLog.debug('waiting for peer connection to reconnect');
+    this.log.debug('waiting for peer connection to reconnect');
     try {
       await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
       if (!this.pcManager) {
@@ -1404,30 +1558,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   /** @internal */
-  async publishRpcResponse(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: error
-            ? { case: 'error', value: error.toProto() }
-            : { case: 'payload', value: payload ?? '' },
-        }),
-      },
-    });
-
-    await this.sendDataPacket(packet, DataChannelKind.RELIABLE);
-  }
-
-  /** @internal */
   async publishRpcAck(destinationIdentity: string, requestId: string) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
@@ -1450,7 +1580,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
       const encryptablePacket = asEncryptablePacket(packet);
       if (encryptablePacket) {
-        const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());
+        const encryptedData = await this.e2eeManager.encryptData(
+          encryptablePacket.toBinary() as NonSharedUint8Array,
+        );
         packet.value = {
           case: 'encryptedPacket',
           value: new EncryptedPacket({
@@ -1467,7 +1599,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableDataSequence += 1;
     }
 
-    const msg = packet.toBinary();
+    const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
+
+    // Clamp to the SDK default - libwebrtc advertises larger (~256 KiB)
+    // than LiveKit/pion can deliver end-to-end (~64 KiB), so we trust
+    // the answer up untilthe built in ceiling.
+    const maxPublisherMessageSizeBytes = Math.min(
+      this.pcManager?.getMaxPublisherMessageSize() ?? DEFAULT_MAX_MESSAGE_SIZE,
+      DEFAULT_MAX_MESSAGE_SIZE,
+    );
+    if (
+      typeof maxPublisherMessageSizeBytes !== 'undefined' &&
+      maxPublisherMessageSizeBytes !== 0 /* 0 means "no limit" */ &&
+      msg.byteLength > maxPublisherMessageSizeBytes
+    ) {
+      throw new PublishDataError(
+        `cannot publish data packet larger than ${maxPublisherMessageSizeBytes} bytes (got ${msg.byteLength})`,
+      );
+    }
 
     switch (kind) {
       case DataChannelKind.LOSSY:
@@ -1494,7 +1643,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendLossyBytes(
-    bytes: Uint8Array,
+    bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {
@@ -1709,20 +1858,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       this.on(EngineEvent.Closing, handleClosed);
       this.on(EngineEvent.Restarting, handleClosed);
-
-      this.pcManager.publisher.once(
-        PCEvents.RTPVideoPayloadTypes,
-        (rtpTypes: MediaAttributes['rtp']) => {
-          const rtpMap = new Map<number, VideoCodec>();
-          rtpTypes.forEach((rtp) => {
-            const codec = rtp.codec.toLowerCase();
-            if (isVideoCodec(codec)) {
-              rtpMap.set(rtp.payload, codec);
-            }
-          });
-          this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
-        },
-      );
+      this.pcManager.publisher.off(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
+      this.pcManager.publisher.once(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
 
       try {
         await this.pcManager.negotiate(abortController);
@@ -1868,6 +2005,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // debugging method to fail the next connection attempt for /rtc/v1 to trigger the fallback version
     this.shouldFailOnV1Path = true;
   }
+
+  private onRtpMapAvailable = (rtpTypes: MediaAttributes['rtp']) => {
+    const rtpMap = new Map<number, VideoCodec>();
+    rtpTypes.forEach((rtp) => {
+      const codec = rtp.codec.toLowerCase();
+      if (isVideoCodec(codec)) {
+        rtpMap.set(rtp.payload, codec);
+      }
+    });
+    this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+  };
 
   private dataChannelsInfo(): DataChannelInfo[] {
     const infos: DataChannelInfo[] = [];

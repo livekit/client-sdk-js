@@ -11,6 +11,14 @@ export type DataTrackInfo = {
   usesE2ee: boolean;
 };
 
+export type RemoteDataTrackPipelineOptions = {
+  /** Set the maximum number of in-flight partial frames the depacketizer will track
+   * concurrently for this track. Higher values give more out-of-order tolerance for
+   * high-frequency senders. Defaults to 1.
+   */
+  maxPartialFrames?: number;
+};
+
 export const DataTrackInfo = {
   from(protocolInfo: ProtocolDataTrackInfo): DataTrackInfo {
     return {

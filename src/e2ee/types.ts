@@ -1,5 +1,8 @@
+import type { FrameMetadataPayload } from '../frameMetadata/frameMetadata';
+import type { FrameMetadataPublishOptions } from '../frameMetadata/types';
 import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
 
@@ -38,7 +41,7 @@ export interface RTPVideoMapMessage extends BaseMessage {
 export interface SifTrailerMessage extends BaseMessage {
   kind: 'setSifTrailer';
   data: {
-    trailer: Uint8Array;
+    trailer: NonSharedUint8Array;
   };
 }
 
@@ -51,6 +54,16 @@ export interface EncodeMessage extends BaseMessage {
     trackId: string;
     codec?: VideoCodec;
     isReuse: boolean;
+    /**
+     * Whether the published track advertises packet trailer features.
+     * When false, the cryptor skips the per-frame trailer extraction path
+     * entirely on decode.
+     */
+    hasPacketTrailer: boolean;
+    /**
+     * Packet trailer metadata to append on published video frames.
+     */
+    packetTrailer?: FrameMetadataPublishOptions;
   };
 }
 
@@ -68,6 +81,7 @@ export interface UpdateCodecMessage extends BaseMessage {
     participantIdentity: string;
     trackId: string;
     codec: VideoCodec;
+    hasPacketTrailer: boolean;
   };
 }
 
@@ -116,8 +130,8 @@ export interface DecryptDataRequestMessage extends BaseMessage {
   kind: 'decryptDataRequest';
   data: {
     uuid: string;
-    payload: Uint8Array;
-    iv: Uint8Array;
+    payload: NonSharedUint8Array;
+    iv: NonSharedUint8Array;
     participantIdentity: string;
     keyIndex: number;
   };
@@ -127,7 +141,7 @@ export interface DecryptDataResponseMessage extends BaseMessage {
   kind: 'decryptDataResponse';
   data: {
     uuid: string;
-    payload: Uint8Array;
+    payload: NonSharedUint8Array;
   };
 }
 
@@ -135,7 +149,7 @@ export interface EncryptDataRequestMessage extends BaseMessage {
   kind: 'encryptDataRequest';
   data: {
     uuid: string;
-    payload: Uint8Array;
+    payload: NonSharedUint8Array;
     participantIdentity: string;
   };
 }
@@ -144,10 +158,15 @@ export interface EncryptDataResponseMessage extends BaseMessage {
   kind: 'encryptDataResponse';
   data: {
     uuid: string;
-    payload: Uint8Array;
-    iv: Uint8Array;
+    payload: NonSharedUint8Array;
+    iv: NonSharedUint8Array;
     keyIndex: number;
   };
+}
+
+export interface PTMetadataFromE2EEMessage extends BaseMessage {
+  kind: 'packetTrailerMetadata';
+  data: FrameMetadataPayload;
 }
 
 export type E2EEWorkerMessage =
@@ -166,7 +185,8 @@ export type E2EEWorkerMessage =
   | DecryptDataRequestMessage
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
-  | EncryptDataResponseMessage;
+  | EncryptDataResponseMessage
+  | PTMetadataFromE2EEMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
@@ -221,4 +241,14 @@ export type ScriptTransformOptions = {
   participantIdentity: string;
   trackId: string;
   codec?: VideoCodec;
+  /**
+   * Whether the published track advertises packet trailer features.
+   * When false, the cryptor skips the per-frame trailer extraction path
+   * entirely on decode.
+   */
+  hasPacketTrailer: boolean;
+  /**
+   * Packet trailer metadata to append on published video frames.
+   */
+  packetTrailer?: FrameMetadataPublishOptions;
 };

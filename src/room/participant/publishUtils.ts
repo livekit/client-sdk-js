@@ -15,7 +15,6 @@ import type { LoggerOptions } from '../types';
 import {
   compareVersions,
   getReactNativeOs,
-  isFireFox,
   isReactNative,
   isSVCCodec,
   isSafariBased,
@@ -195,7 +194,7 @@ export function computeVideoEncodings(
     return [videoEncoding];
   }
 
-  let presets: Array<VideoPreset> = [];
+  let presets: Array<VideoPreset>;
   if (isScreenShare) {
     presets =
       sortPresets(options?.screenShareSimulcastLayers) ??
@@ -379,7 +378,8 @@ function encodingsFromPresets(
     if (maxFramerate) {
       encoding.maxFramerate = maxFramerate;
     }
-    const canSetPriority = isFireFox() || idx === 0;
+    const browser = getBrowser();
+    const canSetPriority = (browser?.name === 'Firefox' && browser.os !== 'iOS') || idx === 0;
     if (preset.encoding.priority && canSetPriority) {
       encoding.priority = preset.encoding.priority;
       encoding.networkPriority = preset.encoding.priority;
@@ -419,7 +419,10 @@ function encodingsFromPresets(
 /** @internal */
 export function sortPresets(presets: Array<VideoPreset> | undefined) {
   if (!presets) return;
-  return presets.sort((a, b) => {
+  // Sort a copy so we don't mutate the caller's array in place. Mutating the
+  // passed-in simulcast layers can cause consumers that compare options by value
+  // (e.g. components-react's useLiveKitRoom) to detect a spurious change.
+  return presets.slice().sort((a, b) => {
     const { encoding: aEnc } = a;
     const { encoding: bEnc } = b;
 
