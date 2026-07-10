@@ -103,6 +103,15 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     await this.restart(constraints);
   }
 
+  async applyConstraints(
+    constraints?: Pick<
+      AudioCaptureOptions,
+      'autoGainControl' | 'noiseSuppression' | 'echoCancellation' | 'voiceIsolation'
+    >,
+  ): Promise<void> {
+    return this._mediaStreamTrack.applyConstraints(constraints);
+  }
+
   protected async restart(
     constraints?: MediaTrackConstraints,
     isUnmuting?: boolean,
