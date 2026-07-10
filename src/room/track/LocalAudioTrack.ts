@@ -109,7 +109,12 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       'autoGainControl' | 'noiseSuppression' | 'echoCancellation' | 'voiceIsolation'
     >,
   ): Promise<void> {
-    return this._mediaStreamTrack.applyConstraints(constraints);
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      return await this._mediaStreamTrack.applyConstraints(constraints);
+    } finally {
+      unlock();
+    }
   }
 
   protected async restart(
