@@ -1715,6 +1715,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
+  /** Abort controller which when called will remove the `bufferedamountlow` event on the data channel. */
+  private waitForBufferStatusLowAbortController: AbortController | null = null;
+  /** List of resolve functions which are waiting to be called by {@link waitForBufferStatusLow}.
+    * Note that these will be called in order, validating that the buffer status is still low
+    * between each call. */
+  private waitForBufferedStatusLowResolves: Array<() => void> = [];
   async waitForBufferStatusLow(kind: DataChannelKind) {
     return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
       if (this.isClosed) {
@@ -1728,10 +1734,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
+
+        // Proxy along any errors due to the engine closing
         this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        dc.addEventListener('bufferedamountlow', () => resolve(), {
-          once: true,
-        });
+
+        // Store resolve so that when the bufferedamountlow event fires, all resolve calls can be
+        // fired in order until the data channel buffer fills up again.
+        this.waitForBufferedStatusLowResolves.push(resolve);
+        if (!this.waitForBufferStatusLowAbortController) {
+          this.waitForBufferStatusLowAbortController = new AbortController();
+          dc.addEventListener('bufferedamountlow', () => {
+            while (true) {
+              const resolve = this.waitForBufferedStatusLowResolves[0];
+              if (!resolve) {
+                this.waitForBufferedStatusLowResolves = [];
+                this.waitForBufferStatusLowAbortController?.abort();
+                this.waitForBufferStatusLowAbortController = null;
+                break;
+              }
+              if (!this.isBufferStatusLow(kind)) {
+                // Buffer status no longer low, bail out and resume once the next bufferedamountlow
+                // event fires again.
+                break;
+              }
+              resolve();
+              this.waitForBufferedStatusLowResolves.shift();
+            }
+          }, { signal: this.waitForBufferStatusLowAbortController.signal });
+        }
       }
     });
   }
