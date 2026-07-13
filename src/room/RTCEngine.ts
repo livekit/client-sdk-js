@@ -239,8 +239,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private log = log;
 
-  private reconnectLog = log;
-
   private loggerOptions: LoggerOptions;
 
   private publisherConnectionPromise: Promise<void> | undefined;
@@ -1270,7 +1268,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const disconnect = (duration: number) => {
-      this.reconnectLog.warn(
+      this.log.warn(
         `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
       );
       this.emit(EngineEvent.Disconnected);
@@ -1348,7 +1346,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (recoverable) {
         this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
-        this.reconnectLog.info(
+        this.log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
             Date.now() - this.reconnectStart
           }ms. giving up`,
