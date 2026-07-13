@@ -1715,58 +1715,58 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  /** Abort controller which when called will remove the `bufferedamountlow` event on the data channel. */
-  private waitForBufferStatusLowAbortController: AbortController | null = null;
-  /** List of resolve functions which are waiting to be called by {@link waitForBufferStatusLow}.
-    * Note that these will be called in order, validating that the buffer status is still low
-    * between each call. */
-  private waitForBufferedStatusLowResolves: Array<() => void> = [];
+  /** Per-kind lock serializing callers of {@link waitForBufferStatusLow} that have to wait. */
+  private waitForBufferStatusLowLocks = new Map<DataChannelKind, Mutex>();
+
   async waitForBufferStatusLow(kind: DataChannelKind) {
-    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this.isClosed) {
-        reject(new UnexpectedConnectionState('engine closed'));
-      }
-      if (this.isBufferStatusLow(kind)) {
-        resolve();
-      } else {
+    if (this.isClosed) {
+      throw new UnexpectedConnectionState('engine closed');
+    }
+    if (this.isBufferStatusLow(kind)) {
+      return;
+    }
+
+    // Slow path: the buffer is full, so serialize waiters. Only one proceeds per capacity window;
+    // without this, N concurrent senders all observe the bufferedamountlow signal in the same tick
+    // and call dc.send() together, blowing past the SCTP send buffer (see #1995).
+    let lock = this.waitForBufferStatusLowLocks.get(kind);
+    if (!lock) {
+      lock = new Mutex();
+      this.waitForBufferStatusLowLocks.set(kind, lock);
+    }
+    const unlock = await lock.lock();
+    try {
+      await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
+        // Re-check after acquiring the lock - the engine may have closed and the buffer may have
+        // drained while we were queued.
+        if (this.isClosed) {
+          reject(new UnexpectedConnectionState('engine closed'));
+          return;
+        }
+        if (this.isBufferStatusLow(kind)) {
+          resolve();
+          return;
+        }
         const dc = this.dataChannelForKind(kind);
         if (!dc) {
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-
-        // Proxy along any errors due to the engine closing
-        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-
-        // Store resolve so that when the bufferedamountlow event fires, all resolve calls can be
-        // fired in order until the data channel buffer fills up again.
-        this.waitForBufferedStatusLowResolves.push(resolve);
-        if (!this.waitForBufferStatusLowAbortController) {
-          this.waitForBufferStatusLowAbortController = new AbortController();
-          dc.addEventListener('bufferedamountlow', async () => {
-            while (true) {
-              const resolve = this.waitForBufferedStatusLowResolves[0];
-              if (!resolve) {
-                this.waitForBufferedStatusLowResolves = [];
-                this.waitForBufferStatusLowAbortController?.abort();
-                this.waitForBufferStatusLowAbortController = null;
-                break;
-              }
-              if (!this.isBufferStatusLow(kind)) {
-                // Buffer status no longer low, bail out and resume once the next bufferedamountlow
-                // event fires again.
-                break;
-              }
-              resolve();
-              // Defer to the event loop so any `await dc.send(...)` calls can fire and fill back up
-              // the data channel.
-              await new Promise((r) => setTimeout(r, 0));
-              this.waitForBufferedStatusLowResolves.shift();
-            }
-          }, { signal: this.waitForBufferStatusLowAbortController.signal });
-        }
-      }
-    });
+        const onBufferedAmountLow = () => resolve();
+        dc.addEventListener('bufferedamountlow', onBufferedAmountLow, { once: true });
+        // Proxy along any errors due to the engine closing.
+        this.bufferStatusLowClosingFuture.promise.catch((e) => {
+          dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
+          reject(e);
+        });
+      });
+    } finally {
+      // Release only after the caller's synchronous dc.send() has run, so the next waiter reads the
+      // updated bufferedAmount rather than the stale (still-low) value. The caller's continuation is
+      // scheduled when this promise settles; deferring the unlock to a later task lets that send run
+      // first.
+      setTimeout(unlock, 0);
+    }
   }
 
   /**
