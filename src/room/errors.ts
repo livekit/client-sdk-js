@@ -208,7 +208,7 @@ export class UnsupportedServer extends LivekitError {
   readonly name = 'UnsupportedServer';
 
   constructor(message?: string) {
-    super(10, message ?? 'unsupported server');
+    super(10, message || 'unsupported server');
   }
 }
 
@@ -216,7 +216,7 @@ export class UnexpectedConnectionState extends LivekitError {
   readonly name = 'UnexpectedConnectionState';
 
   constructor(message?: string) {
-    super(12, message ?? 'unexpected connection state');
+    super(12, message || 'unexpected connection state');
   }
 }
 
@@ -224,7 +224,7 @@ export class NegotiationError extends LivekitError {
   readonly name = 'NegotiationError';
 
   constructor(message?: string) {
-    super(13, message ?? 'unable to negotiate');
+    super(13, message || 'unable to negotiate');
   }
 }
 
@@ -232,7 +232,7 @@ export class PublishDataError extends LivekitError {
   readonly name = 'PublishDataError';
 
   constructor(message?: string) {
-    super(14, message ?? 'unable to publish data');
+    super(14, message || 'unable to publish data');
   }
 }
 
