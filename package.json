@@ -63,7 +63,7 @@
     "deploy": "gh-pages -d examples/demo/dist",
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
-    "throws:check": "pnpm --package=@livekit/throws-transformer dlx throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
+    "throws:check": "pnpm throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
     "type:check": "tsc --noEmit",
     "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
