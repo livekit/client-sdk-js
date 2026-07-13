@@ -163,7 +163,7 @@ export class PCTransportManager {
   }
 
   async triggerIceRestart() {
-    this.iceLog.info('triggering ICE restart');
+    this.iceLog.warn('triggering ICE restart');
     if (this.subscriber) {
       this.subscriber.restartingIce = true;
     }
