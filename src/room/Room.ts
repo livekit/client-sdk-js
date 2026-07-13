@@ -192,6 +192,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** used for aborting pending connections to a LiveKit server */
   private abortController?: AbortController;
 
+  /** used to remove the `devicechange` listener registered in the constructor */
+  private deviceChangeCleanupController?: AbortController;
+
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void, Error>;
 
@@ -375,6 +378,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (isWeb()) {
       const cleanupController = new AbortController();
+      this.deviceChangeCleanupController = cleanupController;
       let onDeviceChange: () => void;
 
       if (Room.cleanupRegistry) {
@@ -1864,7 +1868,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
         window.removeEventListener('freeze', this.onPageLeave);
-        navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange);
+        this.deviceChangeCleanupController?.abort();
       }
     } finally {
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
