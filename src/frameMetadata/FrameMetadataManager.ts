@@ -37,7 +37,32 @@ export interface FrameMetadataOptions {
 export class FrameMetadataManager {
   private worker?: Worker;
 
-  private room?: Room;
+  /**
+   * Held as a WeakRef to break the reference cycle between Room and this
+   * manager (`Room.frameMetadataManager` -> FrameMetadataManager -> Room).
+   * Without this, a Room could not be garbage collected once it constructed
+   * a FrameMetadataManager. Access via the `room` getter.
+   */
+  private roomRef?: WeakRef<Room>;
+
+  /**
+   * Fallback strong reference for legacy browsers without WeakRef. This
+   * reintroduces the reference cycle, but such browsers don't support the
+   * encoded-transform APIs this feature relies on anyway.
+   */
+  private roomStrong?: Room;
+
+  private get room(): Room | undefined {
+    return this.roomRef ? this.roomRef.deref() : this.roomStrong;
+  }
+
+  private setRoom(room: Room) {
+    if (typeof WeakRef !== 'undefined') {
+      this.roomRef = new WeakRef(room);
+    } else {
+      this.roomStrong = room;
+    }
+  }
 
   private extractors = new Map<string, FrameMetadataExtractor>();
 
@@ -58,7 +83,7 @@ export class FrameMetadataManager {
     if (room === this.room) {
       return;
     }
-    this.room = room;
+    this.setRoom(room);
 
     if (this.worker) {
       this.worker.onmessage = this.onWorkerMessage;
