@@ -1743,7 +1743,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.waitForBufferedStatusLowResolves.push(resolve);
         if (!this.waitForBufferStatusLowAbortController) {
           this.waitForBufferStatusLowAbortController = new AbortController();
-          dc.addEventListener('bufferedamountlow', () => {
+          dc.addEventListener('bufferedamountlow', async () => {
             while (true) {
               const resolve = this.waitForBufferedStatusLowResolves[0];
               if (!resolve) {
@@ -1758,6 +1758,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
                 break;
               }
               resolve();
+              // Defer to the event loop so any `await dc.send(...)` calls can fire and fill back up
+              // the data channel.
+              await new Promise((r) => setTimeout(r, 0));
               this.waitForBufferedStatusLowResolves.shift();
             }
           }, { signal: this.waitForBufferStatusLowAbortController.signal });
