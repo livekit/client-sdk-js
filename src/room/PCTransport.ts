@@ -53,6 +53,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private log = log;
 
+  private iceLog = log;
+
   private loggerOptions: LoggerOptions;
 
   private ddExtID = 0;
@@ -95,8 +97,12 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
     this.loggerOptions = loggerOptions;
+    this.log = getLogger(
+      loggerOptions.loggerName ?? LoggerNames.PCTransport,
+      () => this.logContext,
+    );
+    this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
     this.config = config;
     this._pc = this.createPC();
     this.offerLock = new Mutex();
@@ -107,24 +113,33 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
+      this.iceLog.debug('local ICE candidate gathered', { candidate: ev.candidate.candidate });
       this.onIceCandidate?.(ev.candidate);
     };
     pc.onicecandidateerror = (ev) => {
+      this.iceLog.debug('ICE candidate error', { event: ev });
       this.onIceCandidateError?.(ev);
     };
 
     pc.oniceconnectionstatechange = () => {
+      this.iceLog.debug(`ICE connection state: ${pc.iceConnectionState}`);
       this.onIceConnectionStateChange?.(pc.iceConnectionState);
     };
 
     pc.onsignalingstatechange = () => {
+      this.log.debug(`signaling state: ${pc.signalingState}`);
       this.onSignalingStatechange?.(pc.signalingState);
     };
 
     pc.onconnectionstatechange = () => {
+      this.log.debug(`connection state: ${pc.connectionState}`);
       this.onConnectionStateChange?.(pc.connectionState);
     };
     pc.ondatachannel = (ev) => {
+      this.log.debug('data channel opened by peer', {
+        label: ev.channel.label,
+        id: ev.channel.id,
+      });
       this.onDataChannel?.(ev);
     };
     pc.ontrack = (ev) => {
@@ -150,6 +165,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (this.pc.remoteDescription && !this.restartingIce) {
       return this.pc.addIceCandidate(candidate);
     }
+    this.iceLog.debug('queuing remote ICE candidate until remote description applied', {
+      pendingCount: this.pendingCandidates.length + 1,
+    });
     this.pendingCandidates.push(candidate);
   }
 
@@ -161,7 +179,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       offerId !== this.latestOfferId
     ) {
       this.log.warn('ignoring answer for old offer', {
-        ...this.logContext,
         offerId,
         latestOfferId: this.latestOfferId,
       });
@@ -180,7 +197,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
         });
-        this.log.debug('setting pending initial offer before processing answer', this.logContext);
+        this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(initialOffer, write(sdpParsed));
       }
       const sdpParsed = parse(sd.sdp ?? '');
@@ -234,10 +251,26 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
+      // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
+      // the sections mapped to a published track, but leaves the pre-populated
+      // recvonly placeholder sections with defaults. Conform the placeholders so
+      // each shared payload type is consistent across the bundle, otherwise
+      // libwebrtc flags a "bundled payload type collision".
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       mungedSDP = write(sdpParsed);
     }
     await this.setMungedSDP(sd, mungedSDP, true);
 
+    if (this.pendingCandidates.length > 0) {
+      this.iceLog.debug('flushing queued ICE candidates', {
+        count: this.pendingCandidates.length,
+      });
+    }
     this.pendingCandidates.forEach((candidate) => {
       this.pc.addIceCandidate(candidate);
     });
@@ -287,10 +320,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     const unlock = await this.offerLock.lock();
     try {
       if (this.pc.signalingState !== 'stable') {
-        this.log.warn(
-          'signaling state is not stable, cannot create initial offer',
-          this.logContext,
-        );
+        this.log.warn('signaling state is not stable, cannot create initial offer');
         return;
       }
       const offerId = this.latestOfferId + 1;
@@ -317,7 +347,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       }
 
       if (options?.iceRestart) {
-        this.log.debug('restarting ICE', this.logContext);
+        this.iceLog.debug('restarting ICE');
         this.restartingIce = true;
       }
 
@@ -334,21 +364,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           await this._pc.setRemoteDescription(currentSD);
         } else {
           this.renegotiate = true;
-          this.log.debug('requesting renegotiation', { ...this.logContext });
+          this.log.debug('requesting renegotiation');
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
-        this.log.warn('could not createOffer with closed peer connection', this.logContext);
+        this.log.warn('could not createOffer with closed peer connection');
         return;
       }
 
       // actually negotiate
-      this.log.debug('starting to negotiate', this.logContext);
+      this.log.debug('starting to negotiate');
       // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer(options);
-      this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
+      this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -400,9 +430,19 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
+      // Conform the placeholder sections (pre-populated, or reverted after an
+      // unpublish) so every shared payload type carries identical fmtp across the
+      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // Detection is by transceiver (mids are stable across renegotiations) since
+      // an unpublished section keeps its `a=msid`.
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
-          ...this.logContext,
           latestOfferId: this.latestOfferId,
           offerId,
         });
@@ -426,6 +466,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     });
     await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
+  }
+
+  /**
+   * Returns the mids of transceivers that carry no outgoing track on this
+   * (publisher) connection: the pre-populated placeholders added by
+   * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
+   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
+   * published tracks so a shared payload type stays consistent across the bundle.
+   */
+  private getPlaceholderMids(): Set<string> {
+    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -543,6 +594,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (!this._pc) {
       return;
     }
+    this.log.debug('closing peer connection');
     this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
@@ -564,10 +616,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (munged) {
       sd.sdp = munged;
       try {
-        this.log.debug(
-          `setting munged ${remote ? 'remote' : 'local'} description`,
-          this.logContext,
-        );
+        this.log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
         if (remote) {
           await this.pc.setRemoteDescription(sd);
         } else {
@@ -576,7 +625,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         return;
       } catch (e) {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-          ...this.logContext,
           error: e,
           mungedSdp: munged,
           originalSdp,
@@ -609,7 +657,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
-      this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
+      this.log.error(`unable to set ${sd.type}`, { fields });
       throw new NegotiationError(msg);
     }
   }
@@ -699,6 +747,86 @@ function ensureAudioNackAndStereo(
         }
         return false;
       });
+    }
+  }
+}
+
+/**
+ * Returns the mids of transceivers that carry no outgoing track: the
+ * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
+ * plus any transceiver that was used for a track and reverted on unpublish. The
+ * `sender.track` check is the reliable signal — an unpublished section keeps its
+ * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
+ * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * this works for every offer/answer after the first.
+ * @internal
+ */
+export function placeholderMidsFromTransceivers(
+  transceivers: readonly RTCRtpTransceiver[],
+): Set<string> {
+  const mids = new Set<string>();
+  for (const transceiver of transceivers) {
+    if (transceiver.mid && !transceiver.sender.track) {
+      mids.add(transceiver.mid);
+    }
+  }
+  return mids;
+}
+
+/**
+ * Within a BUNDLE group a payload type must map to identical codec parameters
+ * across every m-line. When the same payload type carries different fmtp between
+ * sections — e.g. opus `usedtx=1` on the published microphone but not on the
+ * pre-populated recvonly placeholders, or H.265 with different `level-id` between
+ * a published video track and a placeholder — libwebrtc flags a "bundled payload
+ * type collision".
+ *
+ * Rewrite the placeholder sections so every shared payload type carries the
+ * same fmtp. Real (non-placeholder) sections always win the canonical value, so
+ * a published track's encoder parameters are never altered. When no real
+ * section declares a payload type — e.g. a placeholder that was reused for a
+ * track and then reverted to recvonly keeps its send-derived `level-id` while
+ * fresh placeholders use the default — the placeholders still converge on the
+ * first value seen, so two placeholders can't disagree either. Only placeholder
+ * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * `isPlaceholder` identifies the sections to conform.
+ * @internal
+ */
+export function conformBundledCodecFmtp(
+  media: MediaDescription[],
+  isPlaceholder: (media: MediaDescription) => boolean,
+) {
+  // Canonical fmtp per payload type. Payload types are unique within a BUNDLE
+  // group, so keying by payload alone (across audio and video) is safe. A real
+  // section's value always takes precedence; otherwise the first placeholder
+  // value seen is used so divergent placeholders still converge.
+  const canonicalByPayload = new Map<number, string>();
+  const fromRealSection = new Set<number>();
+  for (const m of media) {
+    const placeholder = isPlaceholder(m);
+    for (const fmtp of m.fmtp ?? []) {
+      if (!placeholder) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+        fromRealSection.add(fmtp.payload);
+      } else if (!canonicalByPayload.has(fmtp.payload)) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+      }
+    }
+  }
+  if (canonicalByPayload.size === 0) {
+    return;
+  }
+
+  // Conform placeholder sections to the canonical fmtp for each shared payload.
+  for (const m of media) {
+    if (!isPlaceholder(m)) {
+      continue;
+    }
+    for (const fmtp of m.fmtp ?? []) {
+      const config = canonicalByPayload.get(fmtp.payload);
+      if (config !== undefined && fmtp.config !== config) {
+        fmtp.config = config;
+      }
     }
   }
 }

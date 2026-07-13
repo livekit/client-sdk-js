@@ -1,3 +1,4 @@
+import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import type LocalDataTrack from '../LocalDataTrack';
 import { type DataTrackHandle } from '../handle';
 import { type DataTrackInfo, type DataTrackSid } from '../types';

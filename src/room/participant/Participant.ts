@@ -12,6 +12,7 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type LocalVideoTrack from '../track/LocalVideoTrack';
@@ -370,6 +371,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   protected addTrackPublication(publication: TrackPublication) {
+    this.log.debug(`adding track publication`, {
+      trackSid: publication.trackSid,
+      source: publication.source,
+      kind: publication.kind,
+    });
     // forward publication driven events
     publication.on(TrackEvent.Muted, () => {
       this.emit(ParticipantEvent.TrackMuted, publication);

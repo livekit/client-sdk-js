@@ -21,6 +21,7 @@ import {
   isScriptTransformSupportedForWorker,
   isVideoTrack,
 } from '../room/utils';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';

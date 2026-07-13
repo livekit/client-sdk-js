@@ -29,6 +29,7 @@ import {
   isFrameMetadataSupported,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';

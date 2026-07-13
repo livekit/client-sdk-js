@@ -46,6 +46,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { CLIENT_PROTOCOL_DEFAULT } from '../version';
@@ -1382,7 +1383,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       await Promise.all([
         this.acquireAudioContext(),
         ...elements.map((e) => {
-          e.muted = false;
+          // when webAudioMix is enabled, attached elements are deliberately kept muted by
+          // RemoteAudioTrack.attach() and audio is routed through the web audio graph instead.
+          // unmuting them here would cause double playback on platforms where element.volume
+          // has no effect (e.g. iOS Safari)
+          if (!this.options.webAudioMix) {
+            e.muted = false;
+          }
           return e.play();
         }),
       ]);

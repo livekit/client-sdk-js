@@ -1,4 +1,5 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataTrackSerializeError } from './errors';
 
 /** An abstract class implementing common behavior related to data track binary serialization. */

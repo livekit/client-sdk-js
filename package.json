@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.20.0",
+  "version": "2.20.1",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -59,6 +59,7 @@
     "dev": "pnpm examples:demo",
     "lint": "eslint src",
     "test": "vitest run src",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "deploy": "gh-pages -d examples/demo/dist",
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
@@ -105,6 +106,8 @@
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "8.59.4",
     "@typescript-eslint/parser": "8.59.4",
+    "@vitest/browser": "^4.1.10",
+    "@vitest/browser-playwright": "^4.1.10",
     "downlevel-dts": "^0.11.0",
     "eslint": "10.4.0",
     "eslint-config-airbnb-extended": "^2.3.2",
@@ -116,6 +119,7 @@
     "glob": "^13.0.6",
     "happy-dom": "^20.0.0",
     "jsdom": "^26.1.0",
+    "playwright": "^1.61.1",
     "prettier": "^3.4.2",
     "publint": "^0.3.21",
     "rollup": "4.60.4",
@@ -125,10 +129,10 @@
     "tsx": "^4.21.0",
     "typedoc": "0.28.19",
     "typedoc-plugin-no-inherit": "1.6.1",
-    "typescript": "5.9.3",
+    "typescript": "catalog:",
     "typescript-eslint": "^8.47.0",
     "vite": "7.3.5",
-    "vitest": "^4.0.0"
+    "vitest": "^4.1.10"
   },
   "packageManager": "pnpm@10.33.0"
 }

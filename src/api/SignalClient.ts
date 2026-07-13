@@ -61,6 +61,7 @@ import { ConnectionError } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -119,6 +120,11 @@ export enum SignalConnectionState {
 
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
 const MAX_WS_CLOSE_TIME = 250;
+
+/**
+ * How long (in ms) to wait for the first message after the WebSocket upgrade.
+ */
+const JOIN_RESPONSE_TIMEOUT = 5_000;
 
 /** @internal */
 export class SignalClient {
@@ -407,7 +413,7 @@ export class SignalClient {
                   state: this.state,
                 });
                 if (this.state === SignalConnectionState.CONNECTED) {
-                  this.handleOnClose(closeInfo.reason ?? 'Unexpected WS error');
+                  this.handleOnClose(closeInfo.reason || 'Unexpected WS error');
                 }
               }
               return;
@@ -440,7 +446,34 @@ export class SignalClient {
           }
           const signalReader = connection.readable.getReader();
           this.streamWriter = connection.writable.getWriter();
-          const firstMessage = await signalReader.read();
+
+          // wsTimeout only guarded the upgrade; guard the first-message read with
+          // its own timeout so a silent server can't hang join() forever.
+          let firstMessage: ReadableStreamReadResult<string | ArrayBuffer>;
+          let firstMessageTimeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            firstMessage = await Promise.race([
+              signalReader.read(),
+              new Promise<never>((_, rejectRead) => {
+                firstMessageTimeout = setTimeout(() => {
+                  rejectRead(
+                    ConnectionError.timeout(
+                      'signal connection timed out while waiting for the first message',
+                    ),
+                  );
+                }, JOIN_RESPONSE_TIMEOUT);
+              }),
+            ]);
+          } catch (e) {
+            // No first message in time: release the reader and tear down the ws
+            // so we surface the timeout instead of leaking an open connection.
+            signalReader.releaseLock();
+            reject(e);
+            this.close();
+            return;
+          } finally {
+            clearTimeout(firstMessageTimeout);
+          }
           signalReader.releaseLock();
           if (!firstMessage.value) {
             throw ConnectionError.internal('no message received as first message');
