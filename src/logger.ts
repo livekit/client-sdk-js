@@ -23,7 +23,6 @@ export enum LoggerNames {
   E2EE = 'lk-e2ee',
   DataTracks = 'livekit-data-tracks',
   Region = 'livekit-region',
-  Reconnection = 'livekit-reconnection',
   ICE = 'livekit-ice',
 }
 
