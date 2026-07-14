@@ -1631,6 +1631,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             return;
           }
 
+          // [BENCH-DCSEND] send-timing instrumentation for the data channel benchmark; remove before merge.
+          console.log(
+            `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${msg.byteLength} buffered=${dc.bufferedAmount}`,
+          );
           dc.send(msg);
         }
 
@@ -1675,6 +1679,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
 
+      // [BENCH-DCSEND] send-timing instrumentation for the data channel benchmark; remove before merge.
+      console.log(
+        `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${bytes.byteLength} buffered=${dc.bufferedAmount}`,
+      );
       dc.send(bytes);
     }
 

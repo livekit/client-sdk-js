@@ -158,7 +158,73 @@ function syncFrameMetadataFeatureControls() {
 syncFrameMetadataFeatureControls();
 
 // handles actions from the HTML
+// --- data channel send-timing benchmark -------------------------------------------------------
+// Mirrors the `low_fps_multi_packet` e2e data track config: 100 frames of a 192 KiB payload pushed
+// at 10 fps. Each frame is larger than the ~64 KiB data channel buffer, so waitForBufferStatusLow
+// engages on every frame. The data-track button drives the DATA_TRACK_LOSSY path; the data-stream
+// button sends the identical bytes over the RELIABLE path. Compare the [BENCH-DCSEND] logs between
+// the two, and between control vs. a mutex-wrapped waitForBufferStatusLow.
+const BENCH_FRAME_COUNT = 100;
+const BENCH_PAYLOAD_LENGTH = 196_608; // 192 KiB, matches low_fps_multi_packet
+const BENCH_PUBLISH_FPS = 10;
+const BENCH_INTERVAL_MS = 1000 / BENCH_PUBLISH_FPS; // 100ms
+const benchSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 const appActions = {
+  benchmarkDataTrack: async () => {
+    if (!currentRoom) {
+      console.error('[BENCH] not connected to a room');
+      return;
+    }
+    console.log(
+      `[BENCH] data track: publishing + pushing ${BENCH_FRAME_COUNT} frames of ${BENCH_PAYLOAD_LENGTH}B at ${BENCH_PUBLISH_FPS}fps`,
+    );
+    const track = await currentRoom.localParticipant.publishDataTrack({
+      name: `bench_${Date.now()}`,
+    });
+    const start = performance.now();
+    const pushes: Array<Promise<unknown>> = [];
+    for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
+      const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      // Push without awaiting (like the e2e test), so bursts can pile up on waitForBufferStatusLow.
+      pushes.push(Promise.resolve(track.tryPush({ payload })).catch((err) => console.error(err)));
+      await benchSleep(BENCH_INTERVAL_MS);
+    }
+    console.log(
+      `[BENCH] data track: push loop done in ${(performance.now() - start).toFixed(0)}ms, flushing`,
+    );
+    await Promise.allSettled(pushes);
+    await track.flush();
+    await track.unpublish();
+    console.log(`[BENCH] data track: complete in ${(performance.now() - start).toFixed(0)}ms`);
+  },
+  benchmarkDataStream: async () => {
+    if (!currentRoom) {
+      console.error('[BENCH] not connected to a room');
+      return;
+    }
+    console.log(
+      `[BENCH] data stream: writing ${BENCH_FRAME_COUNT} chunks of ${BENCH_PAYLOAD_LENGTH}B at ${BENCH_PUBLISH_FPS}fps`,
+    );
+    const writer = await currentRoom.localParticipant.streamBytes({
+      name: `bench_${Date.now()}`,
+      topic: 'benchmark',
+    });
+    const start = performance.now();
+    const writes: Array<Promise<unknown>> = [];
+    for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
+      const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      // Write without awaiting (mirror the data track loop) so equal-sized bursts pile up.
+      writes.push(writer.write(payload).catch((err) => console.error(err)));
+      await benchSleep(BENCH_INTERVAL_MS);
+    }
+    console.log(
+      `[BENCH] data stream: write loop done in ${(performance.now() - start).toFixed(0)}ms, closing`,
+    );
+    await Promise.allSettled(writes);
+    await writer.close();
+    console.log(`[BENCH] data stream: complete in ${(performance.now() - start).toFixed(0)}ms`);
+  },
   sendFile: async () => {
     console.log('start sending');
     const file = ($('file') as HTMLInputElement).files?.[0]!;
