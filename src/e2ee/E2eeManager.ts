@@ -22,6 +22,7 @@ import {
   isVideoTrack,
 } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
+import { WeakRefPolyfill } from '../utils/weak-ref-polyfill';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -72,7 +73,11 @@ export class E2EEManager
 {
   protected worker: Worker;
 
-  protected room?: Room;
+  private roomRef?: WeakRefPolyfill<Room>;
+
+  protected get room(): Room | undefined {
+    return this.roomRef?.deref();
+  }
 
   private encryptionEnabled: boolean;
 
@@ -113,7 +118,7 @@ export class E2EEManager
     }
     log.info('setting up e2ee');
     if (room !== this.room) {
-      this.room = room;
+      this.roomRef = new WeakRefPolyfill(room);
       this.setupEventListeners(room, this.keyProvider);
       // this.worker = new Worker('');
       const msg: InitMessage = {
