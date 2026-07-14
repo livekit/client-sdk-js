@@ -147,6 +147,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
 
+    // Hold the descriptor by reference: SID reassignment re-keys the map, so lookups
+    // with the SID captured at subscribe time would fail.
+    const descriptor = this.descriptors.get(sid);
+
     const detachSignal = () => {
       signal?.removeEventListener('abort', onAbort);
     };
@@ -158,8 +162,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         log.warn(`ReadableStream subscribed to ${sid} was not started.`);
         return;
       }
-      const descriptor = this.descriptors.get(sid);
-      if (!descriptor) {
+      if (!descriptor || this.descriptors.get(descriptor.info.sid) !== descriptor) {
         log.warn(`Unknown track ${sid}, skipping cancel...`);
         return;
       }
@@ -180,9 +183,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       if (!streamController) {
         return;
       }
-      const currentDescriptor = this.descriptors.get(sid);
-      if (currentDescriptor?.subscription.type === 'active') {
-        currentDescriptor.subscription.streamControllers.delete(streamController);
+      if (descriptor?.subscription.type === 'active') {
+        descriptor.subscription.streamControllers.delete(streamController);
       }
 
       streamController.error(DataTrackSubscribeError.cancelled());
@@ -198,8 +200,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
           this.subscribeRequest(sid, signal)
             .then(async () => {
-              const descriptor = this.descriptors.get(sid);
-              if (!descriptor) {
+              if (!descriptor || this.descriptors.get(descriptor.info.sid) !== descriptor) {
                 log.error(`Unknown track ${sid}`);
                 const err = DataTrackSubscribeError.disconnected();
                 controller.error(err);
@@ -330,7 +331,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
             descriptor.subscription = { type: 'none' };
 
             // Let the SFU know that the subscribe has been cancelled
-            this.emit('sfuUpdateSubscription', { sid, subscribe: false });
+            this.emit('sfuUpdateSubscription', { sid: descriptor.info.sid, subscribe: false });
 
             if (previousDescriptorSubscription.type === 'pending') {
               previousDescriptorSubscription.completionFuture.reject?.(
