@@ -1723,25 +1723,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
+  // [BENCH] mutex-wrapped variant of waitForBufferStatusLow for benchmarking; remove before merge.
+  // Serializes every caller through a per-kind mutex ("always lock") to measure the perf impact.
+  private waitForBufferStatusLowLocks = new Map<DataChannelKind, Mutex>();
+
   async waitForBufferStatusLow(kind: DataChannelKind) {
-    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this.isClosed) {
-        reject(new UnexpectedConnectionState('engine closed'));
-      }
-      if (this.isBufferStatusLow(kind)) {
-        resolve();
-      } else {
+    let lock = this.waitForBufferStatusLowLocks.get(kind);
+    if (!lock) {
+      lock = new Mutex();
+      this.waitForBufferStatusLowLocks.set(kind, lock);
+    }
+    const unlock = await lock.lock();
+    try {
+      await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
+        if (this.isClosed) {
+          reject(new UnexpectedConnectionState('engine closed'));
+          return;
+        }
+        if (this.isBufferStatusLow(kind)) {
+          resolve();
+          return;
+        }
         const dc = this.dataChannelForKind(kind);
         if (!dc) {
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
           return;
         }
-        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        dc.addEventListener('bufferedamountlow', () => resolve(), {
-          once: true,
+        const onBufferedAmountLow = () => resolve();
+        dc.addEventListener('bufferedamountlow', onBufferedAmountLow, { once: true });
+        this.bufferStatusLowClosingFuture.promise.catch((e) => {
+          dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
+          reject(e);
         });
-      }
-    });
+      });
+    } finally {
+      unlock();
+    }
   }
 
   /**
