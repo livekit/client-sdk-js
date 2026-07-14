@@ -1158,6 +1158,154 @@ describe('DataTrackIncomingManager', () => {
       expect(done).toStrictEqual(false);
       expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
     });
+
+    it('should terminate the sfu subscription when the stream is cancelled after a sid reassignment', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const pubHandle = DataTrackHandle.fromNumber(5);
+      const oldSid = 'old sid';
+      const newSid = 'new sid';
+      const oldSubHandle = DataTrackHandle.fromNumber(6);
+      const newSubHandle = DataTrackHandle.fromNumber(7);
+
+      // Simulate track published
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: oldSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // Subscribe to the track
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(oldSid);
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // Simulate SFU assigning subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[oldSubHandle, oldSid]]));
+      await sfuSubscriptionComplete;
+
+      // Simulate publisher full reconnect: same track, new SID
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: newSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+
+      // Manager should re-subscribe under the new SID
+      const resubscribeEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(resubscribeEvent.subscribe).toStrictEqual(true);
+      expect(resubscribeEvent.sid).toStrictEqual(newSid);
+
+      // Simulate SFU assigning a new subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[newSubHandle, newSid]]));
+
+      // Cancel the stream; the SFU unsubscribe must go out under the new SID
+      await reader.cancel();
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(newSid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+    });
+
+    it('should terminate the sfu subscription when the abortsignal fires after a sid reassignment', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const pubHandle = DataTrackHandle.fromNumber(5);
+      const oldSid = 'old sid';
+      const newSid = 'new sid';
+      const oldSubHandle = DataTrackHandle.fromNumber(6);
+      const newSubHandle = DataTrackHandle.fromNumber(7);
+
+      // Simulate track published
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: oldSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // Subscribe to the track
+      const controller = new AbortController();
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(
+        oldSid,
+        controller.signal,
+      );
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // Simulate SFU assigning subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[oldSubHandle, oldSid]]));
+      await sfuSubscriptionComplete;
+
+      // Simulate publisher full reconnect: same track, new SID
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: newSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+
+      // Manager should re-subscribe under the new SID
+      const resubscribeEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(resubscribeEvent.subscribe).toStrictEqual(true);
+      expect(resubscribeEvent.sid).toStrictEqual(newSid);
+
+      // Simulate SFU assigning a new subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[newSubHandle, newSid]]));
+
+      // Abort the subscription; the SFU unsubscribe must go out under the new SID
+      const inFlightReadPromise = reader.read();
+      controller.abort();
+      await expect(inFlightReadPromise).rejects.toThrowError(
+        'Subscription to data track cancelled by caller',
+      );
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(newSid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+    });
+
+    it('should cancel a pending subscription under the new sid after a sid reassignment', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const pubHandle = DataTrackHandle.fromNumber(5);
+      const oldSid = 'old sid';
+      const newSid = 'new sid';
+
+      // Simulate track published
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: oldSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // Begin subscribing to the track, leaving the subscription pending
+      const controller = new AbortController();
+      const [, sfuSubscriptionComplete] = manager.openSubscriptionStream(oldSid, controller.signal);
+      const startEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(startEvent.sid).toStrictEqual(oldSid);
+      expect(startEvent.subscribe).toStrictEqual(true);
+
+      // Simulate publisher full reconnect: same track, new SID
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: newSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+
+      // Manager should re-subscribe under the new SID
+      const resubscribeEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(resubscribeEvent.subscribe).toStrictEqual(true);
+      expect(resubscribeEvent.sid).toStrictEqual(newSid);
+
+      // Abort the pending subscription; the SFU unsubscribe must go out under the new SID
+      controller.abort();
+      await expect(sfuSubscriptionComplete).rejects.toStrictEqual(
+        DataTrackSubscribeError.cancelled(),
+      );
+      const endEvent = await managerEvents.waitFor('sfuUpdateSubscription');
+      expect(endEvent.sid).toStrictEqual(newSid);
+      expect(endEvent.subscribe).toStrictEqual(false);
+    });
   });
 });
 
