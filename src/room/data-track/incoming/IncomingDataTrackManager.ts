@@ -600,6 +600,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
       case 'active': {
         // Update handle for an active subscription. This can occur following a full reconnect.
+        this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
         descriptor.subscription.subcriptionHandle = assignedHandle;
         this.subscriptionHandles.set(assignedHandle, sid);
         return;
