@@ -1717,25 +1717,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      this.reliableMessageBuffer.getAll().forEach((msg) => {
+      for await (const msg of this.reliableMessageBuffer.getAll()) {
+        await this.waitForBufferStatusOk(DataChannelKind.RELIABLE);
         dc.send(msg.data);
-      });
+      }
     }
     this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
 
   private updateAndEmitDCBufferStatus = (kind: DataChannelKind) => {
-    if (kind === DataChannelKind.RELIABLE) {
-      const dc = this.dataChannelForKind(kind);
-      if (dc) {
-        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
-      }
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      return;
     }
 
-    const status = this.isBufferStatusOk(kind);
-    if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
-      this.dcBufferStatus.set(kind, status);
-      this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+    if (kind === DataChannelKind.RELIABLE) {
+      this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
+    }
+
+    const isStatusLow = dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+    if (typeof isStatusLow !== 'undefined' && isStatusLow !== this.dcBufferStatus.get(kind)) {
+      this.dcBufferStatus.set(kind, isStatusLow);
+      this.emit(EngineEvent.DCBufferStatusChanged, isStatusLow, kind);
     }
   };
 
