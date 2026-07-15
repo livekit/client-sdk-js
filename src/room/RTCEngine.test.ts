@@ -230,7 +230,7 @@ describe('RTCEngine', () => {
       const send = vi.fn();
       Object.assign(engine as unknown as Record<string, unknown>, {
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        waitForBufferStatusLow: vi.fn().mockResolvedValue(undefined),
+        waitUntilBelowHighWaterMark: vi.fn().mockResolvedValue(undefined),
         updateAndEmitDCBufferStatus: vi.fn(),
         dataChannelForKind: vi.fn(() => ({ send })),
         pcManager: {
