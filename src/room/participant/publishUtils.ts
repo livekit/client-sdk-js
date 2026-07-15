@@ -467,9 +467,20 @@ export class ScalabilityMode {
   }
 }
 
-export function getDefaultDegradationPreference(_track: LocalVideoTrack): RTCDegradationPreference {
-  // Default to 'maintain-resolution' for all video tracks to prevent initial blurriness.
-  // When bandwidth is constrained, this prefers dropping frames over reducing resolution,
-  // which maintains video clarity at the cost of smoothness.
-  return 'maintain-resolution';
+/**
+ * Returns the appropriate degradation preference for a video track based on its source.
+ *
+ * - Camera: 'maintain-framerate' (smoother video for real-time communication)
+ * - Screen share: 'maintain-resolution' (clarity is critical for reading text/UI)
+ * - Other/unknown: 'balanced'
+ */
+export function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference {
+  switch (track.source) {
+    case Track.Source.Camera:
+      return 'maintain-framerate';
+    case Track.Source.ScreenShare:
+      return 'maintain-resolution';
+    default:
+      return 'balanced';
+  }
 }

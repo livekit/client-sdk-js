@@ -84,7 +84,17 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
-   * degradation preference
+   * Controls how the encoder trades off between resolution and framerate
+   * when bandwidth is constrained.
+   *
+   * - 'maintain-framerate': Prioritizes framerate, reduces resolution if needed
+   * - 'maintain-resolution': Prioritizes resolution, drops frames if needed
+   * - 'balanced': Balances between both
+   *
+   * If not set, the SDK uses defaults based on track source:
+   * - Camera: 'maintain-framerate' (smoother video for real-time communication)
+   * - Screen share: 'maintain-resolution' (clarity is critical for text/UI)
+   * - Other/unknown: 'balanced'
    */
   degradationPreference?: RTCDegradationPreference;
 

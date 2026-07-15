@@ -26,8 +26,12 @@ interface TrackBitrateInfo {
  * Why 90%: Gives ~10% headroom for bandwidth estimation while starting close to target.
  * Why same for all codecs: Target bitrate already accounts for codec efficiency
  * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
+ * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
  */
 const startBitrateMultiplier = 0.9;
+
+/** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
+const maxStartBitrateKbps = 1000;
 
 const debounceInterval = 20;
 
@@ -383,7 +387,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             // mung sdp for bitrate setting that can't apply by sendEncoding
-            const startBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
+            // Use 90% of target bitrate, capped at 1 Mbps to prevent BWE from starting too aggressively
+            const startBitrate = Math.min(
+              Math.round(trackbr.maxbr * startBitrateMultiplier),
+              maxStartBitrateKbps,
+            );
 
             for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
