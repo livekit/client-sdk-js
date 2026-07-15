@@ -109,8 +109,8 @@ const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
-const lossyDataChannelBufferThresholdMin = 8 * 1024;
-const lossyDataChannelBufferThresholdMax = 256 * 1024;
+const dataChannelBufferThresholdMin = 8 * 1024;
+const dataChannelBufferThresholdMax = 256 * 1024;
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
@@ -930,10 +930,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
-    // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
-    this.lossyDC.bufferedAmountLowThreshold = 65535;
-    this.reliableDC.bufferedAmountLowThreshold = 65535;
-    this.dataTrackDC.bufferedAmountLowThreshold = 65535;
+    this.lossyDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
+    this.reliableDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
+    this.dataTrackDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -952,8 +951,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyDataChannelBufferThresholdMin),
-          lossyDataChannelBufferThresholdMax,
+          Math.max(threshold, dataChannelBufferThresholdMin),
+          dataChannelBufferThresholdMax,
         );
       }
     }, 1000);
@@ -1624,7 +1623,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       case DataChannelKind.RELIABLE:
         const dc = this.dataChannelForKind(kind);
         if (dc) {
-          await this.waitForBufferStatusLow(kind);
+          await this.waitForBufferStatusOk(kind);
           this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
 
           if (this.attemptingReconnect) {
@@ -1654,12 +1653,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (!this.isBufferStatusLow(kind)) {
+      if (!this.isBufferStatusOk(kind)) {
         // Depending on the exact circumstance that data is being sent, either drop or wait for the
         // buffer status to not be low before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind);
+            await this.waitForBufferStatusOk(kind);
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
@@ -1709,41 +1708,39 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     }
 
-    const status = this.isBufferStatusLow(kind);
+    const status = this.isBufferStatusOk(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
     }
   };
 
-  private isBufferStatusLow = (kind: DataChannelKind): boolean | undefined => {
+  private isBufferStatusOk = (kind: DataChannelKind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+      return dc.bufferedAmount <= dataChannelBufferThresholdMax;
     }
   };
 
   // [BENCH] mutex-wrapped variant of waitForBufferStatusLow for benchmarking; remove before merge.
   // Serializes every caller through a per-kind mutex ("always lock") to measure the perf impact.
-  private waitForBufferStatusLowLocks = new Map<DataChannelKind, Mutex>();
+  private waitForBufferStatusOkLocks = new Map<DataChannelKind, Mutex>();
 
-  async waitForBufferStatusLow(kind: DataChannelKind) {
-    let lock = this.waitForBufferStatusLowLocks.get(kind);
+  async waitForBufferStatusOk(kind: DataChannelKind) {
+    let lock = this.waitForBufferStatusOkLocks.get(kind);
     if (!lock) {
       lock = new Mutex();
-      this.waitForBufferStatusLowLocks.set(kind, lock);
+      this.waitForBufferStatusOkLocks.set(kind, lock);
     }
     const unlock = await lock.lock();
     try {
+      if (this.isClosed) {
+        throw new UnexpectedConnectionState('engine closed');
+      }
+      if (this.isBufferStatusOk(kind)) {
+        return;
+      }
       await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
-        if (this.isClosed) {
-          reject(new UnexpectedConnectionState('engine closed'));
-          return;
-        }
-        if (this.isBufferStatusLow(kind)) {
-          resolve();
-          return;
-        }
         const dc = this.dataChannelForKind(kind);
         if (!dc) {
           reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
