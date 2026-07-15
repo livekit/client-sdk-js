@@ -46,7 +46,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { dataChannelBufferThresholdMax } from '../../src/room/RTCEngine';
+import { DataChannelKind, dataChannelHighWaterMark } from '../../src/room/RTCEngine';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
@@ -172,10 +172,9 @@ const BENCH_FRAME_COUNT = 100;
 const BENCH_PAYLOAD_LENGTH = 1024 * 2_500;
 const BENCH_PUBLISH_FPS = 10;
 const BENCH_INTERVAL_MS = 1000 / BENCH_PUBLISH_FPS; // 100ms
-// RTCEngine blocks sends once dc.bufferedAmount exceeds dataChannelBufferThresholdMax and only
-// resumes on the `bufferedamountlow` event. The [BENCH-DCSEND] hook exports the engine's actual
-// threshold as __benchDcBufferMax; this constant is only the fallback for branches that predate it.
-const BENCH_DC_BUFFER_MAX = dataChannelBufferThresholdMax;
+// RTCEngine blocks sends once dc.bufferedAmount exceeds the channel's high watermark and only
+// resumes on the `bufferedamountlow` event. Watermarks are per-kind now (lossy 256KiB / reliable
+// 512KiB), so the summary resolves the one matching the dcKind it reports on.
 // Buffer-limited inter-send gaps shorter than this are just wire-paced sending; only longer gaps
 // count as genuine stalls.
 const BENCH_STALL_MIN_GAP_MS = 5;
@@ -219,7 +218,9 @@ function benchPrintSummary(opts: {
 }) {
   const { label, dcKind, mode, start, loopDone, drained, complete, maxInFlight } = opts;
   const events = opts.events.filter((e) => e.kind === dcKind);
-  const bufferMax = BENCH_DC_BUFFER_MAX;
+  const bufferMax = dataChannelHighWaterMark(
+    DataChannelKind[dcKind as keyof typeof DataChannelKind],
+  );
   const paceFloorMs = (BENCH_FRAME_COUNT - 1) * BENCH_INTERVAL_MS;
   const loopMs = loopDone - start;
   const drainMs = drained - loopDone;

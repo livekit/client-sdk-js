@@ -109,8 +109,23 @@ const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
-const dataChannelBufferThresholdMin = 8 * 1024;
-export const dataChannelBufferThresholdMax = 256 * 1024;
+
+const lossyDataChannelLowWaterMark = 8 * 1024;
+const lossyDataChannelHighWaterMark = 256 * 1024;
+const reliableDataChannelLowWaterMark = 64 * 1024;
+const reliableDataChannelHighWaterMark = 1024 * 1024;
+
+function dataChannelLowWaterMark(kind: DataChannelKind): number {
+  return kind === DataChannelKind.RELIABLE
+    ? reliableDataChannelLowWaterMark
+    : lossyDataChannelLowWaterMark;
+}
+
+export function dataChannelHighWaterMark(kind: DataChannelKind): number {
+  return kind === DataChannelKind.RELIABLE
+    ? reliableDataChannelHighWaterMark
+    : lossyDataChannelHighWaterMark;
+}
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
@@ -930,9 +945,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
-    this.lossyDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
-    this.reliableDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
-    this.dataTrackDC.bufferedAmountLowThreshold = dataChannelBufferThresholdMin;
+    this.lossyDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(DataChannelKind.LOSSY);
+    this.reliableDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(DataChannelKind.RELIABLE);
+    this.dataTrackDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(
+      DataChannelKind.DATA_TRACK_LOSSY,
+    );
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -951,8 +968,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, dataChannelBufferThresholdMin),
-          dataChannelBufferThresholdMax,
+          Math.max(threshold, lossyDataChannelLowWaterMark),
+          lossyDataChannelHighWaterMark,
         );
       }
     }, 1000);
@@ -1745,7 +1762,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private isBufferStatusOk = (kind: DataChannelKind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      return dc.bufferedAmount <= dataChannelBufferThresholdMax;
+      return dc.bufferedAmount <= dataChannelHighWaterMark(kind);
     }
   };
 
