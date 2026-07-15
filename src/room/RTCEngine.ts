@@ -110,7 +110,7 @@ const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 const dataChannelBufferThresholdMin = 8 * 1024;
-const dataChannelBufferThresholdMax = 256 * 1024;
+export const dataChannelBufferThresholdMax = 256 * 1024;
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;

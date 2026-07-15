@@ -46,6 +46,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import { dataChannelBufferThresholdMax } from '../../src/room/RTCEngine';
 import type { DataTrackFrame } from '../../src/room/data-track/frame';
 import { TrackEvent } from '../../src/room/events';
 import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
@@ -159,20 +160,34 @@ syncFrameMetadataFeatureControls();
 
 // handles actions from the HTML
 // --- data channel send-timing benchmark -------------------------------------------------------
-// Mirrors the `low_fps_multi_packet` e2e data track config: 100 frames of a 192 KiB payload pushed
-// at 10 fps. Each frame is larger than the ~64 KiB data channel buffer, so waitForBufferStatusLow
-// engages on every frame. The data-track button drives the DATA_TRACK_LOSSY path; the data-stream
-// button sends the identical bytes over the RELIABLE path. Compare the [BENCH-DCSEND] logs between
-// the two, and between control vs. a mutex-wrapped waitForBufferStatusLow.
+// Payload config mirrors the `low_fps_multi_packet` e2e data track config: 100 frames of 192 KiB.
+// Four scenarios:
+//   data track          — DATA_TRACK_LOSSY, paced at 10fps (light load; rarely hits backpressure)
+//   data track (burst)  — DATA_TRACK_LOSSY, all frames enqueued at once; maximum concurrency on
+//                         waitForBufferStatusLow — the scenario a lock/mutex there actually changes
+//   data stream         — RELIABLE, paced at 10fps
+//   data stream (unpaced) — RELIABLE, writes awaited back-to-back; pure channel throughput
+// Each run ends with a [BENCH-SUMMARY] block; compare those across commits/variants.
 const BENCH_FRAME_COUNT = 100;
-const BENCH_PAYLOAD_LENGTH = 196_608; // 192 KiB, matches low_fps_multi_packet
+const BENCH_PAYLOAD_LENGTH = 1024 * 2_500;
 const BENCH_PUBLISH_FPS = 10;
 const BENCH_INTERVAL_MS = 1000 / BENCH_PUBLISH_FPS; // 100ms
-// RTCEngine blocks sends once dc.bufferedAmount exceeds dataChannelBufferThresholdMax (256 KiB)
-// and only resumes on the `bufferedamountlow` event. Used to classify inter-send gaps as
-// backpressure stalls vs. plain 10fps pacing idle.
-const BENCH_DC_BUFFER_MAX = 256 * 1024;
+// RTCEngine blocks sends once dc.bufferedAmount exceeds dataChannelBufferThresholdMax and only
+// resumes on the `bufferedamountlow` event. The [BENCH-DCSEND] hook exports the engine's actual
+// threshold as __benchDcBufferMax; this constant is only the fallback for branches that predate it.
+const BENCH_DC_BUFFER_MAX = dataChannelBufferThresholdMax;
+// Buffer-limited inter-send gaps shorter than this are just wire-paced sending; only longer gaps
+// count as genuine stalls.
+const BENCH_STALL_MIN_GAP_MS = 5;
 const benchSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// Sleep until slot `i + 1` of an absolute schedule anchored at `start`, so timer drift doesn't
+// accumulate across the run. Skips the sleep after the last frame so drain measurement starts
+// immediately — loop floor is therefore (BENCH_FRAME_COUNT - 1) × BENCH_INTERVAL_MS.
+const benchPaceWait = async (start: number, i: number) => {
+  if (i < BENCH_FRAME_COUNT - 1) {
+    await benchSleep(Math.max(0, start + (i + 1) * BENCH_INTERVAL_MS - performance.now()));
+  }
+};
 
 // One entry per dc.send(), recorded by the [BENCH-DCSEND] hook in RTCEngine while a run is active.
 type BenchDcSendEvent = { kind: string; t: number; bytes: number; buffered: number };
@@ -183,41 +198,73 @@ function benchPercentile(sortedAsc: number[], p: number): number {
   return sortedAsc[Math.max(0, idx)];
 }
 
+// paced  = 10fps producer loop; headline is the backlog drain after the loop.
+// serial = writes awaited back-to-back; headline is the loop time itself (pure channel speed).
+// burst  = everything enqueued at once (tryPush returns at enqueue); headline is the drain, which
+//          runs with maximum concurrency on waitForBufferStatusLow.
+type BenchMode = 'paced' | 'serial' | 'burst';
+
 function benchPrintSummary(opts: {
   label: string;
   dcKind: string; // DataChannelKind name to filter [BENCH-DCSEND] events on
-  paced: boolean; // true = 10fps producer loop; false = writes awaited back-to-back
+  mode: BenchMode;
   start: number;
   loopDone: number;
   drained: number;
   complete: number;
   frameLatencies: number[]; // per frame: tryPush/write call → promise settled, ms
-  maxInFlight: number;
+  latencyNote?: string; // what the frame latency actually measures for this path; omit to hide
+  maxInFlight?: number; // only passed when the per-frame promise tracks real send completion
   events: BenchDcSendEvent[];
 }) {
-  const { label, dcKind, paced, start, loopDone, drained, complete, maxInFlight } = opts;
+  const { label, dcKind, mode, start, loopDone, drained, complete, maxInFlight } = opts;
   const events = opts.events.filter((e) => e.kind === dcKind);
-  const paceFloorMs = BENCH_FRAME_COUNT * BENCH_INTERVAL_MS;
+  const bufferMax = BENCH_DC_BUFFER_MAX;
+  const paceFloorMs = (BENCH_FRAME_COUNT - 1) * BENCH_INTERVAL_MS;
   const loopMs = loopDone - start;
   const drainMs = drained - loopDone;
   const teardownMs = complete - drained;
   const totalPayloadMB = (BENCH_FRAME_COUNT * BENCH_PAYLOAD_LENGTH) / 1024 / 1024;
   const latencies = [...opts.frameLatencies].sort((a, b) => a - b);
+  const modeDesc =
+    mode === 'paced'
+      ? `@ ${BENCH_PUBLISH_FPS}fps`
+      : mode === 'serial'
+        ? 'serial unpaced (awaited back-to-back)'
+        : 'burst (all enqueued at once)';
   const lines = [
-    `[BENCH-SUMMARY] ${label}: ${BENCH_FRAME_COUNT} × ${BENCH_PAYLOAD_LENGTH / 1024}KiB ${paced ? `@ ${BENCH_PUBLISH_FPS}fps` : 'unpaced (as fast as possible)'} (${dcKind})`,
-    paced
-      ? `  push loop:      ${loopMs.toFixed(0)}ms — pace-locked (${BENCH_FRAME_COUNT} × ${BENCH_INTERVAL_MS}ms sleeps ≈ ${paceFloorMs}ms floor), not a perf signal; +${(loopMs - paceFloorMs).toFixed(0)}ms over floor is timer/event-loop overhead`
-      : `  write loop:     ${loopMs.toFixed(0)}ms — HEADLINE: no pacing, so this is pure channel speed → ${(totalPayloadMB / (loopMs / 1000)).toFixed(2)}MB/s payload goodput`,
-    paced
-      ? `  backlog drain:  ${drainMs.toFixed(0)}ms — HEADLINE: sends still pending when the loop ended, i.e. how far the channel fell behind the producer`
-      : `  backlog drain:  ${drainMs.toFixed(0)}ms (writes are awaited serially, expect ~0)`,
-    `  flush/close:    ${teardownMs.toFixed(0)}ms`,
-    `  total:          ${(complete - start).toFixed(0)}ms`,
-    paced
-      ? `  frame latency:  p50=${benchPercentile(latencies, 50).toFixed(0)}ms p95=${benchPercentile(latencies, 95).toFixed(0)}ms max=${benchPercentile(latencies, 100).toFixed(0)}ms (call → settled; >${BENCH_INTERVAL_MS}ms means a frame outlived its pacing slot)`
-      : `  frame latency:  p50=${benchPercentile(latencies, 50).toFixed(0)}ms p95=${benchPercentile(latencies, 95).toFixed(0)}ms max=${benchPercentile(latencies, 100).toFixed(0)}ms (per awaited write; ≈ time to squeeze one ${BENCH_PAYLOAD_LENGTH / 1024}KiB frame through backpressure)`,
+    `[BENCH-SUMMARY] ${label}: ${BENCH_FRAME_COUNT} × ${BENCH_PAYLOAD_LENGTH / 1024}KiB ${modeDesc} (${dcKind})`,
   ];
-  if (paced) {
+  switch (mode) {
+    case 'paced':
+      lines.push(
+        `  push loop:      ${loopMs.toFixed(0)}ms — pace-locked (absolute ${BENCH_INTERVAL_MS}ms schedule, floor ${paceFloorMs}ms), not a perf signal; +${(loopMs - paceFloorMs).toFixed(0)}ms is scheduling overhead`,
+        `  backlog drain:  ${drainMs.toFixed(0)}ms — HEADLINE: work still pending when the last frame was queued, i.e. how far the channel fell behind the producer`,
+      );
+      break;
+    case 'serial':
+      lines.push(
+        `  write loop:     ${loopMs.toFixed(0)}ms — HEADLINE: writes awaited back-to-back, pure channel speed → ${(totalPayloadMB / (loopMs / 1000)).toFixed(2)}MB/s payload goodput`,
+        `  backlog drain:  ${drainMs.toFixed(0)}ms (writes already awaited serially, expect ~0)`,
+      );
+      break;
+    case 'burst':
+      lines.push(
+        `  enqueue loop:   ${loopMs.toFixed(0)}ms — all ${BENCH_FRAME_COUNT} frames chunked & queued up-front, not a perf signal`,
+        `  backlog drain:  ${drainMs.toFixed(0)}ms — HEADLINE: draining ${totalPayloadMB.toFixed(1)}MB of queued packets → ${(totalPayloadMB / (drainMs / 1000)).toFixed(2)}MB/s goodput, with maximum concurrency on waitForBufferStatusLow`,
+      );
+      break;
+  }
+  lines.push(
+    `  teardown:       ${teardownMs.toFixed(0)}ms`,
+    `  total:          ${(complete - start).toFixed(0)}ms`,
+  );
+  if (opts.latencyNote) {
+    lines.push(
+      `  frame latency:  p50=${benchPercentile(latencies, 50).toFixed(0)}ms p95=${benchPercentile(latencies, 95).toFixed(0)}ms max=${benchPercentile(latencies, 100).toFixed(0)}ms (${opts.latencyNote})`,
+    );
+  }
+  if (maxInFlight !== undefined) {
     lines.push(
       `  max in flight:  ${maxInFlight} frame(s) (1 = keeping up with the producer, higher = frames queueing behind buffer backpressure)`,
     );
@@ -225,27 +272,31 @@ function benchPrintSummary(opts: {
   if (events.length > 1) {
     const spanMs = events[events.length - 1].t - events[0].t;
     const totalBytes = events.reduce((sum, e) => sum + e.bytes, 0);
-    let stallMs = 0;
+    // Peak occupancy is post-send: the buffered level each send left behind.
+    const peakBuffered = events.reduce((m, e) => Math.max(m, e.buffered + e.bytes), 0);
+    let bufferLimitedMs = 0; // time in gaps that follow a send leaving the buffer over the block threshold
+    let stallMs = 0; // the subset of that in gaps > BENCH_STALL_MIN_GAP_MS — genuine waits
+    let stallCount = 0;
     let worstGapMs = 0;
     let worstGapAtMs = 0;
-    let maxBuffered = 0;
     for (let i = 1; i < events.length; i += 1) {
-      maxBuffered = Math.max(maxBuffered, events[i - 1].buffered);
-      // The previous send pushed bufferedAmount past the block threshold, so the gap until the
-      // next send was spent waiting on `bufferedamountlow` — a genuine backpressure stall.
-      if (events[i - 1].buffered + events[i - 1].bytes > BENCH_DC_BUFFER_MAX) {
+      if (events[i - 1].buffered + events[i - 1].bytes > bufferMax) {
         const gap = events[i].t - events[i - 1].t;
-        stallMs += gap;
-        if (gap > worstGapMs) {
-          worstGapMs = gap;
-          worstGapAtMs = events[i - 1].t - start;
+        bufferLimitedMs += gap;
+        if (gap > BENCH_STALL_MIN_GAP_MS) {
+          stallMs += gap;
+          stallCount += 1;
+          if (gap > worstGapMs) {
+            worstGapMs = gap;
+            worstGapAtMs = events[i - 1].t - start;
+          }
         }
       }
     }
     const throughput = totalBytes / 1024 / 1024 / (spanMs / 1000);
     lines.push(
-      `  dc.send:        ${events.length} sends / ${(totalBytes / 1024 / 1024).toFixed(2)}MB over a ${spanMs.toFixed(0)}ms span → ${throughput.toFixed(2)}MB/s on-wire`,
-      `  backpressure:   ${stallMs.toFixed(0)}ms total spent blocked on bufferedamountlow (worst single stall ${worstGapMs.toFixed(0)}ms at t+${worstGapAtMs.toFixed(0)}ms); peak bufferedAmount ${(maxBuffered / 1024).toFixed(0)}KiB`,
+      `  dc.send:        ${events.length} sends / ${(totalBytes / 1024 / 1024).toFixed(2)}MB over a ${spanMs.toFixed(0)}ms span → ${throughput.toFixed(2)}MB/s on-wire${mode === 'paced' ? ' (span includes pacing idle: ≈ offered load, not capability)' : ''}`,
+      `  backpressure:   ${stallMs.toFixed(0)}ms in ${stallCount} stall(s) (buffer-limited gaps >${BENCH_STALL_MIN_GAP_MS}ms; worst ${worstGapMs.toFixed(0)}ms at t+${worstGapAtMs.toFixed(0)}ms); buffer-limited ${bufferLimitedMs.toFixed(0)}ms total incl. wire-paced sending; peak bufferedAmount ${(peakBuffered / 1024).toFixed(0)}KiB post-send (block threshold ${(bufferMax / 1024).toFixed(0)}KiB)`,
     );
   } else {
     lines.push(`  dc.send:        no ${dcKind} send events captured`);
@@ -268,44 +319,87 @@ const appActions = {
     const events: BenchDcSendEvent[] = [];
     (globalThis as any).__benchDcSendEvents = events;
     const frameLatencies: number[] = [];
-    let inFlight = 0;
-    let maxInFlight = 0;
     const start = performance.now();
     const pushes: Array<Promise<unknown>> = [];
     for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
       const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
       const queuedAt = performance.now();
-      inFlight += 1;
-      maxInFlight = Math.max(maxInFlight, inFlight);
       // Push without awaiting (like the e2e test), so bursts can pile up on waitForBufferStatusLow.
       pushes.push(
         Promise.resolve(track.tryPush({ payload }))
           .catch((err) => console.error(err))
-          .finally(() => {
-            inFlight -= 1;
-            frameLatencies.push(performance.now() - queuedAt);
-          }),
+          .finally(() => frameLatencies.push(performance.now() - queuedAt)),
       );
-      await benchSleep(BENCH_INTERVAL_MS);
+      await benchPaceWait(start, i);
     }
     const loopDone = performance.now();
-    console.log(`[BENCH] data track: push loop done in ${(loopDone - start).toFixed(0)}ms, flushing`);
+    console.log(
+      `[BENCH] data track: push loop done in ${(loopDone - start).toFixed(0)}ms, flushing`,
+    );
+    // tryPush resolves once the frame is chunked & enqueued, NOT when it is sent — the real send
+    // backlog only clears when flush() has seen every emitted packet handed to dc.send. So the
+    // drain measurement must include flush.
     await Promise.allSettled(pushes);
-    const drained = performance.now();
     await track.flush();
+    const drained = performance.now();
     await track.unpublish();
     const complete = performance.now();
     delete (globalThis as any).__benchDcSendEvents;
     benchPrintSummary({
       label: 'data track',
       dcKind: 'DATA_TRACK_LOSSY',
-      paced: true,
+      mode: 'paced',
       start,
       loopDone,
       drained,
       complete,
       frameLatencies,
-      maxInFlight,
+      latencyNote:
+        'tryPush call → chunks enqueued; pipeline cost only — real send lag shows in backlog drain',
+      events,
+    });
+  },
+  benchmarkDataTrackBurst: async () => {
+    if (!currentRoom) {
+      console.error('[BENCH] not connected to a room');
+      return;
+    }
+    console.log(
+      `[BENCH] data track (burst): enqueueing all ${BENCH_FRAME_COUNT} frames of ${BENCH_PAYLOAD_LENGTH}B at once`,
+    );
+    const track = await currentRoom.localParticipant.publishDataTrack({
+      name: `bench_${Date.now()}`,
+    });
+    const events: BenchDcSendEvent[] = [];
+    (globalThis as any).__benchDcSendEvents = events;
+    const start = performance.now();
+    const pushes: Array<Promise<unknown>> = [];
+    // No pacing at all: every frame is chunked & enqueued immediately, so ~all packets sit in the
+    // engine at once and every sendLossyBytes('wait') contends on waitForBufferStatusLow
+    // concurrently. This is the scenario a lock/mutex around that wait actually changes.
+    for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
+      const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      pushes.push(Promise.resolve(track.tryPush({ payload })).catch((err) => console.error(err)));
+    }
+    const loopDone = performance.now();
+    console.log(
+      `[BENCH] data track (burst): enqueued in ${(loopDone - start).toFixed(0)}ms, draining via flush`,
+    );
+    await Promise.allSettled(pushes);
+    await track.flush();
+    const drained = performance.now();
+    await track.unpublish();
+    const complete = performance.now();
+    delete (globalThis as any).__benchDcSendEvents;
+    benchPrintSummary({
+      label: 'data track (burst)',
+      dcKind: 'DATA_TRACK_LOSSY',
+      mode: 'burst',
+      start,
+      loopDone,
+      drained,
+      complete,
+      frameLatencies: [],
       events,
     });
   },
@@ -343,7 +437,7 @@ const appActions = {
             frameLatencies.push(performance.now() - queuedAt);
           }),
       );
-      await benchSleep(BENCH_INTERVAL_MS);
+      await benchPaceWait(start, i);
     }
     const loopDone = performance.now();
     console.log(
@@ -357,12 +451,13 @@ const appActions = {
     benchPrintSummary({
       label: 'data stream',
       dcKind: 'RELIABLE',
-      paced: true,
+      mode: 'paced',
       start,
       loopDone,
       drained,
       complete,
       frameLatencies,
+      latencyNote: `call → settled; >${BENCH_INTERVAL_MS}ms means a frame outlived its pacing slot`,
       maxInFlight,
       events,
     });
@@ -406,13 +501,13 @@ const appActions = {
     benchPrintSummary({
       label: 'data stream (unpaced)',
       dcKind: 'RELIABLE',
-      paced: false,
+      mode: 'serial',
       start,
       loopDone,
       drained,
       complete,
       frameLatencies,
-      maxInFlight: 1,
+      latencyNote: `per awaited write; ≈ time to squeeze one ${BENCH_PAYLOAD_LENGTH / 1024}KiB frame through backpressure`,
       events,
     });
   },
