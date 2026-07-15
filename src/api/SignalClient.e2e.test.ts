@@ -183,6 +183,75 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
       expect(err).toBeInstanceOf(Error);
     });
 
+    it('queues a queueable request during reconnect and delivers it after resume', async () => {
+      // Guards the FSM swap's buffer contract: a queueable request sent while
+      // RECONNECTING must be buffered (not sent on the dying socket, not
+      // dropped) and delivered on the new socket once the orchestrator drains.
+      // The mock acks updateMetadata with a RequestResponse echoing requestId,
+      // so delivery is observable end-to-end.
+      await join('happy');
+      const responded = new Promise<number>((resolve) => {
+        client.onRequestResponse = (res) => resolve(res.requestId);
+      });
+      const token = await createToken({ signal: 'happy' });
+      const reconnectPromise = client.reconnect(serverUrl, token, 'RM_session');
+      // reconnect() enters RECONNECTING synchronously, so this is a stable window
+      expect(client.currentState).toBe(SignalConnectionState.RECONNECTING);
+      const requestId = await client.sendUpdateLocalMetadata('meta', 'name');
+      await reconnectPromise;
+      // the orchestrator (RTCEngine) drains the queue once resumed
+      client.setReconnected();
+      const respondedId = await withTimeout(responded, 5_000, 'RequestResponse for queued request');
+      expect(respondedId).toBe(requestId);
+    });
+
+    it('close() during a reconnect attempt aborts it without firing onClose', async () => {
+      // Guards the close-aborts-reconnecting transition: a user-initiated
+      // close while RECONNECTING must settle the in-flight attempt (no hang)
+      // and stay silent — onClose is reserved for unexpected closures.
+      const onClose = vi.fn();
+      await join('happy');
+      client.onClose = onClose;
+      const token = await createToken({ signal: 'no_first_message' });
+      const settled = client.reconnect(serverUrl, token, 'RM_session').then(
+        () => undefined,
+        (e) => e as Error,
+      );
+      await sleep(300); // let the reconnect socket open and sit waiting
+      await client.close();
+      expect(client.isDisconnected).toBe(true);
+      // Today the attempt settles via the 5s first-message timeout rather than
+      // the socket close (the reader is not unblocked by close()); the
+      // invariant guarded here is only that it settles instead of hanging.
+      const err = await withTimeout(settled, 8_000, 'reconnect to settle after close()');
+      expect(err).toBeInstanceOf(Error);
+      await sleep(300);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('a timed-out reconnect attempt rejects and leaves the client able to retry', async () => {
+      // Guards the reconnect_timed_out → suspended → reconnecting loop: a
+      // failed attempt must not wedge the client; the next attempt succeeds.
+      await join('happy');
+      const silent = await createToken({ signal: 'no_first_message' });
+      const err = await withTimeout(
+        client.reconnect(serverUrl, silent, 'RM_session').then(
+          () => undefined,
+          (e) => e as { reason?: ConnectionErrorReason },
+        ),
+        10_000,
+        'reconnect to time out',
+      );
+      expect(err?.reason).toBe(ConnectionErrorReason.Timeout);
+      // Mirror RTCEngine's retry delay: the failed attempt's internal close()
+      // finishes asynchronously (~250ms) after the rejection and would clobber
+      // a retry's RECONNECTING state if the retry starts immediately.
+      await sleep(500);
+      const happy = await createToken({ signal: 'happy' });
+      await client.reconnect(serverUrl, happy, 'RM_session');
+      expect(client.currentState).toBe(SignalConnectionState.CONNECTED);
+    });
+
     // --- validate-endpoint classification -------------------------------
     it('classifies an invalid token as NotAllowed', async () => {
       const token = await createInvalidToken();
@@ -240,6 +309,23 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
       setTimeout(() => controller.abort('user requested abort'), 300);
       const err = await p.catch((e) => e);
       expect(err.reason).toBe(ConnectionErrorReason.Cancelled);
+    });
+
+    it('resolves close() even when the server drops the socket mid-handshake', async () => {
+      // Guards the transport_closed-while-disconnecting transition: the mock
+      // hard-drops the TCP connection on the client's close frame instead of
+      // replying, so the clean close handshake never completes. close() must
+      // still resolve promptly and the abnormal closure must not fire onClose.
+      const onClose = vi.fn();
+      const token = await createToken({ signal: 'drop_on_close' });
+      await client.join(serverUrl, token, defaultOpts(), undefined, true);
+      client.onClose = onClose;
+      const start = performance.now();
+      await client.close();
+      expect(performance.now() - start).toBeLessThan(2_000);
+      expect(client.isDisconnected).toBe(true);
+      await sleep(400); // grace period for a late close event to (wrongly) fire onClose
+      expect(onClose).not.toHaveBeenCalled();
     });
 
     it('times out when the socket opens but no first message arrives', async () => {
