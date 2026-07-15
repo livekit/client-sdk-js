@@ -192,7 +192,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** used for aborting pending connections to a LiveKit server */
   private abortController?: AbortController;
 
-
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void, Error>;
 
