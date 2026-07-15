@@ -110,11 +110,6 @@ const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 
-// Adaptive threshold bounds for the (unchanged) lossy data channel; see the interval in
-// createDataChannels that tunes lossyDC.bufferedAmountLowThreshold to control buffered latency.
-const lossyDataChannelBufferThresholdMin = 8 * 1024;
-const lossyDataChannelBufferThresholdMax = 256 * 1024;
-
 // Two-watermark flow control for the reliable and data-track channels. Senders fill the buffer
 // freely up to the high-water mark; once it's exceeded they block until the browser's
 // `bufferedamountlow` event (which we arm at the low-water mark) signals the buffer has drained.
@@ -1791,10 +1786,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
       }
       await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
-        dc.addEventListener('bufferedamountlow', resolve, { once: true });
+        const onBufferedAmountLow = () => resolve();
+        dc.addEventListener('bufferedamountlow', onBufferedAmountLow, { once: true });
         // Proxy along any error caused by the engine closing while we wait.
         this.bufferStatusLowClosingFuture.promise.catch((e) => {
-          dc.removeEventListener('bufferedamountlow', resolve);
+          dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
           reject(e);
         });
       });
