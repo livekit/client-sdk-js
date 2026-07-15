@@ -168,7 +168,90 @@ const BENCH_FRAME_COUNT = 100;
 const BENCH_PAYLOAD_LENGTH = 196_608; // 192 KiB, matches low_fps_multi_packet
 const BENCH_PUBLISH_FPS = 10;
 const BENCH_INTERVAL_MS = 1000 / BENCH_PUBLISH_FPS; // 100ms
+// RTCEngine blocks sends once dc.bufferedAmount exceeds dataChannelBufferThresholdMax (256 KiB)
+// and only resumes on the `bufferedamountlow` event. Used to classify inter-send gaps as
+// backpressure stalls vs. plain 10fps pacing idle.
+const BENCH_DC_BUFFER_MAX = 256 * 1024;
 const benchSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// One entry per dc.send(), recorded by the [BENCH-DCSEND] hook in RTCEngine while a run is active.
+type BenchDcSendEvent = { kind: string; t: number; bytes: number; buffered: number };
+
+function benchPercentile(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  const idx = Math.min(sortedAsc.length - 1, Math.ceil((p / 100) * sortedAsc.length) - 1);
+  return sortedAsc[Math.max(0, idx)];
+}
+
+function benchPrintSummary(opts: {
+  label: string;
+  dcKind: string; // DataChannelKind name to filter [BENCH-DCSEND] events on
+  paced: boolean; // true = 10fps producer loop; false = writes awaited back-to-back
+  start: number;
+  loopDone: number;
+  drained: number;
+  complete: number;
+  frameLatencies: number[]; // per frame: tryPush/write call → promise settled, ms
+  maxInFlight: number;
+  events: BenchDcSendEvent[];
+}) {
+  const { label, dcKind, paced, start, loopDone, drained, complete, maxInFlight } = opts;
+  const events = opts.events.filter((e) => e.kind === dcKind);
+  const paceFloorMs = BENCH_FRAME_COUNT * BENCH_INTERVAL_MS;
+  const loopMs = loopDone - start;
+  const drainMs = drained - loopDone;
+  const teardownMs = complete - drained;
+  const totalPayloadMB = (BENCH_FRAME_COUNT * BENCH_PAYLOAD_LENGTH) / 1024 / 1024;
+  const latencies = [...opts.frameLatencies].sort((a, b) => a - b);
+  const lines = [
+    `[BENCH-SUMMARY] ${label}: ${BENCH_FRAME_COUNT} × ${BENCH_PAYLOAD_LENGTH / 1024}KiB ${paced ? `@ ${BENCH_PUBLISH_FPS}fps` : 'unpaced (as fast as possible)'} (${dcKind})`,
+    paced
+      ? `  push loop:      ${loopMs.toFixed(0)}ms — pace-locked (${BENCH_FRAME_COUNT} × ${BENCH_INTERVAL_MS}ms sleeps ≈ ${paceFloorMs}ms floor), not a perf signal; +${(loopMs - paceFloorMs).toFixed(0)}ms over floor is timer/event-loop overhead`
+      : `  write loop:     ${loopMs.toFixed(0)}ms — HEADLINE: no pacing, so this is pure channel speed → ${(totalPayloadMB / (loopMs / 1000)).toFixed(2)}MB/s payload goodput`,
+    paced
+      ? `  backlog drain:  ${drainMs.toFixed(0)}ms — HEADLINE: sends still pending when the loop ended, i.e. how far the channel fell behind the producer`
+      : `  backlog drain:  ${drainMs.toFixed(0)}ms (writes are awaited serially, expect ~0)`,
+    `  flush/close:    ${teardownMs.toFixed(0)}ms`,
+    `  total:          ${(complete - start).toFixed(0)}ms`,
+    paced
+      ? `  frame latency:  p50=${benchPercentile(latencies, 50).toFixed(0)}ms p95=${benchPercentile(latencies, 95).toFixed(0)}ms max=${benchPercentile(latencies, 100).toFixed(0)}ms (call → settled; >${BENCH_INTERVAL_MS}ms means a frame outlived its pacing slot)`
+      : `  frame latency:  p50=${benchPercentile(latencies, 50).toFixed(0)}ms p95=${benchPercentile(latencies, 95).toFixed(0)}ms max=${benchPercentile(latencies, 100).toFixed(0)}ms (per awaited write; ≈ time to squeeze one ${BENCH_PAYLOAD_LENGTH / 1024}KiB frame through backpressure)`,
+  ];
+  if (paced) {
+    lines.push(
+      `  max in flight:  ${maxInFlight} frame(s) (1 = keeping up with the producer, higher = frames queueing behind buffer backpressure)`,
+    );
+  }
+  if (events.length > 1) {
+    const spanMs = events[events.length - 1].t - events[0].t;
+    const totalBytes = events.reduce((sum, e) => sum + e.bytes, 0);
+    let stallMs = 0;
+    let worstGapMs = 0;
+    let worstGapAtMs = 0;
+    let maxBuffered = 0;
+    for (let i = 1; i < events.length; i += 1) {
+      maxBuffered = Math.max(maxBuffered, events[i - 1].buffered);
+      // The previous send pushed bufferedAmount past the block threshold, so the gap until the
+      // next send was spent waiting on `bufferedamountlow` — a genuine backpressure stall.
+      if (events[i - 1].buffered + events[i - 1].bytes > BENCH_DC_BUFFER_MAX) {
+        const gap = events[i].t - events[i - 1].t;
+        stallMs += gap;
+        if (gap > worstGapMs) {
+          worstGapMs = gap;
+          worstGapAtMs = events[i - 1].t - start;
+        }
+      }
+    }
+    const throughput = totalBytes / 1024 / 1024 / (spanMs / 1000);
+    lines.push(
+      `  dc.send:        ${events.length} sends / ${(totalBytes / 1024 / 1024).toFixed(2)}MB over a ${spanMs.toFixed(0)}ms span → ${throughput.toFixed(2)}MB/s on-wire`,
+      `  backpressure:   ${stallMs.toFixed(0)}ms total spent blocked on bufferedamountlow (worst single stall ${worstGapMs.toFixed(0)}ms at t+${worstGapAtMs.toFixed(0)}ms); peak bufferedAmount ${(maxBuffered / 1024).toFixed(0)}KiB`,
+    );
+  } else {
+    lines.push(`  dc.send:        no ${dcKind} send events captured`);
+  }
+  console.log(lines.join('\n'));
+}
 
 const appActions = {
   benchmarkDataTrack: async () => {
@@ -182,21 +265,49 @@ const appActions = {
     const track = await currentRoom.localParticipant.publishDataTrack({
       name: `bench_${Date.now()}`,
     });
+    const events: BenchDcSendEvent[] = [];
+    (globalThis as any).__benchDcSendEvents = events;
+    const frameLatencies: number[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
     const start = performance.now();
     const pushes: Array<Promise<unknown>> = [];
     for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
       const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      const queuedAt = performance.now();
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
       // Push without awaiting (like the e2e test), so bursts can pile up on waitForBufferStatusLow.
-      pushes.push(Promise.resolve(track.tryPush({ payload })).catch((err) => console.error(err)));
+      pushes.push(
+        Promise.resolve(track.tryPush({ payload }))
+          .catch((err) => console.error(err))
+          .finally(() => {
+            inFlight -= 1;
+            frameLatencies.push(performance.now() - queuedAt);
+          }),
+      );
       await benchSleep(BENCH_INTERVAL_MS);
     }
-    console.log(
-      `[BENCH] data track: push loop done in ${(performance.now() - start).toFixed(0)}ms, flushing`,
-    );
+    const loopDone = performance.now();
+    console.log(`[BENCH] data track: push loop done in ${(loopDone - start).toFixed(0)}ms, flushing`);
     await Promise.allSettled(pushes);
+    const drained = performance.now();
     await track.flush();
     await track.unpublish();
-    console.log(`[BENCH] data track: complete in ${(performance.now() - start).toFixed(0)}ms`);
+    const complete = performance.now();
+    delete (globalThis as any).__benchDcSendEvents;
+    benchPrintSummary({
+      label: 'data track',
+      dcKind: 'DATA_TRACK_LOSSY',
+      paced: true,
+      start,
+      loopDone,
+      drained,
+      complete,
+      frameLatencies,
+      maxInFlight,
+      events,
+    });
   },
   benchmarkDataStream: async () => {
     if (!currentRoom) {
@@ -210,20 +321,100 @@ const appActions = {
       name: `bench_${Date.now()}`,
       topic: 'benchmark',
     });
+    const events: BenchDcSendEvent[] = [];
+    (globalThis as any).__benchDcSendEvents = events;
+    const frameLatencies: number[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
     const start = performance.now();
     const writes: Array<Promise<unknown>> = [];
     for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
       const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      const queuedAt = performance.now();
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
       // Write without awaiting (mirror the data track loop) so equal-sized bursts pile up.
-      writes.push(writer.write(payload).catch((err) => console.error(err)));
+      writes.push(
+        writer
+          .write(payload)
+          .catch((err) => console.error(err))
+          .finally(() => {
+            inFlight -= 1;
+            frameLatencies.push(performance.now() - queuedAt);
+          }),
+      );
       await benchSleep(BENCH_INTERVAL_MS);
     }
+    const loopDone = performance.now();
     console.log(
-      `[BENCH] data stream: write loop done in ${(performance.now() - start).toFixed(0)}ms, closing`,
+      `[BENCH] data stream: write loop done in ${(loopDone - start).toFixed(0)}ms, closing`,
     );
     await Promise.allSettled(writes);
+    const drained = performance.now();
     await writer.close();
-    console.log(`[BENCH] data stream: complete in ${(performance.now() - start).toFixed(0)}ms`);
+    const complete = performance.now();
+    delete (globalThis as any).__benchDcSendEvents;
+    benchPrintSummary({
+      label: 'data stream',
+      dcKind: 'RELIABLE',
+      paced: true,
+      start,
+      loopDone,
+      drained,
+      complete,
+      frameLatencies,
+      maxInFlight,
+      events,
+    });
+  },
+  benchmarkDataStreamUnpaced: async () => {
+    if (!currentRoom) {
+      console.error('[BENCH] not connected to a room');
+      return;
+    }
+    console.log(
+      `[BENCH] data stream (unpaced): writing ${BENCH_FRAME_COUNT} chunks of ${BENCH_PAYLOAD_LENGTH}B as fast as possible`,
+    );
+    const writer = await currentRoom.localParticipant.streamBytes({
+      name: `bench_${Date.now()}`,
+      topic: 'benchmark',
+    });
+    const events: BenchDcSendEvent[] = [];
+    (globalThis as any).__benchDcSendEvents = events;
+    const frameLatencies: number[] = [];
+    const start = performance.now();
+    for (let i = 0; i < BENCH_FRAME_COUNT; i += 1) {
+      const payload = new Uint8Array(BENCH_PAYLOAD_LENGTH).fill(i % 256);
+      const queuedAt = performance.now();
+      // Await each write, so the loop runs exactly as fast as backpressure allows — the loop
+      // duration is the channel's max sustainable speed for this payload size.
+      try {
+        await writer.write(payload);
+      } catch (err) {
+        console.error(err);
+      }
+      frameLatencies.push(performance.now() - queuedAt);
+    }
+    const loopDone = performance.now();
+    console.log(
+      `[BENCH] data stream (unpaced): write loop done in ${(loopDone - start).toFixed(0)}ms, closing`,
+    );
+    const drained = loopDone; // every write already awaited inline, nothing left to drain
+    await writer.close();
+    const complete = performance.now();
+    delete (globalThis as any).__benchDcSendEvents;
+    benchPrintSummary({
+      label: 'data stream (unpaced)',
+      dcKind: 'RELIABLE',
+      paced: false,
+      start,
+      loopDone,
+      drained,
+      complete,
+      frameLatencies,
+      maxInFlight: 1,
+      events,
+    });
   },
   sendFile: async () => {
     console.log('start sending');

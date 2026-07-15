@@ -1631,9 +1631,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }
 
           // [BENCH-DCSEND] send-timing instrumentation for the data channel benchmark; remove before merge.
-          console.log(
-            `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${msg.byteLength} buffered=${dc.bufferedAmount}`,
-          );
+          // While a benchmark run is active it installs `__benchDcSendEvents` and we record silently
+          // for the end-of-run summary; otherwise fall back to per-send logging.
+          const benchDcSendEvents = (globalThis as any).__benchDcSendEvents;
+          if (Array.isArray(benchDcSendEvents)) {
+            benchDcSendEvents.push({
+              kind: DataChannelKind[kind],
+              t: performance.now(),
+              bytes: msg.byteLength,
+              buffered: dc.bufferedAmount,
+            });
+          } else {
+            console.log(
+              `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${msg.byteLength} buffered=${dc.bufferedAmount}`,
+            );
+          }
           dc.send(msg);
         }
 
@@ -1679,9 +1691,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       // [BENCH-DCSEND] send-timing instrumentation for the data channel benchmark; remove before merge.
-      console.log(
-        `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${bytes.byteLength} buffered=${dc.bufferedAmount}`,
-      );
+      // While a benchmark run is active it installs `__benchDcSendEvents` and we record silently
+      // for the end-of-run summary; otherwise fall back to per-send logging.
+      const benchDcSendEvents = (globalThis as any).__benchDcSendEvents;
+      if (Array.isArray(benchDcSendEvents)) {
+        benchDcSendEvents.push({
+          kind: DataChannelKind[kind],
+          t: performance.now(),
+          bytes: bytes.byteLength,
+          buffered: dc.bufferedAmount,
+        });
+      } else {
+        console.log(
+          `[BENCH-DCSEND] kind=${DataChannelKind[kind]} t=${performance.now().toFixed(3)} bytes=${bytes.byteLength} buffered=${dc.bufferedAmount}`,
+        );
+      }
       dc.send(bytes);
     }
 
