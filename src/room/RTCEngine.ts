@@ -109,8 +109,22 @@ const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
+
+// Adaptive threshold bounds for the (unchanged) lossy data channel; see the interval in
+// createDataChannels that tunes lossyDC.bufferedAmountLowThreshold to control buffered latency.
 const lossyDataChannelBufferThresholdMin = 8 * 1024;
 const lossyDataChannelBufferThresholdMax = 256 * 1024;
+
+// Two-watermark flow control for the reliable and data-track channels. Senders fill the buffer
+// freely up to the high-water mark; once it's exceeded they block until the browser's
+// `bufferedamountlow` event (which we arm at the low-water mark) signals the buffer has drained.
+// The gap between the marks keeps the SCTP send buffer saturated while we refill, so throughput
+// isn't starved, while the high-water mark bounds the buffer well below the level that would abort
+// the channel (see livekit/client-sdk-js#1995).
+const reliableDataChannelLowWaterMark = 64 * 1024;
+const reliableDataChannelHighWaterMark = 1024 * 1024;
+const lossyDataChannelLowWaterMark = 8 * 1024;
+const lossyDataChannelHighWaterMark = 256 * 1024;
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
@@ -127,6 +141,20 @@ export enum DataChannelKind {
   RELIABLE = DataPacket_Kind.RELIABLE,
   LOSSY = DataPacket_Kind.LOSSY,
   DATA_TRACK_LOSSY = 2,
+}
+
+// Water marks for the two-watermark flow control. Only defined for the reliable and data-track
+// channels; the plain lossy channel keeps its adaptive single threshold and never consults these.
+function dataChannelLowWaterMark(kind: DataChannelKind): number {
+  return kind === DataChannelKind.RELIABLE
+    ? reliableDataChannelLowWaterMark
+    : lossyDataChannelLowWaterMark;
+}
+
+function dataChannelHighWaterMark(kind: DataChannelKind): number {
+  return kind === DataChannelKind.RELIABLE
+    ? reliableDataChannelHighWaterMark
+    : lossyDataChannelHighWaterMark;
 }
 
 // Default data-channel max message size (bytes), used when the remote SDP
@@ -302,7 +330,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.bufferStatusLowClosingFuture.reject?.(new UnexpectedConnectionState('engine closed'));
     });
     // Swallow the rejection at the source so it doesn't surface as an unhandled promise rejection
-    // when no waitForBufferStatusLow callers are attached.
+    // when no waitUntilBelowHighWaterMark callers are attached.
     this.bufferStatusLowClosingFuture.promise.catch(() => {});
   }
 
@@ -930,10 +958,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
-    // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
-    this.lossyDC.bufferedAmountLowThreshold = 65535;
-    this.reliableDC.bufferedAmountLowThreshold = 65535;
-    this.dataTrackDC.bufferedAmountLowThreshold = 65535;
+    // set up dc buffer threshold - if this is not set, it will default to 0
+    this.lossyDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(DataChannelKind.LOSSY);
+    this.reliableDC.bufferedAmountLowThreshold = reliableDataChannelLowWaterMark;
+    this.dataTrackDC.bufferedAmountLowThreshold = lossyDataChannelLowWaterMark;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -952,8 +980,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyDataChannelBufferThresholdMin),
-          lossyDataChannelBufferThresholdMax,
+          Math.max(threshold, lossyDataChannelLowWaterMark),
+          lossyDataChannelHighWaterMark,
         );
       }
     }, 1000);
@@ -1624,7 +1652,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       case DataChannelKind.RELIABLE:
         const dc = this.dataChannelForKind(kind);
         if (dc) {
-          await this.waitForBufferStatusLow(kind);
+          await this.waitUntilBelowHighWaterMark(kind);
           this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
 
           if (this.attemptingReconnect) {
@@ -1650,12 +1678,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (!this.isBufferStatusLow(kind)) {
+      if (!this.isBelowHighWaterMark(kind)) {
         // Depending on the exact circumstance that data is being sent, either drop or wait for the
-        // buffer status to not be low before continuing.
+        // buffer to drain below the high-water mark before continuing.
         switch (bufferStatusLowBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind);
+            await this.waitUntilBelowHighWaterMark(kind);
             break;
           case 'drop':
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
@@ -1686,9 +1714,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      this.reliableMessageBuffer.getAll().forEach((msg) => {
+      for (const msg of this.reliableMessageBuffer.getAll()) {
+        // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
+        await this.waitUntilBelowHighWaterMark(DataChannelKind.RELIABLE);
         dc.send(msg.data);
-      });
+      }
     }
     this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
@@ -1701,39 +1731,76 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     }
 
-    const status = this.isBufferStatusLow(kind);
+    const status = this.isBelowLowWaterMark(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
     }
   };
 
-  private isBufferStatusLow = (kind: DataChannelKind): boolean | undefined => {
+  /**
+   * Whether the send buffer has room to accept more data (the send gate). Senders proceed while
+   * this is true and block once it goes false.
+   */
+  private isBelowHighWaterMark = (kind: DataChannelKind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
-    if (dc) {
-      return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+    if (!dc) {
+      return;
     }
+    return dc.bufferedAmount <= dataChannelHighWaterMark(kind);
   };
 
-  async waitForBufferStatusLow(kind: DataChannelKind) {
-    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
+  /**
+   * Whether the send buffer has drained to its low-water mark. Drives the public
+   * {@link EngineEvent.DCBufferStatusChanged} event.
+   */
+  private isBelowLowWaterMark = (kind: DataChannelKind): boolean | undefined => {
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      return;
+    }
+    return dc.bufferedAmount <= dataChannelLowWaterMark(kind);
+  };
+
+  /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
+  private waitUntilBelowHighWaterMarkLocks = new Map<DataChannelKind, Mutex>();
+
+  /**
+   * Resolves once the send buffer for `kind` is at or below its high-water mark, blocking the
+   * caller otherwise. Callers are serialized through a per-kind mutex so that, when the buffer
+   * drains, they refill it one at a time (up to the high-water mark) rather than all sending at
+   * once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The closed/buffer
+   * checks run inside the lock so queued callers proceed in FIFO order.
+   */
+  async waitUntilBelowHighWaterMark(kind: DataChannelKind) {
+    let lock = this.waitUntilBelowHighWaterMarkLocks.get(kind);
+    if (!lock) {
+      lock = new Mutex();
+      this.waitUntilBelowHighWaterMarkLocks.set(kind, lock);
+    }
+    const unlock = await lock.lock();
+    try {
       if (this.isClosed) {
-        reject(new UnexpectedConnectionState('engine closed'));
+        throw new UnexpectedConnectionState('engine closed');
       }
-      if (this.isBufferStatusLow(kind)) {
-        resolve();
-      } else {
-        const dc = this.dataChannelForKind(kind);
-        if (!dc) {
-          reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
-          return;
-        }
-        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        dc.addEventListener('bufferedamountlow', () => resolve(), {
-          once: true,
+      if (this.isBelowHighWaterMark(kind)) {
+        return;
+      }
+      const dc = this.dataChannelForKind(kind);
+      if (!dc) {
+        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
+      }
+      await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
+        dc.addEventListener('bufferedamountlow', resolve, { once: true });
+        // Proxy along any error caused by the engine closing while we wait.
+        this.bufferStatusLowClosingFuture.promise.catch((e) => {
+          dc.removeEventListener('bufferedamountlow', resolve);
+          reject(e);
         });
-      }
-    });
+      });
+    } finally {
+      unlock();
+    }
   }
 
   /**
