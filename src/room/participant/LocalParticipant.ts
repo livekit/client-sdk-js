@@ -1249,13 +1249,17 @@ export default class LocalParticipant extends Participant {
               maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
             });
           }
-        } else if (track.codec && isVideoCodec(track.codec) && encodings[0]?.maxBitrate) {
-          // Apply start bitrate for all video codecs to prevent initial blurriness
-          this.engine.pcManager.publisher.setTrackCodecBitrate({
-            cid: req.cid,
-            codec: track.codec,
-            maxbr: encodings[0].maxBitrate / 1000,
-          });
+        } else if (track.codec && isVideoCodec(track.codec)) {
+          // Apply start bitrate for all video codecs to prevent initial blurriness.
+          // Sum all encoding bitrates for simulcast (BWE needs to handle all layers combined).
+          const totalBitrate = encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
+          if (totalBitrate > 0) {
+            this.engine.pcManager.publisher.setTrackCodecBitrate({
+              cid: req.cid,
+              codec: track.codec,
+              maxbr: totalBitrate / 1000,
+            });
+          }
         }
       }
 
