@@ -20,10 +20,12 @@ function makeChannel(opts?: { dc?: FakeDataChannel | undefined }) {
     kind: DataChannelKind.RELIABLE,
     lowWaterMark: 64,
     highWaterMark: 1024,
-    getChannel: () => dc as unknown as RTCDataChannel | undefined,
     isEngineClosed: () => state.engineClosed,
     isDeferringSends: () => state.deferring,
   });
+  if (dc) {
+    channel.attach(dc as unknown as RTCDataChannel);
+  }
   const buffer = (channel as unknown as { messageBuffer: { getAll(): unknown[]; length: number } })
     .messageBuffer as unknown as {
     getAll(): Array<{ data: Uint8Array; sequence: number; sent: boolean }>;

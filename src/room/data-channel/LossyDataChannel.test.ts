@@ -20,11 +20,13 @@ function makeChannel(
     kind: DataChannelKind.LOSSY,
     lowWaterMark: 64,
     highWaterMark: 1024,
-    getChannel: () => dc as unknown as RTCDataChannel | undefined,
     isEngineClosed: () => state.engineClosed,
     bufferFullBehavior,
     shouldSkipSends: () => state.skipSends,
   });
+  if (dc) {
+    channel.attach(dc as unknown as RTCDataChannel);
+  }
   const stats = channel as unknown as { statCurrentBytes: number; dropCount: number };
   return { channel, dc: dc as FakeDataChannel, state, stats };
 }

@@ -18,9 +18,11 @@ function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: b
     kind: DataChannelKind.RELIABLE,
     lowWaterMark: 64,
     highWaterMark: 1024,
-    getChannel: () => dc as unknown as RTCDataChannel | undefined,
     isEngineClosed: () => state.engineClosed,
   });
+  if (dc) {
+    channel.attach(dc as unknown as RTCDataChannel);
+  }
   return { channel, dc: dc as FakeDataChannel, state };
 }
 

@@ -10,12 +10,6 @@ export interface FlowControlledDataChannelOptions {
   lowWaterMark: number;
   /** Buffer level (bytes) above which senders block until the buffer drains to the low mark. */
   highWaterMark: number;
-  /**
-   * Resolves the current RTCDataChannel handle. Handle ownership stays with the engine for now
-   * (it moves here with the DataChannelManager phase); the provider keeps this class in sync
-   * when the engine recreates channels.
-   */
-  getChannel: () => RTCDataChannel | undefined;
   /** Whether the owning engine has been closed — a closed engine rejects waiters immediately. */
   isEngineClosed: () => boolean;
 }
@@ -41,9 +35,9 @@ export class FlowControlledDataChannel {
 
   readonly highWaterMark: number;
 
-  protected getChannel: () => RTCDataChannel | undefined;
-
   protected isEngineClosed: () => boolean;
+
+  private handle?: RTCDataChannel;
 
   private headroomLock = new Mutex();
 
@@ -53,8 +47,38 @@ export class FlowControlledDataChannel {
     this.kind = opts.kind;
     this.lowWaterMark = opts.lowWaterMark;
     this.highWaterMark = opts.highWaterMark;
-    this.getChannel = opts.getChannel;
     this.isEngineClosed = opts.isEngineClosed;
+  }
+
+  /** The currently attached RTCDataChannel handle, if any. */
+  get channelHandle(): RTCDataChannel | undefined {
+    return this.handle;
+  }
+
+  /**
+   * Attaches the channel handle this wrapper controls. Replacing an existing handle rejects
+   * parked waiters — their events would never fire again on the abandoned object — and starts a
+   * fresh epoch, so queued senders re-check against the new channel. Wrappers outlive their
+   * handles: this is the one place handle turnover happens, which is what makes stranding a
+   * waiter structurally impossible.
+   */
+  attach(dc: RTCDataChannel) {
+    if (this.handle && this.handle !== dc) {
+      this.invalidateWaiters('data channel replaced');
+    }
+    this.handle = dc;
+  }
+
+  /** Detaches the handle on teardown, rejecting parked waiters. */
+  detach(reason: string = 'data channel torn down') {
+    if (this.handle) {
+      this.invalidateWaiters(reason);
+    }
+    this.handle = undefined;
+  }
+
+  protected getChannel(): RTCDataChannel | undefined {
+    return this.handle;
   }
 
   /**
