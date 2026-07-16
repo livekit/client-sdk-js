@@ -844,21 +844,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
+  /** Normalizes an incoming data-channel message into bytes, or logs and returns undefined. */
+  private async decodeDataMessage(message: MessageEvent): Promise<Uint8Array | undefined> {
+    if (message.data instanceof ArrayBuffer) {
+      return new Uint8Array(message.data);
+    }
+    if (message.data instanceof Blob) {
+      return new Uint8Array(await message.data.arrayBuffer());
+    }
+    this.log.error('unsupported data type', { data: message.data });
+    return undefined;
+  }
+
   private handleDataMessage = async (message: MessageEvent) => {
     // make sure to respect incoming data message order by processing message events one after the other
     const unlock = await this.dataProcessLock.lock();
     try {
-      // decode
-      let buffer: ArrayBuffer | undefined;
-      if (message.data instanceof ArrayBuffer) {
-        buffer = message.data;
-      } else if (message.data instanceof Blob) {
-        buffer = await message.data.arrayBuffer();
-      } else {
-        this.log.error('unsupported data type', { data: message.data });
+      const bytes = await this.decodeDataMessage(message);
+      if (!bytes) {
         return;
       }
-      const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+      const dp = DataPacket.fromBinary(bytes);
 
       if (dp.sequence > 0 && dp.participantSid !== '') {
         const lastSeq = this.reliableReceivedState.get(dp.participantSid);
@@ -907,18 +913,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   private handleDataTrackMessage = async (message: MessageEvent) => {
-    // Decode / normalize into a common format
-    let buffer: ArrayBuffer | undefined;
-    if (message.data instanceof ArrayBuffer) {
-      buffer = message.data;
-    } else if (message.data instanceof Blob) {
-      buffer = await message.data.arrayBuffer();
-    } else {
-      this.log.error('unsupported data type', { data: message.data });
+    const bytes = await this.decodeDataMessage(message);
+    if (!bytes) {
       return;
     }
-
-    this.emit('dataTrackPacketReceived', new Uint8Array(buffer));
+    this.emit('dataTrackPacketReceived', bytes);
   };
 
   private handleDataError = (event: Event) => {
