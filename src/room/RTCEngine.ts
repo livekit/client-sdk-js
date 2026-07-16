@@ -115,10 +115,10 @@ const reliabeReceiveStateTTL = 30_000;
 // The gap between the marks keeps the SCTP send buffer saturated while we refill, so throughput
 // isn't starved, while the high-water mark bounds the buffer well below the level that would abort
 // the channel (see livekit/client-sdk-js#1995).
-const reliableDataChannelLowWaterMark = 64 * 1024;
-const reliableDataChannelHighWaterMark = 1024 * 1024;
-const lossyDataChannelLowWaterMark = 8 * 1024;
-const lossyDataChannelHighWaterMark = 256 * 1024;
+const reliableDataChannelWaterMarkLow = 64 * 1024;
+const reliableDataChannelWaterMarkHigh = 1024 * 1024;
+const lossyDataChannelWaterMarkLow = 8 * 1024;
+const lossyDataChannelWaterMarkHigh = 256 * 1024;
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
@@ -137,18 +137,17 @@ export enum DataChannelKind {
   DATA_TRACK_LOSSY = 2,
 }
 
-// Water marks for the two-watermark flow control. Only defined for the reliable and data-track
-// channels; the plain lossy channel keeps its adaptive single threshold and never consults these.
+// Water marks for the two-watermark flow control
 function dataChannelLowWaterMark(kind: DataChannelKind): number {
   return kind === DataChannelKind.RELIABLE
-    ? reliableDataChannelLowWaterMark
-    : lossyDataChannelLowWaterMark;
+    ? reliableDataChannelWaterMarkLow
+    : lossyDataChannelWaterMarkLow;
 }
 
 function dataChannelHighWaterMark(kind: DataChannelKind): number {
   return kind === DataChannelKind.RELIABLE
-    ? reliableDataChannelHighWaterMark
-    : lossyDataChannelHighWaterMark;
+    ? reliableDataChannelWaterMarkHigh
+    : lossyDataChannelWaterMarkHigh;
 }
 
 // Default data-channel max message size (bytes), used when the remote SDP
@@ -967,8 +966,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyDataChannelLowWaterMark),
-          lossyDataChannelHighWaterMark,
+          Math.max(threshold, lossyDataChannelWaterMarkLow),
+          lossyDataChannelWaterMarkHigh,
         );
       }
     }, 1000);
