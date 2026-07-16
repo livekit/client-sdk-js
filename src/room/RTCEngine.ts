@@ -1505,7 +1505,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (res?.lastMessageSeq) {
-      this.resendReliableMessagesForResume(res.lastMessageSeq);
+      this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) => {
+        this.log.warn('failed to resend reliable messages after resume', {
+          ...this.logContext,
+          error,
+        });
+      });
     }
 
     // resume success
@@ -1685,10 +1690,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      for (const msg of this.reliableMessageBuffer.getAll()) {
-        // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
-        await this.waitForBufferHeadroom(DataChannelKind.RELIABLE);
-        dc.send(msg.data);
+      // Hold the headroom lock across the whole replay. Releasing it between messages would let a
+      // concurrent send — whose (newer) sequence was already assigned in sendDataPacket before it
+      // queued on the lock — hit the wire mid-replay, and receivers would then discard the
+      // remaining lower-sequence resent messages as duplicates.
+      const unlock = await this.lockBufferHeadroom(DataChannelKind.RELIABLE);
+      try {
+        for (const msg of this.reliableMessageBuffer.getAll()) {
+          // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
+          await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
+          dc.send(msg.data);
+        }
+      } finally {
+        unlock();
       }
     }
     this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
@@ -1742,6 +1756,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
   private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
 
+  /** Acquires the per-kind headroom lock, resolving with the unlock function. */
+  private lockBufferHeadroom(kind: DataChannelKind): Promise<() => void> {
+    let lock = this.waitForBufferHeadroomLocks.get(kind);
+    if (!lock) {
+      lock = new Mutex();
+      this.waitForBufferHeadroomLocks.set(kind, lock);
+    }
+    return lock.lock();
+  }
+
   /**
    * Resolves once the caller may send on the `kind` channel: immediately while the send buffer is
    * at or below its high-water mark, otherwise once the buffer has drained to the low-water mark
@@ -1751,45 +1775,49 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
    */
   async waitForBufferHeadroom(kind: DataChannelKind) {
-    let lock = this.waitForBufferHeadroomLocks.get(kind);
-    if (!lock) {
-      lock = new Mutex();
-      this.waitForBufferHeadroomLocks.set(kind, lock);
-    }
-    const unlock = await lock.lock();
+    const unlock = await this.lockBufferHeadroom(kind);
     try {
-      if (this.isClosed) {
-        throw new UnexpectedConnectionState('engine closed');
-      }
-      if (this.isBelowHighWaterMark(kind)) {
-        return;
-      }
-      const dc = this.dataChannelForKind(kind);
-      if (!dc) {
-        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
-      }
-      await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
-        const onBufferedAmountLow = () => {
-          cleanup();
-          resolve();
-        };
-        const onDCClose = () => {
-          cleanup();
-          reject(
-            new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
-          );
-        };
-        const cleanup = () => {
-          dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
-          dc.removeEventListener('close', onDCClose);
-        };
-        dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
-        // Proxy along any error caused by the data channel closing while we wait.
-        dc.addEventListener('close', onDCClose);
-      });
+      await this.waitForBufferHeadroomLocked(kind);
     } finally {
       unlock();
     }
+  }
+
+  /**
+   * Core wait of {@link waitForBufferHeadroom}. The caller must hold the kind's headroom lock —
+   * batch senders (the resume replay) hold it across all of their sends so no other sender can
+   * interleave, and call this per message to respect flow control within the batch.
+   */
+  private async waitForBufferHeadroomLocked(kind: DataChannelKind) {
+    if (this.isClosed) {
+      throw new UnexpectedConnectionState('engine closed');
+    }
+    if (this.isBelowHighWaterMark(kind)) {
+      return;
+    }
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
+    }
+    await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
+      const onBufferedAmountLow = () => {
+        cleanup();
+        resolve();
+      };
+      const onDCClose = () => {
+        cleanup();
+        reject(
+          new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
+        );
+      };
+      const cleanup = () => {
+        dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
+        dc.removeEventListener('close', onDCClose);
+      };
+      dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
+      // Proxy along any error caused by the data channel closing while we wait.
+      dc.addEventListener('close', onDCClose);
+    });
   }
 
   /**

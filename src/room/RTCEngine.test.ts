@@ -298,6 +298,68 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('resendReliableMessagesForResume', () => {
+    class FakeDataChannel extends EventTarget {
+      bufferedAmount = 0;
+
+      bufferedAmountLowThreshold = 64 * 1024;
+
+      send = vi.fn();
+    }
+
+    const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    it('does not let a concurrent reliable send interleave into the resume replay', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const dc = new FakeDataChannel();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: false,
+        ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
+        dataChannelForKind: vi.fn(() => dc),
+        pcManager: {
+          getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
+        },
+      });
+
+      // Two messages queued for replay, and a full buffer so the replay parks on
+      // waitForBufferHeadroom before its first send.
+      const replayed1 = new Uint8Array([1]);
+      const replayed2 = new Uint8Array([2]);
+      const buffer = (engine as unknown as { reliableMessageBuffer: { push: Function } })
+        .reliableMessageBuffer;
+      buffer.push({ data: replayed1, sequence: 1 });
+      buffer.push({ data: replayed2, sequence: 2 });
+      dc.bufferedAmount = 2 * 1024 * 1024; // above the reliable high-water mark
+
+      const replay = (
+        engine as unknown as { resendReliableMessagesForResume: (seq: number) => Promise<void> }
+      ).resendReliableMessagesForResume(0);
+      await tick();
+
+      // A send racing the replay: its sequence is assigned immediately, but it must not hit the
+      // wire before the replayed (lower-sequence) messages, or receivers discard those as dupes.
+      const concurrentSend = engine.sendDataPacket(
+        new DataPacket({
+          kind: DataPacket_Kind.RELIABLE,
+          value: { case: 'user', value: new UserPacket({ payload: new Uint8Array([3]) }) },
+        }),
+        DataChannelKind.RELIABLE,
+      );
+      await tick();
+
+      // Buffer drains: the replay must finish its whole batch before the concurrent send.
+      dc.bufferedAmount = 0;
+      dc.dispatchEvent(new Event('bufferedamountlow'));
+      await Promise.all([replay, concurrentSend]);
+
+      expect(dc.send).toHaveBeenCalledTimes(3);
+      expect(dc.send.mock.calls[0][0]).toBe(replayed1);
+      expect(dc.send.mock.calls[1][0]).toBe(replayed2);
+      expect(dc.send.mock.calls[2][0]).not.toBe(replayed1);
+      expect(dc.send.mock.calls[2][0]).not.toBe(replayed2);
+    });
+  });
+
   describe('handleDataChannelClose', () => {
     function stubCloseEnv(
       engine: RTCEngine,
