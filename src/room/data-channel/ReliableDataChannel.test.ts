@@ -107,6 +107,33 @@ describe('ReliableDataChannel', () => {
     expect(buffer.getAll().every((item) => item.sent)).toBe(true);
   });
 
+  it('transmits a packet deferred mid-replay instead of marking it sent without sending', async () => {
+    const { channel, dc, state, buffer } = makeChannel();
+    // A packet sent before the disconnect, still buffered (unacked) at resume.
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    dc.send.mockClear();
+
+    // Replay parks on a full buffer, giving an await window mid-drain.
+    dc.bufferedAmount = 2048;
+    const replay = channel.replay(0);
+    await tick();
+
+    // A send arrives while replay is parked; the reconnect is still active, so it defers into the
+    // buffer as sent:false — after replay's first drain pass already started.
+    state.deferring = true;
+    await channel.send(new Uint8Array([2]), channel.nextSequence());
+    state.deferring = false;
+
+    dc.bufferedAmount = 0;
+    dc.dispatchEvent(new Event('bufferedamountlow'));
+    await replay;
+
+    // The drain loop must transmit both; a blanket mark-all-sent would flip the late arrival to
+    // sent without sending it, and a later align would then strand it.
+    expect(dc.send.mock.calls.map(([d]) => d[0])).toEqual([1, 2]);
+    expect(buffer.getAll().filter((i) => !i.sent)).toHaveLength(0);
+  });
+
   it('holds the headroom lock across the whole replay so new sends cannot interleave', async () => {
     const { channel, dc } = makeChannel();
     (channel as unknown as { isDeferringSends: () => boolean }).isDeferringSends = () => true;

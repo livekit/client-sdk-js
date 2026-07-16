@@ -1,5 +1,4 @@
 import { Mutex } from '@livekit/mutex';
-import type { Throws } from '@livekit/throws-transformer/throws';
 import TypedPromise from '../../utils/TypedPromise';
 import { UnexpectedConnectionState } from '../errors';
 import type { DataChannelKind } from './types';
@@ -94,13 +93,10 @@ export class FlowControlledDataChannel {
 
   /**
    * Whether the send buffer has room to accept more data (the send gate). Senders proceed while
-   * this is true and block once it goes false.
+   * this is true and block once it goes false. Callers resolve the handle (and decide what an
+   * absent one means) before asking.
    */
-  isBelowHighWaterMark(): Throws<boolean, TypeError> {
-    const dc = this.getChannel();
-    if (!dc) {
-      throw new TypeError(`Could not get data channel for kind ${this.kind}`);
-    }
+  isBelowHighWaterMark(dc: RTCDataChannel): boolean {
     // RTCDataChannel has no built-in high-water mark, so we compare against our static mark.
     return dc.bufferedAmount <= this.highWaterMark;
   }
@@ -109,11 +105,7 @@ export class FlowControlledDataChannel {
    * Whether the send buffer has drained to its low-water mark. Drives the engine's public
    * DCBufferStatusChanged event.
    */
-  isBelowLowWaterMark(): Throws<boolean, TypeError> {
-    const dc = this.getChannel();
-    if (!dc) {
-      throw new TypeError(`Could not get data channel for kind ${this.kind}`);
-    }
+  isBelowLowWaterMark(dc: RTCDataChannel): boolean {
     // Read the channel's own threshold: it is tuned dynamically for the lossy channel.
     return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
   }
@@ -149,12 +141,12 @@ export class FlowControlledDataChannel {
     if (this.isEngineClosed()) {
       throw new UnexpectedConnectionState('engine closed');
     }
-    if (this.isBelowHighWaterMark()) {
-      return;
-    }
     const dc = this.getChannel();
     if (!dc) {
       throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+    }
+    if (this.isBelowHighWaterMark(dc)) {
+      return;
     }
     const epochSignal = this.epoch.signal;
     await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
@@ -210,10 +202,11 @@ export class FlowControlledDataChannel {
    * `send`.
    */
   refreshBufferStatus() {
-    if (!this.getChannel()) {
+    const dc = this.getChannel();
+    if (!dc) {
       return;
     }
-    const isLow = this.isBelowLowWaterMark();
+    const isLow = this.isBelowLowWaterMark(dc);
     if (isLow !== this.bufferStatusLow) {
       this.bufferStatusLow = isLow;
       this.onBufferStatusChanged?.(isLow);

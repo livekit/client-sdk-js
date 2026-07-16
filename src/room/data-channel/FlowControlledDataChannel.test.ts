@@ -56,24 +56,24 @@ describe('FlowControlledDataChannel', () => {
     });
   });
 
-  it('reports watermark status against the current channel', () => {
+  it('reports watermark status against the given channel', () => {
     const { channel, dc } = makeChannel();
+    const handle = dc as unknown as RTCDataChannel;
     dc.bufferedAmount = 0;
-    expect(channel.isBelowHighWaterMark()).toBe(true);
-    expect(channel.isBelowLowWaterMark()).toBe(true);
+    expect(channel.isBelowHighWaterMark(handle)).toBe(true);
+    expect(channel.isBelowLowWaterMark(handle)).toBe(true);
 
     dc.bufferedAmount = 512; // between low (64) and high (1024)
-    expect(channel.isBelowHighWaterMark()).toBe(true);
-    expect(channel.isBelowLowWaterMark()).toBe(false);
+    expect(channel.isBelowHighWaterMark(handle)).toBe(true);
+    expect(channel.isBelowLowWaterMark(handle)).toBe(false);
 
     dc.bufferedAmount = 2048;
-    expect(channel.isBelowHighWaterMark()).toBe(false);
+    expect(channel.isBelowHighWaterMark(handle)).toBe(false);
   });
 
-  it('throws when no channel handle is available', () => {
+  it('waiting for headroom without a handle rejects with a connection error', async () => {
     const { channel } = makeChannel({ dc: undefined });
-    expect(() => channel.isBelowHighWaterMark()).toThrow(TypeError);
-    expect(() => channel.isBelowLowWaterMark()).toThrow(TypeError);
+    await expect(channel.waitForHeadroom()).rejects.toBeInstanceOf(UnexpectedConnectionState);
   });
 
   it('resolves immediately while below the high-water mark', async () => {

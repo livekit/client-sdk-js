@@ -53,13 +53,13 @@ export class LossyDataChannel extends FlowControlledDataChannel {
     // high-water mark before continuing.
     switch (this.bufferFullBehavior) {
       case 'wait':
-        if (!this.isBelowHighWaterMark()) {
+        if (!this.isBelowHighWaterMark(dc)) {
           await this.waitForHeadroom();
         }
         break;
       case 'drop':
         // We check against the actual threshold on the DC here, as it is tuned dynamically.
-        if (!this.isBelowLowWaterMark()) {
+        if (!this.isBelowLowWaterMark(dc)) {
           // Drop messages to reduce latency
           this.dropCount += 1;
           if (this.dropCount % 100 === 0) {
