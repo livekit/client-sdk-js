@@ -468,7 +468,7 @@ describe('RTCEngine', () => {
         ensurePublisherConnected,
       });
 
-      await engine.sendLossyBytes(new Uint8Array([1]), DataChannelKind.DATA_TRACK_LOSSY);
+      await engine.sendDataTrackFrame(new Uint8Array([1]));
 
       expect(ensurePublisherConnected).toHaveBeenCalledWith(DataChannelKind.DATA_TRACK_LOSSY);
       expect(dc.send).toHaveBeenCalledTimes(1);
@@ -487,13 +487,19 @@ describe('RTCEngine', () => {
         (engine as unknown as { lossyChannel: { statCurrentBytes: number } }).lossyChannel
           .statCurrentBytes;
 
-      // Data-track traffic must not move the LOSSY channel's stat — it would inflate the lossy
-      // channel's dynamically tuned drop threshold with traffic that channel never carries.
-      await engine.sendLossyBytes(new Uint8Array(1000), DataChannelKind.DATA_TRACK_LOSSY);
+      // Data-track traffic (sendLossyBytes → data-track channel) must not move the LOSSY channel's
+      // stat — it would inflate the lossy channel's dynamically tuned drop threshold with traffic
+      // that channel never carries.
+      await engine.sendDataTrackFrame(new Uint8Array(1000));
       expect(lossyStat()).toBe(0);
 
-      await engine.sendLossyBytes(new Uint8Array(100), DataChannelKind.LOSSY);
-      expect(lossyStat()).toBe(100);
+      // A plain lossy publishData packet goes through sendDataPacket → lossy channel.
+      const lossyPacket = new DataPacket({
+        kind: DataPacket_Kind.LOSSY,
+        value: { case: 'user', value: new UserPacket({ payload: new Uint8Array(100) }) },
+      });
+      await engine.sendDataPacket(lossyPacket, DataChannelKind.LOSSY);
+      expect(lossyStat()).toBeGreaterThan(0);
     });
   });
 

@@ -1440,7 +1440,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  async sendDataPacket(packet: DataPacket, kind: DataChannelKind) {
+  async sendDataPacket(
+    packet: DataPacket,
+    /**  Data-track frames don't come through here — they're sent pre-serialized via {@link sendDataTrackFrame }. */
+    kind: Exclude<DataChannelKind, DataChannelKind.DATA_TRACK_LOSSY>,
+  ) {
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
@@ -1484,36 +1488,29 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       );
     }
 
-    switch (kind) {
-      case DataChannelKind.LOSSY:
-      case DataChannelKind.DATA_TRACK_LOSSY:
-        return this.sendLossyBytes(msg, kind);
-
-      case DataChannelKind.RELIABLE: {
-        await this.reliableChannel.send(msg, packet.sequence);
-        this.updateAndEmitDCBufferStatus(kind);
-        break;
-      }
+    // The full-buffer policy (drop for lossy, wait/replay for reliable) is the channel's own.
+    if (kind === DataChannelKind.RELIABLE) {
+      await this.reliableChannel.send(msg, packet.sequence);
+    } else {
+      await this.lossyChannel.send(msg);
     }
+    this.updateAndEmitDCBufferStatus(kind);
   }
 
-  /* @internal */
-  async sendLossyBytes(
-    bytes: NonSharedUint8Array,
-    kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
-  ) {
-    // Make sure we do have a data connection. This matters most for the direct data-track path
-    // (Room's packetAvailable handler), which doesn't go through sendDataPacket: it both waits for
-    // the channel to be open and — on lazily negotiated publisher connections — is what kicks the
-    // negotiation off in the first place. The call is memoized, so the steady-state cost is one
-    // await on an already-resolved promise.
-    await this.ensurePublisherConnected(kind);
-
-    // The full-buffer policy (drop vs wait) is the channel's own — see LossyDataChannel.
-    const channel = kind === DataChannelKind.LOSSY ? this.lossyChannel : this.dataTrackChannel;
-    await channel.send(bytes);
-
-    this.updateAndEmitDCBufferStatus(kind);
+  /**
+   * Sends pre-serialized bytes on the data-track channel. This is the one send path that doesn't
+   * go through {@link sendDataPacket} — Room's `packetAvailable` handler calls it directly with
+   * bytes the data-track pipeline already serialized.
+   *
+   * @internal
+   */
+  async sendDataTrackFrame(bytes: NonSharedUint8Array) {
+    // Make sure we do have a data connection: on lazily negotiated publisher connections this is
+    // what kicks negotiation off, and it waits for the channel to open. Memoized, so the
+    // steady-state cost is one await on an already-resolved promise.
+    await this.ensurePublisherConnected(DataChannelKind.DATA_TRACK_LOSSY);
+    await this.dataTrackChannel.send(bytes);
+    this.updateAndEmitDCBufferStatus(DataChannelKind.DATA_TRACK_LOSSY);
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
