@@ -91,7 +91,6 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
-  Future,
   isPublisherOfferWithJoinSupported,
   isReactNative,
   isVideoCodec,
@@ -1640,7 +1639,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       case DataChannelKind.RELIABLE:
         const dc = this.dataChannelForKind(kind);
         if (dc) {
-          await this.waitUntilBelowHighWaterMark(kind);
+          await this.waitForBufferHeadroom(kind);
           this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
 
           if (this.attemptingReconnect) {
@@ -1668,7 +1667,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       switch (bufferStatusLowBehavior) {
         case 'wait':
           if (!this.isBelowHighWaterMark(kind)) {
-            await this.waitUntilBelowHighWaterMark(kind);
+            await this.waitForBufferHeadroom(kind);
           }
           break;
         case 'drop':
@@ -1703,7 +1702,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
       for (const msg of this.reliableMessageBuffer.getAll()) {
         // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
-        await this.waitUntilBelowHighWaterMark(DataChannelKind.RELIABLE);
+        await this.waitForBufferHeadroom(DataChannelKind.RELIABLE);
         dc.send(msg.data);
       }
     }
@@ -1750,20 +1749,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
-  private waitUntilBelowHighWaterMarkLocks = new Map<DataChannelKind, Mutex>();
+  private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
 
   /**
-   * Resolves once the send buffer for `kind` on the RTCDataChannel is at or below its high-water mark, blocking the
-   * caller otherwise. Callers are serialized through a per-kind mutex so that, when the buffer
-   * drains, they refill it one at a time (up to the high-water mark) rather than all sending at
-   * once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The closed/buffer
-   * checks run inside the lock so queued callers proceed in FIFO order.
+   * Resolves once the caller may send on the `kind` channel: immediately while the send buffer is
+   * at or below its high-water mark, otherwise once the buffer has drained to the low-water mark
+   * (the `bufferedamountlow` event). Callers are serialized through a per-kind mutex so that, when
+   * the buffer drains, they refill it one at a time (up to the high-water mark) rather than all
+   * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
+   * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
    */
-  async waitUntilBelowHighWaterMark(kind: DataChannelKind) {
-    let lock = this.waitUntilBelowHighWaterMarkLocks.get(kind);
+  async waitForBufferHeadroom(kind: DataChannelKind) {
+    let lock = this.waitForBufferHeadroomLocks.get(kind);
     if (!lock) {
       lock = new Mutex();
-      this.waitUntilBelowHighWaterMarkLocks.set(kind, lock);
+      this.waitForBufferHeadroomLocks.set(kind, lock);
     }
     const unlock = await lock.lock();
     try {
@@ -1785,7 +1785,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const onDCClose = () => {
           cleanup();
           reject(
-            new UnexpectedConnectionState(`DataChannel {kind} closed while draining the buffer`),
+            new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
           );
         };
         const cleanup = () => {
