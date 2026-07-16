@@ -12,6 +12,11 @@ export interface FlowControlledDataChannelOptions {
   highWaterMark: number;
   /** Whether the owning engine has been closed — a closed engine rejects waiters immediately. */
   isEngineClosed: () => boolean;
+  /**
+   * Notified when the buffer crosses the low-water mark in either direction (debounced: fires only
+   * on an actual change). Drives the engine's public DCBufferStatusChanged event.
+   */
+  onBufferStatusChanged?: (isLow: boolean) => void;
 }
 
 /**
@@ -37,6 +42,11 @@ export class FlowControlledDataChannel {
 
   protected isEngineClosed: () => boolean;
 
+  private onBufferStatusChanged?: (isLow: boolean) => void;
+
+  /** Last emitted low-water status; starts true (an empty buffer is below the mark). */
+  private bufferStatusLow = true;
+
   private handle?: RTCDataChannel;
 
   private headroomLock = new Mutex();
@@ -48,6 +58,7 @@ export class FlowControlledDataChannel {
     this.lowWaterMark = opts.lowWaterMark;
     this.highWaterMark = opts.highWaterMark;
     this.isEngineClosed = opts.isEngineClosed;
+    this.onBufferStatusChanged = opts.onBufferStatusChanged;
   }
 
   /** The currently attached RTCDataChannel handle, if any. */
@@ -189,5 +200,23 @@ export class FlowControlledDataChannel {
   invalidateWaiters(reason: string) {
     this.epoch.abort(reason);
     this.epoch = new AbortController();
+  }
+
+  /**
+   * Recomputes whether the buffer has drained to the low-water mark and, if that changed since the
+   * last check, notifies the status listener. Two independent triggers land here: a send (which
+   * raises the buffer) and the `bufferedamountlow` drain event (which lowers it) — the latter has
+   * no send to hang the work off, which is why this is a shared entry point rather than a tail of
+   * `send`.
+   */
+  refreshBufferStatus() {
+    if (!this.getChannel()) {
+      return;
+    }
+    const isLow = this.isBelowLowWaterMark();
+    if (isLow !== this.bufferStatusLow) {
+      this.bufferStatusLow = isLow;
+      this.onBufferStatusChanged?.(isLow);
+    }
   }
 }

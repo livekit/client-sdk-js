@@ -36,7 +36,7 @@ function makeManager(overrides?: Partial<DataChannelManagerOptions>) {
     onDataTrackMessage: vi.fn(),
     onDataError: vi.fn(),
     onChannelClose: vi.fn(),
-    onBufferedAmountLow: vi.fn(),
+    onBufferStatusChanged: vi.fn(),
     ...overrides,
   };
   const manager = new DataChannelManager(opts);
@@ -70,11 +70,23 @@ describe('DataChannelManager', () => {
       expect(dc.bufferedAmountLowThreshold).toBeGreaterThan(0);
     }
 
-    // Close/bufferedamountlow handlers report the right kind.
+    // Close handler reports the right kind.
     created.find((dc) => dc.label === '_reliable')!.onclose!();
     expect(opts.onChannelClose).toHaveBeenCalledWith(DataChannelKind.RELIABLE);
-    created.find((dc) => dc.label === '_data_track')!.onbufferedamountlow!();
-    expect(opts.onBufferedAmountLow).toHaveBeenCalledWith(DataChannelKind.DATA_TRACK_LOSSY);
+
+    // A drain event on the data-track channel refreshes its status; since the buffer starts empty
+    // (below the low mark) and the wrapper's initial status is already "low", no change fires —
+    // fill it first so the drain is an observable not-low → low transition.
+    const dataTrackDc = created.find((dc) => dc.label === '_data_track')!;
+    dataTrackDc.bufferedAmount = 10 * 1024 * 1024;
+    dataTrackDc.onbufferedamountlow!(); // refresh: now "not low"
+    dataTrackDc.bufferedAmount = 0;
+    dataTrackDc.onbufferedamountlow!(); // refresh: back to "low"
+    expect(opts.onBufferStatusChanged).toHaveBeenCalledWith(
+      DataChannelKind.DATA_TRACK_LOSSY,
+      false,
+    );
+    expect(opts.onBufferStatusChanged).toHaveBeenCalledWith(DataChannelKind.DATA_TRACK_LOSSY, true);
 
     manager.lossy.stopThresholdTuning();
   });

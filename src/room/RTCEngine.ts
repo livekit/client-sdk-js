@@ -165,8 +165,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return !!this.reconnectTimeout;
   }
 
-  private dcBufferStatus: Map<DataChannelKind, boolean>;
-
   /**
    * Owns the data channels: the three flow-controlled publisher wrappers (engine-lifetime; the
    * RTCDataChannel handles underneath are attached/detached as peer connections come and go, with
@@ -260,11 +258,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
-    this.dcBufferStatus = new Map([
-      [DataChannelKind.RELIABLE, true],
-      [DataChannelKind.LOSSY, true],
-      [DataChannelKind.DATA_TRACK_LOSSY, true],
-    ]);
     this.dataChannels = new DataChannelManager({
       isEngineClosed: () => this.isClosed,
       isReconnecting: () => this.attemptingReconnect,
@@ -272,7 +265,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       onDataTrackMessage: (message) => this.handleDataTrackMessage(message),
       onDataError: (event) => this.handleDataError(event),
       onChannelClose: (kind) => this.handleDataChannelClose(kind)(),
-      onBufferedAmountLow: (kind) => this.handleBufferedAmountLow(kind),
+      onBufferStatusChanged: (kind, isLow) =>
+        this.emit(EngineEvent.DCBufferStatusChanged, isLow, kind),
     });
 
     this.client.onParticipantUpdate = (updates) =>
@@ -956,10 +950,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  private handleBufferedAmountLow = (channelKind: DataChannelKind) => {
-    this.updateAndEmitDCBufferStatus(channelKind);
-  };
-
   async createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
@@ -1488,13 +1478,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       );
     }
 
-    // The full-buffer policy (drop for lossy, wait/replay for reliable) is the channel's own.
+    // The full-buffer policy (drop for lossy, wait/replay for reliable) is the channel's own, as
+    // is emitting the buffer-status change once the send settles.
     if (kind === DataChannelKind.RELIABLE) {
       await this.reliableChannel.send(msg, packet.sequence);
     } else {
       await this.lossyChannel.send(msg);
     }
-    this.updateAndEmitDCBufferStatus(kind);
   }
 
   /**
@@ -1510,32 +1500,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // steady-state cost is one await on an already-resolved promise.
     await this.ensurePublisherConnected(DataChannelKind.DATA_TRACK_LOSSY);
     await this.dataTrackChannel.send(bytes);
-    this.updateAndEmitDCBufferStatus(DataChannelKind.DATA_TRACK_LOSSY);
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
     await this.ensurePublisherConnected(DataChannelKind.RELIABLE);
     await this.reliableChannel.replay(lastMessageSeq);
-    this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
-
-  private updateAndEmitDCBufferStatus = (kind: DataChannelKind) => {
-    if (kind === DataChannelKind.RELIABLE) {
-      const dc = this.dataChannelForKind(kind);
-      if (dc) {
-        this.reliableChannel.alignReplayBuffer(dc.bufferedAmount);
-      }
-    }
-    try {
-      const status = this.flowControlFor(kind).isBelowLowWaterMark();
-      if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
-        this.dcBufferStatus.set(kind, status);
-        this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
-      }
-    } catch (e) {
-      this.log.warn('could not update buffer status', { error: e });
-    }
-  };
 
   /** The flow-control gate for `kind` — see {@link FlowControlledDataChannel}. */
   private flowControlFor(kind: DataChannelKind): FlowControlledDataChannel {

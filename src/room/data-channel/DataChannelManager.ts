@@ -20,7 +20,8 @@ export interface DataChannelManagerOptions {
   onDataTrackMessage: (message: MessageEvent) => void;
   onDataError: (event: Event) => void;
   onChannelClose: (kind: DataChannelKind) => void;
-  onBufferedAmountLow: (kind: DataChannelKind) => void;
+  /** A channel's buffer crossed its low-water mark (debounced). Drives DCBufferStatusChanged. */
+  onBufferStatusChanged: (kind: DataChannelKind, isLow: boolean) => void;
 }
 
 /**
@@ -53,6 +54,7 @@ export class DataChannelManager {
       lowWaterMark: dataChannelLowWaterMark(kind),
       highWaterMark: dataChannelHighWaterMark(kind),
       isEngineClosed: opts.isEngineClosed,
+      onBufferStatusChanged: (isLow: boolean) => opts.onBufferStatusChanged(kind, isLow),
     });
     this.reliable = new ReliableDataChannel({
       ...flowControlOptions(DataChannelKind.RELIABLE),
@@ -136,7 +138,7 @@ export class DataChannelManager {
       // set up dc buffer threshold - if this is not set, it will default to 0
       dc.bufferedAmountLowThreshold = channel.lowWaterMark;
       // handle buffer amount low events
-      dc.onbufferedamountlow = () => this.opts.onBufferedAmountLow(channel.kind);
+      dc.onbufferedamountlow = () => channel.refreshBufferStatus();
       channel.attach(dc);
     };
 

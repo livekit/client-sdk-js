@@ -75,6 +75,7 @@ export class LossyDataChannel extends FlowControlledDataChannel {
     }
 
     dc.send(msg);
+    this.refreshBufferStatus();
   }
 
   /**

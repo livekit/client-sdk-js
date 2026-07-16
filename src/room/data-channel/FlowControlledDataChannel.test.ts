@@ -14,19 +14,48 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: boolean }) {
   const dc = 'dc' in (opts ?? {}) ? opts!.dc : new FakeDataChannel();
   const state = { engineClosed: opts?.engineClosed ?? false };
+  const onBufferStatusChanged = vi.fn();
   const channel = new FlowControlledDataChannel({
     kind: DataChannelKind.RELIABLE,
     lowWaterMark: 64,
     highWaterMark: 1024,
     isEngineClosed: () => state.engineClosed,
+    onBufferStatusChanged,
   });
   if (dc) {
     channel.attach(dc as unknown as RTCDataChannel);
   }
-  return { channel, dc: dc as FakeDataChannel, state };
+  return { channel, dc: dc as FakeDataChannel, state, onBufferStatusChanged };
 }
 
 describe('FlowControlledDataChannel', () => {
+  describe('refreshBufferStatus', () => {
+    it('notifies only on a change and in both directions', () => {
+      const { channel, dc, onBufferStatusChanged } = makeChannel();
+
+      // Starts "low" (empty buffer); a refresh that stays low emits nothing.
+      channel.refreshBufferStatus();
+      expect(onBufferStatusChanged).not.toHaveBeenCalled();
+
+      // Cross above the low mark → one not-low notification.
+      dc.bufferedAmount = 512;
+      channel.refreshBufferStatus();
+      channel.refreshBufferStatus(); // debounced: no second fire
+      expect(onBufferStatusChanged.mock.calls).toEqual([[false]]);
+
+      // Drain back below → one low notification.
+      dc.bufferedAmount = 0;
+      channel.refreshBufferStatus();
+      expect(onBufferStatusChanged.mock.calls).toEqual([[false], [true]]);
+    });
+
+    it('is a no-op without a handle (no throw, no notification)', () => {
+      const { channel, onBufferStatusChanged } = makeChannel({ dc: undefined });
+      expect(() => channel.refreshBufferStatus()).not.toThrow();
+      expect(onBufferStatusChanged).not.toHaveBeenCalled();
+    });
+  });
+
   it('reports watermark status against the current channel', () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 0;

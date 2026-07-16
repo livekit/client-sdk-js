@@ -85,6 +85,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
 
     this.messageBuffer.push({ data: msg, sequence, sent: true });
     dc.send(msg);
+    this.refreshBufferStatus();
   }
 
   /**
@@ -114,11 +115,20 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
     } finally {
       unlock();
     }
+    this.refreshBufferStatus();
   }
 
-  /** Trims delivered packets out of the replay buffer based on the channel's buffered bytes. */
-  alignReplayBuffer(bufferedAmount: number) {
-    this.messageBuffer.alignBufferedAmount(bufferedAmount);
+  /**
+   * Before recomputing status, trim packets the transport has now delivered — a send or a drain
+   * may have acked buffered packets, and the replay buffer is keyed off the channel's buffered
+   * bytes.
+   */
+  override refreshBufferStatus() {
+    const dc = this.channelHandle;
+    if (dc) {
+      this.messageBuffer.alignBufferedAmount(dc.bufferedAmount);
+    }
+    super.refreshBufferStatus();
   }
 
   /**

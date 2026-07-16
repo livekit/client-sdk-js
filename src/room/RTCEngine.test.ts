@@ -232,7 +232,6 @@ describe('RTCEngine', () => {
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        updateAndEmitDCBufferStatus: vi.fn(),
         pcManager: {
           getMaxPublisherMessageSize: vi.fn(() => maxDataPacketSize),
         },
@@ -454,7 +453,7 @@ describe('RTCEngine', () => {
     });
   });
 
-  describe('sendLossyBytes', () => {
+  describe('sendDataTrackFrame', () => {
     it('ensures the publisher is connected before sending (direct data-track path)', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
@@ -487,7 +486,7 @@ describe('RTCEngine', () => {
         (engine as unknown as { lossyChannel: { statCurrentBytes: number } }).lossyChannel
           .statCurrentBytes;
 
-      // Data-track traffic (sendLossyBytes → data-track channel) must not move the LOSSY channel's
+      // Data-track traffic (sendDataTrackFrame → data-track channel) must not move the LOSSY channel's
       // stat — it would inflate the lossy channel's dynamically tuned drop threshold with traffic
       // that channel never carries.
       await engine.sendDataTrackFrame(new Uint8Array(1000));
