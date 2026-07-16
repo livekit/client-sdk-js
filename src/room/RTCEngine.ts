@@ -1643,13 +1643,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async sendLossyBytes(
     bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
-    bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
+    bufferStatusFullBehavior: 'drop' | 'wait' = 'drop',
   ) {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       // Depending on the exact circumstance that data is being sent, either drop or wait for the
       // buffer to drain below the high-water mark before continuing.
-      switch (bufferStatusLowBehavior) {
+      switch (bufferStatusFullBehavior) {
         case 'wait':
           if (!this.isBelowHighWaterMark(kind)) {
             await this.waitForBufferHeadroom(kind);
