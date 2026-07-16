@@ -462,13 +462,13 @@ describe('RTCEngine', () => {
         dataChannelForKind: vi.fn(() => (connected ? dc : undefined)),
       });
 
-      await engine.sendLossyBytes(new Uint8Array([1]), DataChannelKind.DATA_TRACK_LOSSY, 'wait');
+      await engine.sendLossyBytes(new Uint8Array([1]), DataChannelKind.DATA_TRACK_LOSSY);
 
       expect(ensurePublisherConnected).toHaveBeenCalledWith(DataChannelKind.DATA_TRACK_LOSSY);
       expect(dc.send).toHaveBeenCalledTimes(1);
     });
 
-    it('only counts LOSSY bytes into the byterate stat that tunes the lossy drop threshold', async () => {
+    it('keeps each channel’s byterate stat isolated from the other’s traffic', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
       Object.assign(engine as unknown as Record<string, unknown>, {
@@ -476,16 +476,17 @@ describe('RTCEngine', () => {
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
         dataChannelForKind: vi.fn(() => dc),
       });
-      const stat = () =>
-        (engine as unknown as { lossyDataStatCurrentBytes: number }).lossyDataStatCurrentBytes;
+      const lossyStat = () =>
+        (engine as unknown as { lossyChannel: { statCurrentBytes: number } }).lossyChannel
+          .statCurrentBytes;
 
-      // Data-track traffic must not move the stat — it would inflate the LOSSY channel's
-      // dynamically tuned drop threshold with traffic that channel never carries.
-      await engine.sendLossyBytes(new Uint8Array(1000), DataChannelKind.DATA_TRACK_LOSSY, 'wait');
-      expect(stat()).toBe(0);
+      // Data-track traffic must not move the LOSSY channel's stat — it would inflate the lossy
+      // channel's dynamically tuned drop threshold with traffic that channel never carries.
+      await engine.sendLossyBytes(new Uint8Array(1000), DataChannelKind.DATA_TRACK_LOSSY);
+      expect(lossyStat()).toBe(0);
 
-      await engine.sendLossyBytes(new Uint8Array(100), DataChannelKind.LOSSY, 'drop');
-      expect(stat()).toBe(100);
+      await engine.sendLossyBytes(new Uint8Array(100), DataChannelKind.LOSSY);
+      expect(lossyStat()).toBe(100);
     });
   });
 

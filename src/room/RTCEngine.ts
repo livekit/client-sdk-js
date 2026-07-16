@@ -68,6 +68,7 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
+import { LossyDataChannel } from './data-channel/LossyDataChannel';
 import { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import {
   DataChannelKind,
@@ -195,9 +196,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   private reliableChannel: ReliableDataChannel;
 
-  private lossyChannel: FlowControlledDataChannel;
+  private lossyChannel: LossyDataChannel;
 
-  private dataTrackChannel: FlowControlledDataChannel;
+  private dataTrackChannel: LossyDataChannel;
 
   private subscriberPrimary: boolean = false;
 
@@ -256,14 +257,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
-  private lossyDataStatCurrentBytes: number = 0;
-
-  private lossyDataStatByterate: number = 0;
-
-  private lossyDataStatInterval: ReturnType<typeof setInterval> | undefined;
-
-  private lossyDataDropCount: number = 0;
-
   private midToTrackId: { [key: string]: string } = {};
 
   /** used to indicate whether the browser is currently waiting to reconnect */
@@ -299,10 +292,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       ...flowControlOptions(DataChannelKind.RELIABLE),
       isDeferringSends: () => this.attemptingReconnect,
     });
-    this.lossyChannel = new FlowControlledDataChannel(flowControlOptions(DataChannelKind.LOSSY));
-    this.dataTrackChannel = new FlowControlledDataChannel(
-      flowControlOptions(DataChannelKind.DATA_TRACK_LOSSY),
-    );
+    this.lossyChannel = new LossyDataChannel({
+      ...flowControlOptions(DataChannelKind.LOSSY),
+      // Classic lossy user data: a stale packet is worthless, so drop instead of queueing.
+      bufferFullBehavior: 'drop',
+      shouldSkipSends: () => this.attemptingReconnect,
+    });
+    this.dataTrackChannel = new LossyDataChannel({
+      ...flowControlOptions(DataChannelKind.DATA_TRACK_LOSSY),
+      // Data tracks backpressure the producer instead — it decides what to skip at frame
+      // granularity rather than the engine dropping arbitrary chunks out of frames.
+      bufferFullBehavior: 'wait',
+      shouldSkipSends: () => this.attemptingReconnect,
+    });
 
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
@@ -520,13 +522,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   cleanupLossyDataStats() {
-    this.lossyDataStatByterate = 0;
-    this.lossyDataStatCurrentBytes = 0;
-    if (this.lossyDataStatInterval) {
-      clearInterval(this.lossyDataStatInterval);
-      this.lossyDataStatInterval = undefined;
-    }
-    this.lossyDataDropCount = 0;
+    this.lossyChannel.stopThresholdTuning();
   }
 
   async cleanupClient() {
@@ -973,22 +969,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.dataTrackDC.onbufferedamountlow = () =>
       this.handleBufferedAmountLow(DataChannelKind.DATA_TRACK_LOSSY);
 
-    this.cleanupLossyDataStats();
-    this.lossyDataStatInterval = setInterval(() => {
-      this.lossyDataStatByterate = this.lossyDataStatCurrentBytes;
-      this.lossyDataStatCurrentBytes = 0;
-
-      const dc = this.dataChannelForKind(DataChannelKind.LOSSY);
-      if (dc) {
-        // control buffered latency to ~100ms
-        const threshold = this.lossyDataStatByterate / 10;
-        const lossyFlowControl = this.flowControlFor(DataChannelKind.LOSSY);
-        dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyFlowControl.lowWaterMark),
-          lossyFlowControl.highWaterMark,
-        );
-      }
-    }, 1000);
+    this.lossyChannel.startThresholdTuning();
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -1669,7 +1650,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async sendLossyBytes(
     bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
-    bufferStatusFullBehavior: 'drop' | 'wait' = 'drop',
   ) {
     // Make sure we do have a data connection. This matters most for the direct data-track path
     // (Room's packetAvailable handler), which doesn't go through sendDataPacket: it both waits for
@@ -1678,42 +1658,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // await on an already-resolved promise.
     await this.ensurePublisherConnected(kind);
 
-    const dc = this.dataChannelForKind(kind);
-    if (dc) {
-      // Depending on the exact circumstance that data is being sent, either drop or wait for the
-      // buffer to drain below the high-water mark before continuing.
-      switch (bufferStatusFullBehavior) {
-        case 'wait':
-          if (!this.flowControlFor(kind).isBelowHighWaterMark()) {
-            await this.waitForBufferHeadroom(kind);
-          }
-          break;
-        case 'drop':
-          // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
-          if (!this.flowControlFor(kind).isBelowLowWaterMark()) {
-            // Drop messages to reduce latency
-            this.lossyDataDropCount += 1;
-            if (this.lossyDataDropCount % 100 === 0) {
-              this.log.warn(
-                `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-              );
-            }
-            return;
-          }
-      }
-      if (kind === DataChannelKind.LOSSY) {
-        // The byterate stat tunes the LOSSY channel's dynamic drop threshold; counting data-track
-        // bytes here would inflate it and let the lossy channel buffer far more latency than the
-        // ~100ms the tuning targets.
-        this.lossyDataStatCurrentBytes += bytes.byteLength;
-      }
-
-      if (this.attemptingReconnect) {
-        return;
-      }
-
-      dc.send(bytes);
-    }
+    // The full-buffer policy (drop vs wait) is the channel's own — see LossyDataChannel.
+    const channel = kind === DataChannelKind.LOSSY ? this.lossyChannel : this.dataTrackChannel;
+    await channel.send(bytes);
 
     this.updateAndEmitDCBufferStatus(kind);
   }
