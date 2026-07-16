@@ -1,6 +1,6 @@
 import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import type { DataPacketBuffer, DataPacketItem } from '../utils/dataPacketBuffer';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
@@ -326,8 +326,9 @@ describe('RTCEngine', () => {
       // waitForBufferHeadroom before its first send.
       const replayed1 = new Uint8Array([1]);
       const replayed2 = new Uint8Array([2]);
-      const buffer = (engine as unknown as { reliableMessageBuffer: { push: Function } })
-        .reliableMessageBuffer;
+      const buffer = (
+        engine as unknown as { reliableMessageBuffer: { push: (item: DataPacketItem) => void } }
+      ).reliableMessageBuffer;
       buffer.push({ data: replayed1, sequence: 1, sent: true });
       buffer.push({ data: replayed2, sequence: 2, sent: true });
       dc.bufferedAmount = 2 * 1024 * 1024; // above the reliable high-water mark
