@@ -44,7 +44,6 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import type { Throws } from '@livekit/throws-transformer/throws';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -69,6 +68,12 @@ import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
+import {
+  DataChannelKind,
+  dataChannelHighWaterMark,
+  dataChannelLowWaterMark,
+} from './data-channel/types';
 import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
@@ -110,17 +115,6 @@ const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
 
-// Two-watermark flow control for the reliable and data-track channels. Senders fill the buffer
-// freely up to the high-water mark; once it's exceeded they block until the browser's
-// `bufferedamountlow` event (which we arm at the low-water mark) signals the buffer has drained.
-// The gap between the marks keeps the SCTP send buffer saturated while we refill, so throughput
-// isn't starved, while the high-water mark bounds the buffer well below the level that would abort
-// the channel (see livekit/client-sdk-js#1995).
-const reliableDataChannelWaterMarkLow = 64 * 1024;
-const reliableDataChannelWaterMarkHigh = 1024 * 1024;
-const lossyDataChannelWaterMarkLow = 8 * 1024;
-const lossyDataChannelWaterMarkHigh = 256 * 1024;
-
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
 
@@ -132,11 +126,7 @@ enum PCState {
   Closed,
 }
 
-export enum DataChannelKind {
-  RELIABLE = DataPacket_Kind.RELIABLE,
-  LOSSY = DataPacket_Kind.LOSSY,
-  DATA_TRACK_LOSSY = 2,
-}
+export { DataChannelKind };
 
 // Default data-channel max message size (bytes), used when the remote SDP
 // answer does not advertise an `a=max-message-size` attribute (RFC 8841).
@@ -196,6 +186,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private dataTrackDCSub?: RTCDataChannel;
 
   private dcBufferStatus: Map<DataChannelKind, boolean>;
+
+  /** Per-kind two-watermark flow control (headroom gate, watermarks, waiter epochs). */
+  private flowControl: Map<DataChannelKind, FlowControlledDataChannel>;
 
   private subscriberPrimary: boolean = false;
 
@@ -288,6 +281,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       [DataChannelKind.LOSSY, true],
       [DataChannelKind.DATA_TRACK_LOSSY, true],
     ]);
+    this.flowControl = new Map(
+      [DataChannelKind.RELIABLE, DataChannelKind.LOSSY, DataChannelKind.DATA_TRACK_LOSSY].map(
+        (kind) => [
+          kind,
+          new FlowControlledDataChannel({
+            kind,
+            lowWaterMark: dataChannelLowWaterMark(kind),
+            highWaterMark: dataChannelHighWaterMark(kind),
+            // Channel handles are still owned by the engine (they move with the manager phase);
+            // the providers keep flow control pointed at the current handle across recreation.
+            getChannel: () => this.dataChannelForKind(kind),
+            isEngineClosed: () => this.isClosed,
+          }),
+        ],
+      ),
+    );
 
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
@@ -941,9 +950,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
     // set up dc buffer threshold - if this is not set, it will default to 0
-    this.lossyDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
-    this.reliableDC.bufferedAmountLowThreshold = reliableDataChannelWaterMarkLow;
-    this.dataTrackDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
+    this.lossyDC.bufferedAmountLowThreshold = this.flowControlFor(
+      DataChannelKind.LOSSY,
+    ).lowWaterMark;
+    this.reliableDC.bufferedAmountLowThreshold = this.flowControlFor(
+      DataChannelKind.RELIABLE,
+    ).lowWaterMark;
+    this.dataTrackDC.bufferedAmountLowThreshold = this.flowControlFor(
+      DataChannelKind.DATA_TRACK_LOSSY,
+    ).lowWaterMark;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -961,9 +976,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (dc) {
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
+        const lossyFlowControl = this.flowControlFor(DataChannelKind.LOSSY);
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyDataChannelWaterMarkLow),
-          lossyDataChannelWaterMarkHigh,
+          Math.max(threshold, lossyFlowControl.lowWaterMark),
+          lossyFlowControl.highWaterMark,
         );
       }
     }, 1000);
@@ -1695,13 +1711,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // buffer to drain below the high-water mark before continuing.
       switch (bufferStatusFullBehavior) {
         case 'wait':
-          if (!this.isBelowHighWaterMark(kind)) {
+          if (!this.flowControlFor(kind).isBelowHighWaterMark()) {
             await this.waitForBufferHeadroom(kind);
           }
           break;
         case 'drop':
           // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
-          if (!this.isBelowLowWaterMark(kind)) {
+          if (!this.flowControlFor(kind).isBelowLowWaterMark()) {
             // Drop messages to reduce latency
             this.lossyDataDropCount += 1;
             if (this.lossyDataDropCount % 100 === 0) {
@@ -1738,11 +1754,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // concurrent send — whose (newer) sequence was already assigned in sendDataPacket before it
       // queued on the lock — hit the wire mid-replay, and receivers would then discard the
       // remaining lower-sequence resent messages as duplicates.
-      const unlock = await this.lockBufferHeadroom(DataChannelKind.RELIABLE);
+      const reliableFlowControl = this.flowControlFor(DataChannelKind.RELIABLE);
+      const unlock = await reliableFlowControl.lockHeadroom();
       try {
         for (const msg of this.reliableMessageBuffer.getAll()) {
           // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
-          await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
+          await reliableFlowControl.waitForHeadroomLocked();
           dc.send(msg.data);
         }
         // Everything queued (including packets buffered unsent during the reconnect window) has
@@ -1764,7 +1781,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     }
     try {
-      const status = this.isBelowLowWaterMark(kind);
+      const status = this.flowControlFor(kind).isBelowLowWaterMark();
       if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
         this.dcBufferStatus.set(kind, status);
         this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
@@ -1774,144 +1791,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  /**
-   * Whether the send buffer has room to accept more data (the send gate). Senders proceed while
-   * this is true and block once it goes false.
-   */
-  private isBelowHighWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
-    const dc = this.dataChannelForKind(kind);
-    if (!dc) {
-      throw new TypeError(`Could not get data channel for kind ${kind}`);
-    }
-    // because RTCDatachannel has no high water mark built in we read the statically defined versions as constants
-    const highMark =
-      kind === DataChannelKind.RELIABLE
-        ? reliableDataChannelWaterMarkHigh
-        : lossyDataChannelWaterMarkHigh;
-    return dc.bufferedAmount <= highMark;
-  };
-
-  /**
-   * Whether the send buffer has drained to its low-water mark. Drives the public
-   * {@link EngineEvent.DCBufferStatusChanged} event.
-   */
-  private isBelowLowWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
-    const dc = this.dataChannelForKind(kind);
-    if (!dc) {
-      throw new TypeError(`Could not get data channel for kind ${kind}`);
-    }
-    // because RTCDatachannel has the threshold built in we can read it dynamically to account for changing thresholds over time
-    return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
-  };
-
-  /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
-  private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
-
-  /**
-   * Per-kind epoch for headroom waiters: aborted whenever a kind's channel object stops being
-   * current (replaced by createDataChannels or torn down by cleanupPeerConnections). A waiter is
-   * parked on the channel object it captured at wait entry; if that object is abandoned its
-   * events may never fire again, so the abort is what rejects the waiter and releases the
-   * headroom lock instead of stranding every future sender behind it.
-   */
-  private dataChannelEpochs = new Map<DataChannelKind, AbortController>();
-
-  private dataChannelEpochSignal(kind: DataChannelKind): AbortSignal {
-    let controller = this.dataChannelEpochs.get(kind);
-    if (!controller) {
-      controller = new AbortController();
-      this.dataChannelEpochs.set(kind, controller);
-    }
-    return controller.signal;
+  /** The flow-control gate for `kind` — see {@link FlowControlledDataChannel}. */
+  private flowControlFor(kind: DataChannelKind): FlowControlledDataChannel {
+    return this.flowControl.get(kind)!;
   }
 
-  /** Rejects all parked headroom waiters (all kinds) and starts a fresh epoch. */
+  /**
+   * Rejects all parked headroom waiters (all kinds) and starts a fresh epoch. Must be called
+   * whenever the channel objects stop being current (recreation, teardown), since waiters parked
+   * on an abandoned object may never see another event from it.
+   */
   private invalidateDataChannelWaiters(reason: string) {
-    for (const controller of this.dataChannelEpochs.values()) {
-      controller.abort(reason);
+    for (const channel of this.flowControl.values()) {
+      channel.invalidateWaiters(reason);
     }
-    this.dataChannelEpochs.clear();
-  }
-
-  /** Acquires the per-kind headroom lock, resolving with the unlock function. */
-  private lockBufferHeadroom(kind: DataChannelKind): Promise<() => void> {
-    let lock = this.waitForBufferHeadroomLocks.get(kind);
-    if (!lock) {
-      lock = new Mutex();
-      this.waitForBufferHeadroomLocks.set(kind, lock);
-    }
-    return lock.lock();
   }
 
   /**
-   * Resolves once the caller may send on the `kind` channel: immediately while the send buffer is
-   * at or below its high-water mark, otherwise once the buffer has drained to the low-water mark
-   * (the `bufferedamountlow` event). Callers are serialized through a per-kind mutex so that, when
-   * the buffer drains, they refill it one at a time (up to the high-water mark) rather than all
-   * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
-   * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
+   * Resolves once the caller may send on the `kind` channel — see
+   * {@link FlowControlledDataChannel.waitForHeadroom}.
    */
   async waitForBufferHeadroom(kind: DataChannelKind) {
-    const unlock = await this.lockBufferHeadroom(kind);
-    try {
-      await this.waitForBufferHeadroomLocked(kind);
-    } finally {
-      unlock();
-    }
-  }
-
-  /**
-   * Core wait of {@link waitForBufferHeadroom}. The caller must hold the kind's headroom lock —
-   * batch senders (the resume replay) hold it across all of their sends so no other sender can
-   * interleave, and call this per message to respect flow control within the batch.
-   */
-  private async waitForBufferHeadroomLocked(kind: DataChannelKind) {
-    if (this.isClosed) {
-      throw new UnexpectedConnectionState('engine closed');
-    }
-    if (this.isBelowHighWaterMark(kind)) {
-      return;
-    }
-    const dc = this.dataChannelForKind(kind);
-    if (!dc) {
-      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
-    }
-    const epochSignal = this.dataChannelEpochSignal(kind);
-    await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
-      const onBufferedAmountLow = () => {
-        cleanup();
-        resolve();
-      };
-      const onDCClose = () => {
-        cleanup();
-        reject(
-          new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
-        );
-      };
-      const onEpochAbort = () => {
-        cleanup();
-        reject(
-          new UnexpectedConnectionState(
-            `DataChannel ${kind} was replaced or torn down while waiting for headroom`,
-          ),
-        );
-      };
-      const cleanup = () => {
-        dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
-        dc.removeEventListener('close', onDCClose);
-        epochSignal.removeEventListener('abort', onEpochAbort);
-      };
-      if (epochSignal.aborted) {
-        onEpochAbort();
-        return;
-      }
-      dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
-      // Proxy along any error caused by the data channel closing while we wait.
-      dc.addEventListener('close', onDCClose);
-      // The channel object we're parked on can be abandoned without ever firing another event
-      // (e.g. createDataChannels replacing it); the epoch abort is our way out.
-      epochSignal.addEventListener('abort', onEpochAbort);
-    });
+    return this.flowControlFor(kind).waitForHeadroom();
   }
 
   /**

@@ -326,7 +326,7 @@ describe('RTCEngine', () => {
       // waitForBufferHeadroom before its first send.
       const replayed1 = new Uint8Array([1]);
       const replayed2 = new Uint8Array([2]);
-      const buffer = (engine as unknown as { reliableMessageBuffer: { push: Function } })
+      const buffer = (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
         .reliableMessageBuffer;
       buffer.push({ data: replayed1, sequence: 1, sent: true });
       buffer.push({ data: replayed2, sequence: 2, sent: true });
