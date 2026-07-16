@@ -1671,8 +1671,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }
           break;
         case 'drop':
-          if (!this.isBelowLowWaterMark(kind)) {
-            // this.log.warn(`dropping lossy data channel message`, this.logContext);
+          // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
+          if (dc.bufferedAmount > dc.bufferedAmountLowThreshold) {
             // Drop messages to reduce latency
             this.lossyDataDropCount += 1;
             if (this.lossyDataDropCount % 100 === 0) {
