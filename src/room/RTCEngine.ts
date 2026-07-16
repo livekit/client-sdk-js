@@ -1657,7 +1657,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           break;
         case 'drop':
           // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
-          if (dc.bufferedAmount > dc.bufferedAmountLowThreshold) {
+          if (!this.isBelowLowWaterMark(kind)) {
             // Drop messages to reduce latency
             this.lossyDataDropCount += 1;
             if (this.lossyDataDropCount % 100 === 0) {
@@ -1718,6 +1718,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!dc) {
       throw new TypeError(`Could not get data channel for kind ${kind}`);
     }
+    // because RTCDatachannel has no high water mark built in we read the statically defined versions as constants
     const highMark =
       kind === DataChannelKind.RELIABLE
         ? reliableDataChannelWaterMarkHigh
@@ -1734,6 +1735,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!dc) {
       throw new TypeError(`Could not get data channel for kind ${kind}`);
     }
+    // because RTCDatachannel has the threshold built in we can read it dynamically to account for changing thresholds over time
     return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
   };
 
