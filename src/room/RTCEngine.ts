@@ -1690,43 +1690,52 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     await this.ensurePublisherConnected(kind);
 
     const dc = this.dataChannelForKind(kind);
-    if (dc) {
-      // Depending on the exact circumstance that data is being sent, either drop or wait for the
-      // buffer to drain below the high-water mark before continuing.
-      switch (bufferStatusFullBehavior) {
-        case 'wait':
-          if (!this.isBelowHighWaterMark(kind)) {
-            await this.waitForBufferHeadroom(kind);
-          }
-          break;
-        case 'drop':
-          // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
-          if (!this.isBelowLowWaterMark(kind)) {
-            // Drop messages to reduce latency
-            this.lossyDataDropCount += 1;
-            if (this.lossyDataDropCount % 100 === 0) {
-              this.log.warn(
-                `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-              );
+    try {
+      if (dc) {
+        // Depending on the exact circumstance that data is being sent, either drop or wait for the
+        // buffer to drain below the high-water mark before continuing.
+        switch (bufferStatusFullBehavior) {
+          case 'wait':
+            if (!this.isBelowHighWaterMark(kind)) {
+              await this.waitForBufferHeadroom(kind);
             }
-            return;
-          }
-      }
-      if (kind === DataChannelKind.LOSSY) {
-        // The byterate stat tunes the LOSSY channel's dynamic drop threshold; counting data-track
-        // bytes here would inflate it and let the lossy channel buffer far more latency than the
-        // ~100ms the tuning targets.
-        this.lossyDataStatCurrentBytes += bytes.byteLength;
+            break;
+          case 'drop':
+            // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
+            if (!this.isBelowLowWaterMark(kind)) {
+              // Drop messages to reduce latency
+              this.lossyDataDropCount += 1;
+              if (this.lossyDataDropCount % 100 === 0) {
+                this.log.warn(
+                  `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+                );
+              }
+              return;
+            }
+        }
+        if (kind === DataChannelKind.LOSSY) {
+          // The byterate stat tunes the LOSSY channel's dynamic drop threshold; counting data-track
+          // bytes here would inflate it and let the lossy channel buffer far more latency than the
+          // ~100ms the tuning targets.
+          this.lossyDataStatCurrentBytes += bytes.byteLength;
+        }
+
+        if (this.attemptingReconnect) {
+          return;
+        }
+
+        dc.send(bytes);
       }
 
-      if (this.attemptingReconnect) {
-        return;
+      this.updateAndEmitDCBufferStatus(kind);
+    } catch (error: unknown) {
+      // ensure same surface behaviour as before with missing data channel being silently ignored, just log an error message for clarity
+      if (error instanceof TypeError) {
+        this.log.error(error);
+      } else {
+        throw error;
       }
-
-      dc.send(bytes);
     }
-
-    this.updateAndEmitDCBufferStatus(kind);
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
@@ -1865,7 +1874,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * batch senders (the resume replay) hold it across all of their sends so no other sender can
    * interleave, and call this per message to respect flow control within the batch.
    */
-  private async waitForBufferHeadroomLocked(kind: DataChannelKind) {
+  private async waitForBufferHeadroomLocked(
+    kind: DataChannelKind,
+  ): Promise<Throws<void, UnexpectedConnectionState | TypeError>> {
     if (this.isClosed) {
       throw new UnexpectedConnectionState('engine closed');
     }
