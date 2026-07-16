@@ -285,8 +285,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
-  private bufferStatusLowClosingFuture = new Future<never, UnexpectedConnectionState>();
-
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
@@ -320,13 +318,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
-
-    this.on(EngineEvent.Closing, () => {
-      this.bufferStatusLowClosingFuture.reject?.(new UnexpectedConnectionState('engine closed'));
-    });
-    // Swallow the rejection at the source so it doesn't surface as an unhandled promise rejection
-    // when no waitUntilBelowHighWaterMark callers are attached.
-    this.bufferStatusLowClosingFuture.promise.catch(() => {});
   }
 
   /** @internal */
@@ -1668,19 +1659,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
   ) {
-    // make sure we do have a data connection
-    await this.ensurePublisherConnected(kind);
-
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      if (!this.isBelowHighWaterMark(kind)) {
-        // Depending on the exact circumstance that data is being sent, either drop or wait for the
-        // buffer to drain below the high-water mark before continuing.
-        switch (bufferStatusLowBehavior) {
-          case 'wait':
+      // Depending on the exact circumstance that data is being sent, either drop or wait for the
+      // buffer to drain below the high-water mark before continuing.
+      switch (bufferStatusLowBehavior) {
+        case 'wait':
+          if (!this.isBelowHighWaterMark(kind)) {
             await this.waitUntilBelowHighWaterMark(kind);
-            break;
-          case 'drop':
+          }
+          break;
+        case 'drop':
+          if (!this.isBelowLowWaterMark(kind)) {
             // this.log.warn(`dropping lossy data channel message`, this.logContext);
             // Drop messages to reduce latency
             this.lossyDataDropCount += 1;
@@ -1690,7 +1680,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
               );
             }
             return;
-        }
+          }
       }
       this.lossyDataStatCurrentBytes += bytes.byteLength;
 
@@ -1761,7 +1751,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private waitUntilBelowHighWaterMarkLocks = new Map<DataChannelKind, Mutex>();
 
   /**
-   * Resolves once the send buffer for `kind` is at or below its high-water mark, blocking the
+   * Resolves once the send buffer for `kind` on the RTCDataChannel is at or below its high-water mark, blocking the
    * caller otherwise. Callers are serialized through a per-kind mutex so that, when the buffer
    * drains, they refill it one at a time (up to the high-water mark) rather than all sending at
    * once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The closed/buffer
@@ -1786,13 +1776,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
       }
       await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
-        const onBufferedAmountLow = () => resolve();
-        dc.addEventListener('bufferedamountlow', onBufferedAmountLow, { once: true });
-        // Proxy along any error caused by the engine closing while we wait.
-        this.bufferStatusLowClosingFuture.promise.catch((e) => {
+        const onBufferedAmountLow = () => {
+          cleanup();
+          resolve();
+        };
+        const onDCClose = () => {
+          cleanup();
+          reject(
+            new UnexpectedConnectionState(`DataChannel {kind} closed while draining the buffer`),
+          );
+        };
+        const cleanup = () => {
           dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
-          reject(e);
-        });
+          dc.removeEventListener('close', onDCClose);
+        };
+        dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
+        // Proxy along any error caused by the data channel closing while we wait.
+        dc.addEventListener('close', onDCClose);
       });
     } finally {
       unlock();
