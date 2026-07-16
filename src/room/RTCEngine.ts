@@ -44,6 +44,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -135,19 +136,6 @@ export enum DataChannelKind {
   RELIABLE = DataPacket_Kind.RELIABLE,
   LOSSY = DataPacket_Kind.LOSSY,
   DATA_TRACK_LOSSY = 2,
-}
-
-// Water marks for the two-watermark flow control
-function dataChannelLowWaterMark(kind: DataChannelKind): number {
-  return kind === DataChannelKind.RELIABLE
-    ? reliableDataChannelWaterMarkLow
-    : lossyDataChannelWaterMarkLow;
-}
-
-function dataChannelHighWaterMark(kind: DataChannelKind): number {
-  return kind === DataChannelKind.RELIABLE
-    ? reliableDataChannelWaterMarkHigh
-    : lossyDataChannelWaterMarkHigh;
 }
 
 // Default data-channel max message size (bytes), used when the remote SDP
@@ -943,11 +931,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
     // set up dc buffer threshold - if this is not set, it will default to 0
-    this.lossyDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(DataChannelKind.LOSSY);
-    this.reliableDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(DataChannelKind.RELIABLE);
-    this.dataTrackDC.bufferedAmountLowThreshold = dataChannelLowWaterMark(
-      DataChannelKind.DATA_TRACK_LOSSY,
-    );
+    this.lossyDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
+    this.reliableDC.bufferedAmountLowThreshold = reliableDataChannelWaterMarkLow;
+    this.dataTrackDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -1727,24 +1713,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * Whether the send buffer has room to accept more data (the send gate). Senders proceed while
    * this is true and block once it goes false.
    */
-  private isBelowHighWaterMark = (kind: DataChannelKind): boolean | undefined => {
+  private isBelowHighWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
     const dc = this.dataChannelForKind(kind);
     if (!dc) {
-      return;
+      throw new TypeError(`Could not get data channel for kind ${kind}`);
     }
-    return dc.bufferedAmount <= dataChannelHighWaterMark(kind);
+    const highMark =
+      kind === DataChannelKind.RELIABLE
+        ? reliableDataChannelWaterMarkHigh
+        : lossyDataChannelWaterMarkHigh;
+    return dc.bufferedAmount <= highMark;
   };
 
   /**
    * Whether the send buffer has drained to its low-water mark. Drives the public
    * {@link EngineEvent.DCBufferStatusChanged} event.
    */
-  private isBelowLowWaterMark = (kind: DataChannelKind): boolean | undefined => {
+  private isBelowLowWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
     const dc = this.dataChannelForKind(kind);
     if (!dc) {
-      return;
+      throw new TypeError(`Could not get data channel for kind ${kind}`);
     }
-    return dc.bufferedAmount <= dataChannelLowWaterMark(kind);
+    return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
   };
 
   /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
