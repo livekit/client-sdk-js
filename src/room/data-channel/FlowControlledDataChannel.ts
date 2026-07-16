@@ -41,9 +41,9 @@ export class FlowControlledDataChannel {
 
   readonly highWaterMark: number;
 
-  private getChannel: () => RTCDataChannel | undefined;
+  protected getChannel: () => RTCDataChannel | undefined;
 
-  private isEngineClosed: () => boolean;
+  protected isEngineClosed: () => boolean;
 
   private headroomLock = new Mutex();
 

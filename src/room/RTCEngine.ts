@@ -63,12 +63,12 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
-import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
+import { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import {
   DataChannelKind,
   dataChannelHighWaterMark,
@@ -187,8 +187,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private dcBufferStatus: Map<DataChannelKind, boolean>;
 
-  /** Per-kind two-watermark flow control (headroom gate, watermarks, waiter epochs). */
-  private flowControl: Map<DataChannelKind, FlowControlledDataChannel>;
+  /**
+   * Two-watermark flow control per publisher channel (headroom gate, watermarks, waiter epochs);
+   * the reliable one additionally owns sequencing and the resume-replay buffer. The wrappers live
+   * for the engine's lifetime — the RTCDataChannel handles underneath are resolved through
+   * providers and may be recreated at any time.
+   */
+  private reliableChannel: ReliableDataChannel;
+
+  private lossyChannel: FlowControlledDataChannel;
+
+  private dataTrackChannel: FlowControlledDataChannel;
 
   private subscriberPrimary: boolean = false;
 
@@ -245,10 +254,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private publisherConnectionPromise: Promise<void> | undefined;
 
-  private reliableDataSequence: number = 1;
-
-  private reliableMessageBuffer = new DataPacketBuffer();
-
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
   private lossyDataStatCurrentBytes: number = 0;
@@ -281,21 +286,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       [DataChannelKind.LOSSY, true],
       [DataChannelKind.DATA_TRACK_LOSSY, true],
     ]);
-    this.flowControl = new Map(
-      [DataChannelKind.RELIABLE, DataChannelKind.LOSSY, DataChannelKind.DATA_TRACK_LOSSY].map(
-        (kind) => [
-          kind,
-          new FlowControlledDataChannel({
-            kind,
-            lowWaterMark: dataChannelLowWaterMark(kind),
-            highWaterMark: dataChannelHighWaterMark(kind),
-            // Channel handles are still owned by the engine (they move with the manager phase);
-            // the providers keep flow control pointed at the current handle across recreation.
-            getChannel: () => this.dataChannelForKind(kind),
-            isEngineClosed: () => this.isClosed,
-          }),
-        ],
-      ),
+    // Channel handles are still owned by the engine (they move with the manager phase); the
+    // providers keep flow control pointed at the current handle across recreation.
+    const flowControlOptions = (kind: DataChannelKind) => ({
+      kind,
+      lowWaterMark: dataChannelLowWaterMark(kind),
+      highWaterMark: dataChannelHighWaterMark(kind),
+      getChannel: () => this.dataChannelForKind(kind),
+      isEngineClosed: () => this.isClosed,
+    });
+    this.reliableChannel = new ReliableDataChannel({
+      ...flowControlOptions(DataChannelKind.RELIABLE),
+      isDeferringSends: () => this.attemptingReconnect,
+    });
+    this.lossyChannel = new FlowControlledDataChannel(flowControlOptions(DataChannelKind.LOSSY));
+    this.dataTrackChannel = new FlowControlledDataChannel(
+      flowControlOptions(DataChannelKind.DATA_TRACK_LOSSY),
     );
 
     this.client.onParticipantUpdate = (updates) =>
@@ -508,8 +514,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDCSub = undefined;
     this.dataTrackDC = undefined;
     this.dataTrackDCSub = undefined;
-    this.reliableMessageBuffer = new DataPacketBuffer();
-    this.reliableDataSequence = 1;
+    // Full teardown starts the session over: drop replay state and restart sequencing.
+    this.reliableChannel.reset();
     this.reliableReceivedState.clear();
   }
 
@@ -1624,8 +1630,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (kind === DataChannelKind.RELIABLE) {
-      packet.sequence = this.reliableDataSequence;
-      this.reliableDataSequence += 1;
+      packet.sequence = this.reliableChannel.nextSequence();
     }
 
     const msg = packet.toBinary() as Uint8Array<ArrayBuffer>;
@@ -1653,39 +1658,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return this.sendLossyBytes(msg, kind);
 
       case DataChannelKind.RELIABLE: {
-        if (this.attemptingReconnect) {
-          // A reconnect is already underway — queue for the resume replay instead of parking on a
-          // channel that is being torn down. The send resolves; delivery is deferred to the replay.
-          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
-          return;
-        }
-
-        const dc = this.dataChannelForKind(kind);
-        if (dc) {
-          try {
-            await this.waitForBufferHeadroom(kind);
-          } catch (error) {
-            if (this.isClosed) {
-              // No replay is coming after an engine close — surface the failure.
-              throw error;
-            }
-            // Transient teardown (the channel closed or was replaced while we waited): the
-            // reliable channel promises delivery across resume, so queue the packet for the
-            // replay instead of rejecting a send the app can't meaningfully retry.
-            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
-            return;
-          }
-
-          if (this.attemptingReconnect) {
-            // A reconnect began while we waited for headroom — same deal as above.
-            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
-            return;
-          }
-
-          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: true });
-          dc.send(msg);
-        }
-
+        await this.reliableChannel.send(msg, packet.sequence);
         this.updateAndEmitDCBufferStatus(kind);
         break;
       }
@@ -1747,29 +1720,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
     await this.ensurePublisherConnected(DataChannelKind.RELIABLE);
-    const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
-    if (dc) {
-      this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      // Hold the headroom lock across the whole replay. Releasing it between messages would let a
-      // concurrent send — whose (newer) sequence was already assigned in sendDataPacket before it
-      // queued on the lock — hit the wire mid-replay, and receivers would then discard the
-      // remaining lower-sequence resent messages as duplicates.
-      const reliableFlowControl = this.flowControlFor(DataChannelKind.RELIABLE);
-      const unlock = await reliableFlowControl.lockHeadroom();
-      try {
-        for (const msg of this.reliableMessageBuffer.getAll()) {
-          // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
-          await reliableFlowControl.waitForHeadroomLocked();
-          dc.send(msg.data);
-        }
-        // Everything queued (including packets buffered unsent during the reconnect window) has
-        // been handed to the channel. If the loop throws instead, entries keep their unsent flag
-        // and the next replay picks them up — receivers dedupe any that did make it out.
-        this.reliableMessageBuffer.markAllSent();
-      } finally {
-        unlock();
-      }
-    }
+    await this.reliableChannel.replay(lastMessageSeq);
     this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
 
@@ -1777,7 +1728,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (kind === DataChannelKind.RELIABLE) {
       const dc = this.dataChannelForKind(kind);
       if (dc) {
-        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
+        this.reliableChannel.alignReplayBuffer(dc.bufferedAmount);
       }
     }
     try {
@@ -1793,7 +1744,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** The flow-control gate for `kind` — see {@link FlowControlledDataChannel}. */
   private flowControlFor(kind: DataChannelKind): FlowControlledDataChannel {
-    return this.flowControl.get(kind)!;
+    switch (kind) {
+      case DataChannelKind.RELIABLE:
+        return this.reliableChannel;
+      case DataChannelKind.LOSSY:
+        return this.lossyChannel;
+      case DataChannelKind.DATA_TRACK_LOSSY:
+        return this.dataTrackChannel;
+    }
   }
 
   /**
@@ -1802,7 +1760,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * on an abandoned object may never see another event from it.
    */
   private invalidateDataChannelWaiters(reason: string) {
-    for (const channel of this.flowControl.values()) {
+    for (const channel of [this.reliableChannel, this.lossyChannel, this.dataTrackChannel]) {
       channel.invalidateWaiters(reason);
     }
   }

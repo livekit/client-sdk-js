@@ -228,17 +228,17 @@ describe('RTCEngine', () => {
       engine: RTCEngine,
       maxDataPacketSize: number = MAX_DATA_PACKET_SIZE,
     ) {
-      const send = vi.fn();
+      const dc = new FakeDataChannel();
       Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        waitForBufferHeadroom: vi.fn().mockResolvedValue(undefined),
         updateAndEmitDCBufferStatus: vi.fn(),
-        dataChannelForKind: vi.fn(() => ({ send })),
+        dataChannelForKind: vi.fn(() => dc),
         pcManager: {
           getMaxPublisherMessageSize: vi.fn(() => maxDataPacketSize),
         },
       });
-      return send;
+      return dc.send;
     }
 
     it('rejects packets larger than the max data packet size', async () => {
@@ -309,6 +309,11 @@ describe('RTCEngine', () => {
 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+  /** The reliable channel's private replay buffer — reached through casts, as tests do for engine privates. */
+  const reliableBuffer = (engine: RTCEngine) =>
+    (engine as unknown as { reliableChannel: { messageBuffer: DataPacketBuffer } }).reliableChannel
+      .messageBuffer;
+
   describe('resendReliableMessagesForResume', () => {
     it('does not let a concurrent reliable send interleave into the resume replay', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
@@ -326,8 +331,7 @@ describe('RTCEngine', () => {
       // waitForBufferHeadroom before its first send.
       const replayed1 = new Uint8Array([1]);
       const replayed2 = new Uint8Array([2]);
-      const buffer = (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
-        .reliableMessageBuffer;
+      const buffer = reliableBuffer(engine);
       buffer.push({ data: replayed1, sequence: 1, sent: true });
       buffer.push({ data: replayed2, sequence: 2, sent: true });
       dc.bufferedAmount = 2 * 1024 * 1024; // above the reliable high-water mark
@@ -377,8 +381,7 @@ describe('RTCEngine', () => {
           getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
         },
       });
-      return (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
-        .reliableMessageBuffer;
+      return reliableBuffer(engine);
     }
 
     it('resolves and queues the packet for replay when the wait is torn down transiently', async () => {
