@@ -1749,15 +1749,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // remaining lower-sequence resent messages as duplicates.
       const unlock = await this.lockBufferHeadroom(DataChannelKind.RELIABLE);
       try {
-        for (const msg of this.reliableMessageBuffer.getAll()) {
-          // Respect flow control on resume too, so a large resend doesn't overflow the send buffer.
-          await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
-          dc.send(msg.data);
+        // Everything left after the ack cutoff must be re-handed to the current channel.
+        this.reliableMessageBuffer.markAllUnsent();
+        // Drain in passes, re-scanning the live buffer each time: a send that arrives (deferred,
+        // sent:false) during our own awaits appends after this pass started, so we pick it up on
+        // the next one. We mark each packet only once we've actually handed it to the channel — a
+        // blanket "mark all sent" would flip such a late arrival to sent without transmitting it,
+        // and a later alignBufferedAmount would then drop it for good. If the loop throws
+        // mid-drain, unsent entries keep their flag and the next replay picks them up.
+        for (
+          let batch = this.reliableMessageBuffer.getUnsent();
+          batch.length > 0;
+          batch = this.reliableMessageBuffer.getUnsent()
+        ) {
+          for (const item of batch) {
+            // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
+            await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
+            dc.send(item.data);
+            this.reliableMessageBuffer.markSent(item);
+          }
         }
-        // Everything queued (including packets buffered unsent during the reconnect window) has
-        // been handed to the channel. If the loop throws instead, entries keep their unsent flag
-        // and the next replay picks them up — receivers dedupe any that did make it out.
-        this.reliableMessageBuffer.markAllSent();
       } finally {
         unlock();
       }

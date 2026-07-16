@@ -360,6 +360,59 @@ describe('RTCEngine', () => {
       expect(dc.send.mock.calls[2][0]).not.toBe(replayed1);
       expect(dc.send.mock.calls[2][0]).not.toBe(replayed2);
     });
+
+    it('transmits a packet deferred mid-replay instead of marking it sent without sending', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const dc = new FakeDataChannel();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: false,
+        // Reconnect still active: a send arriving during replay takes the deferral path.
+        attemptingReconnect: true,
+        ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
+        dataChannelForKind: vi.fn(() => dc),
+        pcManager: {
+          getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
+        },
+      });
+
+      const buffer = (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
+        .reliableMessageBuffer;
+      const replayed = new Uint8Array([1]);
+      buffer.push({ data: replayed, sequence: 1, sent: true });
+      // Full buffer so replay parks on waitForBufferHeadroom before its first send.
+      dc.bufferedAmount = 2 * 1024 * 1024;
+
+      const replay = (
+        engine as unknown as { resendReliableMessagesForResume: (seq: number) => Promise<void> }
+      ).resendReliableMessagesForResume(0);
+      await tick();
+
+      // A reliable send arrives while replay is parked; attemptingReconnect defers it into the
+      // buffer as sent:false, after the replay's first drain pass already started.
+      const deferred = new Uint8Array([2]);
+      const deferredSend = engine.sendDataPacket(
+        new DataPacket({
+          kind: DataPacket_Kind.RELIABLE,
+          value: { case: 'user', value: new UserPacket({ payload: deferred }) },
+        }),
+        DataChannelKind.RELIABLE,
+      );
+      await tick();
+
+      dc.bufferedAmount = 0;
+      dc.dispatchEvent(new Event('bufferedamountlow'));
+      await Promise.all([replay, deferredSend]);
+
+      // Pre-fix, replay sends only its snapshot ([replayed]) and blanket-marks the deferred packet
+      // sent without ever transmitting it — one send. The drain loop must transmit both (the
+      // deferred packet is serialized through sendDataPacket, so it's distinct from `replayed`),
+      // leaving nothing unsent for a later align to strand.
+      const sent = dc.send.mock.calls.map(([d]) => d);
+      expect(sent).toHaveLength(2);
+      expect(sent[0]).toBe(replayed);
+      expect(sent[1]).not.toBe(replayed);
+      expect(buffer.getUnsent()).toHaveLength(0);
+    });
   });
 
   describe('reliable sends during teardown windows', () => {

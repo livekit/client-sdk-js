@@ -45,15 +45,46 @@ describe('DataPacketBuffer', () => {
     expect(buffer.getAll().map((i) => i.sequence)).toEqual([1, 2, 3, 4]);
   });
 
-  it('markAllSent makes queued packets eligible for trimming', () => {
+  it('markSent makes a single packet eligible for trimming and tracks sent size', () => {
     const buffer = new DataPacketBuffer();
-    buffer.push(item(1, 100, false));
-    buffer.push(item(2, 100, false));
+    const first = item(1, 100, false);
+    const second = item(2, 100, false);
+    buffer.push(first);
+    buffer.push(second);
 
-    buffer.markAllSent();
+    // Only the marked packet can be trimmed; the still-unsent one blocks the front.
+    buffer.markSent(first);
+    buffer.alignBufferedAmount(0);
+    expect(buffer.getAll().map((i) => i.sequence)).toEqual([1, 2]);
+
+    buffer.markSent(second);
     buffer.alignBufferedAmount(50);
-
     expect(buffer.getAll().map((i) => i.sequence)).toEqual([2]);
+  });
+
+  it('getUnsent returns only unsent packets, in order', () => {
+    const buffer = new DataPacketBuffer();
+    const a = item(1, 100, false);
+    const b = item(2, 100, false);
+    buffer.push(a);
+    buffer.push(b);
+    buffer.push(item(3, 100, false));
+    buffer.markSent(b);
+
+    expect(buffer.getUnsent().map((i) => i.sequence)).toEqual([1, 3]);
+  });
+
+  it('markAllUnsent flags every packet for re-send and resets sent size', () => {
+    const buffer = new DataPacketBuffer();
+    buffer.push(item(1, 100, true));
+    buffer.push(item(2, 100, true));
+
+    buffer.markAllUnsent();
+    expect(buffer.getUnsent().map((i) => i.sequence)).toEqual([1, 2]);
+
+    // With everything unsent, nothing can be trimmed even at a zero buffered amount.
+    buffer.alignBufferedAmount(0);
+    expect(buffer.getAll().map((i) => i.sequence)).toEqual([1, 2]);
   });
 
   it('popToSequence drops acked packets regardless of sent state', () => {

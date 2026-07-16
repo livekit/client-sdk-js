@@ -42,12 +42,29 @@ export class DataPacketBuffer {
     return this.buffer.slice();
   }
 
-  /** Marks every queued packet as sent — call after a replay has handed them all to the channel. */
-  markAllSent() {
-    for (const item of this.buffer) {
+  /** Every queued packet not yet handed to the channel, in sequence order. */
+  getUnsent(): DataPacketItem[] {
+    return this.buffer.filter((item) => !item.sent);
+  }
+
+  /** Marks a single queued packet as handed to the channel. */
+  markSent(item: DataPacketItem) {
+    if (!item.sent) {
       item.sent = true;
+      this._sentSize += item.data.byteLength;
     }
-    this._sentSize = this._totalSize;
+  }
+
+  /**
+   * Marks every queued packet as not-yet-sent. Used at the start of a resume replay: whatever is
+   * still buffered was sent on the previous channel (or deferred) and must be re-handed to the
+   * current one, so none of it counts as sent until the replay actually transmits it.
+   */
+  markAllUnsent() {
+    for (const item of this.buffer) {
+      item.sent = false;
+    }
+    this._sentSize = 0;
   }
 
   popToSequence(sequence: number) {
