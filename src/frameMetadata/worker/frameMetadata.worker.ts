@@ -1,11 +1,6 @@
-import { appendPacketTrailerToEncodedFrame, processPacketTrailer } from '../frameMetadata';
-import type {
-  FrameMetadataPublishOptions,
-  PTMetadataMessage,
-  PTScriptTransformOptions,
-  PTWorkerMessage,
-} from '../types';
-import { hasFrameMetadataPublishOptions } from '../utils';
+import { processPacketTrailer } from '../frameMetadata';
+import type { PTMetadataMessage, PTScriptTransformOptions, PTWorkerMessage } from '../types';
+import { EncodePipelineRegistry } from './encodePipelineRegistry';
 
 /**
  * Holds the trackId currently associated with a pipeline. A mutable
@@ -18,6 +13,8 @@ interface PipelineState {
 }
 
 const pipelines = new Map<string, PipelineState>();
+
+const encodePipelines = new EncodePipelineRegistry();
 
 onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
   const msg = ev.data;
@@ -37,11 +34,16 @@ onmessage = (ev: MessageEvent<PTWorkerMessage>) => {
       break;
 
     case 'encode':
-      setupEncodeTransform(
+      encodePipelines.setupEncodeTransform(
         msg.data.readableStream,
         msg.data.writableStream,
         msg.data.packetTrailer,
+        msg.data.trackId,
       );
+      break;
+
+    case 'setFrameUserData':
+      encodePipelines.setFrameUserData(msg.data.trackId, msg.data.userData);
       break;
 
     case 'updateTrackId':
@@ -94,40 +96,6 @@ function setupDecodeTransform(
     });
 }
 
-function setupEncodeTransform(
-  readable: ReadableStream,
-  writable: WritableStream,
-  packetTrailer?: FrameMetadataPublishOptions,
-) {
-  if (!hasFrameMetadataPublishOptions(packetTrailer)) {
-    readable.pipeTo(writable).catch(() => {});
-    return;
-  }
-
-  let frameId = 0;
-  const transform = new TransformStream({
-    transform(
-      frame: RTCEncodedVideoFrame,
-      controller: TransformStreamDefaultController<RTCEncodedVideoFrame>,
-    ) {
-      try {
-        if (packetTrailer?.frameId) {
-          frameId = frameId === 0xffffffff ? 1 : frameId + 1;
-        }
-        appendPacketTrailerToEncodedFrame(frame, packetTrailer, frameId);
-      } catch {
-        // Never drop frames on trailer-write failure.
-      }
-      controller.enqueue(frame);
-    },
-  });
-
-  readable
-    .pipeThrough(transform)
-    .pipeTo(writable)
-    .catch(() => {});
-}
-
 function updateTrackId(oldTrackId: string, newTrackId: string, hasPacketTrailer: boolean) {
   const state = pipelines.get(oldTrackId);
   if (state) {
@@ -147,7 +115,12 @@ if (self.RTCTransformEvent) {
     const transformer = event.transformer;
     const options = transformer.options as PTScriptTransformOptions;
     if (options.kind === 'encode') {
-      setupEncodeTransform(transformer.readable, transformer.writable, options.packetTrailer);
+      encodePipelines.setupEncodeTransform(
+        transformer.readable,
+        transformer.writable,
+        options.packetTrailer,
+        options.trackId,
+      );
     } else {
       setupDecodeTransform(transformer.readable, transformer.writable, options.trackId, true);
     }

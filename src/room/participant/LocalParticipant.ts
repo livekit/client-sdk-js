@@ -1589,6 +1589,9 @@ export default class LocalParticipant extends Participant {
     let negotiationNeeded = false;
     const trackSender = track.sender;
     track.sender = undefined;
+    if (isLocalVideoTrack(track)) {
+      track.frameUserDataPoster = undefined;
+    }
     if (
       this.engine.pcManager &&
       this.engine.pcManager.currentState < PCTransportState.FAILED &&

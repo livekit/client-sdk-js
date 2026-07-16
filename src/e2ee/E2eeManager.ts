@@ -17,6 +17,7 @@ import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import {
   Future,
   isLocalTrack,
+  isLocalVideoTrack,
   isSafariBased,
   isScriptTransformSupportedForWorker,
   isVideoTrack,
@@ -40,6 +41,7 @@ import type {
   RatchetRequestMessage,
   RemoveTransformMessage,
   ScriptTransformOptions,
+  SetFrameUserDataMessage,
   SetKeyMessage,
   SifTrailerMessage,
   UpdateCodecMessage,
@@ -507,14 +509,30 @@ export class E2EEManager
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(
-      sender,
-      track.mediaStreamID,
-      undefined,
-      isVideoTrack(track)
-        ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
-        : undefined,
-    );
+    const frameMetadata = isLocalVideoTrack(track)
+      ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
+      : undefined;
+    this.handleSender(sender, track.mediaStreamID, undefined, frameMetadata);
+
+    // registered outside handleSender so a reused sender (E2EE_FLAG set)
+    // still gets a fresh poster
+    if (frameMetadata?.userData && isLocalVideoTrack(track)) {
+      const trackId = track.mediaStreamID;
+      track.frameUserDataPoster = (userData) => {
+        if (!this.worker || !this.room?.localParticipant.identity) {
+          return;
+        }
+        const msg: SetFrameUserDataMessage = {
+          kind: 'setFrameUserData',
+          data: {
+            participantIdentity: this.room.localParticipant.identity,
+            trackId,
+            userData: userData as NonSharedUint8Array | undefined,
+          },
+        };
+        this.worker.postMessage(msg);
+      };
+    }
   }
 
   /**

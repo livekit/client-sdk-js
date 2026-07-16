@@ -15,7 +15,7 @@ export function isFrameMetadataSupported(options?: FrameMetadataOptions) {
 }
 
 export function hasFrameMetadataPublishOptions(options?: FrameMetadataPublishOptions): boolean {
-  return !!(options?.timestamp || options?.frameId);
+  return !!(options?.timestamp || options?.frameId || options?.userData);
 }
 
 export function getFrameMetadataFeatures(
@@ -27,6 +27,9 @@ export function getFrameMetadataFeatures(
   }
   if (options?.frameId) {
     features.push(PacketTrailerFeature.PTF_FRAME_ID);
+  }
+  if (options?.userData) {
+    features.push(PacketTrailerFeature.PTF_USER_DATA);
   }
   return features;
 }
@@ -45,6 +48,9 @@ export function getFrameMetadataPublishOptions(
   if (features.includes(PacketTrailerFeature.PTF_FRAME_ID)) {
     options.frameId = true;
   }
+  if (features.includes(PacketTrailerFeature.PTF_USER_DATA)) {
+    options.userData = true;
+  }
 
-  return options.timestamp || options.frameId ? options : undefined;
+  return hasFrameMetadataPublishOptions(options) ? options : undefined;
 }

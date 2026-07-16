@@ -136,6 +136,9 @@ export interface TrackPublishDefaults {
    * Requires either room-level frame metadata worker configuration or E2EE,
    * because encoded frame transforms are used to write the metadata.
    *
+   * With `userData` enabled, per-frame user data can be attached via
+   * {@link LocalVideoTrack.attachUserDataToNextFrame}.
+   *
    * @experimental
    */
   frameMetadata?: FrameMetadataPublishOptions;

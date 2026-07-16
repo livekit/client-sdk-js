@@ -8,13 +8,14 @@ import {
   appendPacketTrailer,
   appendPacketTrailerToEncodedFrame,
   extractPacketTrailer,
+  getMaxFrameUserDataLength,
   processPacketTrailer,
 } from './frameMetadata';
 
 /**
- * Builds a packet trailer (XORed TLVs + envelope) for the given fields. The
- * SDK only writes timestamp/frameId, so this mirrors the native sender's TLV
- * encoding to exercise user_data extraction.
+ * Builds a packet trailer (XORed TLVs + envelope) for the given fields,
+ * mirroring the native sender's TLV encoding independently of
+ * appendPacketTrailer so both directions can be checked against it.
  */
 function buildTrailer(
   payload: Uint8Array,
@@ -137,6 +138,105 @@ describe('packetTrailer', () => {
     expect(Array.from(result)).toEqual(Array.from(payload));
   });
 
+  it('writes a user_data-only trailer byte-identical to the reference encoding', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const userData = Uint8Array.from([0x00, 0x01, 0xfe, 0xff, 0x42]);
+
+    const result = appendPacketTrailer(payload, 0n, 0, userData);
+
+    expect(Array.from(result)).toEqual(Array.from(buildTrailer(payload, { userData })));
+  });
+
+  it('writes user_data alongside timestamp and frameId byte-identical to the reference encoding', () => {
+    const payload = Uint8Array.from([9, 8, 7, 6, 5]);
+    const userData = Uint8Array.from([10, 20, 30, 40]);
+
+    const result = appendPacketTrailer(payload, 1_744_249_600_123_456n, 42, userData);
+
+    expect(Array.from(result)).toEqual(
+      Array.from(
+        buildTrailer(payload, { userTimestamp: 1_744_249_600_123_456n, frameId: 42, userData }),
+      ),
+    );
+  });
+
+  it('round-trips user_data through append and extract', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const userData = Uint8Array.from([0x00, 0x7f, 0x80, 0xff]);
+
+    const extracted = extractPacketTrailer(
+      appendPacketTrailer(payload, 1_744_249_600_123_456n, 42, userData),
+    );
+
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(extracted.metadata?.userTimestamp).toBe(1_744_249_600_123_456n);
+    expect(extracted.metadata?.frameId).toBe(42);
+    expect(Array.from(extracted.metadata!.userData!)).toEqual(Array.from(userData));
+  });
+
+  it('returns data unchanged for empty user_data when timestamp and frameId are 0', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const result = appendPacketTrailer(payload, 0n, 0, new Uint8Array(0));
+
+    expect(Array.from(result)).toEqual(Array.from(payload));
+  });
+
+  it('omits the user_data TLV for empty user_data when other fields are present', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const result = appendPacketTrailer(payload, 0n, 42, new Uint8Array(0));
+
+    expect(extractPacketTrailer(result).metadata).toEqual({
+      userTimestamp: 0n,
+      frameId: 42,
+    });
+  });
+
+  it('computes the maximum user_data length per publish option combination', () => {
+    expect(getMaxFrameUserDataLength()).toBe(248);
+    expect(getMaxFrameUserDataLength({ userData: true })).toBe(248);
+    expect(getMaxFrameUserDataLength({ frameId: true })).toBe(242);
+    expect(getMaxFrameUserDataLength({ timestamp: true })).toBe(238);
+    expect(getMaxFrameUserDataLength({ timestamp: true, frameId: true })).toBe(232);
+  });
+
+  it('round-trips user_data at the maximum length', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const userData = new Uint8Array(getMaxFrameUserDataLength({ timestamp: true, frameId: true }));
+    userData.fill(0xab);
+
+    const extracted = extractPacketTrailer(
+      appendPacketTrailer(payload, 1_744_249_600_123_456n, 42, userData),
+    );
+
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(Array.from(extracted.metadata!.userData!)).toEqual(Array.from(userData));
+  });
+
+  it('drops oversized user_data while keeping timestamp and frameId', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const userData = new Uint8Array(
+      getMaxFrameUserDataLength({ timestamp: true, frameId: true }) + 1,
+    );
+
+    const extracted = extractPacketTrailer(
+      appendPacketTrailer(payload, 1_744_249_600_123_456n, 42, userData),
+    );
+
+    expect(extracted.metadata).toEqual({
+      userTimestamp: 1_744_249_600_123_456n,
+      frameId: 42,
+    });
+  });
+
+  it('drops oversized user_data entirely when it is the only field', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const userData = new Uint8Array(getMaxFrameUserDataLength() + 1);
+
+    const result = appendPacketTrailer(payload, 0n, 0, userData);
+
+    expect(Array.from(result)).toEqual(Array.from(payload));
+  });
+
   it('passes frames through when there is no valid trailer', () => {
     const payload = Uint8Array.from([1, 2, 3, 4, 5]);
     const extracted = extractPacketTrailer(payload);
@@ -218,6 +318,59 @@ describe('packetTrailer', () => {
       userTimestamp: BigInt(Date.now()) * BigInt(1000),
       frameId: 7,
     });
+  });
+
+  it('appends a user_data-only trailer to encoded frames', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+    const userData = Uint8Array.from([7, 8, 9]);
+
+    const changed = appendPacketTrailerToEncodedFrame(frame, { userData: true }, 0, userData);
+
+    expect(changed).toBe(true);
+    const extracted = extractPacketTrailer(frame.data);
+    expect(Array.from(extracted.data)).toEqual(Array.from(payload));
+    expect(extracted.metadata).toEqual({
+      userTimestamp: 0n,
+      frameId: 0,
+      userData,
+    });
+  });
+
+  it('passes encoded frames through when user_data is enabled but none is pending', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    const changed = appendPacketTrailerToEncodedFrame(frame, { userData: true }, 0);
+
+    expect(changed).toBe(false);
+    expect(frame.data).toBe(payload.buffer);
+  });
+
+  it('ignores user_data when the publish options do not enable it', () => {
+    const payload = Uint8Array.from([1, 2, 3, 4]);
+    const frame = { data: payload.buffer } as RTCEncodedVideoFrame;
+
+    appendPacketTrailerToEncodedFrame(frame, { frameId: true }, 1, Uint8Array.from([7, 8, 9]));
+
+    expect(extractPacketTrailer(frame.data).metadata).toEqual({
+      userTimestamp: 0n,
+      frameId: 1,
+    });
+  });
+
+  it('passes empty encoded frames through even with pending user_data', () => {
+    const frame = { data: new ArrayBuffer(0) } as RTCEncodedVideoFrame;
+
+    const changed = appendPacketTrailerToEncodedFrame(
+      frame,
+      { userData: true },
+      0,
+      Uint8Array.from([7, 8, 9]),
+    );
+
+    expect(changed).toBe(false);
+    expect(frame.data.byteLength).toBe(0);
   });
 
   it.each([{}, { timestamp: false, frameId: false }])(

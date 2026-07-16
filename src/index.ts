@@ -80,6 +80,7 @@ export {
   /** @deprecated Use {@link FrameMetadataOptions} instead. */
   type PacketTrailerOptions,
 } from './frameMetadata/FrameMetadataManager';
+export { getMaxFrameUserDataLength } from './frameMetadata/frameMetadata';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';

@@ -92,6 +92,30 @@
                   Attach Frame ID
                 </label>
               </div>
+              <div class="ml-3">
+                <input type="checkbox" class="form-check-input" id="frame-metadata-user-data" />
+                <label for="frame-metadata-user-data" class="form-check-label">
+                  Attach User Data
+                </label>
+              </div>
+              <div class="ml-3 input-group" id="frame-user-data-controls" style="display: none">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="frame-user-data-input"
+                  placeholder="User data for next frame"
+                />
+                <div class="input-group-append">
+                  <button
+                    id="send-frame-user-data-button"
+                    class="btn btn-secondary"
+                    type="button"
+                    onclick="appActions.sendFrameUserData()"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
             </div>
             <div>
               <select id="preferred-codec" class="custom-select" style="width: auto"></select>

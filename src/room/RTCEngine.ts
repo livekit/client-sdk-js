@@ -54,6 +54,11 @@ import {
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import type {
+  FrameMetadataPublishOptions,
+  PTEncodeMessage,
+  PTSetFrameUserDataMessage,
+} from '../frameMetadata/types';
 import {
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
@@ -1111,7 +1116,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
-    this.setupFrameMetadataSender(sender, opts);
+    this.setupFrameMetadataSender(sender, track, opts);
     return sender;
   }
 
@@ -1131,7 +1136,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('Cannot stream on this device');
     }
     if (sender) {
-      this.setupFrameMetadataSender(sender, opts);
+      this.setupFrameMetadataSender(sender, track, opts);
     }
     return sender;
   }
@@ -1140,7 +1145,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
   }
 
-  private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
+  private setupFrameMetadataSender(
+    sender: RTCRtpSender,
+    track: LocalTrack,
+    opts: TrackPublishOptions = {},
+  ) {
     const worker = this.frameMetadataWorker;
     if (!worker || this.signalOpts?.e2eeEnabled) {
       return;
@@ -1154,8 +1163,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // @ts-ignore
         sender.transform = new RTCRtpScriptTransform(worker, {
           kind: 'encode',
+          trackId: track.mediaStreamID,
           packetTrailer: frameMetadata,
         });
+        this.setupFrameUserDataPoster(worker, track, frameMetadata);
       }
       return;
     }
@@ -1173,20 +1184,38 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // @ts-ignore
     const { readable, writable } = sender.createEncodedStreams();
     if (hasMetadata) {
-      worker.postMessage(
-        {
-          kind: 'encode',
-          data: {
-            readableStream: readable,
-            writableStream: writable,
-            packetTrailer: frameMetadata,
-          },
+      const msg: PTEncodeMessage = {
+        kind: 'encode',
+        data: {
+          readableStream: readable,
+          writableStream: writable,
+          trackId: track.mediaStreamID,
+          packetTrailer: frameMetadata,
         },
-        [readable, writable],
-      );
+      };
+      worker.postMessage(msg, [readable, writable]);
+      this.setupFrameUserDataPoster(worker, track, frameMetadata);
     } else {
       readable.pipeTo(writable);
     }
+  }
+
+  private setupFrameUserDataPoster(
+    worker: Worker,
+    track: LocalTrack,
+    frameMetadata?: FrameMetadataPublishOptions,
+  ) {
+    if (!frameMetadata?.userData || !(track instanceof LocalVideoTrack)) {
+      return;
+    }
+    const trackId = track.mediaStreamID;
+    track.frameUserDataPoster = (userData) => {
+      const msg: PTSetFrameUserDataMessage = {
+        kind: 'setFrameUserData',
+        data: { trackId, userData },
+      };
+      worker.postMessage(msg);
+    };
   }
 
   private async createTransceiverRTCRtpSender(

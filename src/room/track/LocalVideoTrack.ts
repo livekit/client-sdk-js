@@ -6,6 +6,7 @@ import {
   VideoLayer,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
+import { getMaxFrameUserDataLength } from '../../frameMetadata/frameMetadata';
 import type { StructuredLogger } from '../../logger';
 import { TrackEvent } from '../events';
 import {
@@ -71,6 +72,13 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   /* @internal */
   lastEncodedDimensions?: Track.Dimensions;
+
+  /**
+   * Forwards frame user data to the worker running this track's encode
+   * transforms. Registered when the sender transform is set up.
+   * @internal
+   */
+  frameUserDataPoster?: (userData?: Uint8Array) => void;
 
   get sender(): RTCRtpSender | undefined {
     return this._sender;
@@ -416,6 +424,42 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
       }
     }
+  }
+
+  /**
+   * Attaches user data to the next encoded frame of this track as frame
+   * metadata. The data is written once to the next frame of each active
+   * encode pipeline (primary and backup-codec senders) and cleared
+   * afterwards. Calling again before a frame is encoded replaces the pending
+   * value (last write wins); passing `undefined` or an empty array clears it.
+   *
+   * Requires the track to be published with
+   * `frameMetadata: { userData: true }` and a frame metadata worker (or E2EE)
+   * configured on the room.
+   *
+   * @throws RangeError when userData does not fit in the frame trailer; use
+   * {@link getMaxFrameUserDataLength} to size payloads ahead of time
+   * @experimental
+   */
+  attachUserDataToNextFrame(userData?: Uint8Array) {
+    const fmOpts = this.publishOptions?.frameMetadata ?? this.publishOptions?.packetTrailer;
+    if (!fmOpts?.userData) {
+      this.log.warn(
+        'ignoring frame user data; track was not published with frameMetadata userData enabled',
+        this.logContext,
+      );
+      return;
+    }
+    if (!this.frameUserDataPoster) {
+      this.log.warn('ignoring frame user data; no active encode pipeline', this.logContext);
+      return;
+    }
+    if (userData && userData.byteLength > getMaxFrameUserDataLength(fmOpts)) {
+      throw new RangeError(
+        `frame user data exceeds the maximum of ${getMaxFrameUserDataLength(fmOpts)} bytes for the current frame metadata options`,
+      );
+    }
+    this.frameUserDataPoster(userData && userData.byteLength > 0 ? userData : undefined);
   }
 
   addSimulcastTrack(

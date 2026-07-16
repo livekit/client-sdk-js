@@ -67,6 +67,19 @@ export interface EncodeMessage extends BaseMessage {
   };
 }
 
+export interface SetFrameUserDataMessage extends BaseMessage {
+  kind: 'setFrameUserData';
+  data: {
+    participantIdentity: string;
+    trackId: string;
+    /**
+     * User data to attach to the next published video frame; undefined
+     * clears any pending value.
+     */
+    userData?: NonSharedUint8Array;
+  };
+}
+
 export interface RemoveTransformMessage extends BaseMessage {
   kind: 'removeTransform';
   data: {
@@ -173,6 +186,7 @@ export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
   | EncodeMessage
+  | SetFrameUserDataMessage
   | ErrorMessage
   | EnableMessage
   | RemoveTransformMessage

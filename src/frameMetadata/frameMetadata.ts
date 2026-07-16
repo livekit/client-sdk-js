@@ -15,6 +15,24 @@ export const PACKET_TRAILER_ENVELOPE_SIZE = 5;
 
 const TIMESTAMP_TLV_SIZE = 10;
 const FRAME_ID_TLV_SIZE = 6;
+const USER_DATA_TLV_HEADER_SIZE = 2;
+const MAX_TRAILER_LENGTH = 0xff;
+
+/**
+ * Maximum number of user data bytes that fit in a single frame's packet
+ * trailer alongside the TLVs implied by the given publish options. The
+ * trailer length is encoded in a single byte, capping the entire trailer
+ * (all TLVs plus the 5-byte envelope) at 255 bytes.
+ */
+export function getMaxFrameUserDataLength(options?: FrameMetadataPublishOptions): number {
+  return (
+    MAX_TRAILER_LENGTH -
+    PACKET_TRAILER_ENVELOPE_SIZE -
+    USER_DATA_TLV_HEADER_SIZE -
+    (options?.timestamp ? TIMESTAMP_TLV_SIZE : 0) -
+    (options?.frameId ? FRAME_ID_TLV_SIZE : 0)
+  );
+}
 
 export interface ExtractPacketTrailerResult {
   data: Uint8Array;
@@ -25,17 +43,26 @@ export function appendPacketTrailer(
   data: Uint8Array,
   userTimestamp: bigint,
   frameId: number,
+  userData?: Uint8Array,
 ): Uint8Array {
   const hasTimestamp = userTimestamp !== BigInt(0);
   const hasFrameId = frameId !== 0;
+  // The trailer length is a single byte; drop user data that would overflow it
+  // rather than throwing inside a frame pipeline (the public API validates the
+  // size up front).
+  const hasUserData =
+    !!userData &&
+    userData.length > 0 &&
+    userData.length <= getMaxFrameUserDataLength({ timestamp: hasTimestamp, frameId: hasFrameId });
 
-  if (!hasTimestamp && !hasFrameId) {
+  if (!hasTimestamp && !hasFrameId && !hasUserData) {
     return data;
   }
 
   const trailerLength =
     (hasTimestamp ? TIMESTAMP_TLV_SIZE : 0) +
     (hasFrameId ? FRAME_ID_TLV_SIZE : 0) +
+    (hasUserData ? USER_DATA_TLV_HEADER_SIZE + userData.length : 0) +
     PACKET_TRAILER_ENVELOPE_SIZE;
   const result = new Uint8Array(data.length + trailerLength);
   let offset = 0;
@@ -57,6 +84,15 @@ export function appendPacketTrailer(
     offset += 4;
   }
 
+  if (hasUserData) {
+    result[offset++] = PACKET_TRAILER_USER_DATA_TAG ^ 0xff;
+    result[offset++] = userData.length ^ 0xff;
+    for (let index = 0; index < userData.length; index += 1) {
+      result[offset + index] = userData[index] ^ 0xff;
+    }
+    offset += userData.length;
+  }
+
   result[offset++] = trailerLength ^ 0xff;
   result.set(PACKET_TRAILER_MAGIC, offset);
 
@@ -67,6 +103,7 @@ export function appendPacketTrailerToEncodedFrame(
   frame: RTCEncodedVideoFrame,
   options: FrameMetadataPublishOptions | undefined,
   frameId: number,
+  userData?: Uint8Array,
 ): boolean {
   if (!hasFrameMetadataPublishOptions(options) || frame.data.byteLength === 0) {
     return false;
@@ -74,8 +111,14 @@ export function appendPacketTrailerToEncodedFrame(
 
   const userTimestamp = options?.timestamp ? BigInt(Date.now()) * BigInt(1000) : BigInt(0);
   const packetTrailerFrameId = options?.frameId ? frameId : 0;
+  const packetTrailerUserData = options?.userData ? userData : undefined;
   const data = new Uint8Array(frame.data);
-  const result = appendPacketTrailer(data, userTimestamp, packetTrailerFrameId);
+  const result = appendPacketTrailer(
+    data,
+    userTimestamp,
+    packetTrailerFrameId,
+    packetTrailerUserData,
+  );
 
   if (result.byteLength === data.byteLength) {
     return false;

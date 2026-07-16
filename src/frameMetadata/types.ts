@@ -12,6 +12,12 @@ export type PacketTrailerMetadata = FrameMetadata;
 export interface FrameMetadataPublishOptions {
   timestamp?: boolean;
   frameId?: boolean;
+  /**
+   * Advertises the user data feature on the published track and enables
+   * writing per-frame user data supplied via
+   * {@link LocalVideoTrack.attachUserDataToNextFrame}.
+   */
+  userData?: boolean;
 }
 
 /** @deprecated Use {@link FrameMetadataPublishOptions} instead. */
@@ -45,7 +51,16 @@ export interface PTEncodeMessage extends PTBaseMessage {
   data: {
     readableStream: ReadableStream;
     writableStream: WritableStream;
+    trackId: string;
     packetTrailer?: FrameMetadataPublishOptions;
+  };
+}
+
+export interface PTSetFrameUserDataMessage extends PTBaseMessage {
+  kind: 'setFrameUserData';
+  data: {
+    trackId: string;
+    userData?: Uint8Array;
   };
 }
 
@@ -56,6 +71,7 @@ export type PTScriptTransformOptions =
     }
   | {
       kind: 'encode';
+      trackId: string;
       packetTrailer?: FrameMetadataPublishOptions;
     };
 
@@ -78,5 +94,6 @@ export type PTWorkerMessage =
   | PTInitAck
   | PTDecodeMessage
   | PTEncodeMessage
+  | PTSetFrameUserDataMessage
   | PTUpdateTrackIdMessage
   | PTMetadataMessage;

@@ -159,6 +159,13 @@ onmessage = (ev) => {
           workerLogger.error('no participant Id was provided and shared key usage is disabled');
         }
         break;
+      case 'setFrameUserData':
+        // getTrackCryptor creates the cryptor when missing, so user data
+        // posted before the encode transform registers is kept as pending
+        getTrackCryptor(data.participantIdentity, data.trackId).setPendingFrameUserData(
+          data.userData,
+        );
+        break;
       case 'removeTransform':
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;

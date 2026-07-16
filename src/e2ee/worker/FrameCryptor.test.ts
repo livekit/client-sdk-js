@@ -354,6 +354,133 @@ describe('FrameCryptor', () => {
         frameId: 1,
       });
     });
+
+    it('appends pending user data to the next frame only', async () => {
+      const { keys, cryptor, input, output } = prepareParticipantTestEncoder(
+        participantIdentity,
+        {},
+        { frameId: true, userData: true },
+      );
+
+      await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+      const userData = Uint8Array.from([7, 8, 9]);
+      cryptor.setPendingFrameUserData(userData);
+
+      const firstFrame = mockRTCEncodedVideoFrame(
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      );
+      input.write(firstFrame);
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+      const firstMetadata = extractPacketTrailer(firstFrame.data).metadata;
+      expect(firstMetadata?.frameId).toBe(1);
+      expect(firstMetadata?.userData).toEqual(userData);
+
+      const secondFrame = mockRTCEncodedVideoFrame(
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      );
+      input.write(secondFrame);
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(2));
+
+      const secondMetadata = extractPacketTrailer(secondFrame.data).metadata;
+      expect(secondMetadata?.frameId).toBe(2);
+      expect(secondMetadata?.userData).toBeUndefined();
+    });
+
+    it('does not append pending user data when the publish options do not enable it', async () => {
+      const { keys, cryptor, input, output } = prepareParticipantTestEncoder(
+        participantIdentity,
+        {},
+        { frameId: true },
+      );
+
+      await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+      cryptor.setPendingFrameUserData(Uint8Array.from([7, 8, 9]));
+
+      const frame = mockRTCEncodedVideoFrame(
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+      );
+      input.write(frame);
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+      expect(extractPacketTrailer(frame.data).metadata).toEqual({
+        userTimestamp: BigInt(0),
+        frameId: 1,
+      });
+    });
+
+    it('keeps pending user data set before the encode transform registers', async () => {
+      vitest.useFakeTimers();
+      try {
+        const keyProviderOptions = { ...KEY_PROVIDER_DEFAULTS };
+        const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
+        encryptionEnabledMap.set(participantIdentity, true);
+
+        const cryptor = new FrameCryptor({
+          participantIdentity,
+          keys,
+          keyProviderOptions,
+          sifTrailer: new Uint8Array(),
+        });
+
+        // user data posted before setupTransform runs must survive it
+        const userData = Uint8Array.from([7, 8, 9]);
+        cryptor.setPendingFrameUserData(userData);
+
+        const input = new TestUnderlyingSource<RTCEncodedVideoFrame>();
+        const output = new TestUnderlyingSink<RTCEncodedVideoFrame>();
+        cryptor.setupTransform(
+          'encode',
+          new ReadableStream(input),
+          new WritableStream(output),
+          'testTrack',
+          false,
+          undefined,
+          { userData: true },
+        );
+
+        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+        const frame = mockRTCEncodedVideoFrame(
+          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        );
+        input.write(frame);
+        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+        expect(extractPacketTrailer(frame.data).metadata?.userData).toEqual(userData);
+      } finally {
+        vitest.useRealTimers();
+      }
+    });
+
+    it('appends pending user data on the encryption-disabled passthrough path', async () => {
+      vitest.useFakeTimers();
+      try {
+        const { cryptor, input, output } = prepareParticipantTestEncoder(
+          participantIdentity,
+          {},
+          {
+            userData: true,
+          },
+        );
+
+        encryptionEnabledMap.set(participantIdentity, false);
+
+        const userData = Uint8Array.from([7, 8, 9]);
+        cryptor.setPendingFrameUserData(userData);
+
+        const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+        input.write(frame);
+        await vitest.advanceTimersToNextTimerAsync();
+
+        expect(output.chunks).toHaveLength(1);
+        expect(extractPacketTrailer(frame.data).metadata?.userData).toEqual(userData);
+      } finally {
+        vitest.useRealTimers();
+      }
+    });
   });
 
   describe('decode', () => {

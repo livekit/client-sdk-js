@@ -106,8 +106,9 @@ function getFrameMetadataPublishOptions() {
   const enabled = (<HTMLInputElement>$('frame-metadata')).checked;
   const timestamp = enabled && (<HTMLInputElement>$('frame-metadata-timestamp')).checked;
   const frameId = enabled && (<HTMLInputElement>$('frame-metadata-frame-id')).checked;
+  const userData = enabled && (<HTMLInputElement>$('frame-metadata-user-data')).checked;
 
-  return timestamp || frameId ? { timestamp, frameId } : undefined;
+  return timestamp || frameId || userData ? { timestamp, frameId, userData } : undefined;
 }
 
 function syncFrameMetadataPublishOptions(room = currentRoom) {
@@ -134,14 +135,18 @@ function syncFrameMetadataFeatureControls() {
   const featureControls = $('frame-metadata-features');
   const timestamp = <HTMLInputElement>$('frame-metadata-timestamp');
   const frameId = <HTMLInputElement>$('frame-metadata-frame-id');
+  const userData = <HTMLInputElement>$('frame-metadata-user-data');
 
   featureControls.style.display = enabled ? 'block' : 'none';
   timestamp.disabled = !enabled;
   frameId.disabled = !enabled;
+  userData.disabled = !enabled;
   if (!enabled) {
     timestamp.checked = false;
     frameId.checked = false;
+    userData.checked = false;
   }
+  $('frame-user-data-controls').style.display = userData.checked ? 'flex' : 'none';
   syncFrameMetadataPublishOptions();
 }
 
@@ -155,10 +160,24 @@ function syncFrameMetadataFeatureControls() {
 (<HTMLInputElement>$('frame-metadata-frame-id')).addEventListener('change', () =>
   syncFrameMetadataPublishOptions(),
 );
+(<HTMLInputElement>$('frame-metadata-user-data')).addEventListener(
+  'change',
+  syncFrameMetadataFeatureControls,
+);
 syncFrameMetadataFeatureControls();
 
 // handles actions from the HTML
 const appActions = {
+  sendFrameUserData: () => {
+    const videoPub = currentRoom?.localParticipant.getTrackPublication(Track.Source.Camera);
+    if (!videoPub?.videoTrack) {
+      appendLog('cannot attach frame user data, camera is not published');
+      return;
+    }
+    const value = (<HTMLInputElement>$('frame-user-data-input')).value;
+    videoPub.videoTrack.attachUserDataToNextFrame(new TextEncoder().encode(value));
+    appendLog('attached user data to next frame', value);
+  },
   sendFile: async () => {
     console.log('start sending');
     const file = ($('file') as HTMLInputElement).files?.[0]!;

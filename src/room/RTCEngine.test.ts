@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError } from './errors';
+import type LocalTrack from './track/LocalTrack';
+import LocalVideoTrack from './track/LocalVideoTrack';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -58,12 +60,26 @@ describe('RTCEngine', () => {
     ).makeRTCConfiguration();
   }
 
-  function setupFrameMetadataSender(engine: RTCEngine, sender: RTCRtpSender, opts = {}) {
+  function mockLocalVideoTrack(mediaStreamID = 'stream-id') {
+    // constructing a LocalVideoTrack requires more browser APIs than happy-dom
+    // provides, so build a minimal instance with just the state the engine uses
+    const track = Object.create(LocalVideoTrack.prototype) as LocalVideoTrack;
+    Object.assign(track, { _mediaStreamID: mediaStreamID });
+    return track;
+  }
+
+  function setupFrameMetadataSender(
+    engine: RTCEngine,
+    sender: RTCRtpSender,
+    opts = {},
+    track: LocalTrack = mockLocalVideoTrack(),
+  ) {
     (
       engine as unknown as {
-        setupFrameMetadataSender: (sender: RTCRtpSender, opts?: unknown) => void;
+        setupFrameMetadataSender: (sender: RTCRtpSender, track: LocalTrack, opts?: unknown) => void;
       }
-    ).setupFrameMetadataSender(sender, opts);
+    ).setupFrameMetadataSender(sender, track, opts);
+    return track;
   }
 
   it('does not enable encoded insertable streams without E2EE or a packet trailer worker', () => {
@@ -176,11 +192,66 @@ describe('RTCEngine', () => {
         data: {
           readableStream: readable,
           writableStream: writable,
+          trackId: 'stream-id',
           packetTrailer: { timestamp: true, frameId: true },
         },
       },
       [readable, writable],
     );
+  });
+
+  it('registers a frame user data poster when userData is enabled', () => {
+    stubInsertableStreamsSupport();
+
+    const worker = { postMessage: vi.fn() } as unknown as Worker;
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker },
+    });
+    const createEncodedStreams = vi.fn(() => ({
+      readable: {} as ReadableStream,
+      writable: {} as WritableStream,
+    }));
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    const track = setupFrameMetadataSender(engine, sender, {
+      packetTrailer: { userData: true },
+    }) as LocalVideoTrack;
+
+    expect(track.frameUserDataPoster).toBeDefined();
+
+    const userData = Uint8Array.from([1, 2, 3]);
+    track.frameUserDataPoster!(userData);
+
+    expect(worker.postMessage).toHaveBeenLastCalledWith({
+      kind: 'setFrameUserData',
+      data: { trackId: 'stream-id', userData },
+    });
+  });
+
+  it('does not register a frame user data poster when userData is disabled', () => {
+    stubInsertableStreamsSupport();
+
+    const worker = { postMessage: vi.fn() } as unknown as Worker;
+    const engine = new RTCEngine({
+      ...roomOptionDefaults,
+      packetTrailer: { worker },
+    });
+    const createEncodedStreams = vi.fn(() => ({
+      readable: {} as ReadableStream,
+      writable: {} as WritableStream,
+    }));
+    const sender = {
+      createEncodedStreams,
+    } as unknown as RTCRtpSender;
+
+    const track = setupFrameMetadataSender(engine, sender, {
+      packetTrailer: { timestamp: true },
+    }) as LocalVideoTrack;
+
+    expect(track.frameUserDataPoster).toBeUndefined();
   });
 
   it('uses RTCRtpScriptTransform for sender packet trailer writes when supported', () => {
@@ -215,6 +286,7 @@ describe('RTCEngine', () => {
 
     expect(RTCRtpScriptTransform).toHaveBeenCalledWith(worker, {
       kind: 'encode',
+      trackId: 'stream-id',
       packetTrailer: { timestamp: true },
     });
     expect((sender as unknown as { transform: unknown }).transform).toBe(transform);

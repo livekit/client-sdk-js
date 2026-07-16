@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getFrameMetadataFeatures,
   getFrameMetadataPublishOptions,
+  hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
 } from './utils';
 
@@ -83,6 +84,14 @@ describe('frame metadata publish features', () => {
     expect(getFrameMetadataFeatures({ frameId: true })).toEqual([
       PacketTrailerFeature.PTF_FRAME_ID,
     ]);
+    expect(getFrameMetadataFeatures({ userData: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_DATA,
+    ]);
+    expect(getFrameMetadataFeatures({ timestamp: true, frameId: true, userData: true })).toEqual([
+      PacketTrailerFeature.PTF_USER_TIMESTAMP,
+      PacketTrailerFeature.PTF_FRAME_ID,
+      PacketTrailerFeature.PTF_USER_DATA,
+    ]);
     expect(getFrameMetadataFeatures()).toEqual([]);
   });
 
@@ -99,7 +108,26 @@ describe('frame metadata publish features', () => {
     expect(getFrameMetadataPublishOptions([PacketTrailerFeature.PTF_FRAME_ID])).toEqual({
       frameId: true,
     });
+    expect(getFrameMetadataPublishOptions([PacketTrailerFeature.PTF_USER_DATA])).toEqual({
+      userData: true,
+    });
+    expect(
+      getFrameMetadataPublishOptions([
+        PacketTrailerFeature.PTF_USER_TIMESTAMP,
+        PacketTrailerFeature.PTF_FRAME_ID,
+        PacketTrailerFeature.PTF_USER_DATA,
+      ]),
+    ).toEqual({ timestamp: true, frameId: true, userData: true });
     expect(getFrameMetadataPublishOptions()).toBeUndefined();
     expect(getFrameMetadataPublishOptions([])).toBeUndefined();
+  });
+
+  it('detects publish options with any feature enabled', () => {
+    expect(hasFrameMetadataPublishOptions({ timestamp: true })).toBe(true);
+    expect(hasFrameMetadataPublishOptions({ frameId: true })).toBe(true);
+    expect(hasFrameMetadataPublishOptions({ userData: true })).toBe(true);
+    expect(hasFrameMetadataPublishOptions({ userData: false })).toBe(false);
+    expect(hasFrameMetadataPublishOptions({})).toBe(false);
+    expect(hasFrameMetadataPublishOptions()).toBe(false);
   });
 });

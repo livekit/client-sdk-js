@@ -95,6 +95,9 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private frameMetadataFrameId = 0;
 
+  /** User data to attach to the next encoded video frame, cleared once written. */
+  private pendingFrameUserData?: Uint8Array;
+
   /**
    * Throttling mechanism for decryption errors to prevent memory leaks
    */
@@ -220,6 +223,16 @@ export class FrameCryptor extends BaseFrameCryptor {
   setFrameMetadataOpts(frameMetadata?: FrameMetadataPublishOptions) {
     this.frameMetadataOpts = frameMetadata;
     this.frameMetadataFrameId = 0;
+    // pendingFrameUserData is intentionally left untouched: it may have been
+    // set before the encode transform registered on this cryptor.
+  }
+
+  /**
+   * Sets the user data to attach to the next published video frame. An
+   * undefined or empty value clears any pending user data instead.
+   */
+  setPendingFrameUserData(userData?: Uint8Array) {
+    this.pendingFrameUserData = userData && userData.length > 0 ? userData : undefined;
   }
 
   setupTransform(
@@ -504,10 +517,18 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.frameMetadataFrameId =
         this.frameMetadataFrameId === 0xffffffff ? 1 : this.frameMetadataFrameId + 1;
     }
+    let userData: Uint8Array | undefined;
+    // Empty (DTX-like) frames never carry a trailer; don't let them consume
+    // the one-shot user data.
+    if (this.frameMetadataOpts?.userData && encodedFrame.data.byteLength > 0) {
+      userData = this.pendingFrameUserData;
+      this.pendingFrameUserData = undefined;
+    }
     appendPacketTrailerToEncodedFrame(
       encodedFrame,
       this.frameMetadataOpts,
       this.frameMetadataFrameId,
+      userData,
     );
   }
 
