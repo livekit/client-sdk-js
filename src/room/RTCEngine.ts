@@ -1763,11 +1763,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
       }
     }
-
-    const status = this.isBelowLowWaterMark(kind);
-    if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
-      this.dcBufferStatus.set(kind, status);
-      this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+    try {
+      const status = this.isBelowLowWaterMark(kind);
+      if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
+        this.dcBufferStatus.set(kind, status);
+        this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+      }
+    } catch (e) {
+      this.log.warn('could not update buffer status', { error: e });
     }
   };
 
