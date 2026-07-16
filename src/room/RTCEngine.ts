@@ -458,6 +458,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
+    // Reject parked headroom waiters up front: closing the peer connection is allowed (per spec)
+    // to transition data channels to 'closed' without firing events, which would otherwise strand
+    // a waiter holding the headroom lock.
+    this.invalidateDataChannelWaiters('peer connections cleaned up');
+
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
       if (!dc) {
         return;
@@ -884,6 +889,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       return;
     }
+
+    // Waiters parked on the old channel objects would never see another event from them once they
+    // are replaced below — reject them so the headroom lock is released and queued senders
+    // re-check against the new channels.
+    this.invalidateDataChannelWaiters('data channels recreated');
 
     // clear old data channel callbacks if recreate
     if (this.lossyDC) {
@@ -1626,21 +1636,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       case DataChannelKind.DATA_TRACK_LOSSY:
         return this.sendLossyBytes(msg, kind);
 
-      case DataChannelKind.RELIABLE:
+      case DataChannelKind.RELIABLE: {
+        if (this.attemptingReconnect) {
+          // A reconnect is already underway — queue for the resume replay instead of parking on a
+          // channel that is being torn down. The send resolves; delivery is deferred to the replay.
+          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
+          return;
+        }
+
         const dc = this.dataChannelForKind(kind);
         if (dc) {
-          await this.waitForBufferHeadroom(kind);
-          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
-
-          if (this.attemptingReconnect) {
+          try {
+            await this.waitForBufferHeadroom(kind);
+          } catch (error) {
+            if (this.isClosed) {
+              // No replay is coming after an engine close — surface the failure.
+              throw error;
+            }
+            // Transient teardown (the channel closed or was replaced while we waited): the
+            // reliable channel promises delivery across resume, so queue the packet for the
+            // replay instead of rejecting a send the app can't meaningfully retry.
+            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
             return;
           }
 
+          if (this.attemptingReconnect) {
+            // A reconnect began while we waited for headroom — same deal as above.
+            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
+            return;
+          }
+
+          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: true });
           dc.send(msg);
         }
 
         this.updateAndEmitDCBufferStatus(kind);
         break;
+      }
     }
   }
 
@@ -1650,6 +1682,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
     bufferStatusFullBehavior: 'drop' | 'wait' = 'drop',
   ) {
+    // Make sure we do have a data connection. This matters most for the direct data-track path
+    // (Room's packetAvailable handler), which doesn't go through sendDataPacket: it both waits for
+    // the channel to be open and — on lazily negotiated publisher connections — is what kicks the
+    // negotiation off in the first place. The call is memoized, so the steady-state cost is one
+    // await on an already-resolved promise.
+    await this.ensurePublisherConnected(kind);
+
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       // Depending on the exact circumstance that data is being sent, either drop or wait for the
@@ -1673,7 +1712,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             return;
           }
       }
-      this.lossyDataStatCurrentBytes += bytes.byteLength;
+      if (kind === DataChannelKind.LOSSY) {
+        // The byterate stat tunes the LOSSY channel's dynamic drop threshold; counting data-track
+        // bytes here would inflate it and let the lossy channel buffer far more latency than the
+        // ~100ms the tuning targets.
+        this.lossyDataStatCurrentBytes += bytes.byteLength;
+      }
 
       if (this.attemptingReconnect) {
         return;
@@ -1701,6 +1745,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
           dc.send(msg.data);
         }
+        // Everything queued (including packets buffered unsent during the reconnect window) has
+        // been handed to the channel. If the loop throws instead, entries keep their unsent flag
+        // and the next replay picks them up — receivers dedupe any that did make it out.
+        this.reliableMessageBuffer.markAllSent();
       } finally {
         unlock();
       }
@@ -1756,6 +1804,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
   private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
 
+  /**
+   * Per-kind epoch for headroom waiters: aborted whenever a kind's channel object stops being
+   * current (replaced by createDataChannels or torn down by cleanupPeerConnections). A waiter is
+   * parked on the channel object it captured at wait entry; if that object is abandoned its
+   * events may never fire again, so the abort is what rejects the waiter and releases the
+   * headroom lock instead of stranding every future sender behind it.
+   */
+  private dataChannelEpochs = new Map<DataChannelKind, AbortController>();
+
+  private dataChannelEpochSignal(kind: DataChannelKind): AbortSignal {
+    let controller = this.dataChannelEpochs.get(kind);
+    if (!controller) {
+      controller = new AbortController();
+      this.dataChannelEpochs.set(kind, controller);
+    }
+    return controller.signal;
+  }
+
+  /** Rejects all parked headroom waiters (all kinds) and starts a fresh epoch. */
+  private invalidateDataChannelWaiters(reason: string) {
+    for (const controller of this.dataChannelEpochs.values()) {
+      controller.abort(reason);
+    }
+    this.dataChannelEpochs.clear();
+  }
+
   /** Acquires the per-kind headroom lock, resolving with the unlock function. */
   private lockBufferHeadroom(kind: DataChannelKind): Promise<() => void> {
     let lock = this.waitForBufferHeadroomLocks.get(kind);
@@ -1799,6 +1873,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!dc) {
       throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
     }
+    const epochSignal = this.dataChannelEpochSignal(kind);
     await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
       const onBufferedAmountLow = () => {
         cleanup();
@@ -1810,13 +1885,29 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
         );
       };
+      const onEpochAbort = () => {
+        cleanup();
+        reject(
+          new UnexpectedConnectionState(
+            `DataChannel ${kind} was replaced or torn down while waiting for headroom`,
+          ),
+        );
+      };
       const cleanup = () => {
         dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
         dc.removeEventListener('close', onDCClose);
+        epochSignal.removeEventListener('abort', onEpochAbort);
       };
+      if (epochSignal.aborted) {
+        onEpochAbort();
+        return;
+      }
       dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
       // Proxy along any error caused by the data channel closing while we wait.
       dc.addEventListener('close', onDCClose);
+      // The channel object we're parked on can be abandoned without ever firing another event
+      // (e.g. createDataChannels replacing it); the epoch abort is our way out.
+      epochSignal.addEventListener('abort', onEpochAbort);
     });
   }
 
