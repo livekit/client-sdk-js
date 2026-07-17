@@ -1647,7 +1647,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const dc = this.dataChannelForKind(kind);
         if (dc) {
           try {
-            await this.waitForBufferHeadroom(kind);
+            await this.waitForBufferHeadroomWithLock(kind);
           } catch (error) {
             if (this.isClosed) {
               // No replay is coming after an engine close — surface the failure.
@@ -1697,7 +1697,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         switch (bufferStatusFullBehavior) {
           case 'wait':
             if (!this.isBelowHighWaterMark(kind)) {
-              await this.waitForBufferHeadroom(kind);
+              await this.waitForBufferHeadroomWithLock(kind);
             }
             break;
           case 'drop':
@@ -1747,7 +1747,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // concurrent send — whose (newer) sequence was already assigned in sendDataPacket before it
       // queued on the lock — hit the wire mid-replay, and receivers would then discard the
       // remaining lower-sequence resent messages as duplicates.
-      const unlock = await this.lockBufferHeadroom(DataChannelKind.RELIABLE);
+      const unlock = await this.getBufferHeadroomLock(DataChannelKind.RELIABLE).lock();
       try {
         // Everything left after the ack cutoff must be re-handed to the current channel.
         this.reliableMessageBuffer.markAllUnsent();
@@ -1764,7 +1764,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         ) {
           for (const item of batch) {
             // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
-            await this.waitForBufferHeadroomLocked(DataChannelKind.RELIABLE);
+            // We already hold the lock across the whole replay, so use the lock-free wait.
+            await this.waitForBufferHeadroomWithoutLock(DataChannelKind.RELIABLE);
             dc.send(item.data);
             this.reliableMessageBuffer.markSent(item);
           }
@@ -1854,38 +1855,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** Acquires the per-kind headroom lock, resolving with the unlock function. */
-  private lockBufferHeadroom(kind: DataChannelKind): Promise<() => void> {
+  private getBufferHeadroomLock(kind: DataChannelKind): Mutex {
     let lock = this.waitForBufferHeadroomLocks.get(kind);
     if (!lock) {
       lock = new Mutex();
       this.waitForBufferHeadroomLocks.set(kind, lock);
     }
-    return lock.lock();
+    return lock;
   }
 
   /**
-   * Resolves once the caller may send on the `kind` channel: immediately while the send buffer is
-   * at or below its high-water mark, otherwise once the buffer has drained to the low-water mark
-   * (the `bufferedamountlow` event). Callers are serialized through a per-kind mutex so that, when
-   * the buffer drains, they refill it one at a time (up to the high-water mark) rather than all
-   * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
-   * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
+   * Acquires the `kind` headroom lock, waits until the send buffer has room, then releases. The
+   * common single-send entry point. Callers that need to hold the lock across several sends (the
+   * resume replay) acquire it via {@link getBufferHeadroomLock} and call
+   * {@link waitForBufferHeadroomWithoutLock} per message instead.
    */
-  async waitForBufferHeadroom(kind: DataChannelKind) {
-    const unlock = await this.lockBufferHeadroom(kind);
+  async waitForBufferHeadroomWithLock(kind: DataChannelKind) {
+    const unlock = await this.getBufferHeadroomLock(kind).lock();
     try {
-      await this.waitForBufferHeadroomLocked(kind);
+      await this.waitForBufferHeadroomWithoutLock(kind);
     } finally {
       unlock();
     }
   }
 
   /**
-   * Core wait of {@link waitForBufferHeadroom}. The caller must hold the kind's headroom lock —
-   * batch senders (the resume replay) hold it across all of their sends so no other sender can
-   * interleave, and call this per message to respect flow control within the batch.
+   * Waits until the send buffer for `kind` is at or below the high-water mark (draining, if
+   * needed, via the `bufferedamountlow` event). Does no locking of its own — the caller must
+   * already hold the kind's headroom lock (via {@link getBufferHeadroomLock}). The resume replay
+   * holds the lock across its whole batch and calls this per message so no other sender can
+   * interleave; the single-send path goes through {@link waitForBufferHeadroomWithLock}.
+   *
+   * Serializing through the per-kind lock means that, once the buffer drains, queued callers
+   * refill it one at a time (up to the high-water mark) rather than all at once and overflowing
+   * the SCTP send buffer (see livekit/client-sdk-js#1995).
    */
-  private async waitForBufferHeadroomLocked(
+  private async waitForBufferHeadroomWithoutLock(
     kind: DataChannelKind,
   ): Promise<Throws<void, UnexpectedConnectionState | TypeError>> {
     if (this.isClosed) {

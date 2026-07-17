@@ -231,7 +231,7 @@ describe('RTCEngine', () => {
       const send = vi.fn();
       Object.assign(engine as unknown as Record<string, unknown>, {
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        waitForBufferHeadroom: vi.fn().mockResolvedValue(undefined),
+        waitForBufferHeadroomWithLock: vi.fn().mockResolvedValue(undefined),
         updateAndEmitDCBufferStatus: vi.fn(),
         dataChannelForKind: vi.fn(() => ({ send })),
         pcManager: {
@@ -322,8 +322,7 @@ describe('RTCEngine', () => {
         },
       });
 
-      // Two messages queued for replay, and a full buffer so the replay parks on
-      // waitForBufferHeadroom before its first send.
+      // Two messages queued for replay, and a full buffer so the XX its first send.
       const replayed1 = new Uint8Array([1]);
       const replayed2 = new Uint8Array([2]);
       const buffer = (
@@ -379,7 +378,7 @@ describe('RTCEngine', () => {
         .reliableMessageBuffer;
       const replayed = new Uint8Array([1]);
       buffer.push({ data: replayed, sequence: 1, sent: true });
-      // Full buffer so replay parks on waitForBufferHeadroom before its first send.
+      // Full buffer so replay parks on waitForBufferHeadroomWithLock before its first send.
       dc.bufferedAmount = 2 * 1024 * 1024;
 
       const replay = (
@@ -540,7 +539,7 @@ describe('RTCEngine', () => {
     });
   });
 
-  describe('waitForBufferHeadroom', () => {
+  describe('waitForBufferHeadroomWithLock', () => {
     it('rejects parked waiters and releases the lock when the data channels are invalidated', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
@@ -551,7 +550,7 @@ describe('RTCEngine', () => {
 
       // Park a waiter: buffer above the reliable high-water mark, holding the headroom lock.
       dc.bufferedAmount = 2 * 1024 * 1024;
-      const parked = engine.waitForBufferHeadroom(DataChannelKind.RELIABLE);
+      const parked = engine.waitForBufferHeadroomWithLock(DataChannelKind.RELIABLE);
       // Swallow the expected rejection so it can't surface as unhandled before we assert on it.
       parked.catch(() => {});
       await tick();
@@ -566,7 +565,9 @@ describe('RTCEngine', () => {
       // The lock must be free again: a wait against the fresh, drained channel resolves instead
       // of queueing forever behind the stranded waiter.
       dc.bufferedAmount = 0;
-      await expect(engine.waitForBufferHeadroom(DataChannelKind.RELIABLE)).resolves.toBeUndefined();
+      await expect(
+        engine.waitForBufferHeadroomWithLock(DataChannelKind.RELIABLE),
+      ).resolves.toBeUndefined();
     });
   });
 
