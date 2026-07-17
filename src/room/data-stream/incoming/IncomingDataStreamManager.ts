@@ -209,7 +209,7 @@ export default class IncomingDataStreamManager {
           start: (controller) => {
             streamController = controller;
 
-            if (this.textStreamControllers.has(streamHeader.streamId)) {
+            if (this.byteStreamControllers.has(streamHeader.streamId)) {
               throw new DataStreamError(
                 `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
                 DataStreamErrorReason.AlreadyOpened,
