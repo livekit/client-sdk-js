@@ -393,8 +393,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
               maxStartBitrateKbps,
             );
 
+            let fmtpFound = false;
             for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
+                fmtpFound = true;
                 // if another track's fmtp already is set, we cannot override the bitrate
                 // this has the unfortunate consequence of being forced to use the
                 // initial track's bitrate for all tracks
@@ -403,6 +405,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
                 }
                 break;
               }
+            }
+            // VP8 and some codecs may not have an existing fmtp line - create one
+            if (!fmtpFound) {
+              media.fmtp.push({
+                payload: codecPayload,
+                config: `x-google-start-bitrate=${startBitrate}`,
+              });
             }
             return true;
           });
