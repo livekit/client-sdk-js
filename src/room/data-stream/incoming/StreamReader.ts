@@ -105,6 +105,9 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
           );
           if (result.done) {
             this.validateBytesReceived(true);
+            if (typeof this.totalByteSize === 'number') {
+              this.onProgress?.(1);
+            }
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(result.value);
@@ -233,6 +236,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
           );
           if (result.done) {
             this.validateBytesReceived(true);
+            if (typeof this.totalByteSize === 'number') {
+              this.onProgress?.(1);
+            }
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(result.value);

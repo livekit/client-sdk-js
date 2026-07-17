@@ -138,12 +138,15 @@ export default class OutgoingDataStreamManager {
 
     const fileIds = options?.attachments?.map(() => crypto.randomUUID());
 
-    const progresses = new Array<number>(fileIds ? fileIds.length + 1 : 1).fill(0);
+    // Progress is split evenly across the text part (slot 0) and one slot per attachment, then
+    // normalized to a [0,1] fraction. Each slot climbs monotonically to 1, so the aggregate ends at
+    // exactly 1 once every part has completed.
+    const parts = fileIds ? fileIds.length + 1 : 1;
+    const progresses = new Array<number>(parts).fill(0);
 
     const handleProgress = (progress: number, idx: number) => {
       progresses[idx] = progress;
-      const totalProgress = progresses.reduce((acc, val) => acc + val, 0);
-      options?.onProgress?.(totalProgress);
+      options?.onProgress?.(progresses.reduce((acc, val) => acc + val, 0) / parts);
     };
 
     // Phase 2: Try to send a multi packet data stream with compressed bytes
@@ -158,11 +161,17 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        compressedStream.stream(),
+        compressedStream
+          .stream()
+          .pipeThrough(
+            progressReportingStream(textInBytes.length, (progress) => handleProgress(progress, 0)),
+          ),
       );
 
-      // set text part of progress to 1
-      handleProgress(1, 0);
+      // Ensure there's always a 100% progress event fired, even if the string is zero bytes long
+      if (textInBytes.length === 0) {
+        handleProgress(1, 0);
+      }
     } else {
       // Phase 3 / fallback: header + plain uncompressed chunk packets + trailer.
       const writer = await this.streamText({
@@ -223,13 +232,19 @@ export default class OutgoingDataStreamManager {
         : Encryption_Type.NONE,
     };
 
+    const progressMonitorTap = progressReportingStream(bytes.length, options?.onProgress);
+
     const compressEligible =
       compress &&
       isCompressionStreamSupported() &&
       this.allRecipientsSupportV2(destinationIdentities) &&
       this.allRecipientsSupportCompression(destinationIdentities);
     let compressedStream = compressEligible
-      ? MaybeCollectedStream.fromStream(readableFromBytes(bytes).pipeThrough(deflateRawTransform()))
+      ? MaybeCollectedStream.fromStream(
+          readableFromBytes(bytes)
+            .pipeThrough(progressMonitorTap)
+            .pipeThrough(deflateRawTransform()),
+        )
       : null;
 
     // Phase 1: Try to send as a single packet data stream
@@ -265,9 +280,15 @@ export default class OutgoingDataStreamManager {
         : DataStream_CompressionType.NONE,
     });
     const packet = createStreamHeaderPacket(header, destinationIdentities);
-    const source = compressedStream ? compressedStream.stream() : readableFromBytes(bytes);
+    const source = compressedStream
+      ? compressedStream.stream()
+      : readableFromBytes(bytes).pipeThrough(progressMonitorTap);
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
-    options?.onProgress?.(1);
+
+    // Ensure there's always a 100% progress event fired, even if the buffer is zero bytes long
+    if (bytes.length === 0) {
+      options?.onProgress?.(1);
+    }
 
     return info;
   }
@@ -470,8 +491,17 @@ export default class OutgoingDataStreamManager {
         : DataStream_CompressionType.NONE,
     });
     const packet = createStreamHeaderPacket(header, destinationIdentities);
-    const source = compress ? file.stream().pipeThrough(deflateRawTransform()) : file.stream();
+
+    const tapped = file
+      .stream()
+      .pipeThrough(progressReportingStream(file.size, options?.onProgress));
+    const source = compress ? tapped.pipeThrough(deflateRawTransform()) : tapped;
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
+
+    // Ensure there's always a 100% progress event fired, even if the file is zero bytes long
+    if (file.size === 0) {
+      options?.onProgress?.(1);
+    }
 
     return info;
   }
@@ -599,6 +629,35 @@ class MaybeCollectedStream {
         return readableFromBytes(this.state.bytes);
     }
   }
+}
+
+/**
+ * A pass-through byte transform that reports progress as bytes flow through it, measured against
+ * `totalLength`. Used as a "tap" to instrument the source of a chunked send without threading a
+ * progress callback through the send primitive.
+ *
+ * IMPORTANT: This should be upstream of any compression step.
+ *
+ * Emits nothing when the total is unknown or zero.
+ */
+function progressReportingStream(
+  totalPreCompressionLength: number | undefined,
+  onProgress?: (progress: number) => void,
+): ReadableWritablePair<Uint8Array, Uint8Array> {
+  let sent = 0;
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      sent += chunk.byteLength;
+      if (
+        onProgress &&
+        typeof totalPreCompressionLength === 'number' &&
+        totalPreCompressionLength > 0
+      ) {
+        onProgress(Math.min(sent / totalPreCompressionLength, 1));
+      }
+      controller.enqueue(chunk);
+    },
+  });
 }
 
 /**
