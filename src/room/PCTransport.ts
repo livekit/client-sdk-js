@@ -15,6 +15,7 @@ interface TrackBitrateInfo {
   transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
+  isScreenShare?: boolean;
 }
 
 /*
@@ -387,11 +388,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             // mung sdp for bitrate setting that can't apply by sendEncoding
-            // Use 90% of target bitrate, capped at 1 Mbps to prevent BWE from starting too aggressively
-            const startBitrate = Math.min(
-              Math.round(trackbr.maxbr * startBitrateMultiplier),
-              maxStartBitrateKbps,
-            );
+            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
+            // Screen share is not capped since text/UI clarity requires high bitrate from the start
+            // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
+            const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
+            const startBitrate = trackbr.isScreenShare
+              ? calculatedStartBitrate
+              : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
 
             let fmtpFound = false;
             for (const fmtp of media.fmtp) {

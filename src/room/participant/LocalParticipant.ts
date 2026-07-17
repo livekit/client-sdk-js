@@ -1261,6 +1261,7 @@ export default class LocalParticipant extends Participant {
               cid: req.cid,
               codec: track.codec,
               maxbr: targetBitrate / 1000,
+              isScreenShare: track.source === Track.Source.ScreenShare,
             });
           }
         }
