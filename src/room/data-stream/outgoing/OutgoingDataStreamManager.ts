@@ -197,6 +197,8 @@ export default class OutgoingDataStreamManager {
           this._sendFile(fileIds[idx], file, {
             topic: options.topic,
             mimeType: file.type,
+            destinationIdentities: options.destinationIdentities,
+            compress: options.compress,
             onProgress: (progress) => {
               handleProgress(progress, idx + 1);
             },
