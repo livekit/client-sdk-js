@@ -97,7 +97,7 @@ describe('DataChannelManager', () => {
 
     // Park a reliable sender on the first-generation channel.
     created.find((dc) => dc.label === '_reliable')!.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroom();
+    const parked = manager.reliable.waitForHeadroomWithLock();
     parked.catch(() => {});
     await tick();
 
@@ -106,7 +106,7 @@ describe('DataChannelManager', () => {
 
     await expect(parked).rejects.toBeInstanceOf(UnexpectedConnectionState);
     // The gate recovers against the fresh (empty) channel.
-    await expect(manager.reliable.waitForHeadroom()).resolves.toBeUndefined();
+    await expect(manager.reliable.waitForHeadroomWithLock()).resolves.toBeUndefined();
 
     manager.lossy.stopThresholdTuning();
   });
@@ -135,7 +135,7 @@ describe('DataChannelManager', () => {
     manager.adoptSubscriberChannel(sub as unknown as RTCDataChannel);
 
     created.find((dc) => dc.label === '_reliable')!.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroom();
+    const parked = manager.reliable.waitForHeadroomWithLock();
     parked.catch(() => {});
     await tick();
 

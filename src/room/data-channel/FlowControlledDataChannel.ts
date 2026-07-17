@@ -29,8 +29,8 @@ export interface FlowControlledDataChannelOptions {
  *
  * Waiters are parked on the channel object captured at wait entry. If that object stops being
  * current — replaced or torn down — its events may never fire again, so the owner must call
- * {@link invalidateWaiters}, which rejects parked waiters (releasing the gate) and starts a
- * fresh epoch.
+ * {@link invalidateWaiters}, which aborts parked waiters (releasing the gate); the next waiter
+ * gets a fresh controller.
  */
 export class FlowControlledDataChannel {
   readonly kind: DataChannelKind;
@@ -50,7 +50,8 @@ export class FlowControlledDataChannel {
 
   private headroomLock = new Mutex();
 
-  private epoch = new AbortController();
+  /** Cancels parked headroom waiters when the handle is replaced or torn down. */
+  private waiterAbortController = new AbortController();
 
   constructor(opts: FlowControlledDataChannelOptions) {
     this.kind = opts.kind;
@@ -67,8 +68,8 @@ export class FlowControlledDataChannel {
 
   /**
    * Attaches the channel handle this wrapper controls. Replacing an existing handle rejects
-   * parked waiters — their events would never fire again on the abandoned object — and starts a
-   * fresh epoch, so queued senders re-check against the new channel. Wrappers outlive their
+   * parked waiters — their events would never fire again on the abandoned object — and installs a
+   * fresh controller, so queued senders re-check against the new channel. Wrappers outlive their
    * handles: this is the one place handle turnover happens, which is what makes stranding a
    * waiter structurally impossible.
    */
@@ -113,7 +114,7 @@ export class FlowControlledDataChannel {
   /**
    * Acquires the headroom lock, resolving with the unlock function. Batch senders (the resume
    * replay) hold it across all of their sends so no other sender can interleave, calling
-   * {@link waitForHeadroomLocked} per message to respect flow control within the batch.
+   * {@link waitForHeadroomWithoutLock} per message to respect flow control within the batch.
    */
   lockHeadroom(): Promise<() => void> {
     return this.headroomLock.lock();
@@ -127,17 +128,17 @@ export class FlowControlledDataChannel {
    * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
    * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
    */
-  async waitForHeadroom() {
+  async waitForHeadroomWithLock() {
     const unlock = await this.lockHeadroom();
     try {
-      await this.waitForHeadroomLocked();
+      await this.waitForHeadroomWithoutLock();
     } finally {
       unlock();
     }
   }
 
-  /** Core wait of {@link waitForHeadroom}. The caller must hold the headroom lock. */
-  async waitForHeadroomLocked() {
+  /** Core wait of {@link waitForHeadroomWithLock}. The caller must hold the headroom lock. */
+  async waitForHeadroomWithoutLock() {
     if (this.isEngineClosed()) {
       throw new UnexpectedConnectionState('engine closed');
     }
@@ -148,7 +149,7 @@ export class FlowControlledDataChannel {
     if (this.isBelowHighWaterMark(dc)) {
       return;
     }
-    const epochSignal = this.epoch.signal;
+    const abortSignal = this.waiterAbortController.signal;
     await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
       const onBufferedAmountLow = () => {
         cleanup();
@@ -162,7 +163,7 @@ export class FlowControlledDataChannel {
           ),
         );
       };
-      const onEpochAbort = () => {
+      const onAbort = () => {
         cleanup();
         reject(
           new UnexpectedConnectionState(
@@ -173,25 +174,25 @@ export class FlowControlledDataChannel {
       const cleanup = () => {
         dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
         dc.removeEventListener('close', onDCClose);
-        epochSignal.removeEventListener('abort', onEpochAbort);
+        abortSignal.removeEventListener('abort', onAbort);
       };
-      if (epochSignal.aborted) {
-        onEpochAbort();
+      if (abortSignal.aborted) {
+        onAbort();
         return;
       }
       dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
       // Proxy along any error caused by the data channel closing while we wait.
       dc.addEventListener('close', onDCClose);
       // The channel object we're parked on can be abandoned without ever firing another event
-      // (e.g. the engine recreating channels); the epoch abort is our way out.
-      epochSignal.addEventListener('abort', onEpochAbort);
+      // (e.g. the engine recreating channels); the abort is our way out.
+      abortSignal.addEventListener('abort', onAbort);
     });
   }
 
-  /** Rejects all parked headroom waiters and starts a fresh epoch. */
+  /** Rejects all parked headroom waiters; the next waiter gets a fresh controller. */
   invalidateWaiters(reason: string) {
-    this.epoch.abort(reason);
-    this.epoch = new AbortController();
+    this.waiterAbortController.abort(reason);
+    this.waiterAbortController = new AbortController();
   }
 
   /**

@@ -1514,10 +1514,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /**
    * Resolves once the caller may send on the `kind` channel — see
-   * {@link FlowControlledDataChannel.waitForHeadroom}.
+   * {@link FlowControlledDataChannel.waitForHeadroomWithLock}.
    */
   async waitForBufferHeadroom(kind: DataChannelKind) {
-    return this.flowControlFor(kind).waitForHeadroom();
+    return this.flowControlFor(kind).waitForHeadroomWithLock();
   }
 
   /**

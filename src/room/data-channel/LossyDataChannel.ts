@@ -54,7 +54,7 @@ export class LossyDataChannel extends FlowControlledDataChannel {
     switch (this.bufferFullBehavior) {
       case 'wait':
         if (!this.isBelowHighWaterMark(dc)) {
-          await this.waitForHeadroom();
+          await this.waitForHeadroomWithLock();
         }
         break;
       case 'drop':

@@ -73,20 +73,22 @@ describe('FlowControlledDataChannel', () => {
 
   it('waiting for headroom without a handle rejects with a connection error', async () => {
     const { channel } = makeChannel({ dc: undefined });
-    await expect(channel.waitForHeadroom()).rejects.toBeInstanceOf(UnexpectedConnectionState);
+    await expect(channel.waitForHeadroomWithLock()).rejects.toBeInstanceOf(
+      UnexpectedConnectionState,
+    );
   });
 
   it('resolves immediately while below the high-water mark', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 1024;
-    await expect(channel.waitForHeadroom()).resolves.toBeUndefined();
+    await expect(channel.waitForHeadroomWithLock()).resolves.toBeUndefined();
   });
 
   it('parks above the high-water mark and resumes on bufferedamountlow', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
     const resolved = vi.fn();
-    const wait = channel.waitForHeadroom().then(resolved);
+    const wait = channel.waitForHeadroomWithLock().then(resolved);
     await tick();
     expect(resolved).not.toHaveBeenCalled();
 
@@ -99,7 +101,7 @@ describe('FlowControlledDataChannel', () => {
   it('rejects a parked waiter when the channel closes', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
-    const wait = channel.waitForHeadroom();
+    const wait = channel.waitForHeadroomWithLock();
     wait.catch(() => {});
     await tick();
 
@@ -107,33 +109,35 @@ describe('FlowControlledDataChannel', () => {
     await expect(wait).rejects.toBeInstanceOf(UnexpectedConnectionState);
   });
 
-  it('rejects a parked waiter on invalidateWaiters and recovers on the next epoch', async () => {
+  it('rejects a parked waiter on invalidateWaiters and recovers with a fresh controller', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
-    const wait = channel.waitForHeadroom();
+    const wait = channel.waitForHeadroomWithLock();
     wait.catch(() => {});
     await tick();
 
     channel.invalidateWaiters('channel replaced');
     await expect(wait).rejects.toBeInstanceOf(UnexpectedConnectionState);
 
-    // Fresh epoch: the gate is usable again and the lock was released.
+    // Fresh controller: the gate is usable again and the lock was released.
     dc.bufferedAmount = 0;
-    await expect(channel.waitForHeadroom()).resolves.toBeUndefined();
+    await expect(channel.waitForHeadroomWithLock()).resolves.toBeUndefined();
   });
 
   it('rejects immediately when the engine is closed', async () => {
     const { channel, state } = makeChannel();
     state.engineClosed = true;
-    await expect(channel.waitForHeadroom()).rejects.toBeInstanceOf(UnexpectedConnectionState);
+    await expect(channel.waitForHeadroomWithLock()).rejects.toBeInstanceOf(
+      UnexpectedConnectionState,
+    );
   });
 
   it('serializes waiters FIFO through the headroom lock', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
     const order: number[] = [];
-    const first = channel.waitForHeadroom().then(() => order.push(1));
-    const second = channel.waitForHeadroom().then(() => order.push(2));
+    const first = channel.waitForHeadroomWithLock().then(() => order.push(1));
+    const second = channel.waitForHeadroomWithLock().then(() => order.push(2));
     await tick();
 
     // One drain event wakes the head waiter; the second re-checks under the lock and, with the

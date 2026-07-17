@@ -64,7 +64,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
     }
 
     try {
-      await this.waitForHeadroom();
+      await this.waitForHeadroomWithLock();
     } catch (error) {
       if (this.isEngineClosed()) {
         // No replay is coming after an engine close — surface the failure.
@@ -118,7 +118,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       ) {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
-          await this.waitForHeadroomLocked();
+          await this.waitForHeadroomWithoutLock();
           dc.send(item.data);
           this.messageBuffer.markSent(item);
         }
