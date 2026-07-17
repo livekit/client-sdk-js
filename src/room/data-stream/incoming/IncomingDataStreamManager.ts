@@ -382,8 +382,8 @@ export default class IncomingDataStreamManager {
       } else {
         textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
         textBuffer.controller.close();
-        this.textStreamControllers.delete(trailer.streamId);
       }
+      this.textStreamControllers.delete(trailer.streamId);
     }
 
     const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
