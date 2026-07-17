@@ -44,6 +44,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -91,7 +92,6 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
-  Future,
   isPublisherOfferWithJoinSupported,
   isReactNative,
   isVideoCodec,
@@ -109,8 +109,17 @@ const dataTrackDataChannel = '_data_track';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 const reliabeReceiveStateTTL = 30_000;
-const lossyDataChannelBufferThresholdMin = 8 * 1024;
-const lossyDataChannelBufferThresholdMax = 256 * 1024;
+
+// Two-watermark flow control for the reliable and data-track channels. Senders fill the buffer
+// freely up to the high-water mark; once it's exceeded they block until the browser's
+// `bufferedamountlow` event (which we arm at the low-water mark) signals the buffer has drained.
+// The gap between the marks keeps the SCTP send buffer saturated while we refill, so throughput
+// isn't starved, while the high-water mark bounds the buffer well below the level that would abort
+// the channel (see livekit/client-sdk-js#1995).
+const reliableDataChannelWaterMarkLow = 64 * 1024;
+const reliableDataChannelWaterMarkHigh = 1024 * 1024;
+const lossyDataChannelWaterMarkLow = 8 * 1024;
+const lossyDataChannelWaterMarkHigh = 256 * 1024;
 
 const initialMediaSectionsAudio = 3;
 const initialMediaSectionsVideo = 3;
@@ -262,8 +271,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
-  private bufferStatusLowClosingFuture = new Future<never, UnexpectedConnectionState>();
-
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
@@ -297,13 +304,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
-
-    this.on(EngineEvent.Closing, () => {
-      this.bufferStatusLowClosingFuture.reject?.(new UnexpectedConnectionState('engine closed'));
-    });
-    // Swallow the rejection at the source so it doesn't surface as an unhandled promise rejection
-    // when no waitForBufferStatusLow callers are attached.
-    this.bufferStatusLowClosingFuture.promise.catch(() => {});
   }
 
   /** @internal */
@@ -458,6 +458,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
+    // Reject parked headroom waiters up front: closing the peer connection is allowed (per spec)
+    // to transition data channels to 'closed' without firing events, which would otherwise strand
+    // a waiter holding the headroom lock.
+    this.invalidateDataChannelWaiters('peer connections cleaned up');
+
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
       if (!dc) {
         return;
@@ -885,6 +890,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
+    // Waiters parked on the old channel objects would never see another event from them once they
+    // are replaced below — reject them so the headroom lock is released and queued senders
+    // re-check against the new channels.
+    this.invalidateDataChannelWaiters('data channels recreated');
+
     // clear old data channel callbacks if recreate
     if (this.lossyDC) {
       this.lossyDC.onmessage = null;
@@ -930,10 +940,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reliableDC.onclose = this.handleDataChannelClose(DataChannelKind.RELIABLE);
     this.dataTrackDC.onclose = this.handleDataChannelClose(DataChannelKind.DATA_TRACK_LOSSY);
 
-    // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
-    this.lossyDC.bufferedAmountLowThreshold = 65535;
-    this.reliableDC.bufferedAmountLowThreshold = 65535;
-    this.dataTrackDC.bufferedAmountLowThreshold = 65535;
+    // set up dc buffer threshold - if this is not set, it will default to 0
+    this.lossyDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
+    this.reliableDC.bufferedAmountLowThreshold = reliableDataChannelWaterMarkLow;
+    this.dataTrackDC.bufferedAmountLowThreshold = lossyDataChannelWaterMarkLow;
 
     // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = () => this.handleBufferedAmountLow(DataChannelKind.LOSSY);
@@ -952,8 +962,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // control buffered latency to ~100ms
         const threshold = this.lossyDataStatByterate / 10;
         dc.bufferedAmountLowThreshold = Math.min(
-          Math.max(threshold, lossyDataChannelBufferThresholdMin),
-          lossyDataChannelBufferThresholdMax,
+          Math.max(threshold, lossyDataChannelWaterMarkLow),
+          lossyDataChannelWaterMarkHigh,
         );
       }
     }, 1000);
@@ -1505,7 +1515,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (res?.lastMessageSeq) {
-      this.resendReliableMessagesForResume(res.lastMessageSeq);
+      this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) => {
+        this.log.warn('failed to resend reliable messages after resume', {
+          ...this.logContext,
+          error,
+        });
+      });
     }
 
     // resume success
@@ -1621,21 +1636,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       case DataChannelKind.DATA_TRACK_LOSSY:
         return this.sendLossyBytes(msg, kind);
 
-      case DataChannelKind.RELIABLE:
+      case DataChannelKind.RELIABLE: {
+        if (this.attemptingReconnect) {
+          // A reconnect is already underway — queue for the resume replay instead of parking on a
+          // channel that is being torn down. The send resolves; delivery is deferred to the replay.
+          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
+          return;
+        }
+
         const dc = this.dataChannelForKind(kind);
         if (dc) {
-          await this.waitForBufferStatusLow(kind);
-          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
-
-          if (this.attemptingReconnect) {
+          try {
+            await this.waitForBufferHeadroomWithLock(kind);
+          } catch (error) {
+            if (this.isClosed) {
+              // No replay is coming after an engine close — surface the failure.
+              throw error;
+            }
+            // Transient teardown (the channel closed or was replaced while we waited): the
+            // reliable channel promises delivery across resume, so queue the packet for the
+            // replay instead of rejecting a send the app can't meaningfully retry.
+            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
             return;
           }
 
+          if (this.attemptingReconnect) {
+            // A reconnect began while we waited for headroom — same deal as above.
+            this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: false });
+            return;
+          }
+
+          this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence, sent: true });
           dc.send(msg);
         }
 
         this.updateAndEmitDCBufferStatus(kind);
         break;
+      }
     }
   }
 
@@ -1643,42 +1680,62 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async sendLossyBytes(
     bytes: NonSharedUint8Array,
     kind: Exclude<DataChannelKind, DataChannelKind.RELIABLE>,
-    bufferStatusLowBehavior: 'drop' | 'wait' = 'drop',
+    bufferStatusFullBehavior: 'drop' | 'wait' = 'drop',
   ) {
-    // make sure we do have a data connection
+    // Make sure we do have a data connection. This matters most for the direct data-track path
+    // (Room's packetAvailable handler), which doesn't go through sendDataPacket: it both waits for
+    // the channel to be open and — on lazily negotiated publisher connections — is what kicks the
+    // negotiation off in the first place. The call is memoized, so the steady-state cost is one
+    // await on an already-resolved promise.
     await this.ensurePublisherConnected(kind);
 
     const dc = this.dataChannelForKind(kind);
-    if (dc) {
-      if (!this.isBufferStatusLow(kind)) {
+    try {
+      if (dc) {
         // Depending on the exact circumstance that data is being sent, either drop or wait for the
-        // buffer status to not be low before continuing.
-        switch (bufferStatusLowBehavior) {
+        // buffer to drain below the high-water mark before continuing.
+        switch (bufferStatusFullBehavior) {
           case 'wait':
-            await this.waitForBufferStatusLow(kind);
+            if (!this.isBelowHighWaterMark(kind)) {
+              await this.waitForBufferHeadroomWithLock(kind);
+            }
             break;
           case 'drop':
-            // this.log.warn(`dropping lossy data channel message`, this.logContext);
-            // Drop messages to reduce latency
-            this.lossyDataDropCount += 1;
-            if (this.lossyDataDropCount % 100 === 0) {
-              this.log.warn(
-                `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
-              );
+            // we check against the actual threshold on the DC here, as it is dynamic for the lossy DC
+            if (!this.isBelowLowWaterMark(kind)) {
+              // Drop messages to reduce latency
+              this.lossyDataDropCount += 1;
+              if (this.lossyDataDropCount % 100 === 0) {
+                this.log.warn(
+                  `dropping lossy data channel messages, total dropped: ${this.lossyDataDropCount}`,
+                );
+              }
+              return;
             }
-            return;
         }
-      }
-      this.lossyDataStatCurrentBytes += bytes.byteLength;
+        if (kind === DataChannelKind.LOSSY) {
+          // The byterate stat tunes the LOSSY channel's dynamic drop threshold; counting data-track
+          // bytes here would inflate it and let the lossy channel buffer far more latency than the
+          // ~100ms the tuning targets.
+          this.lossyDataStatCurrentBytes += bytes.byteLength;
+        }
 
-      if (this.attemptingReconnect) {
-        return;
+        if (this.attemptingReconnect) {
+          return;
+        }
+
+        dc.send(bytes);
       }
 
-      dc.send(bytes);
+      this.updateAndEmitDCBufferStatus(kind);
+    } catch (error: unknown) {
+      // ensure same surface behaviour as before with missing data channel being silently ignored, just log an error message for clarity
+      if (error instanceof TypeError) {
+        this.log.error(error);
+      } else {
+        throw error;
+      }
     }
-
-    this.updateAndEmitDCBufferStatus(kind);
   }
 
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
@@ -1686,9 +1743,36 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const dc = this.dataChannelForKind(DataChannelKind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      this.reliableMessageBuffer.getAll().forEach((msg) => {
-        dc.send(msg.data);
-      });
+      // Hold the headroom lock across the whole replay. Releasing it between messages would let a
+      // concurrent send — whose (newer) sequence was already assigned in sendDataPacket before it
+      // queued on the lock — hit the wire mid-replay, and receivers would then discard the
+      // remaining lower-sequence resent messages as duplicates.
+      const unlock = await this.getBufferHeadroomLock(DataChannelKind.RELIABLE).lock();
+      try {
+        // Everything left after the ack cutoff must be re-handed to the current channel.
+        this.reliableMessageBuffer.markAllUnsent();
+        // Drain in passes, re-scanning the live buffer each time: a send that arrives (deferred,
+        // sent:false) during our own awaits appends after this pass started, so we pick it up on
+        // the next one. We mark each packet only once we've actually handed it to the channel — a
+        // blanket "mark all sent" would flip such a late arrival to sent without transmitting it,
+        // and a later alignBufferedAmount would then drop it for good. If the loop throws
+        // mid-drain, unsent entries keep their flag and the next replay picks them up.
+        for (
+          let batch = this.reliableMessageBuffer.getUnsent();
+          batch.length > 0;
+          batch = this.reliableMessageBuffer.getUnsent()
+        ) {
+          for (const item of batch) {
+            // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
+            // We already hold the lock across the whole replay, so use the lock-free wait.
+            await this.waitForBufferHeadroomWithoutLock(DataChannelKind.RELIABLE);
+            dc.send(item.data);
+            this.reliableMessageBuffer.markSent(item);
+          }
+        }
+      } finally {
+        unlock();
+      }
     }
     this.updateAndEmitDCBufferStatus(DataChannelKind.RELIABLE);
   }
@@ -1700,39 +1784,160 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
       }
     }
-
-    const status = this.isBufferStatusLow(kind);
-    if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
-      this.dcBufferStatus.set(kind, status);
-      this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+    try {
+      const status = this.isBelowLowWaterMark(kind);
+      if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
+        this.dcBufferStatus.set(kind, status);
+        this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+      }
+    } catch (e) {
+      this.log.warn('could not update buffer status', { error: e });
     }
   };
 
-  private isBufferStatusLow = (kind: DataChannelKind): boolean | undefined => {
+  /**
+   * Whether the send buffer has room to accept more data (the send gate). Senders proceed while
+   * this is true and block once it goes false.
+   */
+  private isBelowHighWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
     const dc = this.dataChannelForKind(kind);
-    if (dc) {
-      return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+    if (!dc) {
+      throw new TypeError(`Could not get data channel for kind ${kind}`);
     }
+    // because RTCDatachannel has no high water mark built in we read the statically defined versions as constants
+    const highMark =
+      kind === DataChannelKind.RELIABLE
+        ? reliableDataChannelWaterMarkHigh
+        : lossyDataChannelWaterMarkHigh;
+    return dc.bufferedAmount <= highMark;
   };
 
-  async waitForBufferStatusLow(kind: DataChannelKind) {
-    return new TypedPromise<void, UnexpectedConnectionState>(async (resolve, reject) => {
-      if (this.isClosed) {
-        reject(new UnexpectedConnectionState('engine closed'));
-      }
-      if (this.isBufferStatusLow(kind)) {
+  /**
+   * Whether the send buffer has drained to its low-water mark. Drives the public
+   * {@link EngineEvent.DCBufferStatusChanged} event.
+   */
+  private isBelowLowWaterMark = (kind: DataChannelKind): Throws<boolean, TypeError> => {
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      throw new TypeError(`Could not get data channel for kind ${kind}`);
+    }
+    // because RTCDatachannel has the threshold built in we can read it dynamically to account for changing thresholds over time
+    return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+  };
+
+  /** Per-kind lock serializing senders that have to wait for the buffer to drain. */
+  private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
+
+  /**
+   * Per-kind AbortController that cancels parked headroom waiters whenever a kind's channel object
+   * stops being current (replaced by createDataChannels or torn down by cleanupPeerConnections). A
+   * waiter is parked on the channel object it captured at wait entry; if that object is abandoned
+   * its events may never fire again, so the abort is what rejects the waiter and releases the
+   * headroom lock instead of stranding every future sender behind it.
+   */
+  private waiterAbortControllers = new Map<DataChannelKind, AbortController>();
+
+  private waiterAbortSignal(kind: DataChannelKind): AbortSignal {
+    let controller = this.waiterAbortControllers.get(kind);
+    if (!controller) {
+      controller = new AbortController();
+      this.waiterAbortControllers.set(kind, controller);
+    }
+    return controller.signal;
+  }
+
+  /** Rejects all parked headroom waiters (all kinds); the next waiter gets a fresh controller. */
+  private invalidateDataChannelWaiters(reason: string) {
+    for (const controller of this.waiterAbortControllers.values()) {
+      controller.abort(reason);
+    }
+    this.waiterAbortControllers.clear();
+  }
+
+  /** Acquires the per-kind headroom lock, resolving with the unlock function. */
+  private getBufferHeadroomLock(kind: DataChannelKind): Mutex {
+    let lock = this.waitForBufferHeadroomLocks.get(kind);
+    if (!lock) {
+      lock = new Mutex();
+      this.waitForBufferHeadroomLocks.set(kind, lock);
+    }
+    return lock;
+  }
+
+  /**
+   * Acquires the `kind` headroom lock, waits until the send buffer has room, then releases. The
+   * common single-send entry point. Callers that need to hold the lock across several sends (the
+   * resume replay) acquire it via {@link getBufferHeadroomLock} and call
+   * {@link waitForBufferHeadroomWithoutLock} per message instead.
+   */
+  async waitForBufferHeadroomWithLock(kind: DataChannelKind) {
+    const unlock = await this.getBufferHeadroomLock(kind).lock();
+    try {
+      await this.waitForBufferHeadroomWithoutLock(kind);
+    } finally {
+      unlock();
+    }
+  }
+
+  /**
+   * Waits until the send buffer for `kind` is at or below the high-water mark (draining, if
+   * needed, via the `bufferedamountlow` event). Does no locking of its own — the caller must
+   * already hold the kind's headroom lock (via {@link getBufferHeadroomLock}). The resume replay
+   * holds the lock across its whole batch and calls this per message so no other sender can
+   * interleave; the single-send path goes through {@link waitForBufferHeadroomWithLock}.
+   *
+   * Serializing through the per-kind lock means that, once the buffer drains, queued callers
+   * refill it one at a time (up to the high-water mark) rather than all at once and overflowing
+   * the SCTP send buffer (see livekit/client-sdk-js#1995).
+   */
+  private async waitForBufferHeadroomWithoutLock(
+    kind: DataChannelKind,
+  ): Promise<Throws<void, UnexpectedConnectionState | TypeError>> {
+    if (this.isClosed) {
+      throw new UnexpectedConnectionState('engine closed');
+    }
+    if (this.isBelowHighWaterMark(kind)) {
+      return;
+    }
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
+    }
+    const abortSignal = this.waiterAbortSignal(kind);
+    await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
+      const onBufferedAmountLow = () => {
+        cleanup();
         resolve();
-      } else {
-        const dc = this.dataChannelForKind(kind);
-        if (!dc) {
-          reject(new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`));
-          return;
-        }
-        this.bufferStatusLowClosingFuture.promise.catch((e) => reject(e));
-        dc.addEventListener('bufferedamountlow', () => resolve(), {
-          once: true,
-        });
+      };
+      const onDCClose = () => {
+        cleanup();
+        reject(
+          new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
+        );
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(
+          new UnexpectedConnectionState(
+            `DataChannel ${kind} was replaced or torn down while waiting for headroom`,
+          ),
+        );
+      };
+      const cleanup = () => {
+        dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
+        dc.removeEventListener('close', onDCClose);
+        abortSignal.removeEventListener('abort', onAbort);
+      };
+      if (abortSignal.aborted) {
+        onAbort();
+        return;
       }
+      dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
+      // Proxy along any error caused by the data channel closing while we wait.
+      dc.addEventListener('close', onDCClose);
+      // The channel object we're parked on can be abandoned without ever firing another event
+      // (e.g. createDataChannels replacing it); the abort is our way out.
+      abortSignal.addEventListener('abort', onAbort);
     });
   }
 
