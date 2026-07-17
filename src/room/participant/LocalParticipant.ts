@@ -1254,7 +1254,7 @@ export default class LocalParticipant extends Participant {
           // - SVC codecs: use first encoding's bitrate (single stream with built-in layers)
           // - Simulcast: sum all encoding bitrates (independent streams, BWE needs total)
           const targetBitrate = isSVCCodec(track.codec)
-            ? encodings[0]?.maxBitrate ?? 0
+            ? (encodings[0]?.maxBitrate ?? 0)
             : encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
           if (targetBitrate > 0) {
             this.engine.pcManager.publisher.setTrackCodecBitrate({
