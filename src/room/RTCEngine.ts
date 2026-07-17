@@ -1829,29 +1829,29 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private waitForBufferHeadroomLocks = new Map<DataChannelKind, Mutex>();
 
   /**
-   * Per-kind epoch for headroom waiters: aborted whenever a kind's channel object stops being
-   * current (replaced by createDataChannels or torn down by cleanupPeerConnections). A waiter is
-   * parked on the channel object it captured at wait entry; if that object is abandoned its
-   * events may never fire again, so the abort is what rejects the waiter and releases the
+   * Per-kind AbortController that cancels parked headroom waiters whenever a kind's channel object
+   * stops being current (replaced by createDataChannels or torn down by cleanupPeerConnections). A
+   * waiter is parked on the channel object it captured at wait entry; if that object is abandoned
+   * its events may never fire again, so the abort is what rejects the waiter and releases the
    * headroom lock instead of stranding every future sender behind it.
    */
-  private dataChannelEpochs = new Map<DataChannelKind, AbortController>();
+  private waiterAbortControllers = new Map<DataChannelKind, AbortController>();
 
-  private dataChannelEpochSignal(kind: DataChannelKind): AbortSignal {
-    let controller = this.dataChannelEpochs.get(kind);
+  private waiterAbortSignal(kind: DataChannelKind): AbortSignal {
+    let controller = this.waiterAbortControllers.get(kind);
     if (!controller) {
       controller = new AbortController();
-      this.dataChannelEpochs.set(kind, controller);
+      this.waiterAbortControllers.set(kind, controller);
     }
     return controller.signal;
   }
 
-  /** Rejects all parked headroom waiters (all kinds) and starts a fresh epoch. */
+  /** Rejects all parked headroom waiters (all kinds); the next waiter gets a fresh controller. */
   private invalidateDataChannelWaiters(reason: string) {
-    for (const controller of this.dataChannelEpochs.values()) {
+    for (const controller of this.waiterAbortControllers.values()) {
       controller.abort(reason);
     }
-    this.dataChannelEpochs.clear();
+    this.waiterAbortControllers.clear();
   }
 
   /** Acquires the per-kind headroom lock, resolving with the unlock function. */
@@ -1903,7 +1903,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!dc) {
       throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
     }
-    const epochSignal = this.dataChannelEpochSignal(kind);
+    const abortSignal = this.waiterAbortSignal(kind);
     await new TypedPromise<void, UnexpectedConnectionState>((resolve, reject) => {
       const onBufferedAmountLow = () => {
         cleanup();
@@ -1915,7 +1915,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           new UnexpectedConnectionState(`DataChannel ${kind} closed while draining the buffer`),
         );
       };
-      const onEpochAbort = () => {
+      const onAbort = () => {
         cleanup();
         reject(
           new UnexpectedConnectionState(
@@ -1926,18 +1926,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const cleanup = () => {
         dc.removeEventListener('bufferedamountlow', onBufferedAmountLow);
         dc.removeEventListener('close', onDCClose);
-        epochSignal.removeEventListener('abort', onEpochAbort);
+        abortSignal.removeEventListener('abort', onAbort);
       };
-      if (epochSignal.aborted) {
-        onEpochAbort();
+      if (abortSignal.aborted) {
+        onAbort();
         return;
       }
       dc.addEventListener('bufferedamountlow', onBufferedAmountLow);
       // Proxy along any error caused by the data channel closing while we wait.
       dc.addEventListener('close', onDCClose);
       // The channel object we're parked on can be abandoned without ever firing another event
-      // (e.g. createDataChannels replacing it); the epoch abort is our way out.
-      epochSignal.addEventListener('abort', onEpochAbort);
+      // (e.g. createDataChannels replacing it); the abort is our way out.
+      abortSignal.addEventListener('abort', onAbort);
     });
   }
 
