@@ -15,15 +15,24 @@ interface TrackBitrateInfo {
   transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
+  isScreenShare?: boolean;
 }
 
-/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
-increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at
-the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
-eliminate this issue.
-*/
-const startBitrateForSVC = 0.7;
+/*
+ * Video codecs use a very low bitrate at the beginning and increase slowly by
+ * the bandwidth estimator until they reach the target bitrate. The process commonly
+ * costs more than 10 seconds causing subscribers to get blurry video at the first
+ * few seconds. We use x-google-start-bitrate to hint the BWE to start higher.
+ *
+ * Why 90%: Gives ~10% headroom for bandwidth estimation while starting close to target.
+ * Why same for all codecs: Target bitrate already accounts for codec efficiency
+ * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
+ * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
+ */
+const startBitrateMultiplier = 0.9;
+
+/** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
+const maxStartBitrateKbps = 1000;
 
 const debounceInterval = 20;
 
@@ -409,14 +418,18 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             // mung sdp for bitrate setting that can't apply by sendEncoding
-            if (!isSVCCodec(trackbr.codec)) {
-              return true;
-            }
+            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
+            // Screen share is not capped since text/UI clarity requires high bitrate from the start
+            // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
+            const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
+            const startBitrate = trackbr.isScreenShare
+              ? calculatedStartBitrate
+              : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
 
-            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
-
+            let fmtpFound = false;
             for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
+                fmtpFound = true;
                 // if another track's fmtp already is set, we cannot override the bitrate
                 // this has the unfortunate consequence of being forced to use the
                 // initial track's bitrate for all tracks
@@ -425,6 +438,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
                 }
                 break;
               }
+            }
+            // VP8 and some codecs may not have an existing fmtp line - create one
+            if (!fmtpFound) {
+              media.fmtp.push({
+                payload: codecPayload,
+                config: `x-google-start-bitrate=${startBitrate}`,
+              });
             }
             return true;
           });
