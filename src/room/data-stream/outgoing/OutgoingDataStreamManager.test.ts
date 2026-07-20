@@ -1,7 +1,9 @@
 import {
   ClientInfo_Capability,
   type DataPacket,
+  type DataStream_ByteHeader,
   DataStream_CompressionType,
+  type DataStream_TextHeader,
 } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
@@ -952,6 +954,339 @@ describe('OutgoingDataStreamManager', () => {
         expect(sentPackets[2].value.case).toStrictEqual('streamTrailer');
         expect(trailerOf(sentPackets[2]).streamId).toStrictEqual(info.id);
       });
+    });
+  });
+
+  describe('header size limit (MTU)', () => {
+    // Attributes large enough that the serialized header packet alone exceeds
+    // STREAM_CHUNK_SIZE_BYTES (15 000).
+    const hugeAttributes = { big: 'x'.repeat(20_000) };
+
+    it('should throw HeaderTooLarge when sending a chunked TEXT stream with oversized attributes (pre-v2 room)', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DEFAULT });
+
+      await expect(
+        manager.sendText('hello world', { topic: 'my-topic', attributes: hugeAttributes }),
+      ).rejects.toThrow('exceeds');
+
+      // The error must be raised before anything hits the wire.
+      expect(sentPackets).toHaveLength(0);
+    });
+
+    it('should throw HeaderTooLarge when oversized attributes force the inline path to fall back (v2 room)', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+
+      // The payload is small, but the attributes alone blow the MTU budget: the inline attempt
+      // falls through gracefully (no throw), and then the chunked header send enforces the hard
+      // limit — per spec, large *attributes* throw while a large *payload* falls back fine.
+      await expect(
+        manager.sendText('hello hello compressible world', {
+          topic: 'my-topic',
+          destinationIdentities: ['alice'],
+          attributes: hugeAttributes,
+        }),
+      ).rejects.toThrow('exceeds');
+
+      expect(sentPackets).toHaveLength(0);
+    });
+
+    it('should throw HeaderTooLarge when opening a streamText writer with oversized attributes', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+
+      await expect(
+        manager.streamText({ topic: 'my-topic', attributes: hugeAttributes }),
+      ).rejects.toThrow('exceeds');
+
+      expect(sentPackets).toHaveLength(0);
+    });
+
+    it('should throw HeaderTooLarge when opening a streamBytes writer with oversized attributes', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+
+      await expect(
+        manager.streamBytes({ topic: 'my-topic', attributes: hugeAttributes }),
+      ).rejects.toThrow('exceeds');
+
+      expect(sentPackets).toHaveLength(0);
+    });
+  });
+
+  describe('attachments', () => {
+    it('should send attachments as separate byte streams referenced by attachedStreamIds (never inline)', async () => {
+      const { manager, sentPackets } = createManager({
+        alice: CLIENT_PROTOCOL_DATA_STREAM_V2,
+        bob: CLIENT_PROTOCOL_DATA_STREAM_V2,
+      });
+      const file = new File([new Uint8Array(100).fill(0x07) as NonSharedUint8Array], 'att.bin');
+
+      const info = await manager.sendText('hello hello compressible world', {
+        topic: 'my-topic',
+        destinationIdentities: ['alice', 'bob'],
+        attachments: [file],
+      });
+
+      // The text part must NOT be inline — attachments disable the single-packet path — so both
+      // the text stream and the attachment stream open with their own headers.
+      const headers = sentPackets.filter((p) => p.value.case === 'streamHeader');
+      expect(headers).toHaveLength(2);
+
+      const textHeader = headerOf(headers[0]);
+      expect(textHeader.streamId).toStrictEqual(info.id);
+      expect(textHeader.contentHeader.case).toBe('textHeader');
+      expect(textHeader.inlineContent).toBeUndefined();
+      const attachedStreamIds = (textHeader.contentHeader.value as DataStream_TextHeader)
+        .attachedStreamIds;
+      expect(attachedStreamIds).toHaveLength(1);
+
+      // The attachment is a byte stream whose streamId matches the reference in the text header.
+      const byteHeader = headerOf(headers[1]);
+      expect(byteHeader.contentHeader.case).toBe('byteHeader');
+      expect(byteHeader.streamId).toStrictEqual(attachedStreamIds[0]);
+      expect((byteHeader.contentHeader.value as DataStream_ByteHeader).name).toStrictEqual(
+        'att.bin',
+      );
+
+      // Both streams are terminated by trailers.
+      const trailers = sentPackets.filter((p) => p.value.case === 'streamTrailer');
+      expect(trailers.map((p) => trailerOf(p).streamId).sort()).toStrictEqual(
+        [info.id, attachedStreamIds[0]].sort(),
+      );
+    });
+
+    it('should forward destinationIdentities to attachment byte streams', async () => {
+      // Targeted send to the v2 subset of a mixed room: the attachment streams must be targeted
+      // the same way, or participants outside the destination list receive stray byte streams
+      // referenced by a text stream they never got.
+      const { manager, sentPackets } = createManager({
+        alice: CLIENT_PROTOCOL_DEFAULT,
+        bob: CLIENT_PROTOCOL_DATA_STREAM_V2,
+        jim: CLIENT_PROTOCOL_DATA_STREAM_V2,
+      });
+      const file = new File([new Uint8Array(100).fill(0x07) as NonSharedUint8Array], 'att.bin');
+
+      await manager.sendText('hello world', {
+        topic: 'my-topic',
+        destinationIdentities: ['bob', 'jim'],
+        attachments: [file],
+      });
+
+      for (const packet of sentPackets) {
+        expect(packet.destinationIdentities).toStrictEqual(['bob', 'jim']);
+      }
+    });
+  });
+
+  describe('recipient eligibility edge cases', () => {
+    it('should send inline + compressed on a broadcast when every participant is v2 with the capability', async () => {
+      const { manager, sentPackets } = createManager({
+        alice: CLIENT_PROTOCOL_DATA_STREAM_V2,
+        bob: CLIENT_PROTOCOL_DATA_STREAM_V2,
+      });
+
+      // No destinationIdentities: eligibility is evaluated over every remote participant.
+      await manager.sendText('hello hello compressible world', { topic: 'my-topic' });
+
+      expect(sentPackets).toHaveLength(1);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+      expect(header.inlineContent).toBeInstanceOf(Uint8Array);
+    });
+
+    it('should send inline but uncompressed on a broadcast when one participant lacks the compression capability', async () => {
+      const { manager, sentPackets } = createManager({
+        alice: CLIENT_PROTOCOL_DATA_STREAM_V2,
+        noCompression: [CLIENT_PROTOCOL_DATA_STREAM_V2, []],
+      });
+
+      await manager.sendText('hello hello compressible world', { topic: 'my-topic' });
+
+      expect(sentPackets).toHaveLength(1);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
+    });
+
+    it('should treat an empty room as v2-eligible for a broadcast', async () => {
+      const { manager, sentPackets } = createManager({});
+
+      await manager.sendText('hello hello compressible world', { topic: 'my-topic' });
+
+      // Nobody to receive it, so nothing gates the v2 fast path: single inline compressed packet.
+      expect(sentPackets).toHaveLength(1);
+      expect(headerOf(sentPackets[0]).compression).toBe(DataStream_CompressionType.DEFLATE_RAW);
+    });
+
+    it('should treat an unknown destination identity as pre-v2 (legacy multi-packet)', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+
+      // "stranger" has no ParticipantInfo, so its clientProtocol resolves to 0 — the send must
+      // fall back to the legacy format rather than assuming v2 support.
+      await manager.sendText('hello world', {
+        topic: 'my-topic',
+        destinationIdentities: ['stranger'],
+      });
+
+      expect(sentPackets).toHaveLength(3);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toBeUndefined();
+    });
+
+    it('should send a large TEXT payload to a v2 recipient without the capability as uncompressed MTU-split chunks', async () => {
+      const { manager, sentPackets } = createManager({
+        noCompression: [CLIENT_PROTOCOL_DATA_STREAM_V2, []],
+      });
+
+      const info = await manager.sendText('A'.repeat(40_000), {
+        topic: 'my-topic',
+        destinationIdentities: ['noCompression'],
+      });
+
+      // Inline is attempted (recipient is v2) but the raw payload overflows the MTU, and
+      // compression is gated off by the missing capability — so this falls back to an
+      // uncompressed multi-packet stream split at STREAM_CHUNK_SIZE_BYTES.
+      expect(sentPackets).toHaveLength(5);
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toBeUndefined();
+      expect(chunkOf(sentPackets[1]).content).toHaveLength(15_000);
+      expect(chunkOf(sentPackets[2]).content).toHaveLength(15_000);
+      expect(chunkOf(sentPackets[3]).content).toHaveLength(10_000);
+      expect(sentPackets[4].value.case).toBe('streamTrailer');
+    });
+
+    it('should send a FILE uncompressed when compress: false even to capable recipients', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+      const bytes = new Uint8Array(10_000).fill(0x07);
+
+      const info = await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
+        topic: 'my-topic',
+        destinationIdentities: ['alice'],
+        compress: false,
+      });
+
+      expect(sentPackets).toHaveLength(3);
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      const chunk = chunkOf(sentPackets[1]);
+      expect(chunk.content).toHaveLength(10_000);
+      expect(chunk.content.every((byte) => byte === 0x07)).toBeTruthy();
+    });
+  });
+
+  describe('UTF-8 chunk splitting', () => {
+    it('should split streamText writes on UTF-8 character boundaries at the MTU', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DEFAULT });
+
+      // 14 999 single-byte chars put the 4-byte emoji straddling the 15 000-byte MTU boundary.
+      const text = `${'a'.repeat(14_999)}😀${'b'.repeat(10)}`;
+      const writer = await manager.streamText({ topic: 'my-topic' });
+      await writer.write(text);
+      await writer.close();
+
+      expect(sentPackets).toHaveLength(4); // header + 2 chunks + trailer
+      const first = chunkOf(sentPackets[1]);
+      const second = chunkOf(sentPackets[2]);
+
+      // The split backs off below the MTU rather than bisecting the emoji, so each chunk decodes
+      // independently.
+      expect(first.content).toHaveLength(14_999);
+      const decode = (bytes: Uint8Array) => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      expect(() => decode(first.content)).not.toThrow();
+      expect(() => decode(second.content)).not.toThrow();
+      expect(decode(first.content) + decode(second.content)).toStrictEqual(text);
+    });
+  });
+
+  describe('empty payloads', () => {
+    it('should send an empty TEXT payload to a pre-v2 room as header + trailer', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DEFAULT });
+
+      const info = await manager.sendText('', { topic: 'my-topic' });
+
+      // A well-formed (if contentless) stream: header declaring zero length, then the trailer.
+      expect(sentPackets).toHaveLength(2);
+      const header = headerOf(sentPackets[0]);
+      expect(header.streamId).toStrictEqual(info.id);
+      expect(header.totalLength).toStrictEqual(0n);
+      expect(sentPackets[1].value.case).toBe('streamTrailer');
+      expect(trailerOf(sentPackets[1]).streamId).toStrictEqual(info.id);
+    });
+
+    it('should send an empty TEXT payload to a v2 room as a single raw inline packet', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+
+      await manager.sendText('', { topic: 'my-topic', destinationIdentities: ['alice'] });
+
+      expect(sentPackets).toHaveLength(1);
+      const header = headerOf(sentPackets[0]);
+      // Deflate framing can't shrink an empty payload, so the raw (empty) bytes are kept.
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(new Uint8Array(0));
+      expect(header.totalLength).toStrictEqual(0n);
+    });
+
+    it('should send an empty BYTE payload to a pre-v2 room as header + trailer', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DEFAULT });
+
+      const info = await manager.sendBytes(new Uint8Array(0), { topic: 'my-topic' });
+
+      expect(sentPackets).toHaveLength(2);
+      const header = headerOf(sentPackets[0]);
+      expect(header.totalLength).toStrictEqual(0n);
+      expect(sentPackets[1].value.case).toBe('streamTrailer');
+      expect(trailerOf(sentPackets[1]).streamId).toStrictEqual(info.id);
+    });
+  });
+
+  describe('runtime without CompressionStream', () => {
+    it('should send raw inline even to compression-capable recipients when the runtime cannot compress', async () => {
+      const originalCompressionStream = CompressionStream;
+      try {
+        (globalThis as any).CompressionStream = undefined;
+
+        const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+        await manager.sendText('hello hello compressible world', {
+          topic: 'my-topic',
+          destinationIdentities: ['alice'],
+        });
+
+        // Compression eligibility also requires a local compressor; without one, inline still
+        // applies but the payload is sent raw.
+        expect(sentPackets).toHaveLength(1);
+        const header = headerOf(sentPackets[0]);
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(header.inlineContent).toStrictEqual(
+          new TextEncoder().encode('hello hello compressible world'),
+        );
+      } finally {
+        (globalThis as any).CompressionStream = originalCompressionStream;
+      }
+    });
+
+    it('should send a FILE uncompressed when the runtime cannot compress', async () => {
+      const originalCompressionStream = CompressionStream;
+      try {
+        (globalThis as any).CompressionStream = undefined;
+
+        const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+        const bytes = new Uint8Array(10_000).fill(0x07);
+        await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
+          topic: 'my-topic',
+          destinationIdentities: ['alice'],
+        });
+
+        expect(sentPackets).toHaveLength(3);
+        const header = headerOf(sentPackets[0]);
+        expect(header.compression).toBe(DataStream_CompressionType.NONE);
+        expect(chunkOf(sentPackets[1]).content).toHaveLength(10_000);
+      } finally {
+        (globalThis as any).CompressionStream = originalCompressionStream;
+      }
     });
   });
 });
