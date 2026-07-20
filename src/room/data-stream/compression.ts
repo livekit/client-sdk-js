@@ -49,7 +49,7 @@ export function inflateRawTransform(): ReadableWritablePair<Uint8Array, Uint8Arr
 export async function deflateRawCompress(data: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
   const writer = cs.writable.getWriter();
-  writer.write(data as NonSharedUint8Array);
+  writer.write(data as Uint8Array<ArrayBuffer>);
   writer.close();
   return collect(cs.readable);
 }
@@ -68,7 +68,7 @@ export async function deflateRawDecompress(
   // The writer promises are intentionally not awaited (output is consumed via `collect`), but
   // they reject when the byte cap cancels the readable mid-stream — swallow that so an enforced
   // cap doesn't surface as an unhandled rejection.
-  writer.write(data as NonSharedUint8Array).catch(() => {});
+  writer.write(data as Uint8Array<ArrayBuffer>).catch(() => {});
   writer.close().catch(() => {});
   return collect(ds.readable, maxByteLength);
 }
