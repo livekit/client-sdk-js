@@ -1159,6 +1159,67 @@ describe('DataTrackIncomingManager', () => {
       expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]));
     });
 
+    it('should stop routing packets on the old handle once a new handle is assigned', async () => {
+      const manager = new IncomingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
+        'sfuUpdateSubscription',
+        'trackPublished',
+      ]);
+
+      const pubHandle = DataTrackHandle.fromNumber(5);
+      const oldSid = 'old sid';
+      const newSid = 'new sid';
+      const oldSubHandle = DataTrackHandle.fromNumber(6);
+      const newSubHandle = DataTrackHandle.fromNumber(7);
+
+      // Simulate track published
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: oldSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('trackPublished');
+
+      // Subscribe to the track
+      const [stream, sfuSubscriptionComplete] = manager.openSubscriptionStream(oldSid);
+      const reader = stream.getReader();
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // Simulate SFU assigning subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[oldSubHandle, oldSid]]));
+      await sfuSubscriptionComplete;
+
+      // Simulate publisher full reconnect: same track, new SID
+      await manager.receiveSfuPublicationUpdates(
+        new Map([['id', [{ sid: newSid, pubHandle, name: 'test', usesE2ee: false }]]]),
+      );
+      await managerEvents.waitFor('sfuUpdateSubscription');
+
+      // Simulate SFU assigning a new subscriber handle
+      manager.receivedSfuSubscriberHandles(new Map([[newSubHandle, newSid]]));
+
+      const buildPacket = (trackHandle: DataTrackHandle, frameNumber: number, payload: number[]) =>
+        new DataTrackPacket(
+          new DataTrackPacketHeader({
+            extensions: new DataTrackExtensions(),
+            frameNumber: WrapAroundUnsignedInt.u16(frameNumber),
+            marker: FrameMarker.Single,
+            sequence: WrapAroundUnsignedInt.u16(frameNumber),
+            timestamp: DataTrackTimestamp.fromRtpTicks(0),
+            trackHandle,
+          }),
+          new Uint8Array(payload),
+        ).toBinary();
+
+      // A packet received on the old handle must be dropped, not routed to the subscriber
+      await manager.packetReceived(buildPacket(oldSubHandle, 0, [0xaa, 0xbb]));
+
+      // A packet received on the new handle reaches the subscriber
+      await manager.packetReceived(buildPacket(newSubHandle, 1, [0x01, 0x02]));
+
+      const { value, done } = await reader.read();
+      expect(done).toStrictEqual(false);
+      expect(value?.payload).toStrictEqual(new Uint8Array([0x01, 0x02]));
+    });
+
     it('should terminate the sfu subscription when the stream is cancelled after a sid reassignment', async () => {
       const manager = new IncomingDataTrackManager();
       const managerEvents = subscribeToEvents<DataTrackIncomingManagerCallbacks>(manager, [
