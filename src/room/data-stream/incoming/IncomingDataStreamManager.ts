@@ -398,7 +398,18 @@ export default class IncomingDataStreamManager {
         );
       } else {
         textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
-        textBuffer.controller.close();
+        if (trailer.reason) {
+          // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
+          // surface it as an error rather than pretending the stream completed.
+          textBuffer.controller.error(
+            new DataStreamError(
+              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+              DataStreamErrorReason.AbnormalEnd,
+            ),
+          );
+        } else {
+          textBuffer.controller.close();
+        }
       }
       this.textStreamControllers.delete(trailer.streamId);
     }
@@ -414,7 +425,18 @@ export default class IncomingDataStreamManager {
         );
       } else {
         fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
-        fileBuffer.controller.close();
+        if (trailer.reason) {
+          // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
+          // surface it as an error rather than pretending the stream completed.
+          fileBuffer.controller.error(
+            new DataStreamError(
+              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+              DataStreamErrorReason.AbnormalEnd,
+            ),
+          );
+        } else {
+          fileBuffer.controller.close();
+        }
       }
       this.byteStreamControllers.delete(trailer.streamId);
     }
