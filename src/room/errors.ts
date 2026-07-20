@@ -290,6 +290,9 @@ export enum DataStreamErrorReason {
 
   // The serialized stream header packet (driven mainly by attributes) exceeds the MTU budget.
   HeaderTooLarge = 9,
+
+  // The stream's (decompressed) payload exceeds the maximum allowed size.
+  PayloadTooLarge = 10,
 }
 
 export class DataStreamError extends LivekitReasonedError<DataStreamErrorReason> {

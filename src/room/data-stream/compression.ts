@@ -16,6 +16,7 @@
  *
  * @internal
  */
+import { DataStreamError, DataStreamErrorReason } from '../errors';
 
 /**
  * A `deflate-raw` compression transform (inverse of {@link inflateRawTransform}): pipe a byte stream
@@ -53,17 +54,34 @@ export async function deflateRawCompress(data: Uint8Array): Promise<Uint8Array> 
   return collect(cs.readable);
 }
 
-/** Decompresses a raw-deflate byte array in full (inverse of {@link deflateRawCompress}). */
-export async function deflateRawDecompress(data: Uint8Array): Promise<Uint8Array> {
+/**
+ * Decompresses a raw-deflate byte array in full (inverse of {@link deflateRawCompress}).
+ * `maxByteLength` bounds the decompressed output (decompression-bomb guard); exceeding it rejects
+ * with a `PayloadTooLarge` error.
+ */
+export async function deflateRawDecompress(
+  data: Uint8Array,
+  maxByteLength?: number,
+): Promise<Uint8Array> {
   const ds = new DecompressionStream('deflate-raw');
   const writer = ds.writable.getWriter();
-  writer.write(data as NonSharedUint8Array);
-  writer.close();
-  return collect(ds.readable);
+  // The writer promises are intentionally not awaited (output is consumed via `collect`), but
+  // they reject when the byte cap cancels the readable mid-stream — swallow that so an enforced
+  // cap doesn't surface as an unhandled rejection.
+  writer.write(data as NonSharedUint8Array).catch(() => {});
+  writer.close().catch(() => {});
+  return collect(ds.readable, maxByteLength);
 }
 
-/** Drains a byte stream, concatenating all of its chunks into a single array. */
-export async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+/**
+ * Drains a byte stream, concatenating all of its chunks into a single array. When
+ * `maxByteLength` is given, drops the stream and throws `PayloadTooLarge` as soon as the
+ * accumulated output exceeds it.
+ */
+export async function collect(
+  stream: ReadableStream<Uint8Array>,
+  maxByteLength?: number,
+): Promise<Uint8Array> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -74,6 +92,13 @@ export async function collect(stream: ReadableStream<Uint8Array>): Promise<Uint8
     }
     chunks.push(value);
     total += value.byteLength;
+    if (typeof maxByteLength === 'number' && total > maxByteLength) {
+      await reader.cancel();
+      throw new DataStreamError(
+        `Decompressed payload exceeds the maximum payload size of ${maxByteLength} bytes`,
+        DataStreamErrorReason.PayloadTooLarge,
+      );
+    }
   }
   const result = new Uint8Array(total);
   let offset = 0;

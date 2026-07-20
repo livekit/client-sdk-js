@@ -11,6 +11,7 @@ import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
+import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -20,6 +21,14 @@ import {
 
 export default class IncomingDataStreamManager {
   private log = log;
+
+  /** Max number of decompressed bytes an incoming compressed stream may produce before it is
+   * errored (decompression-bomb guard). */
+  private maxPayloadByteLength: number;
+
+  constructor(maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH) {
+    this.maxPayloadByteLength = maxPayloadByteLength;
+  }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
@@ -196,7 +205,9 @@ export default class IncomingDataStreamManager {
               info,
               createInlineStream(
                 streamHeader.streamId,
-                compressed ? deflateRawDecompress(inlineContent) : inlineContent,
+                compressed
+                  ? deflateRawDecompress(inlineContent, this.maxPayloadByteLength)
+                  : inlineContent,
               ),
               bigIntToNumber(streamHeader.totalLength),
             ),
@@ -227,7 +238,9 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new ByteStreamReader(
             info,
-            compressed ? inflateRawByteChunkStream(stream, streamHeader.streamId) : stream,
+            compressed
+              ? inflateRawByteChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
+              : stream,
             // `totalLength` is the pre-compression size, and the reader counts decompressed bytes,
             // so it applies to both paths (mirrors text).
             bigIntToNumber(streamHeader.totalLength),
@@ -292,7 +305,9 @@ export default class IncomingDataStreamManager {
         const inlineContent = streamHeader.inlineContent;
         if (typeof inlineContent !== 'undefined') {
           // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
-          const content = compressed ? deflateRawDecompress(inlineContent) : inlineContent;
+          const content = compressed
+            ? deflateRawDecompress(inlineContent, this.maxPayloadByteLength)
+            : inlineContent;
           streamHandlerCallback(
             new TextStreamReader(
               info,
@@ -326,7 +341,9 @@ export default class IncomingDataStreamManager {
         streamHandlerCallback(
           new TextStreamReader(
             info,
-            compressed ? inflateRawChunkStream(stream, streamHeader.streamId) : stream,
+            compressed
+              ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
+              : stream,
             // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
             // it applies to both paths.
             bigIntToNumber(streamHeader.totalLength),
@@ -553,11 +570,13 @@ function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataS
 function inflateRawByteChunkStream(
   raw: ReadableStream<DataStream_Chunk>,
   streamId: string,
+  maxPayloadByteLength: number,
 ): ReadableStream<DataStream_Chunk> {
   return raw
     .pipeThrough(ensureOrderedChunks(streamId))
     .pipeThrough(chunksToBytes())
     .pipeThrough(inflateRawTransform())
+    .pipeThrough(maxDecompressedLengthGuard(streamId, maxPayloadByteLength))
     .pipeThrough(bytesToChunks(streamId));
 }
 
@@ -571,10 +590,37 @@ function inflateRawByteChunkStream(
 function inflateRawChunkStream(
   raw: ReadableStream<DataStream_Chunk>,
   streamId: string,
+  maxPayloadByteLength: number,
 ): ReadableStream<DataStream_Chunk> {
   return raw
     .pipeThrough(ensureOrderedChunks(streamId))
     .pipeThrough(chunksToBytes())
     .pipeThrough(inflateRawTransform())
+    .pipeThrough(maxDecompressedLengthGuard(streamId, maxPayloadByteLength))
     .pipeThrough(bytesToDecodedUtf8(streamId));
+}
+
+/**
+ * Caps the total decompressed byte count of a compressed stream (decompression-bomb guard): a
+ * tiny compressed payload can inflate to an arbitrarily large output, so the decompressor's
+ * output is bounded rather than trusting the wire size. Exceeding the cap errors the stream with
+ * `PayloadTooLarge`.
+ */
+function maxDecompressedLengthGuard(
+  streamId: string,
+  maxByteLength: number,
+): TransformStream<Uint8Array, Uint8Array> {
+  let total = 0;
+  return new TransformStream({
+    transform: (value, controller) => {
+      total += value.byteLength;
+      if (total > maxByteLength) {
+        throw new DataStreamError(
+          `Data stream ${streamId} exceeds the maximum payload size of ${maxByteLength} bytes`,
+          DataStreamErrorReason.PayloadTooLarge,
+        );
+      }
+      controller.enqueue(value);
+    },
+  });
 }
