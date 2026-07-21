@@ -117,7 +117,7 @@ export class LossyDataChannel extends FlowControlledDataChannel {
     this.statByterate = 0;
     this.statCurrentBytes = 0;
     if (this.statInterval) {
-      clearInterval(this.statInterval);
+      CriticalTimers.clearInterval(this.statInterval);
       this.statInterval = undefined;
     }
     this.dropCount = 0;
