@@ -3,6 +3,7 @@ import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 //@ts-ignore
 import FrameMetadataWorker from '../../src/frameMetadata/worker/frameMetadata.worker?worker';
 import type {
+  BackupVideoCodec,
   ChatMessage,
   LocalDataTrack,
   RemoteDataTrack,
@@ -188,6 +189,7 @@ const appActions = {
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
       backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
     }
+    const backupCodec = (<HTMLSelectElement>$('backup-codec')).value as BackupVideoCodec;
 
     updateSearchParams(url, token, cryptoKey);
 
@@ -207,6 +209,7 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
+        backupCodec: { codec: backupCodec || 'vp8' },
         frameMetadata,
       },
       videoCaptureDefaults: {
@@ -1938,6 +1941,19 @@ function populateSupportedCodecs() {
     n.value = o[0];
     n.appendChild(document.createTextNode(o[1]));
     codecSelect.appendChild(n);
+  }
+
+  const backupCodecSelect = $('backup-codec');
+  const backupCodecOptions: string[][] = [
+    ['', 'Backup codec'],
+    ['h264', 'H.264'],
+    ['vp8', 'VP8'],
+  ];
+  for (const o of backupCodecOptions) {
+    const n = document.createElement('option');
+    n.value = o[0];
+    n.appendChild(document.createTextNode(o[1]));
+    backupCodecSelect.appendChild(n);
   }
 }
 
