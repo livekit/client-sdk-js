@@ -222,7 +222,8 @@ const appActions = {
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
-      roomOpts.publishDefaults?.videoCodec === 'vp9'
+      roomOpts.publishDefaults?.videoCodec === 'vp9' ||
+      roomOpts.publishDefaults?.videoCodec === 'h265'
     ) {
       if (!backupCodec) {
         roomOpts.publishDefaults.backupCodec = true;
