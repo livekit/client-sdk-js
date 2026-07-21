@@ -75,8 +75,18 @@ export class LossyDataChannel extends FlowControlledDataChannel {
       return;
     }
 
-    dc.send(msg);
-    this.refreshBufferStatus();
+    try {
+      dc.send(msg);
+      this.refreshBufferStatus();
+    } catch (error: unknown) {
+      // Preserve prior surface behaviour: a send that fails because the channel is closing is
+      // logged, not thrown, so lossy/data-track sends don't reject during teardown windows.
+      if (error instanceof TypeError) {
+        log.error(error);
+      } else {
+        throw error;
+      }
+    }
   }
 
   /**
