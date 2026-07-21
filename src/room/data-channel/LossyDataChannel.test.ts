@@ -14,7 +14,7 @@ function makeChannel(
   bufferFullBehavior: 'drop' | 'wait',
   opts?: { dc?: FakeDataChannel | undefined },
 ) {
-  const dc = 'dc' in (opts ?? {}) ? opts!.dc : new FakeDataChannel();
+  const dc = opts?.dc ?? new FakeDataChannel();
   const state = { engineClosed: false, skipSends: false };
   const channel = new LossyDataChannel({
     kind: DataChannelKind.LOSSY,
@@ -28,7 +28,7 @@ function makeChannel(
     channel.attach(dc as unknown as RTCDataChannel);
   }
   const stats = channel as unknown as { statCurrentBytes: number; dropCount: number };
-  return { channel, dc: dc as FakeDataChannel, state, stats };
+  return { channel, dc, state, stats };
 }
 
 describe('LossyDataChannel', () => {

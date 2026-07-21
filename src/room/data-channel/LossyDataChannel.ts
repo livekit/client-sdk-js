@@ -1,5 +1,6 @@
 import log from '../../logger';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
+import CriticalTimers from '../timers';
 import {
   FlowControlledDataChannel,
   type FlowControlledDataChannelOptions,
@@ -85,7 +86,7 @@ export class LossyDataChannel extends FlowControlledDataChannel {
    */
   startThresholdTuning() {
     this.stopThresholdTuning();
-    this.statInterval = setInterval(() => {
+    this.statInterval = CriticalTimers.setInterval(() => {
       this.statByterate = this.statCurrentBytes;
       this.statCurrentBytes = 0;
 

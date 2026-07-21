@@ -12,7 +12,7 @@ class FakeDataChannel extends EventTarget {
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: boolean }) {
-  const dc = 'dc' in (opts ?? {}) ? opts!.dc : new FakeDataChannel();
+  const dc = opts?.dc ?? new FakeDataChannel();
   const state = { engineClosed: opts?.engineClosed ?? false };
   const onBufferStatusChanged = vi.fn();
   const channel = new FlowControlledDataChannel({
@@ -25,7 +25,7 @@ function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: b
   if (dc) {
     channel.attach(dc as unknown as RTCDataChannel);
   }
-  return { channel, dc: dc as FakeDataChannel, state, onBufferStatusChanged };
+  return { channel, dc, state, onBufferStatusChanged };
 }
 
 describe('FlowControlledDataChannel', () => {

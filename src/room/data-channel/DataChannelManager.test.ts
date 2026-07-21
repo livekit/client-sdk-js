@@ -40,11 +40,11 @@ function makeManager(overrides?: Partial<DataChannelManagerOptions>) {
     ...overrides,
   };
   const manager = new DataChannelManager(opts);
-  const created: FakeDataChannel[] = [];
+  const created: Record<string, FakeDataChannel> = {};
   const pcManager = {
     createPublisherDataChannel: vi.fn((label: string) => {
       const dc = new FakeDataChannel(label);
-      created.push(dc);
+      created[label] = dc;
       return dc as unknown as RTCDataChannel;
     }),
   } as unknown as PCTransportManager;
@@ -57,12 +57,10 @@ describe('DataChannelManager', () => {
 
     manager.createPublisherChannels(pcManager);
 
-    expect(created.map((dc) => dc.label)).toEqual(['_lossy', '_reliable', '_data_track']);
-    expect(manager.getHandle(DataChannelKind.RELIABLE)).toBe(
-      created.find((dc) => dc.label === '_reliable'),
-    );
+    expect(Object.keys(created).sort()).toEqual(['_data_track', '_lossy', '_reliable']);
+    expect(manager.getHandle(DataChannelKind.RELIABLE)).toBe(created._reliable);
     expect(manager.hasPublisherChannels).toBe(true);
-    for (const dc of created) {
+    for (const dc of Object.values(created)) {
       expect(dc.onmessage).toBeTruthy();
       expect(dc.onerror).toBeTruthy();
       expect(dc.onclose).toBeTruthy();
@@ -71,13 +69,13 @@ describe('DataChannelManager', () => {
     }
 
     // Close handler reports the right kind.
-    created.find((dc) => dc.label === '_reliable')!.onclose!();
+    created._reliable.onclose!();
     expect(opts.onChannelClose).toHaveBeenCalledWith(DataChannelKind.RELIABLE);
 
     // A drain event on the data-track channel refreshes its status; since the buffer starts empty
     // (below the low mark) and the wrapper's initial status is already "low", no change fires —
     // fill it first so the drain is an observable not-low → low transition.
-    const dataTrackDc = created.find((dc) => dc.label === '_data_track')!;
+    const dataTrackDc = created._data_track;
     dataTrackDc.bufferedAmount = 10 * 1024 * 1024;
     dataTrackDc.onbufferedamountlow!(); // refresh: now "not low"
     dataTrackDc.bufferedAmount = 0;
@@ -96,7 +94,7 @@ describe('DataChannelManager', () => {
     manager.createPublisherChannels(pcManager);
 
     // Park a reliable sender on the first-generation channel.
-    created.find((dc) => dc.label === '_reliable')!.bufferedAmount = 2 * 1024 * 1024;
+    created._reliable.bufferedAmount = 2 * 1024 * 1024;
     const parked = manager.reliable.waitForHeadroomWithLock();
     parked.catch(() => {});
     await tick();
@@ -134,7 +132,7 @@ describe('DataChannelManager', () => {
     const sub = new FakeDataChannel('_lossy');
     manager.adoptSubscriberChannel(sub as unknown as RTCDataChannel);
 
-    created.find((dc) => dc.label === '_reliable')!.bufferedAmount = 2 * 1024 * 1024;
+    created._reliable.bufferedAmount = 2 * 1024 * 1024;
     const parked = manager.reliable.waitForHeadroomWithLock();
     parked.catch(() => {});
     await tick();
@@ -142,7 +140,7 @@ describe('DataChannelManager', () => {
     manager.teardown();
 
     await expect(parked).rejects.toBeInstanceOf(UnexpectedConnectionState);
-    for (const dc of [...created, sub]) {
+    for (const dc of [...Object.values(created), sub]) {
       expect(dc.close).toHaveBeenCalled();
       expect(dc.onmessage).toBeNull();
     }

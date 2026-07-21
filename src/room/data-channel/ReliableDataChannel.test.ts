@@ -14,7 +14,7 @@ class FakeDataChannel extends EventTarget {
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function makeChannel(opts?: { dc?: FakeDataChannel | undefined }) {
-  const dc = 'dc' in (opts ?? {}) ? opts!.dc : new FakeDataChannel();
+  const dc = opts?.dc ?? new FakeDataChannel();
   const state = { engineClosed: false, deferring: false };
   const channel = new ReliableDataChannel({
     kind: DataChannelKind.RELIABLE,
@@ -31,7 +31,7 @@ function makeChannel(opts?: { dc?: FakeDataChannel | undefined }) {
     getAll(): Array<{ data: Uint8Array; sequence: number; sent: boolean }>;
     length: number;
   };
-  return { channel, dc: dc as FakeDataChannel, state, buffer };
+  return { channel, dc, state, buffer };
 }
 
 describe('ReliableDataChannel', () => {
