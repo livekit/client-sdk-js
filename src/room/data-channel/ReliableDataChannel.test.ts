@@ -13,8 +13,9 @@ class FakeDataChannel extends EventTarget {
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function makeChannel(opts?: { dc?: FakeDataChannel | undefined }) {
-  const dc = opts?.dc ?? new FakeDataChannel();
+// Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)
+// is deliberate — a destructuring default fills in on `undefined`, so only `null` passes through.
+function makeChannel({ dc = new FakeDataChannel() }: { dc?: FakeDataChannel | null } = {}) {
   const state = { engineClosed: false, deferring: false };
   const channel = new ReliableDataChannel({
     kind: DataChannelKind.RELIABLE,

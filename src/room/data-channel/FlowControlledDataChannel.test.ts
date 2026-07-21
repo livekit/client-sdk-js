@@ -11,9 +11,13 @@ class FakeDataChannel extends EventTarget {
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: boolean }) {
-  const dc = opts?.dc ?? new FakeDataChannel();
-  const state = { engineClosed: opts?.engineClosed ?? false };
+// Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)
+// is deliberate — a destructuring default fills in on `undefined`, so only `null` passes through.
+function makeChannel({
+  dc = new FakeDataChannel(),
+  engineClosed = false,
+}: { dc?: FakeDataChannel | null; engineClosed?: boolean } = {}) {
+  const state = { engineClosed };
   const onBufferStatusChanged = vi.fn();
   const channel = new FlowControlledDataChannel({
     kind: DataChannelKind.RELIABLE,
@@ -25,7 +29,7 @@ function makeChannel(opts?: { dc?: FakeDataChannel | undefined; engineClosed?: b
   if (dc) {
     channel.attach(dc as unknown as RTCDataChannel);
   }
-  return { channel, dc, state, onBufferStatusChanged };
+  return { channel, dc: dc as FakeDataChannel, state, onBufferStatusChanged };
 }
 
 describe('FlowControlledDataChannel', () => {
@@ -50,7 +54,7 @@ describe('FlowControlledDataChannel', () => {
     });
 
     it('is a no-op without a handle (no throw, no notification)', () => {
-      const { channel, onBufferStatusChanged } = makeChannel({ dc: undefined });
+      const { channel, onBufferStatusChanged } = makeChannel({ dc: null });
       expect(() => channel.refreshBufferStatus()).not.toThrow();
       expect(onBufferStatusChanged).not.toHaveBeenCalled();
     });
@@ -72,7 +76,7 @@ describe('FlowControlledDataChannel', () => {
   });
 
   it('waiting for headroom without a handle rejects with a connection error', async () => {
-    const { channel } = makeChannel({ dc: undefined });
+    const { channel } = makeChannel({ dc: null });
     await expect(channel.waitForHeadroomWithLock()).rejects.toBeInstanceOf(
       UnexpectedConnectionState,
     );

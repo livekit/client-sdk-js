@@ -10,11 +10,12 @@ class FakeDataChannel extends EventTarget {
   send = vi.fn();
 }
 
+// Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)
+// is deliberate — a destructuring default fills in on `undefined`, so only `null` passes through.
 function makeChannel(
   bufferFullBehavior: 'drop' | 'wait',
-  opts?: { dc?: FakeDataChannel | undefined },
+  { dc = new FakeDataChannel() }: { dc?: FakeDataChannel | null } = {},
 ) {
-  const dc = opts?.dc ?? new FakeDataChannel();
   const state = { engineClosed: false, skipSends: false };
   const channel = new LossyDataChannel({
     kind: DataChannelKind.LOSSY,
