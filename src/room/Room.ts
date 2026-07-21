@@ -308,7 +308,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on('packetAvailable', ({ handle, bytes }) => {
         this.engine
-          .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
+          .sendDataTrackFrame(bytes)
           .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 

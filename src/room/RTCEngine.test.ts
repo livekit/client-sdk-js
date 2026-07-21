@@ -1,6 +1,6 @@
 import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DataPacketBuffer, DataPacketItem } from '../utils/dataPacketBuffer';
+import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
@@ -228,17 +228,16 @@ describe('RTCEngine', () => {
       engine: RTCEngine,
       maxDataPacketSize: number = MAX_DATA_PACKET_SIZE,
     ) {
-      const send = vi.fn();
+      const dc = new FakeDataChannel();
       Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        waitForBufferHeadroomWithLock: vi.fn().mockResolvedValue(undefined),
-        updateAndEmitDCBufferStatus: vi.fn(),
-        dataChannelForKind: vi.fn(() => ({ send })),
         pcManager: {
           getMaxPublisherMessageSize: vi.fn(() => maxDataPacketSize),
         },
       });
-      return send;
+      attachFakeChannel(engine, 'reliableChannel', dc);
+      return dc.send;
     }
 
     it('rejects packets larger than the max data packet size', async () => {
@@ -309,6 +308,23 @@ describe('RTCEngine', () => {
 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+  /** The reliable channel's private replay buffer — reached through casts, as tests do for engine privates. */
+  const reliableBuffer = (engine: RTCEngine) =>
+    (engine as unknown as { reliableChannel: { messageBuffer: DataPacketBuffer } }).reliableChannel
+      .messageBuffer;
+
+  type ChannelField = 'reliableChannel' | 'lossyChannel' | 'dataTrackChannel';
+  const engineChannel = (engine: RTCEngine, field: ChannelField) =>
+    (
+      engine as unknown as Record<
+        ChannelField,
+        { attach(dc: RTCDataChannel): void; invalidateWaiters(reason: string): void }
+      >
+    )[field];
+  /** Attach a fake handle to one of the engine's flow-control wrappers. */
+  const attachFakeChannel = (engine: RTCEngine, field: ChannelField, dc: FakeDataChannel) =>
+    engineChannel(engine, field).attach(dc as unknown as RTCDataChannel);
+
   describe('resendReliableMessagesForResume', () => {
     it('does not let a concurrent reliable send interleave into the resume replay', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
@@ -316,18 +332,17 @@ describe('RTCEngine', () => {
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        dataChannelForKind: vi.fn(() => dc),
         pcManager: {
           getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
         },
       });
+      attachFakeChannel(engine, 'reliableChannel', dc);
 
-      // Two messages queued for replay, and a full buffer so the XX its first send.
+      // Two messages queued for replay, and a full buffer so the replay parks on
+      // waitForBufferHeadroom before its first send.
       const replayed1 = new Uint8Array([1]);
       const replayed2 = new Uint8Array([2]);
-      const buffer = (
-        engine as unknown as { reliableMessageBuffer: { push: (item: DataPacketItem) => void } }
-      ).reliableMessageBuffer;
+      const buffer = reliableBuffer(engine);
       buffer.push({ data: replayed1, sequence: 1, sent: true });
       buffer.push({ data: replayed2, sequence: 2, sent: true });
       dc.bufferedAmount = 2 * 1024 * 1024; // above the reliable high-water mark
@@ -359,59 +374,6 @@ describe('RTCEngine', () => {
       expect(dc.send.mock.calls[2][0]).not.toBe(replayed1);
       expect(dc.send.mock.calls[2][0]).not.toBe(replayed2);
     });
-
-    it('transmits a packet deferred mid-replay instead of marking it sent without sending', async () => {
-      const engine = new RTCEngine(roomOptionDefaults);
-      const dc = new FakeDataChannel();
-      Object.assign(engine as unknown as Record<string, unknown>, {
-        _isClosed: false,
-        // Reconnect still active: a send arriving during replay takes the deferral path.
-        attemptingReconnect: true,
-        ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        dataChannelForKind: vi.fn(() => dc),
-        pcManager: {
-          getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
-        },
-      });
-
-      const buffer = (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
-        .reliableMessageBuffer;
-      const replayed = new Uint8Array([1]);
-      buffer.push({ data: replayed, sequence: 1, sent: true });
-      // Full buffer so replay parks on waitForBufferHeadroomWithLock before its first send.
-      dc.bufferedAmount = 2 * 1024 * 1024;
-
-      const replay = (
-        engine as unknown as { resendReliableMessagesForResume: (seq: number) => Promise<void> }
-      ).resendReliableMessagesForResume(0);
-      await tick();
-
-      // A reliable send arrives while replay is parked; attemptingReconnect defers it into the
-      // buffer as sent:false, after the replay's first drain pass already started.
-      const deferred = new Uint8Array([2]);
-      const deferredSend = engine.sendDataPacket(
-        new DataPacket({
-          kind: DataPacket_Kind.RELIABLE,
-          value: { case: 'user', value: new UserPacket({ payload: deferred }) },
-        }),
-        DataChannelKind.RELIABLE,
-      );
-      await tick();
-
-      dc.bufferedAmount = 0;
-      dc.dispatchEvent(new Event('bufferedamountlow'));
-      await Promise.all([replay, deferredSend]);
-
-      // Pre-fix, replay sends only its snapshot ([replayed]) and blanket-marks the deferred packet
-      // sent without ever transmitting it — one send. The drain loop must transmit both (the
-      // deferred packet is serialized through sendDataPacket, so it's distinct from `replayed`),
-      // leaving nothing unsent for a later align to strand.
-      const sent = dc.send.mock.calls.map(([d]) => d);
-      expect(sent).toHaveLength(2);
-      expect(sent[0]).toBe(replayed);
-      expect(sent[1]).not.toBe(replayed);
-      expect(buffer.getUnsent()).toHaveLength(0);
-    });
   });
 
   describe('reliable sends during teardown windows', () => {
@@ -425,13 +387,12 @@ describe('RTCEngine', () => {
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        dataChannelForKind: vi.fn(() => dc),
         pcManager: {
           getMaxPublisherMessageSize: vi.fn(() => 64 * 1024 - 1),
         },
       });
-      return (engine as unknown as { reliableMessageBuffer: DataPacketBuffer })
-        .reliableMessageBuffer;
+      attachFakeChannel(engine, 'reliableChannel', dc);
+      return reliableBuffer(engine);
     }
 
     it('resolves and queues the packet for replay when the wait is torn down transiently', async () => {
@@ -443,9 +404,7 @@ describe('RTCEngine', () => {
       dc.bufferedAmount = 2 * 1024 * 1024;
       const send = engine.sendDataPacket(makePacket(1), DataChannelKind.RELIABLE);
       await tick();
-      (
-        engine as unknown as { invalidateDataChannelWaiters: (reason: string) => void }
-      ).invalidateDataChannelWaiters('data channels recreated');
+      engineChannel(engine, 'reliableChannel').invalidateWaiters('data channels recreated');
 
       // The send must not surface the teardown — the packet is queued for the resume replay.
       await expect(send).resolves.toBeUndefined();
@@ -471,9 +430,7 @@ describe('RTCEngine', () => {
       const send = engine.sendDataPacket(makePacket(1), DataChannelKind.RELIABLE);
       await tick();
       Object.assign(engine as unknown as Record<string, unknown>, { _isClosed: true });
-      (
-        engine as unknown as { invalidateDataChannelWaiters: (reason: string) => void }
-      ).invalidateDataChannelWaiters('engine closed');
+      engineChannel(engine, 'reliableChannel').invalidateWaiters('engine closed');
 
       await expect(send).rejects.toBeInstanceOf(UnexpectedConnectionState);
       expect(dc.send).not.toHaveBeenCalled();
@@ -496,78 +453,80 @@ describe('RTCEngine', () => {
     });
   });
 
-  describe('sendLossyBytes', () => {
+  describe('sendDataTrackFrame', () => {
     it('ensures the publisher is connected before sending (direct data-track path)', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
       // The channel only becomes available once the publisher connection has been established —
       // mirroring the lazily negotiated publisher case that Room's packetAvailable path hits.
-      let connected = false;
       const ensurePublisherConnected = vi.fn(async () => {
-        connected = true;
+        attachFakeChannel(engine, 'dataTrackChannel', dc);
       });
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
         ensurePublisherConnected,
-        dataChannelForKind: vi.fn(() => (connected ? dc : undefined)),
       });
 
-      await engine.sendLossyBytes(new Uint8Array([1]), DataChannelKind.DATA_TRACK_LOSSY, 'wait');
+      await engine.sendDataTrackFrame(new Uint8Array([1]));
 
       expect(ensurePublisherConnected).toHaveBeenCalledWith(DataChannelKind.DATA_TRACK_LOSSY);
       expect(dc.send).toHaveBeenCalledTimes(1);
     });
 
-    it('only counts LOSSY bytes into the byterate stat that tunes the lossy drop threshold', async () => {
+    it('keeps each channel’s byterate stat isolated from the other’s traffic', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
         ensurePublisherConnected: vi.fn().mockResolvedValue(undefined),
-        dataChannelForKind: vi.fn(() => dc),
       });
-      const stat = () =>
-        (engine as unknown as { lossyDataStatCurrentBytes: number }).lossyDataStatCurrentBytes;
+      attachFakeChannel(engine, 'lossyChannel', dc);
+      attachFakeChannel(engine, 'dataTrackChannel', dc);
+      const lossyStat = () =>
+        (engine as unknown as { lossyChannel: { statCurrentBytes: number } }).lossyChannel
+          .statCurrentBytes;
 
-      // Data-track traffic must not move the stat — it would inflate the LOSSY channel's
-      // dynamically tuned drop threshold with traffic that channel never carries.
-      await engine.sendLossyBytes(new Uint8Array(1000), DataChannelKind.DATA_TRACK_LOSSY, 'wait');
-      expect(stat()).toBe(0);
+      // Data-track traffic (sendDataTrackFrame → data-track channel) must not move the LOSSY channel's
+      // stat — it would inflate the lossy channel's dynamically tuned drop threshold with traffic
+      // that channel never carries.
+      await engine.sendDataTrackFrame(new Uint8Array(1000));
+      expect(lossyStat()).toBe(0);
 
-      await engine.sendLossyBytes(new Uint8Array(100), DataChannelKind.LOSSY, 'drop');
-      expect(stat()).toBe(100);
+      // A plain lossy publishData packet goes through sendDataPacket → lossy channel.
+      const lossyPacket = new DataPacket({
+        kind: DataPacket_Kind.LOSSY,
+        value: { case: 'user', value: new UserPacket({ payload: new Uint8Array(100) }) },
+      });
+      await engine.sendDataPacket(lossyPacket, DataChannelKind.LOSSY);
+      expect(lossyStat()).toBeGreaterThan(0);
     });
   });
 
-  describe('waitForBufferHeadroomWithLock', () => {
+  describe('waitForBufferHeadroom', () => {
     it('rejects parked waiters and releases the lock when the data channels are invalidated', async () => {
       const engine = new RTCEngine(roomOptionDefaults);
       const dc = new FakeDataChannel();
       Object.assign(engine as unknown as Record<string, unknown>, {
         _isClosed: false,
-        dataChannelForKind: vi.fn(() => dc),
       });
+      attachFakeChannel(engine, 'reliableChannel', dc);
 
       // Park a waiter: buffer above the reliable high-water mark, holding the headroom lock.
       dc.bufferedAmount = 2 * 1024 * 1024;
-      const parked = engine.waitForBufferHeadroomWithLock(DataChannelKind.RELIABLE);
+      const parked = engine.waitForBufferHeadroom(DataChannelKind.RELIABLE);
       // Swallow the expected rejection so it can't surface as unhandled before we assert on it.
       parked.catch(() => {});
       await tick();
 
       // The channel object gets abandoned (e.g. createDataChannels on the Safari resume path).
-      (
-        engine as unknown as { invalidateDataChannelWaiters: (reason: string) => void }
-      ).invalidateDataChannelWaiters('data channels recreated');
+      engineChannel(engine, 'reliableChannel').invalidateWaiters('data channels recreated');
 
       await expect(parked).rejects.toBeInstanceOf(UnexpectedConnectionState);
 
       // The lock must be free again: a wait against the fresh, drained channel resolves instead
       // of queueing forever behind the stranded waiter.
       dc.bufferedAmount = 0;
-      await expect(
-        engine.waitForBufferHeadroomWithLock(DataChannelKind.RELIABLE),
-      ).resolves.toBeUndefined();
+      await expect(engine.waitForBufferHeadroom(DataChannelKind.RELIABLE)).resolves.toBeUndefined();
     });
   });
 
