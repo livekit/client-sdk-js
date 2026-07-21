@@ -209,7 +209,7 @@ const appActions = {
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
         backupCodecPolicy: backupCodecPolicy,
-        backupCodec: { codec: backupCodec || 'vp8' },
+        backupCodec: backupCodec ? { codec: backupCodec } : undefined,
         frameMetadata,
       },
       videoCaptureDefaults: {
@@ -225,7 +225,7 @@ const appActions = {
       roomOpts.publishDefaults?.videoCodec === 'vp9' ||
       roomOpts.publishDefaults?.videoCodec === 'h265'
     ) {
-      if (!backupCodec) {
+      if (!roomOpts.publishDefaults.backupCodec) {
         roomOpts.publishDefaults.backupCodec = true;
       }
       if (scalabilityMode !== '') {
