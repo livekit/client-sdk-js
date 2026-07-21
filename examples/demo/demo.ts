@@ -224,7 +224,9 @@ const appActions = {
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
     ) {
-      roomOpts.publishDefaults.backupCodec = true;
+      if (!backupCodec) {
+        roomOpts.publishDefaults.backupCodec = true;
+      }
       if (scalabilityMode !== '') {
         roomOpts.publishDefaults.scalabilityMode = scalabilityMode as ScalabilityMode;
       }
