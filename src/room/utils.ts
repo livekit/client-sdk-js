@@ -782,10 +782,10 @@ export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
 }
 
 /** Wraps a byte array in a `ReadableStream` that yields it as a single chunk and then closes. */
-export function readableFromBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
-  return new ReadableStream<Uint8Array>({
+export function readableFromBytes(bytes: NonSharedUint8Array): ReadableStream<NonSharedUint8Array> {
+  return new ReadableStream<NonSharedUint8Array>({
     start(controller) {
-      controller.enqueue(bytes as NonSharedUint8Array);
+      controller.enqueue(bytes);
       controller.close();
     },
   });
@@ -798,9 +798,9 @@ export function readableFromBytes(bytes: Uint8Array): ReadableStream<Uint8Array>
  * `CompressionStream`/`file.stream()` output into MTU-sized data-stream chunks.
  */
 export async function* readBytesInChunks(
-  source: ReadableStream<Uint8Array>,
+  source: ReadableStream<NonSharedUint8Array>,
   chunkSize: number,
-): AsyncGenerator<Uint8Array> {
+): AsyncGenerator<NonSharedUint8Array> {
   const reader = source.getReader();
   let buffer = new Uint8Array(0);
   try {

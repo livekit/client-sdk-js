@@ -16,6 +16,7 @@
  *
  * @internal
  */
+import { type NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../errors';
 
 /**
@@ -24,10 +25,13 @@ import { DataStreamError, DataStreamErrorReason } from '../errors';
  * `sendText`/`sendBytes`/`sendFile` paths, where the full payload is known up front but is streamed
  * (e.g. from `file.stream()`) rather than held in memory.
  */
-export function deflateRawTransform(): ReadableWritablePair<Uint8Array, Uint8Array> {
+export function deflateRawTransform(): ReadableWritablePair<
+  NonSharedUint8Array,
+  NonSharedUint8Array
+> {
   return new CompressionStream('deflate-raw') as unknown as ReadableWritablePair<
-    Uint8Array,
-    Uint8Array
+    NonSharedUint8Array,
+    NonSharedUint8Array
   >;
 }
 
@@ -37,19 +41,22 @@ export function deflateRawTransform(): ReadableWritablePair<Uint8Array, Uint8Arr
  * so as long as the sender flushed at write boundaries each write's content is produced as soon as
  * its compressed bytes arrive.
  */
-export function inflateRawTransform(): ReadableWritablePair<Uint8Array, Uint8Array> {
+export function inflateRawTransform(): ReadableWritablePair<
+  NonSharedUint8Array,
+  NonSharedUint8Array
+> {
   return new DecompressionStream('deflate-raw') as unknown as ReadableWritablePair<
-    Uint8Array,
-    Uint8Array
+    NonSharedUint8Array,
+    NonSharedUint8Array
   >;
 }
 
 /** deflate-raw compresses a byte array in full. Use for inline payloads; prefer the streaming
  * path for the chunked case. */
-export async function deflateRawCompress(data: Uint8Array): Promise<Uint8Array> {
+export async function deflateRawCompress(data: NonSharedUint8Array): Promise<NonSharedUint8Array> {
   const cs = new CompressionStream('deflate-raw');
   const writer = cs.writable.getWriter();
-  writer.write(data as Uint8Array<ArrayBuffer>);
+  writer.write(data as NonSharedUint8Array);
   writer.close();
   return collect(cs.readable);
 }
@@ -60,15 +67,15 @@ export async function deflateRawCompress(data: Uint8Array): Promise<Uint8Array> 
  * with a `PayloadTooLarge` error.
  */
 export async function deflateRawDecompress(
-  data: Uint8Array,
+  data: NonSharedUint8Array,
   maxByteLength?: number,
-): Promise<Uint8Array> {
+): Promise<NonSharedUint8Array> {
   const ds = new DecompressionStream('deflate-raw');
   const writer = ds.writable.getWriter();
   // The writer promises are intentionally not awaited (output is consumed via `collect`), but
   // they reject when the byte cap cancels the readable mid-stream — swallow that so an enforced
   // cap doesn't surface as an unhandled rejection.
-  writer.write(data as Uint8Array<ArrayBuffer>).catch(() => {});
+  writer.write(data as NonSharedUint8Array).catch(() => {});
   writer.close().catch(() => {});
   return collect(ds.readable, maxByteLength);
 }
@@ -79,11 +86,11 @@ export async function deflateRawDecompress(
  * accumulated output exceeds it.
  */
 export async function collect(
-  stream: ReadableStream<Uint8Array>,
+  stream: ReadableStream<NonSharedUint8Array>,
   maxByteLength?: number,
-): Promise<Uint8Array> {
+): Promise<NonSharedUint8Array> {
   const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: Array<NonSharedUint8Array> = [];
   let total = 0;
   while (true) {
     const { done, value } = await reader.read();

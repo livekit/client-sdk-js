@@ -7,6 +7,7 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import log from '../../../logger';
+import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
@@ -197,7 +198,7 @@ export default class IncomingDataStreamManager {
 
         // Single-packet stream: the entire payload was packaged into the header's `inlineContent`.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-        const inlineContent = streamHeader.inlineContent;
+        const inlineContent = streamHeader.inlineContent as NonSharedUint8Array;
         if (typeof inlineContent !== 'undefined') {
           // Inline bytes are the raw payload, optionally deflate-raw compressed.
           streamHandlerCallback(
@@ -302,7 +303,7 @@ export default class IncomingDataStreamManager {
 
         // Single-packet stream: the entire payload was smuggled into the header's `inlineContent`.
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
-        const inlineContent = streamHeader.inlineContent;
+        const inlineContent = streamHeader.inlineContent as NonSharedUint8Array;
         if (typeof inlineContent !== 'undefined') {
           // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
           const content = compressed

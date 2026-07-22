@@ -8,6 +8,7 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { type StructuredLogger } from '../../../logger';
+import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { CLIENT_PROTOCOL_DATA_STREAM_V2 } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
 import { DataChannelKind } from '../../RTCEngine';
@@ -243,7 +244,7 @@ export default class OutgoingDataStreamManager {
       this.allRecipientsSupportCompression(destinationIdentities);
     let compressedStream = compressEligible
       ? MaybeCollectedStream.fromStream(
-          readableFromBytes(bytes)
+          readableFromBytes(bytes as NonSharedUint8Array)
             .pipeThrough(progressMonitorTap)
             .pipeThrough(deflateRawTransform()),
         )
@@ -284,7 +285,7 @@ export default class OutgoingDataStreamManager {
     const packet = createStreamHeaderPacket(header, destinationIdentities);
     const source = compressedStream
       ? compressedStream.stream()
-      : readableFromBytes(bytes).pipeThrough(progressMonitorTap);
+      : readableFromBytes(bytes as NonSharedUint8Array).pipeThrough(progressMonitorTap);
     await this.sendChunkedByteStream(packet, streamId, destinationIdentities, source);
 
     // Ensure there's always a 100% progress event fired, even if the buffer is zero bytes long
@@ -341,7 +342,7 @@ export default class OutgoingDataStreamManager {
     headerPacket: DataPacket,
     streamId: string,
     destinationIdentities: Array<string> | undefined,
-    source: ReadableStream<Uint8Array>,
+    source: ReadableStream<NonSharedUint8Array>,
   ): Promise<void> {
     const engine = this.engine;
     await sendHeaderPacket(engine, headerPacket);
@@ -599,14 +600,14 @@ export default class OutgoingDataStreamManager {
  */
 class MaybeCollectedStream {
   private state:
-    | { type: 'stream'; stream: ReadableStream<Uint8Array> }
-    | { type: 'collected'; bytes: Uint8Array };
+    | { type: 'stream'; stream: ReadableStream<NonSharedUint8Array> }
+    | { type: 'collected'; bytes: NonSharedUint8Array };
 
   private constructor(state: typeof this.state) {
     this.state = state;
   }
 
-  static fromStream(stream: ReadableStream<Uint8Array>) {
+  static fromStream(stream: ReadableStream<NonSharedUint8Array>) {
     return new MaybeCollectedStream({ type: 'stream', stream });
   }
 
@@ -645,9 +646,9 @@ class MaybeCollectedStream {
 function progressReportingStream(
   totalPreCompressionLength: number | undefined,
   onProgress?: (progress: number) => void,
-): ReadableWritablePair<Uint8Array, Uint8Array> {
+): ReadableWritablePair<NonSharedUint8Array, NonSharedUint8Array> {
   let sent = 0;
-  return new TransformStream<Uint8Array, Uint8Array>({
+  return new TransformStream<NonSharedUint8Array, NonSharedUint8Array>({
     transform(chunk, controller) {
       sent += chunk.byteLength;
       if (
