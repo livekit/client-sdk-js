@@ -105,13 +105,7 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
       expect(client.currentState).toBe(SignalConnectionState.CONNECTED);
       const reason = await withTimeout(closed, 5_000, 'onClose (abnormal drop)');
 
-      // KNOWN BUG (documented, not desired): an abnormal 1006 close carries no
-      // reason, and handleOnClose's `closeInfo.reason ?? 'Unexpected WS error'`
-      // fallback only fires for null/undefined — not the empty string a 1006
-      // yields. So onClose gets '' instead of a descriptive reason. It SHOULD
-      // report 'Unexpected WS error'. When the client is fixed, flip this to
-      //   expect(reason).toBe('Unexpected WS error');
-      expect(reason).toBe(''); // <-- buggy current behavior; see above
+      expect(reason).toBe('Unexpected WS error');
       expect(client.currentState).toBe(SignalConnectionState.DISCONNECTED);
     });
 
@@ -248,37 +242,23 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
       expect(err.reason).toBe(ConnectionErrorReason.Cancelled);
     });
 
-    it('hangs with no read-timeout when the socket opens but no first message arrives', async () => {
-      // FIXME KNOWN GAP (documented, not desired): wsTimeout guards only the upgrade
-      // and is cleared as soon as ws.opened resolves. If the server accepts the
-      // socket then stays silent, `await signalReader.read()` blocks forever —
-      // join() never settles and websocketTimeout does NOT apply post-upgrade.
-      const controller = new AbortController();
+    it('times out when the socket opens but no first message arrives', async () => {
+      // wsTimeout only guards the WebSocket upgrade and is cleared once ws.opened
+      // resolves. If the server accepts the socket then stays silent, the wait for
+      // the first message is guarded by its own JOIN_RESPONSE_TIMEOUT (5s), so
+      // join() rejects with Timeout instead of hanging.
       const token = await createToken({ signal: 'no_first_message' });
-      const joinPromise = client.join(
-        serverUrl,
-        token,
-        { ...defaultOpts(), websocketTimeout: 1_000 },
-        controller.signal,
-        true,
-      );
+      const joinPromise = client.join(serverUrl, token, defaultOpts(), undefined, true);
 
-      const STILL_PENDING = Symbol('still-pending');
-      const outcome = await Promise.race([
+      const err = await withTimeout(
         joinPromise.then(
-          () => 'resolved',
-          () => 'rejected',
+          () => undefined,
+          (e) => e,
         ),
-        // Well past websocketTimeout (1s): a real read-timeout would have fired.
-        new Promise<typeof STILL_PENDING>((resolve) =>
-          setTimeout(() => resolve(STILL_PENDING), 3_000),
-        ),
-      ]);
-      expect(outcome).toBe(STILL_PENDING);
-
-      // Cleanup: abort so the dangling join settles instead of leaking.
-      controller.abort('test cleanup');
-      await joinPromise.catch(() => {});
+        8_000,
+        'join to time out',
+      );
+      expect(err.reason).toBe(ConnectionErrorReason.Timeout);
     });
   });
 });

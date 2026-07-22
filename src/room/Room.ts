@@ -308,7 +308,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on('packetAvailable', ({ handle, bytes }) => {
         this.engine
-          .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
+          .sendDataTrackFrame(bytes)
           .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
@@ -1383,7 +1383,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       await Promise.all([
         this.acquireAudioContext(),
         ...elements.map((e) => {
-          e.muted = false;
+          // when webAudioMix is enabled, attached elements are deliberately kept muted by
+          // RemoteAudioTrack.attach() and audio is routed through the web audio graph instead.
+          // unmuting them here would cause double playback on platforms where element.volume
+          // has no effect (e.g. iOS Safari)
+          if (!this.options.webAudioMix) {
+            e.muted = false;
+          }
           return e.play();
         }),
       ]);

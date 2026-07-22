@@ -19,7 +19,6 @@ import {
   isSVCCodec,
   isSafariBased,
   isSafariSvcApi,
-  unwrapConstraint,
 } from '../utils';
 
 /** @internal */
@@ -468,16 +467,20 @@ export class ScalabilityMode {
   }
 }
 
+/**
+ * Returns the appropriate degradation preference for a video track based on its source.
+ *
+ * - Camera: 'maintain-framerate' (smoother video for real-time communication)
+ * - Screen share: 'maintain-resolution' (clarity is critical for reading text/UI)
+ * - Other/unknown: 'balanced'
+ */
 export function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference {
-  // a few of reasons we have different default paths:
-  // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
-  // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
-  if (
-    track.source === Track.Source.ScreenShare ||
-    (track.constraints.height && unwrapConstraint(track.constraints.height) >= 1080)
-  ) {
-    return 'maintain-resolution';
-  } else {
-    return 'balanced';
+  switch (track.source) {
+    case Track.Source.Camera:
+      return 'maintain-framerate';
+    case Track.Source.ScreenShare:
+      return 'maintain-resolution';
+    default:
+      return 'balanced';
   }
 }
