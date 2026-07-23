@@ -105,6 +105,9 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
           );
           if (result.done) {
             this.validateBytesReceived(true);
+            if (typeof this.totalByteSize === 'number') {
+              this.onProgress?.(1);
+            }
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(result.value);
@@ -151,7 +154,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
  * A class to read chunks from a ReadableStream and provide them in a structured format.
  */
 export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
-  private receivedChunks: Map<number, DataStream_Chunk>;
+  private receivedChunks: Map<number /* chunk index */, DataStream_Chunk>;
 
   signal?: AbortSignal;
 
@@ -233,11 +236,14 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
           );
           if (result.done) {
             this.validateBytesReceived(true);
+            if (typeof this.totalByteSize === 'number') {
+              this.onProgress?.(1);
+            }
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(result.value);
 
-            let decodedResult;
+            let decodedResult: string;
             try {
               decodedResult = decoder.decode(result.value.content);
             } catch (err) {
