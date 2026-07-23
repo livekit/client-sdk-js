@@ -623,10 +623,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
         this.updateSubscriptions();
-        this.emitBufferedEvents();
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
         }
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
