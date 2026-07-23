@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.21.0
+
+### Minor Changes
+
+- fix: emit events that were buffered during resume after declaring the room as reconnected - [#2018](https://github.com/livekit/client-sdk-js/pull/2018) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for data streams v2 - [#1985](https://github.com/livekit/client-sdk-js/pull/1985) ([@1egoman](https://github.com/1egoman))
+
+### Patch Changes
+
+- chore: extract data channel handling into manager class - [#2014](https://github.com/livekit/client-sdk-js/pull/2014) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.20.2
 
 ### Patch Changes
