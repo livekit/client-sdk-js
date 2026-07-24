@@ -113,6 +113,7 @@ import {
   Future,
   createDummyVideoStreamTrack,
   extractChatMessage,
+  extractTrackSid,
   extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
@@ -217,6 +218,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private bufferedEvents: Array<any> = [];
 
   private isResuming: boolean = false;
+
+  private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
 
   /**
    * map to store first point in time when a particular transcription segment was received
@@ -1589,23 +1592,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
+      const pendingTrackSid = extractTrackSid(mediaTrack, stream);
       const reconnectedHandler = () => {
         this.log.debug('deferring on track for later', {
           mediaTrackId: mediaTrack.id,
           mediaStreamId: stream.id,
           tracksInStream: stream.getTracks().map((track) => track.id),
         });
-        this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
+        this.onTrackAdded(mediaTrack, stream, receiver);
       };
       const cleanup = () => {
         this.off(RoomEvent.Reconnected, reconnectedHandler);
         this.off(RoomEvent.Connected, reconnectedHandler);
         this.off(RoomEvent.Disconnected, cleanup);
+        if (pendingTrackSid) {
+          const pendingCallbacks = this.pendingTrackAddedCallbacks.get(pendingTrackSid);
+          pendingCallbacks?.delete(cleanup);
+          if (pendingCallbacks?.size === 0) {
+            this.pendingTrackAddedCallbacks.delete(pendingTrackSid);
+          }
+        }
       };
       this.once(RoomEvent.Reconnected, reconnectedHandler);
       this.once(RoomEvent.Connected, reconnectedHandler);
       this.once(RoomEvent.Disconnected, cleanup);
+      if (pendingTrackSid) {
+        const pendingCallbacks =
+          this.pendingTrackAddedCallbacks.get(pendingTrackSid) ?? new Set<() => void>();
+        pendingCallbacks.add(cleanup);
+        this.pendingTrackAddedCallbacks.set(pendingTrackSid, pendingCallbacks);
+      }
       return;
     }
     if (this.state === ConnectionState.Disconnected) {
@@ -1618,11 +1635,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     const parts = unpackStreamId(stream.id);
     const participantSid = parts[0];
-    let streamId = parts[1];
-    let trackId = mediaTrack.id;
+    const streamId = parts[1];
     // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
     // and generates its own track id instead of infer from sdp track id.
-    if (streamId && streamId.startsWith('TR')) trackId = streamId;
+    let trackId = extractTrackSid(mediaTrack, stream) ?? mediaTrack.id;
 
     if (participantSid === this.localParticipant.sid) {
       this.log.warn('tried to create RemoteParticipant for local participant');
@@ -1689,6 +1705,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ),
       );
     }
+  }
+
+  private cancelPendingTrackAdded(trackSid: Track.SID) {
+    this.pendingTrackAddedCallbacks.get(trackSid)?.forEach((cleanup) => cleanup());
   }
 
   private handleLocalTrackSubscribed(subscribedSid: string) {
@@ -2035,6 +2055,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleSubscriptionError = (update: SubscriptionResponse) => {
+    this.cancelPendingTrackAdded(update.trackSid);
+
     const participant = Array.from(this.remoteParticipants.values()).find((p) =>
       p.trackPublications.has(update.trackSid),
     );
@@ -2409,6 +2431,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
+        this.cancelPendingTrackAdded(publication.trackSid);
         this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(

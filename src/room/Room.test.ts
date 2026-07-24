@@ -1,8 +1,18 @@
-import { ClientInfo_Capability, JoinResponse } from '@livekit/protocol';
+import {
+  ClientInfo_Capability,
+  JoinResponse,
+  ParticipantInfo,
+  SubscriptionError,
+  SubscriptionResponse,
+  TrackInfo,
+  TrackSource,
+  TrackType,
+} from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import Room from './Room';
+import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { RoomEvent } from './events';
+import type RemoteParticipant from './participant/RemoteParticipant';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -188,5 +198,70 @@ describe('Room lifecycle', () => {
         value: originalRegistry,
       });
     }
+  });
+});
+
+describe('remote track subscription', () => {
+  it('does not replay a deferred ontrack after the subscription failed', () => {
+    const room = new Room();
+    room.state = ConnectionState.Connecting;
+
+    const trackSid = 'TR_h264';
+    const participantInfo = new ParticipantInfo({
+      sid: 'PA_remote',
+      identity: 'remote',
+      tracks: [
+        new TrackInfo({
+          sid: trackSid,
+          source: TrackSource.CAMERA,
+          type: TrackType.VIDEO,
+        }),
+      ],
+    });
+    const roomInternals = room as unknown as {
+      getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant;
+      handleSubscriptionError(update: SubscriptionResponse): void;
+      onTrackAdded(
+        mediaTrack: MediaStreamTrack,
+        stream: MediaStream,
+        receiver: RTCRtpReceiver,
+      ): void;
+    };
+    const participant = roomInternals.getOrCreateParticipant(
+      participantInfo.identity,
+      participantInfo,
+    );
+    const addSubscribedMediaTrack = vi
+      .spyOn(participant, 'addSubscribedMediaTrack')
+      .mockReturnValue(participant.getTrackPublicationBySid(trackSid));
+    const subscriptionFailed = vi.fn();
+    room.on(RoomEvent.TrackSubscriptionFailed, subscriptionFailed);
+
+    const mediaTrack = {
+      id: trackSid,
+      readyState: 'live',
+    } as MediaStreamTrack;
+    const stream = {
+      id: `${participantInfo.sid}|${trackSid}`,
+      getTracks: () => [mediaTrack],
+    } as unknown as MediaStream;
+
+    roomInternals.onTrackAdded(mediaTrack, stream, {} as RTCRtpReceiver);
+    roomInternals.handleSubscriptionError(
+      new SubscriptionResponse({
+        trackSid,
+        err: SubscriptionError.SE_CODEC_UNSUPPORTED,
+      }),
+    );
+
+    room.state = ConnectionState.Connected;
+    room.emit(RoomEvent.Connected);
+
+    expect(subscriptionFailed).toHaveBeenCalledWith(
+      trackSid,
+      participant,
+      SubscriptionError.SE_CODEC_UNSUPPORTED,
+    );
+    expect(addSubscribedMediaTrack).not.toHaveBeenCalled();
   });
 });
