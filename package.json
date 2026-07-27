@@ -76,7 +76,7 @@
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
-    "sdp-transform": "^2.15.0",
+    "sdp-transform": "^3.0.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "9.0.6"
@@ -102,7 +102,7 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/events": "^3.0.3",
-    "@types/sdp-transform": "2.15.0",
+    "@types/sdp-transform": "3.0.0",
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "8.59.4",
     "@typescript-eslint/parser": "8.59.4",
