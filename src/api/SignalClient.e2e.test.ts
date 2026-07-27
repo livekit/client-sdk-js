@@ -1,6 +1,8 @@
 import { type LeaveRequest, LeaveRequest_Action } from '@livekit/protocol';
-import { afterEach, beforeEach, describe, expect, inject, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, inject, it } from 'vitest';
 import { ConnectionErrorReason } from '../room/errors';
+import { sleep } from '../room/utils';
+import { isPending } from '../test/promiseState';
 import { createInvalidToken, createToken } from '../test/signalToken';
 import { SignalClient, SignalConnectionState, type SignalOptions } from './SignalClient';
 
@@ -14,8 +16,6 @@ const defaultOpts = (): SignalOptions => ({
   e2eeEnabled: false,
   websocketTimeout: 5_000,
 });
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -70,12 +70,11 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
     });
 
     it('stays connected past the ping timeout while the server pongs', async () => {
-      const onClose = vi.fn();
       await join('happy');
-      client.onClose = onClose;
+      const closed = captureClose(client);
       // Server ping timeout is 3s; a healthy pong loop must keep us alive.
       await sleep(4_000);
-      expect(onClose).not.toHaveBeenCalled();
+      expect(await isPending(closed)).toBe(true);
       expect(client.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
@@ -151,15 +150,19 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
         (e) => e as Error,
       );
       expect(err).toBeInstanceOf(Error);
+      expect((err as { reason?: ConnectionErrorReason }).reason).toBe(
+        ConnectionErrorReason.LeaveRequest,
+      );
+      expect((err as Error).message).toContain('Received leave request');
     });
 
     it('closes gracefully via close() without firing onClose', async () => {
-      const onClose = vi.fn();
       await join('happy');
-      client.onClose = onClose;
+      const closed = captureClose(client);
       await client.close();
       expect(client.isDisconnected).toBe(true);
-      expect(onClose).not.toHaveBeenCalled();
+      // Give any stray onClose a macrotask to land before asserting it stayed silent.
+      expect(await isPending(closed, 100)).toBe(true);
     });
 
     it('reconnects (resume) back to CONNECTED', async () => {
@@ -181,6 +184,10 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
         (e) => e as Error,
       );
       expect(err).toBeInstanceOf(Error);
+      expect((err as { reason?: ConnectionErrorReason }).reason).toBe(
+        ConnectionErrorReason.LeaveRequest,
+      );
+      expect((err as Error).message).toContain('Received leave request');
     });
 
     // --- validate-endpoint classification -------------------------------

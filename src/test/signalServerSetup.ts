@@ -2,6 +2,7 @@ import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { Socket, createServer } from 'node:net';
 import { join } from 'node:path';
+import { sleep } from '../room/utils';
 import { createToken } from './signalToken';
 
 /**
@@ -47,7 +48,7 @@ async function waitReady(serverUrl: string): Promise<boolean> {
     } catch {
       // not up yet
     }
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
   }
   return false;
 }
