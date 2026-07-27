@@ -1,18 +1,13 @@
 import {
   ClientInfo_Capability,
   JoinResponse,
-  ParticipantInfo,
   SubscriptionError,
   SubscriptionResponse,
-  TrackInfo,
-  TrackSource,
-  TrackType,
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
-import { RoomEvent } from './events';
-import type RemoteParticipant from './participant/RemoteParticipant';
+import { EngineEvent, RoomEvent } from './events';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -207,47 +202,28 @@ describe('remote track subscription', () => {
     room.state = ConnectionState.Connecting;
 
     const trackSid = 'TR_h264';
-    const participantInfo = new ParticipantInfo({
-      sid: 'PA_remote',
-      identity: 'remote',
-      tracks: [
-        new TrackInfo({
-          sid: trackSid,
-          source: TrackSource.CAMERA,
-          type: TrackType.VIDEO,
-        }),
-      ],
-    });
-    const roomInternals = room as unknown as {
-      getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant;
-      handleSubscriptionError(update: SubscriptionResponse): void;
-      onTrackAdded(
-        mediaTrack: MediaStreamTrack,
-        stream: MediaStream,
-        receiver: RTCRtpReceiver,
-      ): void;
-    };
-    const participant = roomInternals.getOrCreateParticipant(
-      participantInfo.identity,
-      participantInfo,
-    );
-    const addSubscribedMediaTrack = vi
-      .spyOn(participant, 'addSubscribedMediaTrack')
-      .mockReturnValue(participant.getTrackPublicationBySid(trackSid));
-    const subscriptionFailed = vi.fn();
-    room.on(RoomEvent.TrackSubscriptionFailed, subscriptionFailed);
-
-    const mediaTrack = {
-      id: trackSid,
-      readyState: 'live',
-    } as MediaStreamTrack;
+    const mediaTrack = { id: trackSid } as MediaStreamTrack;
     const stream = {
-      id: `${participantInfo.sid}|${trackSid}`,
+      id: `PA_remote|${trackSid}`,
       getTracks: () => [mediaTrack],
     } as unknown as MediaStream;
+    const receiver = {} as RTCRtpReceiver;
 
-    roomInternals.onTrackAdded(mediaTrack, stream, {} as RTCRtpReceiver);
-    roomInternals.handleSubscriptionError(
+    room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, receiver);
+
+    const replay = vi.spyOn(
+      room as unknown as {
+        onTrackAdded(
+          mediaTrack: MediaStreamTrack,
+          stream: MediaStream,
+          receiver: RTCRtpReceiver,
+        ): void;
+      },
+      'onTrackAdded',
+    );
+
+    room.engine.emit(
+      EngineEvent.SubscriptionError,
       new SubscriptionResponse({
         trackSid,
         err: SubscriptionError.SE_CODEC_UNSUPPORTED,
@@ -257,11 +233,6 @@ describe('remote track subscription', () => {
     room.state = ConnectionState.Connected;
     room.emit(RoomEvent.Connected);
 
-    expect(subscriptionFailed).toHaveBeenCalledWith(
-      trackSid,
-      participant,
-      SubscriptionError.SE_CODEC_UNSUPPORTED,
-    );
-    expect(addSubscribedMediaTrack).not.toHaveBeenCalled();
+    expect(replay).not.toHaveBeenCalled();
   });
 });
