@@ -119,6 +119,7 @@
     "glob": "^13.0.6",
     "happy-dom": "^20.0.0",
     "jsdom": "^26.1.0",
+    "livekit-server-sdk": "^2.17.0",
     "playwright": "^1.61.1",
     "prettier": "^3.4.2",
     "publint": "^0.3.21",
