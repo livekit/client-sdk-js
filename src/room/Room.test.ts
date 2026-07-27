@@ -1,8 +1,13 @@
-import { ClientInfo_Capability, JoinResponse } from '@livekit/protocol';
+import {
+  ClientInfo_Capability,
+  JoinResponse,
+  SubscriptionError,
+  SubscriptionResponse,
+} from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import Room from './Room';
+import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
-import { RoomEvent } from './events';
+import { EngineEvent, RoomEvent } from './events';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -188,5 +193,46 @@ describe('Room lifecycle', () => {
         value: originalRegistry,
       });
     }
+  });
+});
+
+describe('remote track subscription', () => {
+  it('does not replay a deferred ontrack after the subscription failed', () => {
+    const room = new Room();
+    room.state = ConnectionState.Connecting;
+
+    const trackSid = 'TR_h264';
+    const mediaTrack = { id: trackSid } as MediaStreamTrack;
+    const stream = {
+      id: `PA_remote|${trackSid}`,
+      getTracks: () => [mediaTrack],
+    } as unknown as MediaStream;
+    const receiver = {} as RTCRtpReceiver;
+
+    room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, receiver);
+
+    const replay = vi.spyOn(
+      room as unknown as {
+        onTrackAdded(
+          mediaTrack: MediaStreamTrack,
+          stream: MediaStream,
+          receiver: RTCRtpReceiver,
+        ): void;
+      },
+      'onTrackAdded',
+    );
+
+    room.engine.emit(
+      EngineEvent.SubscriptionError,
+      new SubscriptionResponse({
+        trackSid,
+        err: SubscriptionError.SE_CODEC_UNSUPPORTED,
+      }),
+    );
+
+    room.state = ConnectionState.Connected;
+    room.emit(RoomEvent.Connected);
+
+    expect(replay).not.toHaveBeenCalled();
   });
 });

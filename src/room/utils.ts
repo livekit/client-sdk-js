@@ -867,3 +867,16 @@ export function isPublisherOfferWithJoinSupported() {
   // we have connectivity issue about publisher offer with join on firefox #1919
   return isCompressionStreamSupported() && !isFireFox();
 }
+
+export function extractTrackSid(
+  mediaTrack: MediaStreamTrack,
+  stream: MediaStream,
+): Track.SID | undefined {
+  const [, streamId] = unpackStreamId(stream.id);
+  if (streamId?.startsWith('TR')) {
+    return streamId;
+  }
+  if (mediaTrack.id.startsWith('TR')) {
+    return mediaTrack.id;
+  }
+}
