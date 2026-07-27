@@ -1,4 +1,4 @@
-import { SignJWT } from 'jose';
+import { AccessToken } from 'livekit-server-sdk';
 
 /**
  * Mint a LiveKit access token for the mock test-server (HS256, dev secret).
@@ -33,24 +33,28 @@ export async function createToken(opts: TokenOptions = {}): Promise<string> {
     secret = 'secret',
     ttlSeconds = 600,
   } = opts;
-  const key = new TextEncoder().encode(secret);
-  const payload: Record<string, unknown> = {
-    video: { room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true },
-  };
+  const attributes: Record<string, string> = {};
   if (signal) {
     const control: Record<string, unknown> = { signal };
     if (leaveAction !== undefined) {
       control.leaveAction = leaveAction;
     }
-    payload.attributes = { 'lk.mock': JSON.stringify(control) };
+    attributes['lk.mock'] = JSON.stringify(control);
   }
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuer(apiKey)
-    .setSubject(identity)
-    .setIssuedAt()
-    .setExpirationTime(`${ttlSeconds}s`)
-    .sign(key);
+  const token = new AccessToken(apiKey, secret, {
+    ttl: ttlSeconds,
+    identity,
+    attributes,
+  });
+  token.addGrant({
+    room,
+    roomJoin: true,
+    canPublish: true,
+    canSubscribe: true,
+    canPublishData: true,
+  });
+
+  return token.toJwt();
 }
 
 /** A syntactically-valid token signed with the WRONG secret — for 401 tests. */
