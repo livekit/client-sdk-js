@@ -57,7 +57,7 @@ a=rtpmap:49 H265/90000
 a=fmtp:49 level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST`;
 
 describe('video start bitrate', () => {
-  it('matches the track cid in an sdp-transform v3 msid array', () => {
+  it('applies the bitrate only to the section whose msid track ID matches the cid', () => {
     const { media } = parse(`v=0
 o=- 0 0 IN IP4 127.0.0.1
 s=-
@@ -67,14 +67,13 @@ m=video 9 UDP/TLS/RTP/SAVPF 96
 c=IN IP4 0.0.0.0
 a=mid:0
 a=sendonly
-a=msid:stream-a other-track
+a=msid:PA_remote|camera other-track
 a=rtpmap:96 VP8/90000
 m=video 9 UDP/TLS/RTP/SAVPF 96
 c=IN IP4 0.0.0.0
 a=mid:1
 a=sendonly
-a=msid:stream-b another-track
-a=msid:stream-c camera-cid
+a=msid:PA_remote|camera camera-cid
 a=rtpmap:96 VP8/90000`);
 
     for (const section of media) {
