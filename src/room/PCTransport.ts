@@ -36,6 +36,64 @@ const maxStartBitrateKbps = 1000;
 
 const debounceInterval = 20;
 
+/**
+ * Applies the configured start bitrate when this media section belongs to `cid`.
+ * This SDP munging is used for a bitrate setting that cannot be applied through
+ * `RTCRtpEncodingParameters`.
+ *
+ * Returns `undefined` when the section does not belong to the track, `0` when
+ * it does but does not offer the requested codec, and the codec payload when the
+ * requested codec is present (whether the bitrate was added or already set).
+ *
+ * @internal
+ */
+export function applyVideoStartBitrate(
+  media: MediaDescription,
+  cid: string,
+  codec: string,
+  maxbr: number,
+  isScreenShare = false,
+): number | undefined {
+  const trackId = media.msid?.split(' ')[1];
+  if (trackId !== cid) {
+    return undefined;
+  }
+
+  const codecPayload =
+    media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
+  if (codecPayload === 0) {
+    return 0;
+  }
+
+  // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE
+  // from starting too aggressively. Screen share is not capped since text/UI
+  // clarity requires high bitrate from the start.
+  // TODO: dynamically adjust start bitrate based on network conditions (e.g., previous BWE estimate)
+  const calculatedStartBitrate = Math.round(maxbr * startBitrateMultiplier);
+  const startBitrate = isScreenShare
+    ? calculatedStartBitrate
+    : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
+
+  const fmtp = media.fmtp.find((entry) => entry.payload === codecPayload);
+  if (fmtp) {
+    // If another track's fmtp already has a start bitrate, it cannot be
+    // overridden here because the payload type is shared across the bundle.
+    // This forces every track sharing that payload to use the initial track's
+    // start bitrate.
+    if (!fmtp.config.includes('x-google-start-bitrate')) {
+      fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
+    }
+  } else {
+    // VP8 and some codecs may not have an existing fmtp line.
+    media.fmtp.push({
+      payload: codecPayload,
+      config: `x-google-start-bitrate=${startBitrate}`,
+    });
+  }
+
+  return codecPayload;
+}
+
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
@@ -396,56 +454,25 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
-            if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
+            if (!trackbr.cid) {
               return false;
             }
 
-            let codecPayload = 0;
-            media.rtp.some((rtp): boolean => {
-              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-                codecPayload = rtp.payload;
-                return true;
-              }
+            const codecPayload = applyVideoStartBitrate(
+              media,
+              trackbr.cid,
+              trackbr.codec,
+              trackbr.maxbr,
+              trackbr.isScreenShare,
+            );
+            if (codecPayload === undefined) {
               return false;
-            });
-
-            if (codecPayload === 0) {
-              return true;
             }
 
-            if (isSVCCodec(trackbr.codec) && !isSafari()) {
+            if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
-            // mung sdp for bitrate setting that can't apply by sendEncoding
-            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
-            // Screen share is not capped since text/UI clarity requires high bitrate from the start
-            // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
-            const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
-            const startBitrate = trackbr.isScreenShare
-              ? calculatedStartBitrate
-              : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-
-            let fmtpFound = false;
-            for (const fmtp of media.fmtp) {
-              if (fmtp.payload === codecPayload) {
-                fmtpFound = true;
-                // if another track's fmtp already is set, we cannot override the bitrate
-                // this has the unfortunate consequence of being forced to use the
-                // initial track's bitrate for all tracks
-                if (!fmtp.config.includes('x-google-start-bitrate')) {
-                  fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
-                }
-                break;
-              }
-            }
-            // VP8 and some codecs may not have an existing fmtp line - create one
-            if (!fmtpFound) {
-              media.fmtp.push({
-                payload: codecPayload,
-                config: `x-google-start-bitrate=${startBitrate}`,
-              });
-            }
             return true;
           });
         }

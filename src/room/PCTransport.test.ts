@@ -1,6 +1,10 @@
 import { type MediaDescription, parse } from 'sdp-transform';
 import { describe, expect, it } from 'vitest';
-import { conformBundledCodecFmtp, placeholderMidsFromTransceivers } from './PCTransport';
+import {
+  applyVideoStartBitrate,
+  conformBundledCodecFmtp,
+  placeholderMidsFromTransceivers,
+} from './PCTransport';
 
 /** Parse the `key[=value]` pairs of an fmtp config into a comparable set. */
 const paramSet = (config: string) => new Set(config.split(';').filter(Boolean));
@@ -51,6 +55,35 @@ a=mid:3
 a=recvonly
 a=rtpmap:49 H265/90000
 a=fmtp:49 level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST`;
+
+describe('video start bitrate', () => {
+  it('applies the bitrate only to the section whose msid track ID matches the cid', () => {
+    const { media } = parse(`v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sendonly
+a=msid:PA_remote|camera other-track
+a=rtpmap:96 VP8/90000
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:1
+a=sendonly
+a=msid:PA_remote|camera camera-cid
+a=rtpmap:96 VP8/90000`);
+
+    for (const section of media) {
+      applyVideoStartBitrate(section, 'camera-cid', 'VP8', 1_000);
+    }
+
+    expect(fmtpOf(media, '0', 96)).toBeUndefined();
+    expect(paramSet(fmtpOf(media, '1', 96)!)).toContain('x-google-start-bitrate=900');
+  });
+});
 
 describe('placeholderMidsFromTransceivers', () => {
   const tr = (mid: string | null, track: unknown) =>
