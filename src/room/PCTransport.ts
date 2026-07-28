@@ -54,8 +54,7 @@ export function applyVideoStartBitrate(
   maxbr: number,
   isScreenShare = false,
 ): number | undefined {
-  const trackId = media.msid?.split(' ')[1];
-  if (trackId !== cid) {
+  if (!media.msid?.includes(cid)) {
     return undefined;
   }
 
