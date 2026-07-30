@@ -686,19 +686,21 @@ export default class LocalParticipant extends Participant {
         loggerName: this.roomOptions.loggerName,
         loggerContextCb: () => this.logContext,
       });
-      const localTracks = tracks.map((track) => {
-        if (isAudioTrack(track)) {
-          this.microphoneError = undefined;
-          track.setAudioContext(this.audioContext);
-          track.source = Track.Source.Microphone;
-          this.emit(ParticipantEvent.AudioStreamAcquired);
-        }
-        if (isVideoTrack(track)) {
-          this.cameraError = undefined;
-          track.source = Track.Source.Camera;
-        }
-        return track;
-      });
+      const localTracks = await Promise.all(
+        tracks.map(async (track) => {
+          if (isAudioTrack(track)) {
+            this.microphoneError = undefined;
+            await track.setAudioContext(this.audioContext);
+            track.source = Track.Source.Microphone;
+            this.emit(ParticipantEvent.AudioStreamAcquired);
+          }
+          if (isVideoTrack(track)) {
+            this.cameraError = undefined;
+            track.source = Track.Source.Camera;
+          }
+          return track;
+        }),
+      );
       return localTracks;
     } catch (err) {
       if (err instanceof Error) {
@@ -814,7 +816,7 @@ export default class LocalParticipant extends Participant {
     hasRetriedAfterNegotiationError = false,
   ): Promise<LocalTrackPublication> {
     if (isLocalAudioTrack(track)) {
-      track.setAudioContext(this.audioContext);
+      await track.setAudioContext(this.audioContext);
     }
 
     await this.reconnectFuture?.promise;
