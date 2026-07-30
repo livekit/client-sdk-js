@@ -49,6 +49,8 @@ class FakePublisher extends EventEmitter {
 
   latestAcknowledgedOfferId = 0;
 
+  restartingIce = false;
+
   negotiate = vi.fn(async (_onError?: (e: Error) => void) => {});
 
   /** Simulate a publisher offer cycle: bump latestOfferId. */
@@ -250,6 +252,45 @@ describe('PCTransportManager.negotiate', () => {
         await p;
       }
       expect(pub.listenerCount(PCEvents.OfferAnswered)).toBe(0);
+    });
+  });
+
+  describe('waitForPublisherIceRestart', () => {
+    it('resolves once restartingIce clears', async () => {
+      const { manager, pub } = makeManager();
+      pub.restartingIce = true;
+      const p = manager.waitForPublisherIceRestart(1000);
+      // simulate the answer landing and clearing the flag
+      setTimeout(() => {
+        pub.restartingIce = false;
+      }, 20);
+      await expect(p).resolves.toBeUndefined();
+    });
+
+    it('resolves immediately when restartingIce is already false', async () => {
+      const { manager, pub } = makeManager();
+      pub.restartingIce = false;
+      await expect(manager.waitForPublisherIceRestart(1000)).resolves.toBeUndefined();
+    });
+
+    it('rejects when the restart does not complete in time', async () => {
+      const { manager, pub } = makeManager();
+      pub.restartingIce = true;
+      await expect(manager.waitForPublisherIceRestart(60)).rejects.toThrow(/did not complete/);
+    });
+
+    it('rejects as soon as shouldAbort returns true', async () => {
+      const { manager, pub } = makeManager();
+      pub.restartingIce = true;
+      await expect(manager.waitForPublisherIceRestart(5000, () => true)).rejects.toThrow(/aborted/);
+    });
+
+    it('is a no-op when no publisher connection is required', async () => {
+      const { manager, pub } = makeManager();
+      pub.restartingIce = true;
+      manager.requirePublisher(false);
+      // resolves despite restartingIce still being set, because there is nothing to restart
+      await expect(manager.waitForPublisherIceRestart(60)).resolves.toBeUndefined();
     });
   });
 

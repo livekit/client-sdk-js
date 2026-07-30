@@ -2584,14 +2584,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
     let consecutiveFailures = 0;
-    this.connectionReconcileInterval = CriticalTimers.setInterval(() => {
+    this.connectionReconcileInterval = CriticalTimers.setInterval(async () => {
+      // `verifyTransport` is async (it samples outbound-rtp stats), so resolve it once
+      // and reuse the result for both the decision and the diagnostic log.
+      const transportHealthy = this.engine ? await this.engine.verifyTransport() : false;
       if (
         // ensure we didn't tear it down
         !this.engine ||
         // engine detected close, but Room missed it
         this.engine.isClosed ||
         // transports failed without notifying engine
-        !this.engine.verifyTransport()
+        !transportHealthy
       ) {
         consecutiveFailures++;
         this.log.warn('detected connection state mismatch', {
@@ -2599,16 +2602,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           engine: this.engine
             ? {
                 closed: this.engine.isClosed,
-                transportsConnectedOrConnecting: this.engine.verifyTransport(),
+                transportsConnectedOrConnecting: transportHealthy,
               }
             : undefined,
         });
         if (consecutiveFailures >= 3) {
-          this.recreateEngine();
-          this.handleDisconnect(
-            this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.STATE_MISMATCH,
-          );
+          this.clearConnectionReconcile();
+          if (this.engine && !this.engine.isClosed) {
+            // The transport silently died while we still looked connected. Try a full reconnect
+            // (keeps the room alive; the engine falls back to Disconnected if it ultimately fails).
+            this.log.warn('detected connection state mismatch, attempting full reconnect');
+            this.engine.reconnect();
+          } else {
+            // No usable engine to reconnect with; tear down.
+            this.recreateEngine();
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              DisconnectReason.STATE_MISMATCH,
+            );
+          }
         }
       } else {
         consecutiveFailures = 0;

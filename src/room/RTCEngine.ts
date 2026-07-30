@@ -18,6 +18,7 @@ import {
   LeaveRequest_Action,
   MediaSectionsRequirement,
   ParticipantInfo,
+  ConnectionQuality as ProtoConnectionQuality,
   PublishDataTrackResponse,
   ReconnectReason,
   type ReconnectResponse,
@@ -108,6 +109,12 @@ import {
 
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
+
+/**
+ * How long local connection quality must stay `LOST` while connected and publishing before we
+ * force a full reconnect — `LOST` is the server's verdict that it isn't receiving our media.
+ */
+const connectionQualityLostTimeout = 5 * 1000;
 const reliabeReceiveStateTTL = 30_000;
 
 const initialMediaSectionsAudio = 3;
@@ -246,6 +253,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** used to indicate whether the browser is currently waiting to reconnect */
   private isWaitingForNetworkReconnect: boolean = false;
 
+  /** set while the local participant's connection quality is `LOST`; forces a full reconnect on timeout */
+  private lostQualityTimeout?: ReturnType<typeof setTimeout>;
+
+  /** timestamp (ms) the primary transport entered `CONNECTING`, used to bound how long we tolerate it */
+  private transportConnectingSince?: number;
+
+  /** last observed publisher outbound `bytesSent`, used to detect a stalled publish path in {@link verifyTransport} */
+  private lastPublisherBytesSent?: number;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
@@ -271,8 +287,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
-    this.client.onConnectionQuality = (update) =>
+    this.client.onConnectionQuality = (update) => {
+      this.handleLocalConnectionQuality(update);
       this.emit(EngineEvent.ConnectionQualityUpdate, update);
+    };
     this.client.onRoomUpdate = (update) => this.emit(EngineEvent.RoomUpdate, update);
     this.client.onSubscriptionError = (resp) => this.emit(EngineEvent.SubscriptionError, resp);
     this.client.onSubscriptionPermissionUpdate = (update) =>
@@ -429,6 +447,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
+      this.clearLostQualityTimeout();
       this.cleanupLossyDataStats();
       await this.cleanupPeerConnections();
       await this.cleanupClient();
@@ -622,7 +641,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         midToTrackId,
       });
       this.midToTrackId = midToTrackId;
-      await this.pcManager.setPublisherAnswer(sd, offerId);
+      const applied = await this.pcManager.setPublisherAnswer(sd, offerId);
+      if (!applied && this.attemptingReconnect && !this.fullReconnectOnNext) {
+        // Publisher answer rejected during a resume (e.g. stale offerId): the ICE restart
+        // can't land, so escalate to a full reconnect (also aborts waitForPublisherIceRestart).
+        this.log.warn('publisher answer rejected during resume, escalating to full reconnect');
+        this.fullReconnectOnNext = true;
+      }
     };
 
     // add candidate on trickle
@@ -1157,6 +1182,73 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     );
   };
 
+  /**
+   * A sustained local `LOST` while connected and publishing means the server isn't receiving
+   * our media, so force a full reconnect; any non-`LOST` value cancels a pending trigger.
+   */
+  private handleLocalConnectionQuality(update: ConnectionQualityUpdate) {
+    if (!this.participantSid) {
+      return;
+    }
+    const localUpdate = update.updates.find((u) => u.participantSid === this.participantSid);
+    if (!localUpdate) {
+      return;
+    }
+    if (localUpdate.quality === ProtoConnectionQuality.LOST) {
+      this.scheduleLostQualityReconnect();
+    } else {
+      this.clearLostQualityTimeout();
+    }
+  }
+
+  private scheduleLostQualityReconnect() {
+    if (this.lostQualityTimeout) {
+      // already counting down towards a reconnect
+      return;
+    }
+    this.lostQualityTimeout = CriticalTimers.setTimeout(() => {
+      this.lostQualityTimeout = undefined;
+      if (this._isClosed || this.pcState !== PCState.Connected || this.attemptingReconnect) {
+        return;
+      }
+      if (!this.hasActivePublisherSenders()) {
+        return;
+      }
+      this.log.warn(
+        'local connection quality lost while publishing, triggering full reconnect',
+        this.logContext,
+      );
+      this.fullReconnectOnNext = true;
+      this.handleDisconnect('connection quality lost', ReconnectReason.RR_PUBLISHER_FAILED);
+    }, connectionQualityLostTimeout);
+  }
+
+  private clearLostQualityTimeout() {
+    if (this.lostQualityTimeout) {
+      clearTimeout(this.lostQualityTimeout);
+      this.lostQualityTimeout = undefined;
+    }
+  }
+
+  /** Whether the publisher currently has any sender with a live track. */
+  private hasActivePublisherSenders(): boolean {
+    return (
+      this.pcManager?.publisher
+        .getSenders()
+        .some((sender) => !!sender.track && sender.track.readyState === 'live') ?? false
+    );
+  }
+
+  /**
+   * Forces a full reconnect while keeping the engine (and its saved credentials) alive. Used by
+   * Room's connection-reconcile safety net when the transport silently died but we looked connected.
+   * @internal
+   */
+  reconnect(reason: ReconnectReason = ReconnectReason.RR_UNKNOWN) {
+    this.fullReconnectOnNext = true;
+    this.handleDisconnect('reconcile', reason);
+  }
+
   private async attemptReconnect(reason?: ReconnectReason) {
     if (this._isClosed) {
       return;
@@ -1175,15 +1267,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.fullReconnectOnNext = true;
     }
 
+    let succeeded = false;
+    let performedFullReconnect = false;
     try {
       this.attemptingReconnect = true;
       if (this.fullReconnectOnNext) {
+        performedFullReconnect = true;
         await this.restartConnection();
       } else {
         await this.resumeConnection(reason);
       }
       this.clearPendingReconnect();
-      this.fullReconnectOnNext = false;
+      // Only clear the flag if we actually did a full reconnect, so a full reconnect requested
+      // mid-attempt (e.g. a server leave during a resume) survives a successful resume.
+      if (performedFullReconnect) {
+        this.fullReconnectOnNext = false;
+      }
+      succeeded = true;
     } catch (e) {
       this.reconnectAttempts += 1;
       let recoverable = true;
@@ -1209,6 +1309,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     } finally {
       this.attemptingReconnect = false;
+
+      // A full reconnect requested mid-attempt (e.g. a `RECONNECT` leave during a resume) that
+      // a successful attempt didn't act on; dispatch it now (the failure path already retries).
+      if (succeeded && this.fullReconnectOnNext && !this._isClosed) {
+        this.log.debug('full reconnect requested during in-progress attempt, dispatching');
+        this.handleDisconnect('reconnect');
+      }
     }
   }
 
@@ -1341,6 +1448,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     await this.pcManager.triggerIceRestart();
+
+    // Verify the ICE restart landed (`restartingIce` clears only when a matching-offerId answer
+    // is applied) rather than just waiting for `connected`; escalate to a full reconnect if not.
+    try {
+      await this.pcManager.waitForPublisherIceRestart(
+        this.peerConnectionTimeout,
+        () => this.fullReconnectOnNext,
+      );
+    } catch (e) {
+      this.log.warn('ICE restart did not complete during resume, escalating to full reconnect', {
+        error: e,
+      });
+      this.fullReconnectOnNext = true;
+      throw e instanceof Error ? e : new Error(String(e));
+    }
 
     await this.waitForPCReconnected();
 
@@ -1587,15 +1709,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  verifyTransport(): boolean {
+  async verifyTransport(): Promise<boolean> {
     if (!this.pcManager) {
       return false;
     }
+    const state = this.pcManager.currentState;
     const allowedConnectionStates: PCTransportState[] = [
       PCTransportState.CONNECTING,
       PCTransportState.CONNECTED,
     ];
-    if (!allowedConnectionStates.includes(this.pcManager.currentState)) {
+    if (!allowedConnectionStates.includes(state)) {
+      this.transportConnectingSince = undefined;
+      this.lastPublisherBytesSent = undefined;
       return false;
     }
 
@@ -1603,7 +1728,64 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
       return false;
     }
+
+    // A transport stuck in CONNECTING never reaches CONNECTED nor reports FAILED, so it would
+    // otherwise look healthy forever; bound how long we tolerate it.
+    if (state === PCTransportState.CONNECTING) {
+      const now = Date.now();
+      if (this.transportConnectingSince === undefined) {
+        this.transportConnectingSince = now;
+      } else if (now - this.transportConnectingSince > this.peerConnectionTimeout) {
+        this.log.warn('transport stuck in connecting state', this.logContext);
+        return false;
+      }
+      // can't assert media liveness until connected
+      this.lastPublisherBytesSent = undefined;
+      return true;
+    }
+    this.transportConnectingSince = undefined;
+
+    // Outbound-RTP liveness: with active senders `bytesSent` must keep advancing between checks;
+    // if it stalls while connected the publish path is broken even though the PC looks connected.
+    if (this.hasActivePublisherSenders()) {
+      const bytesSent = await this.getPublisherBytesSent();
+      if (bytesSent !== undefined) {
+        const advanced =
+          this.lastPublisherBytesSent === undefined || bytesSent > this.lastPublisherBytesSent;
+        this.lastPublisherBytesSent = bytesSent;
+        if (!advanced) {
+          this.log.warn('publisher outbound bytes not advancing while senders active', {
+            ...this.logContext,
+            bytesSent,
+          });
+          return false;
+        }
+      }
+    } else {
+      this.lastPublisherBytesSent = undefined;
+    }
+
     return true;
+  }
+
+  /** Sum of `bytesSent` across the publisher's outbound-rtp stats, or undefined if unavailable. */
+  private async getPublisherBytesSent(): Promise<number | undefined> {
+    try {
+      const stats = await this.pcManager?.publisher.getStats();
+      if (!stats) {
+        return undefined;
+      }
+      let bytesSent = 0;
+      stats.forEach((report) => {
+        if (report.type === 'outbound-rtp') {
+          bytesSent += report.bytesSent ?? 0;
+        }
+      });
+      return bytesSent;
+    } catch (e) {
+      this.log.debug('could not read publisher stats', { ...this.logContext, error: e });
+      return undefined;
+    }
   }
 
   /** @internal */
