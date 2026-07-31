@@ -250,6 +250,8 @@ export {
   /** The return type of {@link TokenSource.endpoint} */
   type TokenSourceEndpoint,
   type TokenSourceSandboxTokenServer,
+  /** The return type of {@link TokenSource.developmentTokenServer} */
+  type TokenSourceDevelopmentTokenServer,
   decodeTokenPayload,
   areTokenSourceFetchOptionsEqual,
 };
