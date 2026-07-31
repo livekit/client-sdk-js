@@ -336,7 +336,7 @@ room.connect(configurableResponse.serverUrl, configurableResponse.participantTok
 |Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
 |-------------|--|--|--|
 |Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
-|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
+|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourcedevelopmenttokenserver)  | [`TokenSource.custom`](#tokensourcecustom) |
 
 #### TokenSource.Literal
 A fixed token source which returns a static set of credentials or a computed set of credentials
