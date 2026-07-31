@@ -213,28 +213,34 @@ class TokenSourceEndpoint extends TokenSourceCached {
     const body = await response.json();
     return TokenSourceResponse.fromJson(body, {
       // NOTE: it could be possible that the response body could contain more fields than just
-      // what's in TokenSourceResponse depending on the implementation (ie, SandboxTokenServer)
+      // what's in TokenSourceResponse depending on the implementation (ie, DevelopmentTokenServer)
       ignoreUnknownFields: true,
     });
   }
 }
 
-export type SandboxTokenServerOptions = {
+export type DevelopmentTokenServerOptions = {
   baseUrl?: string;
 };
-
-class TokenSourceSandboxTokenServer extends TokenSourceEndpoint {
-  constructor(sandboxId: string, options: SandboxTokenServerOptions) {
+class TokenSourceDevelopmentTokenServer extends TokenSourceEndpoint {
+  constructor(tokenServerId: string, options: DevelopmentTokenServerOptions) {
     const { baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
 
+    // TODO is there an alternative path (and header) already that we could use instead of the sandbox naming one?
     super(`${baseUrl}/api/v2/sandbox/connection-details`, {
       ...rest,
       headers: {
-        'X-Sandbox-ID': sandboxId,
+        'X-Sandbox-ID': tokenServerId,
       },
     });
   }
 }
+
+/** @deprecated use {@link DevelopmentTokenServerOptions} instead */
+export type SandboxTokenServerOptions = DevelopmentTokenServerOptions;
+
+/** @deprecated Use {@link TokenSourceDevelopmentTokenServer} instead */
+class TokenSourceSandboxTokenServer extends TokenSourceDevelopmentTokenServer {}
 
 export {
   /** The return type of {@link TokenSource.literal} */
@@ -243,7 +249,6 @@ export {
   type TokenSourceCustom,
   /** The return type of {@link TokenSource.endpoint} */
   type TokenSourceEndpoint,
-  /** The return type of {@link TokenSource.sandboxTokenServer} */
   type TokenSourceSandboxTokenServer,
   decodeTokenPayload,
   areTokenSourceFetchOptionsEqual,
@@ -276,15 +281,13 @@ export const TokenSource = {
   },
 
   /**
-   * TokenSource.sandboxTokenServer queries a sandbox token server for credentials,
-   * which supports quick prototyping / getting started types of use cases.
-   *
-   * This token provider is INSECURE and should NOT be used in production.
-   *
-   * For more info:
-   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
+   * @deprecated Use {@link TokenSource.developmentTokenServer} instead
    */
   sandboxTokenServer(sandboxId: string, options: SandboxTokenServerOptions = {}) {
     return new TokenSourceSandboxTokenServer(sandboxId, options);
+  },
+
+  developmentTokenServer(tokenServerId: string, options: DevelopmentTokenServerOptions = {}) {
+    return new TokenSourceDevelopmentTokenServer(tokenServerId, options);
   },
 };

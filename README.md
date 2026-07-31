@@ -336,7 +336,7 @@ room.connect(configurableResponse.serverUrl, configurableResponse.participantTok
 |Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
 |-------------|--|--|--|
 |Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
-|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.sandboxTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
+|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
 
 #### TokenSource.Literal
 A fixed token source which returns a static set of credentials or a computed set of credentials
@@ -373,21 +373,22 @@ const endpoint2 = TokenSource.endpoint("http://example.com/credentials-endpoint"
 await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
-#### TokenSource.SandboxTokenServer
+#### TokenSource.DevelopmentTokenServer
 A configurable token source which makes a request to a
-[sandbox token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
+// TODO fix the dashboard link
+[development token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
 a LiveKit-hosted token generation mechanism.
 
 This token generation mechanism is inherently insecure and should only be used for
 prototyping; do NOT use in production.
 
-One parameter is required - the sandbox id from the dashboard. This is the `token-server-xxxxxx`
+One parameter is required - the development token server id id from the dashboard. This is the `token-server-xxxxxx`
 value in `https://token-server-xxxxxx.sandbox.livekit.io`.
 
 Example:
 ```ts
-const sandbox = TokenSource.sandboxTokenServer("token-server-xxxxxx");
-await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+const devTokenSource = TokenSource.developmentTokenServer("token-server-xxxxxx");
+await devTokenSource.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
 #### TokenSource.Custom
@@ -401,11 +402,11 @@ output token. If you'd rather implement a fixed version of this TokenSource, see
 
 Example:
 ```ts
-const sandbox = TokenSource.custom(async (options) => {
+const myTokenSource = TokenSource.custom(async (options) => {
   // generate token info via custom means here
   return { serverUrl: "...", participantToken: "... options encoded in here ..." };
 });
-await sandbox.fetch({ agentName: "agent to dispatch" });
+await myTokenSource.fetch({ agentName: "agent to dispatch" });
 ```
 
 ### RPC
