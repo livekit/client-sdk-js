@@ -641,13 +641,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         midToTrackId,
       });
       this.midToTrackId = midToTrackId;
-      const applied = await this.pcManager.setPublisherAnswer(sd, offerId);
-      if (!applied && this.attemptingReconnect && !this.fullReconnectOnNext) {
-        // Publisher answer rejected during a resume (e.g. stale offerId): the ICE restart
-        // can't land, so escalate to a full reconnect (also aborts waitForPublisherIceRestart).
-        this.log.warn('publisher answer rejected during resume, escalating to full reconnect');
-        this.fullReconnectOnNext = true;
-      }
+      await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
     // add candidate on trickle
@@ -1448,21 +1442,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     await this.pcManager.triggerIceRestart();
-
-    // Verify the ICE restart landed (`restartingIce` clears only when a matching-offerId answer
-    // is applied) rather than just waiting for `connected`; escalate to a full reconnect if not.
-    try {
-      await this.pcManager.waitForPublisherIceRestart(
-        this.peerConnectionTimeout,
-        () => this.fullReconnectOnNext,
-      );
-    } catch (e) {
-      this.log.warn('ICE restart did not complete during resume, escalating to full reconnect', {
-        error: e,
-      });
-      this.fullReconnectOnNext = true;
-      throw e instanceof Error ? e : new Error(String(e));
-    }
 
     await this.waitForPCReconnected();
 

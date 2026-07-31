@@ -173,27 +173,6 @@ export class PCTransportManager {
     }
   }
 
-  /**
-   * Resolves once the publisher ICE restart offer is answered (which clears `restartingIce`).
-   * Rejects on `timeout` or when `shouldAbort` returns true; no-op without a publisher.
-   */
-  async waitForPublisherIceRestart(timeout: number, shouldAbort?: () => boolean) {
-    if (!this.needsPublisher) {
-      return;
-    }
-    const endTime = Date.now() + timeout;
-    while (Date.now() < endTime) {
-      if (!this.publisher.restartingIce) {
-        return;
-      }
-      if (shouldAbort?.()) {
-        throw ConnectionError.internal('ICE restart aborted before completion');
-      }
-      await sleep(50);
-    }
-    throw ConnectionError.internal('ICE restart did not complete in time');
-  }
-
   async addIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     this.iceLog.debug('adding remote ICE candidate', { target, candidate });
     if (target === SignalTarget.PUBLISHER) {
