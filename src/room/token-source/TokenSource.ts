@@ -287,6 +287,15 @@ export const TokenSource = {
     return new TokenSourceSandboxTokenServer(sandboxId, options);
   },
 
+  /**
+   * TokenSource.developmentTokenServer queries a development token server for credentials,
+   * which supports quick prototyping / getting started types of use cases.
+   *
+   * This token provider is INSECURE and should NOT be used in production.
+   *
+   * For more info:
+   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
+   */
   developmentTokenServer(tokenServerId: string, options: DevelopmentTokenServerOptions = {}) {
     return new TokenSourceDevelopmentTokenServer(tokenServerId, options);
   },
