@@ -382,7 +382,7 @@ a LiveKit-hosted token generation mechanism.
 This token generation mechanism is inherently insecure and should only be used for
 prototyping; do NOT use in production.
 
-One parameter is required - the development token server id id from the dashboard. This is the `token-server-xxxxxx`
+One parameter is required - the development token server id from the dashboard. This is the `token-server-xxxxxx`
 value in `https://token-server-xxxxxx.sandbox.livekit.io`.
 
 Example:
