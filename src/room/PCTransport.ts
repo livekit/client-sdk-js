@@ -744,7 +744,19 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   }
 }
 
-function ensureAudioNackAndStereo(
+/**
+ * Checks whether an fmtp config declares `param` as an exact, `;`-delimited
+ * token. A plain substring check conflates distinct opus parameters — e.g.
+ * `stereo=1` is a substring of `sprop-stereo=1` — so `param` must match a whole
+ * parameter, not appear anywhere within the config string.
+ * @internal
+ */
+export function fmtpConfigHasParam(config: string, param: string): boolean {
+  return config.split(';').some((entry) => entry.trim() === param);
+}
+
+/** @internal */
+export function ensureAudioNackAndStereo(
   media: {
     type: string;
     port: number;
@@ -760,7 +772,8 @@ function ensureAudioNackAndStereo(
   // found opus codec to add nack fb
   let opusPayload = 0;
   media.rtp.some((rtp): boolean => {
-    if (rtp.codec === 'opus') {
+    // rtpmap encoding names are case-insensitive (RFC 4855)
+    if (rtp.codec.toLowerCase() === 'opus') {
       opusPayload = rtp.payload;
       return true;
     }
@@ -786,7 +799,7 @@ function ensureAudioNackAndStereo(
     if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (!fmtp.config.includes('stereo=1')) {
+          if (!fmtpConfigHasParam(fmtp.config, 'stereo=1')) {
             fmtp.config += ';stereo=1';
           }
           return true;
@@ -877,7 +890,8 @@ export function conformBundledCodecFmtp(
   }
 }
 
-function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
+/** @internal */
+export function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
 } {
@@ -889,7 +903,8 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
     const mid = getMidString(media.mid!);
     if (media.type === 'audio') {
       media.rtp.some((rtp): boolean => {
-        if (rtp.codec === 'opus') {
+        // rtpmap encoding names are case-insensitive (RFC 4855)
+        if (rtp.codec.toLowerCase() === 'opus') {
           opusPayload = rtp.payload;
           return true;
         }
@@ -902,7 +917,7 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
 
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (fmtp.config.includes('sprop-stereo=1')) {
+          if (fmtpConfigHasParam(fmtp.config, 'sprop-stereo=1')) {
             stereoMids.push(mid);
           }
           return true;
