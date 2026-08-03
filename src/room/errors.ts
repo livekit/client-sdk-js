@@ -248,8 +248,7 @@ export class PublishTrackError extends LivekitError {
 }
 
 export type RequestErrorReason =
-  | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
-  | 'TimeoutError';
+  Exclude<RequestResponse_Reason, RequestResponse_Reason.OK> | 'TimeoutError';
 
 export class SignalRequestError extends LivekitReasonedError<RequestErrorReason> {
   readonly name = 'SignalRequestError';
