@@ -204,7 +204,17 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     // Suppress unhandled rejection on reader.closed — errors are
     // already propagated through reader.read() to the consumer.
     reader.closed.catch(() => {});
-    const decoder = new TextDecoder('utf-8', { fatal: true });
+
+    const getTextDecoder = (): TextDecoder => {
+      // Fallback for runtimes with partial TextDecoder support.
+      try {
+        return new TextDecoder('utf-8', { fatal: true });
+      } catch {
+        return new TextDecoder('utf-8');
+      }
+    };
+
+    const decoder = getTextDecoder();
     const signal = this.signal;
 
     const cleanup = () => {
