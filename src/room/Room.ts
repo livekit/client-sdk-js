@@ -2584,17 +2584,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
     let consecutiveFailures = 0;
-    this.connectionReconcileInterval = CriticalTimers.setInterval(async () => {
-      // `verifyTransport` is async (it samples outbound-rtp stats), so resolve it once
-      // and reuse the result for both the decision and the diagnostic log.
-      const transportHealthy = this.engine ? await this.engine.verifyTransport() : false;
+    this.connectionReconcileInterval = CriticalTimers.setInterval(() => {
       if (
         // ensure we didn't tear it down
         !this.engine ||
         // engine detected close, but Room missed it
         this.engine.isClosed ||
         // transports failed without notifying engine
-        !transportHealthy
+        !this.engine.verifyTransport()
       ) {
         consecutiveFailures++;
         this.log.warn('detected connection state mismatch', {
@@ -2602,7 +2599,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           engine: this.engine
             ? {
                 closed: this.engine.isClosed,
-                transportsConnectedOrConnecting: transportHealthy,
+                transportsConnectedOrConnecting: this.engine.verifyTransport(),
               }
             : undefined,
         });

@@ -259,9 +259,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** timestamp (ms) the primary transport entered `CONNECTING`, used to bound how long we tolerate it */
   private transportConnectingSince?: number;
 
-  /** last observed publisher outbound `bytesSent`, used to detect a stalled publish path in {@link verifyTransport} */
-  private lastPublisherBytesSent?: number;
-
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
@@ -1688,7 +1685,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /* @internal */
-  async verifyTransport(): Promise<boolean> {
+  verifyTransport(): boolean {
     if (!this.pcManager) {
       return false;
     }
@@ -1699,7 +1696,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     ];
     if (!allowedConnectionStates.includes(state)) {
       this.transportConnectingSince = undefined;
-      this.lastPublisherBytesSent = undefined;
       return false;
     }
 
@@ -1718,53 +1714,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.log.warn('transport stuck in connecting state', this.logContext);
         return false;
       }
-      // can't assert media liveness until connected
-      this.lastPublisherBytesSent = undefined;
       return true;
     }
     this.transportConnectingSince = undefined;
 
-    // Outbound-RTP liveness: with active senders `bytesSent` must keep advancing between checks;
-    // if it stalls while connected the publish path is broken even though the PC looks connected.
-    if (this.hasActivePublisherSenders()) {
-      const bytesSent = await this.getPublisherBytesSent();
-      if (bytesSent !== undefined) {
-        const advanced =
-          this.lastPublisherBytesSent === undefined || bytesSent > this.lastPublisherBytesSent;
-        this.lastPublisherBytesSent = bytesSent;
-        if (!advanced) {
-          this.log.warn('publisher outbound bytes not advancing while senders active', {
-            ...this.logContext,
-            bytesSent,
-          });
-          return false;
-        }
-      }
-    } else {
-      this.lastPublisherBytesSent = undefined;
-    }
-
     return true;
-  }
-
-  /** Sum of `bytesSent` across the publisher's outbound-rtp stats, or undefined if unavailable. */
-  private async getPublisherBytesSent(): Promise<number | undefined> {
-    try {
-      const stats = await this.pcManager?.publisher.getStats();
-      if (!stats) {
-        return undefined;
-      }
-      let bytesSent = 0;
-      stats.forEach((report) => {
-        if (report.type === 'outbound-rtp') {
-          bytesSent += report.bytesSent ?? 0;
-        }
-      });
-      return bytesSent;
-    } catch (e) {
-      this.log.debug('could not read publisher stats', { ...this.logContext, error: e });
-      return undefined;
-    }
   }
 
   /** @internal */
