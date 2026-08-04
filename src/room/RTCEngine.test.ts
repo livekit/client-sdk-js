@@ -776,6 +776,23 @@ describe('RTCEngine', () => {
       expect(handleDisconnect).not.toHaveBeenCalled();
     });
 
+    it('dispatches a follow-up when a full reconnect succeeds but one was requested mid-attempt', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = true; // enters as a full reconnect
+      // a new RECONNECT request arrives while restartConnection is running
+      restartConnection.mockImplementationOnce(async () => {
+        engine.fullReconnectOnNext = true;
+      });
+
+      await internals.attemptReconnect();
+
+      expect(restartConnection).toHaveBeenCalledTimes(1);
+      // the mid-restart request survived the successful full reconnect and was dispatched
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+      expect(handleDisconnect).toHaveBeenCalledWith('reconnect');
+    });
+
     it('does not add a dispatch on top of the failure path retry', async () => {
       const { engine, internals, handleDisconnect } = primeEngine();
       engine.fullReconnectOnNext = false;

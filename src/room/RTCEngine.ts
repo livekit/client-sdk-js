@@ -1276,22 +1276,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.fullReconnectOnNext = true;
     }
 
+    // Consume the flag up front: capture whether this attempt is a full reconnect, then reset
+    // it. From here on a `true` value unambiguously represents a *new* full-reconnect request
+    // that arrived while this attempt was running (e.g. a server RECONNECT leave), which the
+    // finally block dispatches — for both the resume and full-reconnect paths.
+    const fullReconnect = this.fullReconnectOnNext;
+    this.fullReconnectOnNext = false;
+
     let succeeded = false;
-    let performedFullReconnect = false;
     try {
       this.attemptingReconnect = true;
-      if (this.fullReconnectOnNext) {
-        performedFullReconnect = true;
+      if (fullReconnect) {
         await this.restartConnection();
       } else {
         await this.resumeConnection(reason);
       }
       this.clearPendingReconnect();
-      // Only clear the flag if we actually did a full reconnect, so a full reconnect requested
-      // mid-attempt (e.g. a server leave during a resume) survives a successful resume.
-      if (performedFullReconnect) {
-        this.fullReconnectOnNext = false;
-      }
       succeeded = true;
     } catch (e) {
       this.reconnectAttempts += 1;
@@ -1300,8 +1300,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.log.debug('received unrecoverable error', { error: e });
         // unrecoverable
         recoverable = false;
-      } else if (!(e instanceof SignalReconnectError)) {
-        // cannot resume
+      } else if (fullReconnect || !(e instanceof SignalReconnectError)) {
+        // a failed full reconnect stays a full reconnect; a failed resume can only be
+        // resumed again for a signal-level error, otherwise it escalates
         this.fullReconnectOnNext = true;
       }
 
@@ -1319,8 +1320,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } finally {
       this.attemptingReconnect = false;
 
-      // A full reconnect requested mid-attempt (e.g. a `RECONNECT` leave during a resume) that
-      // a successful attempt didn't act on; dispatch it now (the failure path already retries).
+      // A full reconnect requested while this attempt was running (e.g. a `RECONNECT` leave
+      // during a resume or a restart) that a successful attempt didn't act on; dispatch it now
+      // (the failure path already retries).
       if (succeeded && this.fullReconnectOnNext && !this._isClosed) {
         this.log.debug('full reconnect requested during in-progress attempt, dispatching');
         this.handleDisconnect('reconnect');
