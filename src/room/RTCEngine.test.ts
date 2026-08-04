@@ -791,4 +791,53 @@ describe('RTCEngine', () => {
       expect(handleDisconnect).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('verifyTransport stuck-connecting bound', () => {
+    interface VerifyInternals {
+      pcManager: unknown;
+      client: unknown;
+      transportConnectingSince?: number;
+    }
+
+    function primeEngine(currentState: PCTransportState) {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as VerifyInternals;
+      internals.pcManager = { currentState };
+      internals.client = { ws: { readyState: WebSocket.OPEN } };
+      return { engine, internals };
+    }
+
+    it('reports the transport stuck when connecting longer than peerConnectionTimeout', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = Date.now() - (engine.peerConnectionTimeout + 1_000);
+
+      expect(engine.verifyTransport()).toBe(false);
+    });
+
+    it('tolerates a transport still within the connecting window', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = Date.now();
+
+      expect(engine.verifyTransport()).toBe(true);
+    });
+
+    it('fails open (and does not record a timestamp) when connecting is untracked', () => {
+      // verifyTransport is a pure read now: an unrecorded CONNECTING must not be treated as
+      // stuck, and the method must not seed a timestamp that could later leak across teardown.
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = undefined;
+
+      expect(engine.verifyTransport()).toBe(true);
+      expect(internals.transportConnectingSince).toBeUndefined();
+    });
+
+    it('does not measure a stale connecting timestamp while connected', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTED);
+      // a leftover timestamp must not affect the CONNECTED verdict, and stays for the
+      // state-change handler to clear rather than being mutated here
+      internals.transportConnectingSince = Date.now() - 10 * engine.peerConnectionTimeout;
+
+      expect(engine.verifyTransport()).toBe(true);
+    });
+  });
 });

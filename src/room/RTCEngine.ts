@@ -458,6 +458,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     await this.pcManager?.close();
     this.pcManager = undefined;
+    // the connecting timestamp belongs to the transports we just tore down
+    this.transportConnectingSince = undefined;
 
     this.reliableReceivedState.clear();
   }
@@ -580,6 +582,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcManager.onDataChannel = this.handleDataChannel;
     this.pcManager.onStateChange = async (connectionState, publisherState, subscriberState) => {
       this.log.debug(`primary PC state changed ${connectionState}`);
+
+      // Record when the primary transport actually entered CONNECTING so
+      // verifyTransport() can bound how long we tolerate it. Deriving it from the
+      // real transition (this handler only fires on state changes) rather than from
+      // observation time keeps it from going stale across peer-connection rebuilds.
+      if (connectionState === PCTransportState.CONNECTING) {
+        this.transportConnectingSince = Date.now();
+      } else {
+        this.transportConnectingSince = undefined;
+      }
 
       if (['closed', 'disconnected', 'failed'].includes(publisherState)) {
         // reset publisher connection promise
@@ -1695,7 +1707,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       PCTransportState.CONNECTED,
     ];
     if (!allowedConnectionStates.includes(state)) {
-      this.transportConnectingSince = undefined;
       return false;
     }
 
@@ -1705,18 +1716,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // A transport stuck in CONNECTING never reaches CONNECTED nor reports FAILED, so it would
-    // otherwise look healthy forever; bound how long we tolerate it.
-    if (state === PCTransportState.CONNECTING) {
-      const now = Date.now();
-      if (this.transportConnectingSince === undefined) {
-        this.transportConnectingSince = now;
-      } else if (now - this.transportConnectingSince > this.peerConnectionTimeout) {
-        this.log.warn('transport stuck in connecting state', this.logContext);
-        return false;
-      }
-      return true;
+    // otherwise look healthy forever; bound how long we tolerate it. The entry time is recorded
+    // in the pcManager state-change handler (see configure()), so this is a pure read — an
+    // unrecorded CONNECTING fails open rather than measuring against a stale timestamp.
+    if (
+      state === PCTransportState.CONNECTING &&
+      this.transportConnectingSince !== undefined &&
+      Date.now() - this.transportConnectingSince > this.peerConnectionTimeout
+    ) {
+      this.log.warn('transport stuck in connecting state', this.logContext);
+      return false;
     }
-    this.transportConnectingSince = undefined;
 
     return true;
   }
