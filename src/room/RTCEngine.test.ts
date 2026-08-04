@@ -1,5 +1,10 @@
-import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  DataPacket,
+  DataPacket_Kind,
+  ConnectionQuality as ProtoConnectionQuality,
+  UserPacket,
+} from '@livekit/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
@@ -580,6 +585,117 @@ describe('RTCEngine', () => {
       fireClose(engine, DataChannelKind.RELIABLE);
 
       expect(error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('local connection quality Lost handling', () => {
+    // The engine reacts to the server's own verdict: a sustained local `LOST` while
+    // connected and publishing means our media isn't reaching the server, so it forces
+    // a full reconnect. (A genuine `LOST` can't be produced from a browser page — any
+    // live sender keeps RTCP flowing — so the behavior is unit tested here rather than
+    // in the e2e suite.) `connectionQualityLostTimeout` in RTCEngine.ts is 5s.
+    const LOST_TIMEOUT_MS = 5_000;
+    const LOCAL_SID = 'PA_local';
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** An engine primed to satisfy the reconnect guard: connected, publishing, not closed. */
+    function primeEngine(overrides: { activeSenders?: boolean; pcState?: number } = {}) {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as {
+        _isClosed: boolean;
+        participantSid: string;
+        // PCState is a private enum; Connected is 1, Reconnecting is 3.
+        pcState: number;
+        attemptingReconnect: boolean;
+        pcManager: unknown;
+        handleDisconnect: (connection: string, reason?: number) => void;
+        handleLocalConnectionQuality: (update: unknown) => void;
+      };
+      internals._isClosed = false;
+      internals.participantSid = LOCAL_SID;
+      internals.pcState = overrides.pcState ?? 1; // PCState.Connected
+      internals.attemptingReconnect = false;
+      internals.pcManager = {
+        publisher: {
+          getSenders: () =>
+            overrides.activeSenders === false ? [] : [{ track: { readyState: 'live' } }],
+        },
+      };
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      return { engine, internals, handleDisconnect };
+    }
+
+    function qualityUpdate(sid: string, quality: ProtoConnectionQuality) {
+      return { updates: [{ participantSid: sid, quality }] };
+    }
+
+    it('forces a full reconnect after a sustained local Lost while publishing', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+
+      // still pending — the reconnect only fires once the timeout elapses
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancels the pending reconnect when quality recovers before the timeout', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS / 2);
+      internals.handleLocalConnectionQuality(
+        qualityUpdate(LOCAL_SID, ProtoConnectionQuality.EXCELLENT),
+      );
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('does not reconnect on Lost when there are no active publisher senders', () => {
+      const { engine, internals, handleDisconnect } = primeEngine({ activeSenders: false });
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('does not reconnect on Lost when the pc is not connected', () => {
+      const { engine, internals, handleDisconnect } = primeEngine({ pcState: 3 }); // Reconnecting
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('ignores Lost quality reported for other participants', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(
+        qualityUpdate('PA_other', ProtoConnectionQuality.LOST),
+      );
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
     });
   });
 });
