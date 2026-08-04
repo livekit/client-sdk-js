@@ -10,12 +10,7 @@ import log from '../../../logger';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import {
-  bigIntToNumber,
-  getTextDecoder,
-  isCompressionStreamSupported,
-  numberToBigInt,
-} from '../../utils';
+import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
 import {
@@ -540,7 +535,7 @@ function bytesToChunks(streamId: string): TransformStream<Uint8Array, DataStream
  * synthesized text chunk decodes independently. The `flush` emits the decoder's trailing bytes.
  */
 function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
-  const decoder = getTextDecoder();
+  const decoder = new TextDecoder('utf-8');
   const encoder = new TextEncoder();
 
   let outIndex = 0;

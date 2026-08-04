@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Add TextDecoder fallback inside TextStreamReader when fatal option is not supported
+Decode text data streams without TextDecoder fatal mode for broader runtime support
