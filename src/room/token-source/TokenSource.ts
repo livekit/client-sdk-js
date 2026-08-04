@@ -226,7 +226,6 @@ class TokenSourceDevelopmentTokenServer extends TokenSourceEndpoint {
   constructor(tokenServerId: string, options: DevelopmentTokenServerOptions) {
     const { baseUrl = 'https://cloud-api.livekit.io', ...rest } = options;
 
-    // TODO is there an alternative path (and header) already that we could use instead of the sandbox naming one?
     super(`${baseUrl}/api/v2/sandbox/connection-details`, {
       ...rest,
       headers: {
@@ -276,7 +275,7 @@ export const TokenSource = {
   /**
    * TokenSource.endpoint creates a token source that fetches credentials from a given URL using
    * the standard endpoint format:
-   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
+   * @see https://docs.livekit.io/frontends/build/authentication/endpoint/
    */
   endpoint(url: string, options: EndpointOptions = {}) {
     return new TokenSourceEndpoint(url, options);
@@ -296,7 +295,7 @@ export const TokenSource = {
    * This token provider is INSECURE and should NOT be used in production.
    *
    * For more info:
-   * @see https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
+   * @see https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/
    */
   developmentTokenServer(tokenServerId: string, options: DevelopmentTokenServerOptions = {}) {
     return new TokenSourceDevelopmentTokenServer(tokenServerId, options);

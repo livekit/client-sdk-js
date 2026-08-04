@@ -354,9 +354,9 @@ await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: 
 #### TokenSource.Endpoint
 A configurable token source which makes a request to an endpoint to generate credentials. By
 default, a `POST` request with a `Content-Type: application/json` header is made, and the request
-body is expected to follow the [standard token format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server). If
+body is expected to follow the [standard token format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema). If
 credentials generation is successful, the endpoint returns a 2xx status code with a body following
-the [standard token response format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server).
+the [standard token response format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema).
 
 Example:
 ```ts
@@ -375,8 +375,7 @@ await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...",
 
 #### TokenSource.DevelopmentTokenServer
 A configurable token source which makes a request to a
-// TODO fix the dashboard link
-[development token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
+[development token server endpoint](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/),
 a LiveKit-hosted token generation mechanism.
 
 This token generation mechanism is inherently insecure and should only be used for
