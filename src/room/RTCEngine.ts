@@ -1261,6 +1261,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.warn('already attempting reconnect, returning early');
       return;
     }
+
+    // A pending Lost-quality countdown belongs to the session we're now leaving; cancel it so
+    // it can't fire against the reconnected session before the server has evaluated it. (A resume
+    // keeps the peer connections, so cleanupPeerConnections wouldn't cover this path.)
+    this.clearLostQualityTimeout();
+
     if (
       this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
       // signaling state could change to closed due to hardware sleep

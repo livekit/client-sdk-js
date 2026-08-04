@@ -840,4 +840,66 @@ describe('RTCEngine', () => {
       expect(engine.verifyTransport()).toBe(true);
     });
   });
+
+  describe('Lost-quality countdown across reconnects', () => {
+    // A Lost-quality countdown armed by the previous session must not survive a reconnect
+    // and fire against the new session before the server has re-evaluated it.
+    const LOST_TIMEOUT_MS = 5_000;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('cancels a pending Lost countdown when a reconnect attempt begins', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as {
+        _isClosed: boolean;
+        participantSid: string;
+        pcState: number;
+        attemptingReconnect: boolean;
+        clientConfiguration: unknown;
+        pcManager: unknown;
+        lostQualityTimeout?: ReturnType<typeof setTimeout>;
+        resumeConnection: (reason?: number) => Promise<void>;
+        restartConnection: () => Promise<void>;
+        clearPendingReconnect: () => void;
+        handleDisconnect: (connection: string, reason?: number) => void;
+        handleLocalConnectionQuality: (update: unknown) => void;
+        attemptReconnect: (reason?: number) => Promise<void>;
+      };
+      internals._isClosed = false;
+      internals.participantSid = 'PA_local';
+      internals.pcState = 1; // PCState.Connected — the guards the countdown checks would pass
+      internals.attemptingReconnect = false;
+      internals.clientConfiguration = undefined;
+      internals.pcManager = {
+        currentState: PCTransportState.CONNECTED,
+        publisher: { getSenders: () => [{ track: { readyState: 'live' } }] },
+      };
+      internals.clearPendingReconnect = vi.fn();
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      internals.resumeConnection = vi.fn(async () => {});
+      internals.restartConnection = vi.fn(async () => {});
+
+      // a LOST verdict from the (soon-to-be-previous) session arms the countdown
+      internals.handleLocalConnectionQuality({
+        updates: [{ participantSid: 'PA_local', quality: ProtoConnectionQuality.LOST }],
+      });
+      expect(internals.lostQualityTimeout).toBeDefined();
+
+      // a reconnect begins and completes (resume) before the countdown elapses
+      engine.fullReconnectOnNext = false;
+      await internals.attemptReconnect();
+
+      // the stale countdown was cancelled and cannot fire against the reconnected session
+      expect(internals.lostQualityTimeout).toBeUndefined();
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+  });
 });
