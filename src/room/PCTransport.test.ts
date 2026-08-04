@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyVideoStartBitrate,
   conformBundledCodecFmtp,
+  ensureAudioNackAndStereo,
+  extractStereoAndNackAudioFromOffer,
+  fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
 } from './PCTransport';
 
@@ -179,5 +182,97 @@ a=fmtp:49 level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST`);
     expect(paramSet(fmtpOf(media, '3', 49)!)).toContain('level-id=186'); // real send untouched
     expect(fmtpOf(media, '4', 49)).toBe(fmtpOf(media, '3', 49)); // stale conformed
     expect(fmtpOf(media, '5', 49)).toBe(fmtpOf(media, '3', 49)); // placeholder conformed
+  });
+});
+
+describe('fmtpConfigHasParam', () => {
+  it('matches a whole `;`-delimited parameter, not a substring', () => {
+    // `stereo=1` is a substring of `sprop-stereo=1` — an exact-token match must
+    // not treat the latter as declaring the former.
+    expect(fmtpConfigHasParam('minptime=10;stereo=1', 'stereo=1')).toBe(true);
+    expect(fmtpConfigHasParam('minptime=10;sprop-stereo=1', 'stereo=1')).toBe(false);
+    expect(fmtpConfigHasParam('minptime=10;sprop-stereo=1', 'sprop-stereo=1')).toBe(true);
+  });
+
+  it('tolerates surrounding whitespace between parameters', () => {
+    expect(fmtpConfigHasParam('minptime=10; stereo=1', 'stereo=1')).toBe(true);
+  });
+});
+
+/** Build a parsed audio media section from its `a=` lines for the munge helpers. */
+const audioSection = (rtpmap: string, fmtp: string, mid = '0') =>
+  parse(`v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+a=mid:${mid}
+${rtpmap}
+${fmtp}`).media[0];
+
+describe('ensureAudioNackAndStereo', () => {
+  it('adds stereo=1 even when sprop-stereo=1 is already present', () => {
+    const media = audioSection(
+      'a=rtpmap:111 opus/48000/2',
+      'a=fmtp:111 minptime=10;sprop-stereo=1',
+    );
+
+    ensureAudioNackAndStereo(media as any, ['all'], []);
+
+    const config = media.fmtp.find((f) => f.payload === 111)!.config;
+    expect(paramSet(config)).toContain('stereo=1');
+    expect(paramSet(config)).toContain('sprop-stereo=1');
+  });
+
+  it('does not add a duplicate stereo=1 when it is already present', () => {
+    const media = audioSection('a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;stereo=1');
+
+    ensureAudioNackAndStereo(media as any, ['all'], []);
+
+    const config = media.fmtp.find((f) => f.payload === 111)!.config;
+    expect(config.match(/(?:^|;)stereo=1(?:;|$)/g)).toHaveLength(1);
+  });
+
+  it('matches the opus codec case-insensitively (RFC 4855)', () => {
+    const media = audioSection('a=rtpmap:111 OPUS/48000/2', 'a=fmtp:111 minptime=10');
+
+    ensureAudioNackAndStereo(media as any, ['all'], []);
+
+    expect(paramSet(media.fmtp.find((f) => f.payload === 111)!.config)).toContain('stereo=1');
+  });
+});
+
+describe('extractStereoAndNackAudioFromOffer', () => {
+  const offerWith = (rtpmap: string, fmtp: string) => ({
+    type: 'offer' as const,
+    sdp: `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+a=mid:0
+${rtpmap}
+${fmtp}`,
+  });
+
+  it('detects sprop-stereo=1 as a whole parameter', () => {
+    const { stereoMids } = extractStereoAndNackAudioFromOffer(
+      offerWith('a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;sprop-stereo=1'),
+    );
+    expect(stereoMids).toEqual(['0']);
+  });
+
+  it('does not treat plain stereo=1 as sprop-stereo=1', () => {
+    const { stereoMids } = extractStereoAndNackAudioFromOffer(
+      offerWith('a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10;stereo=1'),
+    );
+    expect(stereoMids).toEqual([]);
+  });
+
+  it('matches the opus codec case-insensitively (RFC 4855)', () => {
+    const { stereoMids } = extractStereoAndNackAudioFromOffer(
+      offerWith('a=rtpmap:111 OPUS/48000/2', 'a=fmtp:111 minptime=10;sprop-stereo=1'),
+    );
+    expect(stereoMids).toEqual(['0']);
   });
 });
