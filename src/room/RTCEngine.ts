@@ -484,7 +484,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new TrackInvalidError('a track with the same ID has already been published');
     }
     return new Promise<TrackInfo>((resolve, reject) => {
-      const publicationTimeout = setTimeout(() => {
+      const publicationTimeout = CriticalTimers.setTimeout(() => {
         delete this.pendingTrackResolvers[req.cid];
         reject(
           ConnectionError.timeout('publication of local track timed out, no response from server'),
@@ -492,11 +492,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }, 10_000);
       this.pendingTrackResolvers[req.cid] = {
         resolve: (info: TrackInfo) => {
-          clearTimeout(publicationTimeout);
+          CriticalTimers.clearTimeout(publicationTimeout);
           resolve(info);
         },
         reject: () => {
-          clearTimeout(publicationTimeout);
+          CriticalTimers.clearTimeout(publicationTimeout);
           reject(new Error('Cancelled publication by calling unpublish'));
         },
       };
@@ -1216,7 +1216,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private clearLostQualityTimeout() {
     if (this.lostQualityTimeout) {
-      clearTimeout(this.lostQualityTimeout);
+      CriticalTimers.clearTimeout(this.lostQualityTimeout);
       this.lostQualityTimeout = undefined;
     }
   }
