@@ -880,3 +880,12 @@ export function extractTrackSid(
     return mediaTrack.id;
   }
 }
+
+/** Fallback for runtimes with partial TextDecoder support. */
+export function getTextDecoder(): TextDecoder {
+  try {
+    return new TextDecoder('utf-8', { fatal: true });
+  } catch {
+    return new TextDecoder('utf-8');
+  }
+}

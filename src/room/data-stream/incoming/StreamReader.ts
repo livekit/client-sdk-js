@@ -1,7 +1,7 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
+import { bigIntToNumber, getTextDecoder } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
   /** An AbortSignal can be used to terminate reads early. */
@@ -204,15 +204,6 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     // Suppress unhandled rejection on reader.closed — errors are
     // already propagated through reader.read() to the consumer.
     reader.closed.catch(() => {});
-
-    const getTextDecoder = (): TextDecoder => {
-      // Fallback for runtimes with partial TextDecoder support.
-      try {
-        return new TextDecoder('utf-8', { fatal: true });
-      } catch {
-        return new TextDecoder('utf-8');
-      }
-    };
 
     const decoder = getTextDecoder();
     const signal = this.signal;
