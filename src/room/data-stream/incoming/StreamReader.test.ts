@@ -34,7 +34,7 @@ describe('TextStreamReader', () => {
       encryptionType: Encryption_Type.NONE,
     };
 
-    const text = 'This is a stream.';
+    const text = 'hello world';
 
     const textStream = new ReadableStream<DataStream_Chunk>({
       start(controller) {

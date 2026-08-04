@@ -8,7 +8,7 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deflateRawCompress } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
@@ -1388,6 +1388,50 @@ describe('IncomingDataStreamManager', () => {
       await expect(
         Promise.race([readerPromise, Promise.resolve('still pending')]),
       ).resolves.toStrictEqual('still pending');
+    });
+
+    describe('TextDecoder without fatal support', () => {
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('falls back when decoding a compressed text stream', async () => {
+        const OriginalTextDecoder = globalThis.TextDecoder;
+
+        vi.stubGlobal(
+          'TextDecoder',
+          class extends OriginalTextDecoder {
+            constructor(encoding?: string, options?: TextDecoderOptions) {
+              if (options?.fatal) throw new TypeError('fatal flag not supported');
+              super(encoding, options);
+            }
+          },
+        );
+
+        const manager = new IncomingDataStreamManager();
+        manager.setConnected(true);
+
+        const readerPromise = new Promise<TextStreamReader>((resolve) => {
+          manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+        });
+
+        const streamId = crypto.randomUUID();
+        const text = 'hello world';
+        const compressed = await deflateRawCompress(new TextEncoder().encode(text));
+
+        manager.handleDataStreamPacket(
+          headerPacket(streamId, 'textHeader', {
+            totalLength: BigInt(text.length),
+            compression: DataStream_CompressionType.DEFLATE_RAW,
+          }),
+          Encryption_Type.NONE,
+        );
+        manager.handleDataStreamPacket(chunkPacket(streamId, 0, compressed), Encryption_Type.NONE);
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+        const reader = await readerPromise;
+        expect(await reader.readAll()).toBe(text);
+      });
     });
   });
 
