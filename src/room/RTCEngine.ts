@@ -114,7 +114,7 @@ const leaveReconnect = 'leave-reconnect';
  * How long local connection quality must stay `LOST` while connected and publishing before we
  * force a full reconnect — `LOST` is the server's verdict that it isn't receiving our media.
  */
-const connectionQualityLostTimeout = 5 * 1000;
+const connectionQualityLostTimeout = 10 * 1000;
 const reliabeReceiveStateTTL = 30_000;
 
 const initialMediaSectionsAudio = 3;
