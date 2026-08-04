@@ -6,6 +6,7 @@ import {
 } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
@@ -696,6 +697,98 @@ describe('RTCEngine', () => {
 
       expect(engine.fullReconnectOnNext).toBe(false);
       expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reconnect requested mid-attempt', () => {
+    // A full reconnect requested while a resume is already in flight (e.g. a server
+    // RECONNECT leave racing the resume) sets `fullReconnectOnNext` mid-attempt. A
+    // successful resume must not swallow it: it survives and is dispatched afterwards.
+    interface ReconnectInternals {
+      _isClosed: boolean;
+      attemptingReconnect: boolean;
+      clientConfiguration: unknown;
+      pcManager: unknown;
+      resumeConnection: (reason?: number) => Promise<void>;
+      restartConnection: (regionUrl?: string) => Promise<void>;
+      clearPendingReconnect: () => void;
+      handleDisconnect: (connection: string, reason?: number) => void;
+      attemptReconnect: (reason?: number) => Promise<void>;
+    }
+
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as ReconnectInternals;
+      internals._isClosed = false;
+      internals.attemptingReconnect = false;
+      // avoid the "resume disabled / pcManager is NEW -> force full reconnect" escalation
+      internals.clientConfiguration = undefined;
+      internals.pcManager = { currentState: PCTransportState.CONNECTED };
+      internals.clearPendingReconnect = vi.fn();
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      const restartConnection = vi.fn(async () => {});
+      internals.restartConnection = restartConnection;
+      return { engine, internals, handleDisconnect, restartConnection };
+    }
+
+    it('dispatches a full reconnect when a resume succeeds but one was requested mid-attempt', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      // the resume succeeds, but a RECONNECT leave arrives while it is in flight
+      internals.resumeConnection = vi.fn(async () => {
+        engine.fullReconnectOnNext = true;
+      });
+
+      await internals.attemptReconnect();
+
+      expect(internals.resumeConnection).toHaveBeenCalledTimes(1);
+      expect(restartConnection).not.toHaveBeenCalled();
+      // the mid-attempt request survived the successful resume and was dispatched
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+      expect(handleDisconnect).toHaveBeenCalledWith('reconnect');
+    });
+
+    it('does not dispatch a follow-up after an ordinary successful resume', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      internals.resumeConnection = vi.fn(async () => {});
+
+      await internals.attemptReconnect();
+
+      expect(internals.resumeConnection).toHaveBeenCalledTimes(1);
+      expect(restartConnection).not.toHaveBeenCalled();
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('clears the flag and does not re-dispatch after a successful full reconnect', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = true; // enters as a full reconnect
+      internals.resumeConnection = vi.fn(async () => {});
+
+      await internals.attemptReconnect();
+
+      expect(restartConnection).toHaveBeenCalledTimes(1);
+      expect(internals.resumeConnection).not.toHaveBeenCalled();
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('does not add a dispatch on top of the failure path retry', async () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      // resume fails after a mid-attempt request; the catch path schedules the retry
+      internals.resumeConnection = vi.fn(async () => {
+        engine.fullReconnectOnNext = true;
+        throw new Error('resume failed');
+      });
+
+      await internals.attemptReconnect();
+
+      // exactly one dispatch (from the catch), not a second one from the finally
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
     });
   });
 });
