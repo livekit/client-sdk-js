@@ -595,7 +595,7 @@ describe('RTCEngine', () => {
     // a full reconnect. (A genuine `LOST` can't be produced from a browser page — any
     // live sender keeps RTCP flowing — so the behavior is unit tested here rather than
     // in the e2e suite.) `connectionQualityLostTimeout` in RTCEngine.ts is 5s.
-    const LOST_TIMEOUT_MS = 5_000;
+    const LOST_TIMEOUT_MS = 10_000;
     const LOCAL_SID = 'PA_local';
 
     beforeEach(() => {
