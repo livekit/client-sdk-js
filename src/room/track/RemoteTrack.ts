@@ -127,7 +127,6 @@ export default abstract class RemoteTrack<
   /* @internal */
   stopMonitor() {
     super.stopMonitor();
-    this.timeSyncHandle = undefined;
     (this as unknown as EventEmitter).off('newListener', this.onTimeSyncListenerAdded);
   }
 
@@ -163,6 +162,8 @@ export default abstract class RemoteTrack<
     const emitter = this as unknown as EventEmitter;
     emitter.off('newListener', this.onTimeSyncListenerAdded);
     emitter.on('newListener', this.onTimeSyncListenerAdded);
-    this.timeSyncLoop();
+    if (this.timeSyncHandle === undefined) {
+      this.timeSyncLoop();
+    }
   }
 }
