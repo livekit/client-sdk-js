@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.22.0
+
+### Minor Changes
+
+- introduce DevelopmentTokenServer and deprecate SandboxTokenServer - [#2032](https://github.com/livekit/client-sdk-js/pull/2032) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Decode text data streams without TextDecoder fatal mode for broader runtime support - [#2037](https://github.com/livekit/client-sdk-js/pull/2037) ([@JoelTowell](https://github.com/JoelTowell))
+
+- fix: cancel pending onTrack callbacks when subscription fails - [#2019](https://github.com/livekit/client-sdk-js/pull/2019) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: match opus fmtp parameters by exact token and look up the opus codec case-insensitively when munging SDP - [#2036](https://github.com/livekit/client-sdk-js/pull/2036) ([@lukasIO](https://github.com/lukasIO))
+
+- Only run the `TrackEvent.TimeSyncUpdate` animation frame loop while something is subscribed to the event, and clear the frame handle when a track's monitor is stopped so the loop can be restarted - [#2038](https://github.com/livekit/client-sdk-js/pull/2038) ([@U-OK](https://github.com/U-OK))
+
+- fix: enable Terser `mangle.safari10` to fix scoping issues for variables in react-native - [#2028](https://github.com/livekit/client-sdk-js/pull/2028) ([@davidliu](https://github.com/davidliu))
+
 ## 2.21.0
 
 ### Minor Changes
