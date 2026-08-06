@@ -1,6 +1,12 @@
-import { DataPacket, DataPacket_Kind, UserPacket } from '@livekit/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  DataPacket,
+  DataPacket_Kind,
+  ConnectionQuality as ProtoConnectionQuality,
+  UserPacket,
+} from '@livekit/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
@@ -580,6 +586,337 @@ describe('RTCEngine', () => {
       fireClose(engine, DataChannelKind.RELIABLE);
 
       expect(error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('local connection quality Lost handling', () => {
+    // The engine reacts to the server's own verdict: a sustained local `LOST` while
+    // connected and publishing means our media isn't reaching the server, so it forces
+    // a full reconnect. (A genuine `LOST` can't be produced from a browser page — any
+    // live sender keeps RTCP flowing — so the behavior is unit tested here rather than
+    // in the e2e suite.) `connectionQualityLostTimeout` in RTCEngine.ts is 5s.
+    const LOST_TIMEOUT_MS = 10_000;
+    const LOCAL_SID = 'PA_local';
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** An engine primed to satisfy the reconnect guard: connected, publishing, not closed. */
+    function primeEngine(overrides: { activeSenders?: boolean; pcState?: number } = {}) {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as {
+        _isClosed: boolean;
+        participantSid: string;
+        // PCState is a private enum; Connected is 1, Reconnecting is 3.
+        pcState: number;
+        attemptingReconnect: boolean;
+        pcManager: unknown;
+        handleDisconnect: (connection: string, reason?: number) => void;
+        handleLocalConnectionQuality: (update: unknown) => void;
+      };
+      internals._isClosed = false;
+      internals.participantSid = LOCAL_SID;
+      internals.pcState = overrides.pcState ?? 1; // PCState.Connected
+      internals.attemptingReconnect = false;
+      internals.pcManager = {
+        publisher: {
+          getSenders: () =>
+            overrides.activeSenders === false ? [] : [{ track: { readyState: 'live' } }],
+        },
+      };
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      return { engine, internals, handleDisconnect };
+    }
+
+    function qualityUpdate(sid: string, quality: ProtoConnectionQuality) {
+      return { updates: [{ participantSid: sid, quality }] };
+    }
+
+    it('forces a full reconnect after a sustained local Lost while publishing', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+
+      // still pending — the reconnect only fires once the timeout elapses
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancels the pending reconnect when quality recovers before the timeout', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS / 2);
+      internals.handleLocalConnectionQuality(
+        qualityUpdate(LOCAL_SID, ProtoConnectionQuality.EXCELLENT),
+      );
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('does not reconnect on Lost when there are no active publisher senders', () => {
+      const { engine, internals, handleDisconnect } = primeEngine({ activeSenders: false });
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('does not reconnect on Lost when the pc is not connected', () => {
+      const { engine, internals, handleDisconnect } = primeEngine({ pcState: 3 }); // Reconnecting
+
+      internals.handleLocalConnectionQuality(qualityUpdate(LOCAL_SID, ProtoConnectionQuality.LOST));
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('ignores Lost quality reported for other participants', () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+
+      internals.handleLocalConnectionQuality(
+        qualityUpdate('PA_other', ProtoConnectionQuality.LOST),
+      );
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reconnect requested mid-attempt', () => {
+    // A full reconnect requested while a resume is already in flight (e.g. a server
+    // RECONNECT leave racing the resume) sets `fullReconnectOnNext` mid-attempt. A
+    // successful resume must not swallow it: it survives and is dispatched afterwards.
+    interface ReconnectInternals {
+      _isClosed: boolean;
+      attemptingReconnect: boolean;
+      clientConfiguration: unknown;
+      pcManager: unknown;
+      resumeConnection: (reason?: number) => Promise<void>;
+      restartConnection: (regionUrl?: string) => Promise<void>;
+      clearPendingReconnect: () => void;
+      handleDisconnect: (connection: string, reason?: number) => void;
+      attemptReconnect: (reason?: number) => Promise<void>;
+    }
+
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as ReconnectInternals;
+      internals._isClosed = false;
+      internals.attemptingReconnect = false;
+      // avoid the "resume disabled / pcManager is NEW -> force full reconnect" escalation
+      internals.clientConfiguration = undefined;
+      internals.pcManager = { currentState: PCTransportState.CONNECTED };
+      internals.clearPendingReconnect = vi.fn();
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      const restartConnection = vi.fn(async () => {});
+      internals.restartConnection = restartConnection;
+      return { engine, internals, handleDisconnect, restartConnection };
+    }
+
+    it('dispatches a full reconnect when a resume succeeds but one was requested mid-attempt', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      // the resume succeeds, but a RECONNECT leave arrives while it is in flight
+      internals.resumeConnection = vi.fn(async () => {
+        engine.fullReconnectOnNext = true;
+      });
+
+      await internals.attemptReconnect();
+
+      expect(internals.resumeConnection).toHaveBeenCalledTimes(1);
+      expect(restartConnection).not.toHaveBeenCalled();
+      // the mid-attempt request survived the successful resume and was dispatched
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+      expect(handleDisconnect).toHaveBeenCalledWith('reconnect');
+    });
+
+    it('does not dispatch a follow-up after an ordinary successful resume', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      internals.resumeConnection = vi.fn(async () => {});
+
+      await internals.attemptReconnect();
+
+      expect(internals.resumeConnection).toHaveBeenCalledTimes(1);
+      expect(restartConnection).not.toHaveBeenCalled();
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('clears the flag and does not re-dispatch after a successful full reconnect', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = true; // enters as a full reconnect
+      internals.resumeConnection = vi.fn(async () => {});
+
+      await internals.attemptReconnect();
+
+      expect(restartConnection).toHaveBeenCalledTimes(1);
+      expect(internals.resumeConnection).not.toHaveBeenCalled();
+      expect(engine.fullReconnectOnNext).toBe(false);
+      expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('dispatches a follow-up when a full reconnect succeeds but one was requested mid-attempt', async () => {
+      const { engine, internals, handleDisconnect, restartConnection } = primeEngine();
+      engine.fullReconnectOnNext = true; // enters as a full reconnect
+      // a new RECONNECT request arrives while restartConnection is running
+      restartConnection.mockImplementationOnce(async () => {
+        engine.fullReconnectOnNext = true;
+      });
+
+      await internals.attemptReconnect();
+
+      expect(restartConnection).toHaveBeenCalledTimes(1);
+      // the mid-restart request survived the successful full reconnect and was dispatched
+      expect(engine.fullReconnectOnNext).toBe(true);
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+      expect(handleDisconnect).toHaveBeenCalledWith('reconnect');
+    });
+
+    it('does not add a dispatch on top of the failure path retry', async () => {
+      const { engine, internals, handleDisconnect } = primeEngine();
+      engine.fullReconnectOnNext = false;
+      // resume fails after a mid-attempt request; the catch path schedules the retry
+      internals.resumeConnection = vi.fn(async () => {
+        engine.fullReconnectOnNext = true;
+        throw new Error('resume failed');
+      });
+
+      await internals.attemptReconnect();
+
+      // exactly one dispatch (from the catch), not a second one from the finally
+      expect(handleDisconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('verifyTransport stuck-connecting bound', () => {
+    interface VerifyInternals {
+      pcManager: unknown;
+      client: unknown;
+      transportConnectingSince?: number;
+    }
+
+    function primeEngine(currentState: PCTransportState) {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as VerifyInternals;
+      internals.pcManager = { currentState };
+      internals.client = { ws: { readyState: WebSocket.OPEN } };
+      return { engine, internals };
+    }
+
+    it('reports the transport stuck when connecting longer than peerConnectionTimeout', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = Date.now() - (engine.peerConnectionTimeout + 1_000);
+
+      expect(engine.verifyTransport()).toBe(false);
+    });
+
+    it('tolerates a transport still within the connecting window', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = Date.now();
+
+      expect(engine.verifyTransport()).toBe(true);
+    });
+
+    it('fails open (and does not record a timestamp) when connecting is untracked', () => {
+      // verifyTransport is a pure read now: an unrecorded CONNECTING must not be treated as
+      // stuck, and the method must not seed a timestamp that could later leak across teardown.
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTING);
+      internals.transportConnectingSince = undefined;
+
+      expect(engine.verifyTransport()).toBe(true);
+      expect(internals.transportConnectingSince).toBeUndefined();
+    });
+
+    it('does not measure a stale connecting timestamp while connected', () => {
+      const { engine, internals } = primeEngine(PCTransportState.CONNECTED);
+      // a leftover timestamp must not affect the CONNECTED verdict, and stays for the
+      // state-change handler to clear rather than being mutated here
+      internals.transportConnectingSince = Date.now() - 10 * engine.peerConnectionTimeout;
+
+      expect(engine.verifyTransport()).toBe(true);
+    });
+  });
+
+  describe('Lost-quality countdown across reconnects', () => {
+    // A Lost-quality countdown armed by the previous session must not survive a reconnect
+    // and fire against the new session before the server has re-evaluated it.
+    const LOST_TIMEOUT_MS = 5_000;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('cancels a pending Lost countdown when a reconnect attempt begins', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as {
+        _isClosed: boolean;
+        participantSid: string;
+        pcState: number;
+        attemptingReconnect: boolean;
+        clientConfiguration: unknown;
+        pcManager: unknown;
+        lostQualityTimeout?: ReturnType<typeof setTimeout>;
+        resumeConnection: (reason?: number) => Promise<void>;
+        restartConnection: () => Promise<void>;
+        clearPendingReconnect: () => void;
+        handleDisconnect: (connection: string, reason?: number) => void;
+        handleLocalConnectionQuality: (update: unknown) => void;
+        attemptReconnect: (reason?: number) => Promise<void>;
+      };
+      internals._isClosed = false;
+      internals.participantSid = 'PA_local';
+      internals.pcState = 1; // PCState.Connected — the guards the countdown checks would pass
+      internals.attemptingReconnect = false;
+      internals.clientConfiguration = undefined;
+      internals.pcManager = {
+        currentState: PCTransportState.CONNECTED,
+        publisher: { getSenders: () => [{ track: { readyState: 'live' } }] },
+      };
+      internals.clearPendingReconnect = vi.fn();
+      const handleDisconnect = vi.fn();
+      internals.handleDisconnect = handleDisconnect;
+      internals.resumeConnection = vi.fn(async () => {});
+      internals.restartConnection = vi.fn(async () => {});
+
+      // a LOST verdict from the (soon-to-be-previous) session arms the countdown
+      internals.handleLocalConnectionQuality({
+        updates: [{ participantSid: 'PA_local', quality: ProtoConnectionQuality.LOST }],
+      });
+      expect(internals.lostQualityTimeout).toBeDefined();
+
+      // a reconnect begins and completes (resume) before the countdown elapses
+      engine.fullReconnectOnNext = false;
+      await internals.attemptReconnect();
+
+      // the stale countdown was cancelled and cannot fire against the reconnected session
+      expect(internals.lostQualityTimeout).toBeUndefined();
+      vi.advanceTimersByTime(LOST_TIMEOUT_MS);
+      expect(handleDisconnect).not.toHaveBeenCalled();
     });
   });
 });

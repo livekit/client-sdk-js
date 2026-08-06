@@ -2605,11 +2605,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             : undefined,
         });
         if (consecutiveFailures >= 3) {
-          this.recreateEngine();
-          this.handleDisconnect(
-            this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.STATE_MISMATCH,
-          );
+          this.clearConnectionReconcile();
+          if (this.engine && !this.engine.isClosed) {
+            // The transport silently died while we still looked connected. Try a full reconnect
+            // (keeps the room alive; the engine falls back to Disconnected if it ultimately fails).
+            this.log.warn('detected connection state mismatch, attempting full reconnect');
+            this.engine.reconnect();
+          } else {
+            // No usable engine to reconnect with; tear down.
+            this.recreateEngine();
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              DisconnectReason.STATE_MISMATCH,
+            );
+          }
         }
       } else {
         consecutiveFailures = 0;
