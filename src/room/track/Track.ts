@@ -297,6 +297,10 @@ export abstract class Track<
       // we only need to re-use a single element
       let shouldCache = true;
       element.pause();
+      // Sever any lingering MediaStream reference before the element sits in
+      // the module-global pool, so a pooled element can never retain a stream
+      // (and its tracks) regardless of how detachTrack left srcObject.
+      element.srcObject = null;
       recycledElements.forEach((e) => {
         if (!e.parentElement) {
           shouldCache = false;
