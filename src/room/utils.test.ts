@@ -1,6 +1,15 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
-import { extractMaxAgeFromRequestHeaders, getClientInfo, splitUtf8, toWebsocketUrl } from './utils';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  disposeSharedRelay,
+  extractMaxAgeFromRequestHeaders,
+  getClientInfo,
+  getOrCreateSharedRelay,
+  isSafariSpeakerSelectionSupported,
+  splitUtf8,
+  supportsSetSinkId,
+  toWebsocketUrl,
+} from './utils';
 
 describe('toWebsocketUrl', () => {
   it('leaves wss urls alone', () => {
@@ -186,5 +195,216 @@ describe('extractMaxAgeFromRequestHeaders', () => {
     const headers = new Headers();
     headers.set('Cache-Control', 'custom-max-age=7200,max-age=3600');
     expect(extractMaxAgeFromRequestHeaders(headers)).toBe(3600);
+  });
+});
+
+describe('isSafariSpeakerSelectionSupported', () => {
+  it('returns true for Safari >= 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '26.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '27.1',
+        os: 'macOS',
+        osVersion: '27.1',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns true for iOS Safari >= 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '26.0',
+        os: 'iOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false for Safari < 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '25.9',
+        os: 'macOS',
+        osVersion: '25.9',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for non-Safari browsers', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '120.0',
+        os: 'macOS',
+        osVersion: '14.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for non-Safari browsers on macOS 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '140.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(false);
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Firefox',
+        version: '140.0',
+        os: 'macOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for iOS Safari < 26', () => {
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Safari',
+        version: '18.0',
+        os: 'iOS',
+        osVersion: '18.0',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns true for non-Safari WebKit browsers on iOS 26+ (Chrome iOS, etc.)', () => {
+    // On iOS, third-party browsers are required to use WebKit and inherit Safari behaviour.
+    expect(
+      isSafariSpeakerSelectionSupported({
+        name: 'Chrome',
+        version: '140.0',
+        os: 'iOS',
+        osVersion: '26.0',
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('supportsSetSinkId', () => {
+  it('returns true on Firefox when setSinkId is present', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns true on Chrome (any macOS version) when setSinkId is present', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns true on Safari 26 (short-circuits the feature check)', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+      configurable: true,
+    });
+    // No setSinkId on the element — the iOS/Safari 26 path should still return true.
+    const fakeAudio = {} as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(true);
+  });
+
+  it('returns false on Safari < 26 even when the element has setSinkId', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15',
+      configurable: true,
+    });
+    const fakeAudio = { setSinkId: () => {} } as any as HTMLMediaElement;
+    expect(supportsSetSinkId(fakeAudio)).toBe(false);
+  });
+});
+
+describe('getOrCreateSharedRelay / disposeSharedRelay', () => {
+  function createMockContext() {
+    const stream = new MediaStream();
+    const destNode = {
+      stream,
+      disconnect: vi.fn(),
+    } as unknown as MediaStreamAudioDestinationNode;
+    const ctx = {
+      createMediaStreamDestination: vi.fn(() => destNode),
+    } as unknown as AudioContext;
+    return { ctx, destNode, stream };
+  }
+
+  it('creates a hidden DOM-attached <audio> element on first call', () => {
+    const { ctx, destNode, stream } = createMockContext();
+    const relay = getOrCreateSharedRelay(ctx);
+    expect(relay.destinationNode).toBe(destNode);
+    expect(relay.relayElement.srcObject).toBe(stream);
+    expect(relay.relayElement.parentElement).toBe(document.body);
+    expect(relay.relayElement.hidden).toBe(true);
+    expect(relay.relayElement.autoplay).toBe(true);
+    disposeSharedRelay(ctx);
+  });
+
+  it('returns the same relay on subsequent calls for the same context (singleton)', () => {
+    const { ctx } = createMockContext();
+    const a = getOrCreateSharedRelay(ctx);
+    const b = getOrCreateSharedRelay(ctx);
+    expect(a).toBe(b);
+    expect(ctx.createMediaStreamDestination).toHaveBeenCalledTimes(1);
+    disposeSharedRelay(ctx);
+  });
+
+  it('creates independent relays for different contexts', () => {
+    const a = createMockContext();
+    const b = createMockContext();
+    const relayA = getOrCreateSharedRelay(a.ctx);
+    const relayB = getOrCreateSharedRelay(b.ctx);
+    expect(relayA).not.toBe(relayB);
+    expect(relayA.destinationNode).toBe(a.destNode);
+    expect(relayB.destinationNode).toBe(b.destNode);
+    disposeSharedRelay(a.ctx);
+    disposeSharedRelay(b.ctx);
+  });
+
+  it('removes the element from the DOM and disconnects the destination on dispose', () => {
+    const { ctx, destNode } = createMockContext();
+    const relay = getOrCreateSharedRelay(ctx);
+    expect(relay.relayElement.parentElement).toBe(document.body);
+
+    disposeSharedRelay(ctx);
+
+    expect(relay.relayElement.parentElement).toBeNull();
+    expect(destNode.disconnect).toHaveBeenCalled();
+  });
+
+  it('creates a fresh relay after dispose', () => {
+    const { ctx } = createMockContext();
+    const first = getOrCreateSharedRelay(ctx);
+    disposeSharedRelay(ctx);
+    const second = getOrCreateSharedRelay(ctx);
+    expect(second).not.toBe(first);
+    expect(ctx.createMediaStreamDestination).toHaveBeenCalledTimes(2);
+    disposeSharedRelay(ctx);
+  });
+
+  it('is a no-op when no relay exists for the context', () => {
+    const { ctx, destNode } = createMockContext();
+    expect(() => disposeSharedRelay(ctx)).not.toThrow();
+    expect(destNode.disconnect).not.toHaveBeenCalled();
   });
 });

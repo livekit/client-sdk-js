@@ -2,7 +2,12 @@ import { TrackEvent } from '../events';
 import type { AudioReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isReactNative, supportsSetSinkId } from '../utils';
+import {
+  getOrCreateSharedRelay,
+  isReactNative,
+  isSafariSpeakerSelectionSupported,
+  supportsSetSinkId,
+} from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 import type { AudioOutputOptions } from './options';
@@ -82,6 +87,13 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
    */
   async setSinkId(deviceId: string) {
     this.sinkId = deviceId;
+    // On iOS 26, audio routing is handled by the shared relay element at the AudioContext
+    // level — see Room.switchActiveDevice. The attached elements here are muted/vol=0, and
+    // calling setSinkId on them would throw NotAllowedError without a concurrent user gesture
+    // (e.g. when a participant joins after a device switch).
+    if (isSafariSpeakerSelectionSupported()) {
+      return;
+    }
     await Promise.all(
       this.attachedElements.map((elm) => {
         if (!supportsSetSinkId(elm)) {
@@ -103,8 +115,11 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       super.attach(element);
     }
 
-    if (this.sinkId && supportsSetSinkId(element)) {
-      element.setSinkId(this.sinkId).catch((e) => {
+    // Skip setSinkId on the primary element on iOS 26: the element is muted/vol=0 below and
+    // audio routing happens via the shared relay, so calling setSinkId here would only throw
+    // NotAllowedError when no user gesture is active.
+    if (this.sinkId && supportsSetSinkId(element) && !isSafariSpeakerSelectionSupported()) {
+      (element.setSinkId(this.sinkId) as Promise<void>).catch((e) => {
         this.log.error('Failed to set sink id on remote audio track', e, this.logContext);
       });
     }
@@ -189,7 +204,20 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     });
     this.gainNode = context.createGain();
     lastNode.connect(this.gainNode);
-    this.gainNode.connect(context.destination);
+
+    // When AudioContext.setSinkId is unavailable (notably iOS 26 Safari), audio is routed via
+    // a shared MediaStreamDestinationNode + relay <audio> element. setSinkId() is called once
+    // on that relay element during the user gesture in Room.switchActiveDevice and applies to
+    // all remote audio. This sidesteps the iOS quirk where HTMLMediaElement.setSinkId() has no
+    // effect on elements backed by WebRTC remote tracks (those go through the WebRTC engine's
+    // internal pipeline → AVAudioSession, bypassing AVPlayer).
+    const useSharedRelay = !('setSinkId' in context);
+    if (useSharedRelay) {
+      this.gainNode.connect(getOrCreateSharedRelay(context).destinationNode);
+    } else {
+      // AudioContext.setSinkId() is available (Chrome, Firefox etc.) — use it directly.
+      this.gainNode.connect(context.destination);
+    }
 
     if (this.elementVolume) {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
