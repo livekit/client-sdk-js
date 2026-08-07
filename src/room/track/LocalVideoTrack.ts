@@ -406,15 +406,32 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   async setDegradationPreference(preference: RTCDegradationPreference) {
     this.degradationPreference = preference;
-    if (this.sender) {
-      try {
-        this.log.debug(`setting degradationPreference to ${preference}`, this.logContext);
-        const params = this.sender.getParameters();
-        params.degradationPreference = preference;
-        this.sender.setParameters(params);
-      } catch (e: any) {
-        this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
-      }
+    this.applyDegradationPreference(this.sender);
+    for (const sc of this.simulcastCodecs.values()) {
+      this.applyDegradationPreference(sc.sender);
+    }
+  }
+
+  /**
+   * Degradation preference is a property of the sender, not of the track, so every sender
+   * publishing this track needs it applied separately. A backup codec publishes over its
+   * own sender, which would otherwise let the browser resolve a preference implicitly and
+   * diverge from the primary encoder.
+   */
+  private applyDegradationPreference(sender?: RTCRtpSender) {
+    if (!sender) {
+      return;
+    }
+    try {
+      this.log.debug(
+        `setting degradationPreference to ${this.degradationPreference}`,
+        this.logContext,
+      );
+      const params = sender.getParameters();
+      params.degradationPreference = this.degradationPreference;
+      sender.setParameters(params);
+    } catch (e: any) {
+      this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
     }
   }
 
@@ -442,6 +459,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       return;
     }
     simulcastCodecInfo.sender = sender;
+
+    // the backup codec publishes over its own sender, so it needs the same degradation
+    // preference the primary sender resolved to.
+    this.applyDegradationPreference(sender);
 
     // browser will reenable disabled codec/layers after new codec has been published,
     // so refresh subscribedCodecs after publish a new codec
