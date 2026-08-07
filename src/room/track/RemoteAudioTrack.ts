@@ -42,10 +42,11 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
    * sets the volume for all attached audio elements
    */
   setVolume(volume: number) {
-    for (const el of this.attachedElements) {
-      if (this.audioContext) {
-        this.gainNode?.gain.setTargetAtTime(volume, 0, 0.1);
-      } else {
+    if (this.audioContext) {
+      // playback goes through the web audio graph, the attached elements themselves stay silent
+      this.gainNode?.gain.setTargetAtTime(volume, 0, 0.1);
+    } else {
+      for (const el of this.attachedElements) {
         el.volume = volume;
       }
     }
@@ -96,7 +97,9 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   attach(): HTMLMediaElement;
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
-    const needsNewWebAudioConnection = this.attachedElements.length === 0;
+    // the graph is fed by the track rather than by a specific element, so one connection covers
+    // all attached elements
+    const needsNewWebAudioConnection = !this.sourceNode;
     if (!element) {
       element = super.attach();
     } else {
@@ -108,11 +111,15 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
         this.log.error('Failed to set sink id on remote audio track', e, this.logContext);
       });
     }
-    if (this.audioContext && needsNewWebAudioConnection) {
-      this.log.debug('using audio context mapping', this.logContext);
-      this.connectWebAudio(this.audioContext, element);
+    if (this.audioContext) {
+      // audio is routed through the web audio graph, so every attached element has to stay
+      // silent, no matter whether it is the one the graph was built from
       element.volume = 0;
       element.muted = true;
+      if (needsNewWebAudioConnection) {
+        this.log.debug('using audio context mapping', this.logContext);
+        this.connectWebAudio(this.audioContext, element);
+      }
     }
 
     if (this.elementVolume) {
@@ -158,11 +165,26 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
    * @experimental
    */
   setAudioContext(audioContext: AudioContext | undefined) {
+    if (this.audioContext === audioContext) {
+      return;
+    }
     this.audioContext = audioContext;
-    if (audioContext && this.attachedElements.length > 0) {
-      this.connectWebAudio(audioContext, this.attachedElements[0]);
-    } else if (!audioContext) {
+    if (audioContext) {
+      // playback moves into the web audio graph, mute the elements to avoid double playback
+      for (const element of this.attachedElements) {
+        element.volume = 0;
+        element.muted = true;
+      }
+      if (this.attachedElements.length > 0) {
+        this.connectWebAudio(audioContext, this.attachedElements[0]);
+      }
+    } else {
       this.disconnectWebAudio();
+      // playback moves back into the elements, which `attach` had muted in favour of the graph
+      for (const element of this.attachedElements) {
+        element.muted = false;
+        element.volume = this.elementVolume ?? 1;
+      }
     }
   }
 
@@ -216,6 +238,9 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   private disconnectWebAudio() {
     this.gainNode?.disconnect();
     this.sourceNode?.disconnect();
+    // the plugin nodes belong to whoever passed them in, but the connections between them are ours
+    // to undo, otherwise stale routing survives into the next graph the same nodes are used in
+    this.webAudioPluginNodes.forEach((node) => node.disconnect());
     this.gainNode = undefined;
     this.sourceNode = undefined;
   }
