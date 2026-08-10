@@ -833,9 +833,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
 
-    if (this.state === ConnectionState.Connected) {
+    if (
+      this.state === ConnectionState.Connected ||
+      this.state === ConnectionState.Reconnecting ||
+      this.state === ConnectionState.SignalReconnecting
+    ) {
       // when the state is reconnecting or connected, this function returns immediately
-      this.log.info(`already connected to room ${this.name}`);
+      // returning early while reconnecting keeps the in-flight reconnect/resume alive,
+      // a cold connect here would abandon it and rejoin from scratch
+      this.log.info(`already connected to room ${this.name}`, { state: this.state });
       unlockDisconnect();
       return Promise.resolve();
     }

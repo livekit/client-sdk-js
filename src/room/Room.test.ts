@@ -8,7 +8,7 @@ import {
   TrackInfo,
   TrackType,
 } from '@livekit/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
@@ -319,5 +319,50 @@ describe('stream state updates', () => {
 
     expect(roomEvents).not.toHaveBeenCalled();
     expect(participantEvents).not.toHaveBeenCalled();
+  });
+});
+
+describe('connect while reconnecting', () => {
+  // isBrowserSupported() gates connect(); happy-dom has no RTCPeerConnection.
+  class StubPC {
+    addTransceiver() {}
+  }
+
+  let originalRTCPeerConnection: unknown;
+
+  beforeEach(() => {
+    originalRTCPeerConnection = (globalThis as unknown as { RTCPeerConnection?: unknown })
+      .RTCPeerConnection;
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = StubPC;
+  });
+
+  afterEach(() => {
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection =
+      originalRTCPeerConnection;
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ConnectionState.Connected,
+    ConnectionState.Reconnecting,
+    ConnectionState.SignalReconnecting,
+  ])('returns early without starting a cold connect when %s', async (state) => {
+    const room = new Room();
+    room.state = state;
+
+    const attemptConnection = vi.spyOn(
+      room as unknown as { attemptConnection: () => Promise<void> },
+      'attemptConnection',
+    );
+    const connectionStateChanged = vi.fn();
+    room.on(RoomEvent.ConnectionStateChanged, connectionStateChanged);
+
+    await room.connect('ws://localhost:7880', 'token');
+
+    // An in-flight reconnect/resume must be left alone: no transition to
+    // Connecting, and no new connection attempt to replace the engine.
+    expect(room.state).toBe(state);
+    expect(connectionStateChanged).not.toHaveBeenCalled();
+    expect(attemptConnection).not.toHaveBeenCalled();
   });
 });
