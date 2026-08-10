@@ -134,7 +134,7 @@ describe('videoLayersFromEncodings', () => {
   });
 });
 
-function makeSender() {
+function makeSender(label = 'sender', events: string[] = []) {
   let params: RTCRtpSendParameters = {
     encodings: [],
     transactionId: '',
@@ -144,9 +144,13 @@ function makeSender() {
   };
   return {
     getParameters: () => params,
-    setParameters: vi.fn((next: RTCRtpSendParameters) => {
+    // resolves on a later task, like the real setParameters, so that a caller
+    // which fails to await it never observes the update
+    setParameters: vi.fn(async (next: RTCRtpSendParameters) => {
+      events.push(`${label}:start`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
       params = next;
-      return Promise.resolve();
+      events.push(`${label}:done`);
     }),
     get degradationPreference() {
       return params.degradationPreference;
@@ -188,7 +192,7 @@ describe('setDegradationPreference', () => {
     // the backup codec transceiver is created later, when the server asks for it
     const backupInfo = track.addSimulcastTrack('vp8', [])!;
     const backup = makeSender();
-    track.setSimulcastTrackSender('vp8', backup as unknown as RTCRtpSender);
+    await track.setSimulcastTrackSender('vp8', backup as unknown as RTCRtpSender);
 
     expect(backupInfo.sender).toBe(backup);
     expect(backup.degradationPreference).toBe('maintain-resolution');
@@ -203,11 +207,30 @@ describe('setDegradationPreference', () => {
 
     track.addSimulcastTrack('vp8', []);
     const backup = makeSender();
-    track.setSimulcastTrackSender('vp8', backup as unknown as RTCRtpSender);
+    await track.setSimulcastTrackSender('vp8', backup as unknown as RTCRtpSender);
 
     await track.setDegradationPreference('balanced');
 
     expect(primary.degradationPreference).toBe('balanced');
     expect(backup.degradationPreference).toBe('balanced');
+  });
+
+  it('applies to senders one at a time', async () => {
+    const events: string[] = [];
+    const track = makeTrack();
+    const primary = makeSender('primary', events);
+    Object.assign(track, { _sender: primary });
+    track.addSimulcastTrack('vp8', []);
+    await track.setSimulcastTrackSender(
+      'vp8',
+      makeSender('backup', events) as unknown as RTCRtpSender,
+    );
+    events.length = 0;
+
+    await track.setDegradationPreference('balanced');
+
+    // setParameters is only valid against the most recent getParameters, so the
+    // writes must not overlap
+    expect(events).toEqual(['primary:start', 'primary:done', 'backup:start', 'backup:done']);
   });
 });

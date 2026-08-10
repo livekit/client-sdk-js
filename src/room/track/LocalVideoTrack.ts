@@ -406,9 +406,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   async setDegradationPreference(preference: RTCDegradationPreference) {
     this.degradationPreference = preference;
-    this.applyDegradationPreference(this.sender);
+    // applied one sender at a time on purpose, see applyDegradationPreference
+    await this.applyDegradationPreference(this.sender);
     for (const sc of this.simulcastCodecs.values()) {
-      this.applyDegradationPreference(sc.sender);
+      await this.applyDegradationPreference(sc.sender);
     }
   }
 
@@ -417,8 +418,12 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * publishing this track needs it applied separately. A backup codec publishes over its
    * own sender, which would otherwise let the browser resolve a preference implicitly and
    * diverge from the primary encoder.
+   *
+   * Callers apply this sequentially rather than concurrently: `setParameters` is only valid
+   * against the parameters most recently returned by `getParameters`, which is why this file
+   * serializes other sender parameter updates through `senderLock`.
    */
-  private applyDegradationPreference(sender?: RTCRtpSender) {
+  private async applyDegradationPreference(sender?: RTCRtpSender) {
     if (!sender) {
       return;
     }
@@ -429,7 +434,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       );
       const params = sender.getParameters();
       params.degradationPreference = this.degradationPreference;
-      sender.setParameters(params);
+      await sender.setParameters(params);
     } catch (e: any) {
       this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
     }
@@ -453,7 +458,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     return simulcastCodecInfo;
   }
 
-  setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
+  async setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
     const simulcastCodecInfo = this.simulcastCodecs.get(codec);
     if (!simulcastCodecInfo) {
       return;
@@ -462,7 +467,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
     // the backup codec publishes over its own sender, so it needs the same degradation
     // preference the primary sender resolved to.
-    this.applyDegradationPreference(sender);
+    await this.applyDegradationPreference(sender);
 
     // browser will reenable disabled codec/layers after new codec has been published,
     // so refresh subscribedCodecs after publish a new codec
