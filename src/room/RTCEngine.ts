@@ -1095,7 +1095,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!opts.videoCodec) {
       return;
     }
-    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+    await track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
     return transceiver.sender;
   }
 
