@@ -425,9 +425,15 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;
         if (options?.iceRestart && currentSD) {
-          // TODO: handle when ICE restart is needed but we don't have a remote description
-          // the best thing to do is to recreate the peerconnection
+          // roll the remote description back in so createOffer produces a valid
+          // ICE-restart offer on top of the already-negotiated state
           await this._pc.setRemoteDescription(currentSD);
+        } else if (options?.iceRestart) {
+          // ICE restart with no remote description to restart on: `renegotiate` would stall
+          // (the pending offer is never answered), so throw for the caller to recreate the PC.
+          throw new NegotiationError(
+            'ICE restart requested without a remote description, peer connection must be recreated',
+          );
         } else {
           this.renegotiate = true;
           this.log.debug('requesting renegotiation');
