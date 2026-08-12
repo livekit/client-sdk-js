@@ -6,7 +6,14 @@ import {
   DataTrackSchemaEncoding_WellKnownSchemaEncoding as ProtocolWellKnownSchemaEncoding,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
-import { DataTrackFrameEncoding, DataTrackSchemaEncoding, DataTrackSchemaId } from './schema';
+import {
+  DataTrackFrameEncoding,
+  DataTrackSchemaEncoding,
+  DataTrackSchemaError,
+  DataTrackSchemaErrorReason,
+  DataTrackSchemaId,
+  validateSchemaMetadata,
+} from './schema';
 
 describe('DataTrackSchemaEncoding', () => {
   const wellKnown: Array<DataTrackSchemaEncoding> = [
@@ -104,5 +111,54 @@ describe('DataTrackSchemaId', () => {
   it('defaults encoding to "other" when the protobuf encoding is absent', () => {
     const protobuf = new ProtocolDataTrackSchemaId({ name: 'rgb' });
     expect(DataTrackSchemaId.from(protobuf)).toStrictEqual({ name: 'rgb', encoding: 'other' });
+  });
+});
+
+describe('validateSchemaMetadata', () => {
+  function expectSchemaError(reason: DataTrackSchemaErrorReason, fn: () => void) {
+    let thrown: unknown;
+    try {
+      fn();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(DataTrackSchemaError);
+    expect((thrown as DataTrackSchemaError).reason).toStrictEqual(reason);
+  }
+
+  it('accepts absent schema metadata', () => {
+    expect(() => validateSchemaMetadata(undefined, undefined)).not.toThrow();
+  });
+
+  it('accepts a self-describing frame encoding without a schema', () => {
+    expect(() => validateSchemaMetadata('json', undefined)).not.toThrow();
+  });
+
+  it('accepts compatible frame and schema encodings', () => {
+    expect(() => validateSchemaMetadata('cdr', 'ros2Idl')).not.toThrow();
+  });
+
+  it('accepts custom encodings, which cannot be validated', () => {
+    expect(() =>
+      validateSchemaMetadata({ custom: 'my-frame-encoding' }, { custom: 'my-schema-encoding' }),
+    ).not.toThrow();
+  });
+
+  it('rejects a schema without a frame encoding', () => {
+    expectSchemaError(DataTrackSchemaErrorReason.MissingFrameEncoding, () =>
+      validateSchemaMetadata(undefined, 'protobuf'),
+    );
+  });
+
+  it('rejects a non-self-describing frame encoding without a schema', () => {
+    expectSchemaError(DataTrackSchemaErrorReason.MissingSchemaId, () =>
+      validateSchemaMetadata('protobuf', undefined),
+    );
+  });
+
+  it('rejects incompatible frame and schema encodings', () => {
+    expectSchemaError(DataTrackSchemaErrorReason.Incompatible, () =>
+      validateSchemaMetadata('json', 'protobuf'),
+    );
   });
 });
