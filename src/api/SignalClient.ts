@@ -146,6 +146,11 @@ const PUBLIC_STATE: Record<SignalConnectionStatus, SignalConnectionState> = {
  * transport, a timeout, the first-message check and an abort can all end the
  * attempt. The first of them to do so settles the promise, and only once.
  */
+/** Ends an attempt. Only a caller that claimed the attempt has one. */
+type AttemptSettle = (
+  outcome: { response: JoinResponse | ReconnectResponse | undefined } | { error: unknown },
+) => void;
+
 interface PendingAttempt {
   reconnect: boolean;
   /**
@@ -159,9 +164,8 @@ interface PendingAttempt {
   started: boolean;
   resolve: (response: JoinResponse | ReconnectResponse | undefined) => void;
   reject: (error: unknown) => void;
-  settled: boolean;
-  /** A classified error is on its way; generic reporters must stand down. */
-  settling: boolean;
+  /** True once a path took the outcome. Only that path may settle the attempt. */
+  claimed: boolean;
   wsTimeout?: ReturnType<typeof setTimeout>;
   /** Releases the connection lock. It is set after runAttempt takes the lock. */
   unlock?: () => void;
@@ -184,6 +188,7 @@ const JOIN_RESPONSE_TIMEOUT = 5_000;
 interface SignalCommandContext {
   attempt?: PendingAttempt;
   closeReason?: string;
+  leave?: LeaveRequest;
 }
 
 /** @internal */
@@ -412,6 +417,15 @@ export class SignalClient {
         case 'close_transport':
           this.closeTransport(context?.closeReason);
           break;
+        case 'leave_received':
+          // The read loop never saw this leave: it arrived as the first message
+          // of a resume and ended the attempt. So this is the only report of it.
+          // The request comes from the context, because the caller acts on the
+          // action in it.
+          if (context?.leave) {
+            this.onLeave?.(context.leave);
+          }
+          break;
         case 'connection_lost':
           // The machine reports this only for a connection that reached
           // CONNECTED. That is when an unexpected disconnect must be reported.
@@ -521,8 +535,7 @@ export class SignalClient {
         started: false,
         resolve,
         reject,
-        settled: false,
-        settling: false,
+        claimed: false,
         cleanup: () => {
           clearTimeout(attempt.wsTimeout);
           abortSignal?.removeEventListener('abort', abortHandler);
@@ -536,7 +549,8 @@ export class SignalClient {
         const isCallerAbort = eventOrError instanceof Event;
         const target = isCallerAbort ? eventOrError.currentTarget : eventOrError;
         const reason = getAbortReasonAsString(target, 'Abort handler called');
-        if (attempt.settled) {
+        const settle = this.claimAttempt(attempt);
+        if (!settle) {
           return;
         }
         // send leave if we have an active stream writer (connection is open)
@@ -553,12 +567,12 @@ export class SignalClient {
         // Only the caller aborting is a cancellation. An error we raised
         // ourselves keeps its own reason, so callers can tell "gave up waiting"
         // from "caller cancelled" — they retry differently.
-        this.failAttempt(
-          attempt,
-          !isCallerAbort && eventOrError instanceof ConnectionError
-            ? eventOrError
-            : ConnectionError.cancelled(reason),
-        );
+        settle({
+          error:
+            !isCallerAbort && eventOrError instanceof ConnectionError
+              ? eventOrError
+              : ConnectionError.cancelled(reason),
+        });
       };
 
       abortSignal?.addEventListener('abort', abortHandler);
@@ -571,12 +585,11 @@ export class SignalClient {
       // event, the attempt does not start and there is no work to wait for.
       this.machine.send(event, { attempt });
       if (!attempt.started) {
-        this.failAttempt(
-          attempt,
-          ConnectionError.internal(
+        this.claimAttempt(attempt)?.({
+          error: ConnectionError.internal(
             `cannot ${opts.reconnect ? 'reconnect' : 'connect'} while ${this.machine.status}`,
           ),
-        );
+        });
       }
     });
   }
@@ -591,7 +604,7 @@ export class SignalClient {
     // Do one attempt at a time, as connect() did before. attempt.cleanup()
     // releases the lock, so the path that settles the attempt also frees it.
     const unlock = await this.connectionLock.lock();
-    if (attempt.settled) {
+    if (attempt.claimed) {
       unlock();
       return;
     }
@@ -602,10 +615,10 @@ export class SignalClient {
       ({ rtcUrl } = await attempt.endpoint);
     } catch (e) {
       this.machine.send({ type: 'attempt_failed' });
-      this.failAttempt(attempt, e);
+      this.claimAttempt(attempt)?.({ error: e });
       return;
     }
-    if (attempt.settled) {
+    if (attempt.claimed) {
       return;
     }
 
@@ -636,11 +649,9 @@ export class SignalClient {
       // status becomes suspended, and connection_lost then calls onClose. In all
       // other phases the failure of this attempt is the outcome.
       this.machine.send({ type: 'transport_closed', reason });
-      // If `settling` is true, a more exact error will follow. Do not replace
-      // that error with this general one.
-      if (!attempt.settling) {
-        this.failAttempt(attempt, ConnectionError.internal(detail));
-      }
+      // A path that awaits a more exact error has already claimed the attempt,
+      // so this general report cannot replace it.
+      this.claimAttempt(attempt)?.({ error: ConnectionError.internal(detail) });
     };
 
     ws.closed
@@ -674,18 +685,15 @@ export class SignalClient {
       if (this.machine.status === SignalConnectionStatus.CONNECTED) {
         // A live connection outlived this attempt; surface the error as-is.
         this.handleWSError(reason);
-        this.failAttempt(attempt, reason);
+        this.claimAttempt(attempt)?.({ error: reason });
         return;
       }
-      // Claim the attempt before the wait for the error class. The
-      // transport_closed handler must not end the attempt with a general error
-      // during that wait.
-      attempt.settling = true;
+      // Claim before the wait for the error class, so the transport_closed
+      // handler cannot end the attempt with a general error during that wait.
+      const settle = this.claimAttempt(attempt);
       this.machine.send({ type: 'attempt_failed' });
       const { validateUrl } = await attempt.endpoint;
-      const error = await this.handleConnectionError(reason, validateUrl);
-      attempt.settling = false;
-      this.failAttempt(attempt, error);
+      settle?.({ error: await this.handleConnectionError(reason, validateUrl) });
       return;
     }
     clearTimeout(attempt.wsTimeout);
@@ -715,7 +723,7 @@ export class SignalClient {
       // The table routes this by phase: terminal for an initial connect,
       // recoverable (suspended) for a reconnect.
       this.machine.send({ type: 'attempt_timed_out' });
-      this.failAttempt(attempt, e);
+      this.claimAttempt(attempt)?.({ error: e });
       // The machine has already recorded why the attempt ended, so tear the
       // transport down without emitting a further lifecycle event.
       this.close(false);
@@ -732,7 +740,21 @@ export class SignalClient {
       const firstSignalResponse = parseSignalResponse(firstMessage.value);
       const validation = this.validateFirstMessage(firstSignalResponse, attempt.reconnect);
       if (!validation.isValid) {
-        this.failAttempt(attempt, validation.error);
+        // Report the outcome, or the machine stays in this status with no
+        // attempt to finish it. A server leave is terminal for the connection.
+        // The `leave_received_during_reconnect` event is specific to a resume,
+        // so a first connection reports the general failure instead.
+        const leave =
+          firstSignalResponse.message?.case === 'leave'
+            ? firstSignalResponse.message.value
+            : undefined;
+        this.machine.send(
+          leave && attempt.reconnect
+            ? { type: 'leave_received_during_reconnect' }
+            : { type: 'attempt_failed' },
+          { leave },
+        );
+        this.claimAttempt(attempt)?.({ error: validation.error });
         return;
       }
 
@@ -753,29 +775,32 @@ export class SignalClient {
         attempt.wsTimeout!,
         validation.shouldProcessFirstMessage ? firstSignalResponse : undefined,
       );
-      this.completeAttempt(attempt, validation.response);
+      this.claimAttempt(attempt)?.({ response: validation.response });
     } catch (e) {
-      this.failAttempt(attempt, e);
+      this.claimAttempt(attempt)?.({ error: e });
     }
   }
 
-  /** Resolve the pending attempt, at most once. */
-  private completeAttempt(
-    attempt: PendingAttempt,
-    response: JoinResponse | ReconnectResponse | undefined,
-  ) {
-    if (attempt.settled) return;
-    attempt.settled = true;
-    attempt.cleanup();
-    attempt.resolve(response);
-  }
-
-  /** Reject the pending attempt, at most once. */
-  private failAttempt(attempt: PendingAttempt, error: unknown) {
-    if (attempt.settled) return;
-    attempt.settled = true;
-    attempt.cleanup();
-    attempt.reject(error);
+  /**
+   * Take the outcome of an attempt. The first caller wins and gets the function
+   * that ends the attempt. All later callers get undefined.
+   *
+   * A caller that must await before it knows the outcome claims first. A general
+   * report that arrives during that await cannot then take the outcome away.
+   */
+  private claimAttempt(attempt: PendingAttempt): AttemptSettle | undefined {
+    if (attempt.claimed) {
+      return undefined;
+    }
+    attempt.claimed = true;
+    return (outcome) => {
+      attempt.cleanup();
+      if ('error' in outcome) {
+        attempt.reject(outcome.error);
+      } else {
+        attempt.resolve(outcome.response);
+      }
+    };
   }
 
   async startReadingLoop(

@@ -52,7 +52,6 @@ export type SignalEffect =
   | { type: 'stop_ping' }
   | { type: 'clear_queue' }
   | { type: 'connection_lost'; failure: ConnectionFailure }
-  | { type: 'reconnect_completed' }
   | { type: 'leave_received' };
 
 export type SignalEffectType = SignalEffect['type'];
@@ -133,10 +132,9 @@ const TABLE: Table = {
   },
 
   [S.RECONNECTING]: {
-    established: {
-      target: S.CONNECTED,
-      effects: [{ type: 'reconnect_completed' }, { type: 'start_ping' }],
-    },
+    // No separate "resume finished" command: the caller learns of success from
+    // the attempt, and the buffer drain is timed by the orchestrator.
+    established: { target: S.CONNECTED, effects: [{ type: 'start_ping' }] },
     // Go to `suspended` so the orchestrator can try again. The caller already
     // knows about the first loss, so there is no new report.
     attempt_failed: { target: S.SUSPENDED },

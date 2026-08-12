@@ -190,6 +190,21 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
       expect((err as Error).message).toContain('Received leave request');
     });
 
+    it('reports a leave that arrives as the first message of a resume', async () => {
+      // The leave ends the attempt before the read loop starts, so onLeave is the
+      // only report of it. The action must survive: the orchestrator chooses
+      // between a full reconnect and a disconnect from that value.
+      await join('happy');
+      const left = captureLeave(client);
+      const token = await createToken({
+        signal: 'leave_first_message',
+        leaveAction: LeaveRequest_Action.RECONNECT,
+      });
+      await client.reconnect(serverUrl, token, 'RM_session').catch(() => undefined);
+      const leave = await withTimeout(left, 5_000, 'onLeave for a leave during resume');
+      expect(leave.action).toBe(LeaveRequest_Action.RECONNECT);
+    });
+
     it('queues a queueable request during reconnect and delivers it after resume', async () => {
       // Guards the FSM swap's buffer contract: a queueable request sent while
       // RECONNECTING must be buffered (not sent on the dying socket, not

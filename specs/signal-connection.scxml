@@ -138,8 +138,9 @@
        RECONNECTING — new transport opening (executor buffers meanwhile)
        =================================================================== -->
   <state id="reconnecting">
+    <!-- No "resume finished" command: the caller learns of success from the
+         attempt, and the orchestrator times the buffer drain. -->
     <transition event="established" target="connected">
-      <send event="reconnect_completed"/>
       <send event="start_ping"/>
     </transition>
 
