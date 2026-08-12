@@ -5,7 +5,6 @@
 // are documented in the SCXML spec and performed by the executor; they are
 // not modeled here. Message routing and buffering are NOT part of this
 // machine — see signal-connection.routing.md and signal-connection.buffer.md.
-
 import { setup } from 'xstate';
 
 interface ConnectionFailure {
@@ -73,7 +72,8 @@ export const signalConnectionMachine = setup({
     },
 
     suspended: {
-      description: 'Transport lost. Executor buffers queueable messages. Orchestrator decides next step.',
+      description:
+        'Transport lost. Executor buffers queueable messages. Orchestrator decides next step.',
       on: {
         start_reconnect: 'reconnecting',
         close: 'closed',

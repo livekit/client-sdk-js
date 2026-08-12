@@ -6,6 +6,7 @@ import {
   type SignalEvent,
   type SignalEventType,
   handledEvents,
+  signalEdges,
   transition,
 } from './SignalConnectionState';
 
@@ -58,6 +59,44 @@ describe('signal connection transitions', () => {
       }
     });
   }
+});
+
+describe('vectors match the table exactly', () => {
+  // The vectors are the cross-language conformance artifact, so they must not
+  // drift from the table they describe. Renaming an event or retargeting an edge
+  // can otherwise leave a vector that still passes while asserting the old
+  // behaviour — which happened when the events were made phase-neutral.
+  const edges = new Map(signalEdges().map((e) => [`${e.from}|${e.event}`, e.to as string]));
+  const claimed = new Map(
+    vectors.vectors.map((v) => [`${v.status}|${v.event}`, v.next as string | null]),
+  );
+
+  it('asserts the right target for every edge it covers', () => {
+    const wrong = [...edges]
+      .filter(([key]) => claimed.has(key))
+      .filter(([key, to]) => claimed.get(key) !== to)
+      .map(([key, to]) => `${key}: vector says ${claimed.get(key)}, table says ${to}`);
+    expect(wrong).toEqual([]);
+  });
+
+  it('covers every edge in the table', () => {
+    const uncovered = [...edges.keys()].filter((key) => !claimed.has(key));
+    expect(uncovered).toEqual([]);
+  });
+
+  it('claims a rejection only where the table really has no edge', () => {
+    const bogus = [...claimed]
+      .filter(([key, next]) => next === null && edges.has(key))
+      .map(([key]) => `${key}: vector says rejected, table routes to ${edges.get(key)}`);
+    expect(bogus).toEqual([]);
+  });
+
+  it('claims a transition only where the table has an edge', () => {
+    const phantom = [...claimed]
+      .filter(([key, next]) => next !== null && !edges.has(key))
+      .map(([key, next]) => `${key}: vector says ${next}, table has no edge`);
+    expect(phantom).toEqual([]);
+  });
 });
 
 describe('signal connection effects', () => {

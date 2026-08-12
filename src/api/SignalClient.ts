@@ -303,6 +303,41 @@ export class SignalClient {
     this.machine = this.createMachine();
   }
 
+  /**
+   * Close reason the next close_transport command will use. The machine decides
+   * *when* to close; the executor supplies the parameters — which is also why a
+   * reconnect's open_transport carries no url.
+   */
+  private pendingCloseReason?: string;
+
+  private transportAuthorised = false;
+
+  /**
+   * The lifecycle has authorised a transport. Consumed by `connect()`, which
+   * opens the socket once it has built the endpoint.
+   *
+   * The command and the opening are separated because the endpoint is not known
+   * when the transition happens: `join()`/`reconnect()` must move the status
+   * synchronously (callers read `currentState` straight after the call), while
+   * building the url is async. What the effect guarantees is that a socket is
+   * only ever created for an accepted transition — `connect()` used to open one
+   * regardless of whether the event was legal in the current status.
+   */
+  private openTransport() {
+    this.transportAuthorised = true;
+  }
+
+  /**
+   * Ask the transport to close. Only starts the handshake; whoever initiated the
+   * close awaits `ws.closed` (bounded by MAX_WS_CLOSE_TIME).
+   */
+  private closeTransport() {
+    this.ws?.close({
+      closeCode: 1000,
+      reason: this.pendingCloseReason ?? 'Close method called on signal client',
+    });
+  }
+
   private createMachine(): SignalConnectionRunner {
     return new SignalConnectionRunner((effects) => this.executeEffects(effects), {
       onStatusChanged: (status, previous) =>
@@ -315,13 +350,13 @@ export class SignalClient {
   /**
    * Performs the commands the machine emits for a transition.
    *
-   * Only the ping timer and the message buffer are driven from here.
-   * `open_transport`/`close_transport` stay no-ops because `connect()` and
-   * `close()` own the transport imperatively — url building, first-message
-   * validation and abort handling don't fit a synchronous handler. Likewise
-   * `connection_lost`, `reconnect_completed` and `leave_received` are already
-   * surfaced through the existing callbacks; the machine emits them so the
-   * effect vocabulary matches the spec.
+   * The transport, the ping timer, the message buffer and the disconnect
+   * notification are all driven from here, so each is commanded by a
+   * transition rather than by whoever happened to call a method.
+   * `reconnect_completed` and `leave_received` remain unhandled: RTCEngine and
+   * `handleSignalResponse` already surface those, and duplicating them here
+   * would notify twice. The machine still emits them so the effect vocabulary
+   * matches the spec.
    */
   private executeEffects(effects: SignalEffect[]) {
     for (const effect of effects) {
@@ -335,6 +370,12 @@ export class SignalClient {
         case 'clear_queue':
           // Reaching the terminal status drops whatever is still buffered.
           this.queuedRequests = [];
+          break;
+        case 'open_transport':
+          this.openTransport();
+          break;
+        case 'close_transport':
+          this.closeTransport();
           break;
         case 'connection_lost': {
           // The machine emits this only for a connection that had reached
@@ -365,7 +406,8 @@ export class SignalClient {
   ): Promise<JoinResponse> {
     // A join begins a new connection lifecycle even if one is already running:
     // a full reconnect replaces the previous connection rather than resuming it,
-    // so the machine is recreated rather than driven back to the start.
+    // so the machine is recreated rather than driven back to the start. Sent here
+    // rather than in connect() so the status moves before this method returns.
     this.machine = this.createMachine();
     this.machine.send({ type: 'connect', url });
     this.options = opts;
@@ -383,8 +425,8 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    // Leaving `connected` disarms the ping as an exit action, so no explicit
-    // clearPingInterval is needed here; it restarts on reconnect_established.
+    // Moves the status before this method returns, as join() does. Leaving
+    // `connected` disarms the ping as an exit action, so nothing to clear here.
     this.machine.send({ type: 'start_reconnect' });
 
     const res = (await this.connect(
@@ -491,6 +533,19 @@ export class SignalClient {
           reconnect: opts.reconnect,
           reconnectReason: opts.reconnectReason,
         });
+
+        // Open only what the lifecycle authorised: if the machine refused the
+        // event that begins an attempt, no open_transport was emitted and there
+        // is nothing to connect.
+        if (!this.transportAuthorised) {
+          reject(
+            ConnectionError.internal(
+              `cannot ${opts.reconnect ? 'reconnect' : 'connect'} while ${this.machine.status}`,
+            ),
+          );
+          return;
+        }
+        this.transportAuthorised = false;
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
         try {
@@ -691,18 +746,21 @@ export class SignalClient {
         // Only a deliberate close is a lifecycle event. From `connected` this
         // enters `disconnecting` (and disarms the ping as an exit action); from
         // the other statuses there is no transport handshake to await, so it
-        // terminates directly.
+        // terminates directly. The close_transport effect asks the socket to
+        // close — and the table omits it where there is no transport left.
+        this.pendingCloseReason = reason;
         this.machine.send({ type: 'close' });
       } else {
         // A teardown that must preserve the status — replacing the transport for
         // a reconnect — leaves the machine untouched. Conflating the two is what
-        // makes a reconnect appear to close itself.
+        // makes a reconnect appear to close itself. With no lifecycle event there
+        // is no effect either, so close the socket directly.
         this.clearPingInterval();
+        this.ws?.close({ closeCode: 1000, reason });
       }
       if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason });
-
-        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+        // ws.close() only starts the closing handshake (CLOSING state), so wait
+        // until the state is actually CLOSED.
         const closePromise = this.ws.closed;
         this.ws = undefined;
         this.streamWriter = undefined;
