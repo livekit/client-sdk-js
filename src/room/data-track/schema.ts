@@ -5,6 +5,8 @@ import {
   DataTrackFrameEncoding_WellKnownFrameEncoding as ProtocolWellKnownFrameEncoding,
   DataTrackSchemaEncoding_WellKnownSchemaEncoding as ProtocolWellKnownSchemaEncoding,
 } from '@livekit/protocol';
+import type { Throws } from '@livekit/throws-transformer/throws';
+import { LivekitReasonedError } from '../errors';
 
 /**
  * Encoding used to interpret a data track schema definition.
@@ -122,9 +124,21 @@ const FRAME_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownFrameEncodin
   json: ProtocolWellKnownFrameEncoding.JSON,
 };
 
-const WELL_KNOWN_TO_FRAME_ENCODING = Object.fromEntries(
-  Object.entries(FRAME_ENCODING_TO_WELL_KNOWN).map(([key, value]) => [value, key]),
-) as Partial<Record<ProtocolWellKnownFrameEncoding, DataTrackFrameEncoding>>;
+const WELL_KNOWN_TO_FRAME_ENCODING = invert(FRAME_ENCODING_TO_WELL_KNOWN) as Partial<
+  Record<ProtocolWellKnownFrameEncoding, DataTrackFrameEncoding>
+>;
+
+/** Frame encodings that are self-describing (i.e. require no schema). */
+const SELF_DESCRIBING_FRAME_ENCODINGS: DataTrackFrameEncoding[] = ['cbor', 'msgpack', 'json'];
+
+/** Schema encodings capable of describing frames with each frame encoding. */
+const COMPATIBLE_SCHEMA_ENCODINGS: Record<string, DataTrackSchemaEncoding[]> = {
+  ros1: ['ros1Msg'],
+  cdr: ['ros2Msg', 'ros2Idl', 'omgIdl'],
+  protobuf: ['protobuf'],
+  flatbuffer: ['flatbuffer'],
+  json: ['jsonSchema'],
+};
 
 export const DataTrackSchemaEncoding = {
   from(protocol: ProtocolDataTrackSchemaEncoding): DataTrackSchemaEncoding {
@@ -172,6 +186,31 @@ export const DataTrackFrameEncoding = {
       FRAME_ENCODING_TO_WELL_KNOWN[encoding] ?? ProtocolWellKnownFrameEncoding.UNSPECIFIED;
     return new ProtocolDataTrackFrameEncoding({ value: { case: 'wellKnown', value: wellKnown } });
   },
+  /**
+   * Whether frames with this encoding are self-describing (i.e. require no schema).
+   *
+   * Returns `undefined` when this cannot be determined ('other' or a custom encoding).
+   */
+  isSelfDescribing(encoding: DataTrackFrameEncoding): boolean | undefined {
+    if (typeof encoding === 'object' || encoding === 'other') {
+      return undefined; // Cannot be validated
+    }
+    return SELF_DESCRIBING_FRAME_ENCODINGS.includes(encoding);
+  },
+  /**
+   * Whether frames with this encoding can be described by a schema with the given encoding.
+   *
+   * Returns `undefined` when this cannot be determined ('other' or a custom frame encoding).
+   */
+  isDescribedBy(
+    encoding: DataTrackFrameEncoding,
+    schemaEncoding: DataTrackSchemaEncoding,
+  ): boolean | undefined {
+    if (typeof encoding === 'object' || encoding === 'other') {
+      return undefined; // Cannot be validated
+    }
+    return (COMPATIBLE_SCHEMA_ENCODINGS[encoding] ?? []).includes(schemaEncoding);
+  },
 };
 
 export const DataTrackSchemaId = {
@@ -188,3 +227,80 @@ export const DataTrackSchemaId = {
     });
   },
 };
+
+export enum DataTrackSchemaErrorReason {
+  /** Frame encoding is required when providing a schema ID. */
+  MissingFrameEncoding = 0,
+
+  /** Schema ID is required for a frame encoding that is not self-describing. */
+  MissingSchemaId = 1,
+
+  /** Specified schema and frame encodings are incompatible. */
+  Incompatible = 2,
+}
+
+export class DataTrackSchemaError<
+  Reason extends DataTrackSchemaErrorReason = DataTrackSchemaErrorReason,
+> extends LivekitReasonedError<Reason> {
+  readonly name = 'DataTrackSchemaError';
+
+  reason: Reason;
+
+  reasonName: string;
+
+  constructor(message: string, reason: Reason) {
+    super(23, message);
+    this.reason = reason;
+    this.reasonName = DataTrackSchemaErrorReason[reason];
+  }
+
+  static missingFrameEncoding() {
+    return new DataTrackSchemaError(
+      'Frame encoding is required when providing schema ID',
+      DataTrackSchemaErrorReason.MissingFrameEncoding,
+    );
+  }
+
+  static missingSchemaId() {
+    return new DataTrackSchemaError(
+      'Schema ID is required for frame encoding that is not self-describing',
+      DataTrackSchemaErrorReason.MissingSchemaId,
+    );
+  }
+
+  static incompatible() {
+    return new DataTrackSchemaError(
+      'Specified schema and frame encodings are incompatible',
+      DataTrackSchemaErrorReason.Incompatible,
+    );
+  }
+}
+
+/**
+ * Validates that the given frame and schema encodings are compatible.
+ *
+ * Combinations involving 'other' or custom encodings cannot be validated and
+ * are accepted as-is.
+ *
+ * @internal
+ */
+export function validateSchemaMetadata(
+  frameEncoding: DataTrackFrameEncoding | undefined,
+  schemaEncoding: DataTrackSchemaEncoding | undefined,
+): Throws<void, DataTrackSchemaError> {
+  if (frameEncoding === undefined) {
+    if (schemaEncoding !== undefined) {
+      throw DataTrackSchemaError.missingFrameEncoding();
+    }
+    return; // Not using schema metadata
+  }
+  if (schemaEncoding === undefined) {
+    if (DataTrackFrameEncoding.isSelfDescribing(frameEncoding) === false) {
+      throw DataTrackSchemaError.missingSchemaId();
+    }
+    return;
+  }
+  if (DataTrackFrameEncoding.isDescribedBy(frameEncoding, schemaEncoding) === false) {
+    throw DataTrackSchemaError.incompatible();
+  }
+}

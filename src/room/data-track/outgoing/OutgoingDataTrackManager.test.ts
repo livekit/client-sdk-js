@@ -11,6 +11,7 @@ import RTCEngine from '../../RTCEngine';
 import Room from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
+import { DataTrackSchemaError } from '../schema';
 import OutgoingDataTrackManager, {
   type DataTrackOutgoingManagerCallbacks,
   Descriptor,
@@ -130,6 +131,26 @@ describe('DataTrackOutgoingManager', () => {
     await expect(publishRequestPromise).rejects.toThrowError(
       'Data track publication limit reached',
     );
+  });
+
+  it('should reject publishing when schema metadata is invalid', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const sfuPublishRequest = vi.fn();
+    manager.on('sfuPublishRequest', sfuPublishRequest);
+
+    // Providing a schema ID without a frame encoding is invalid.
+    const localDataTrack = new LocalDataTrack(
+      { name: 'test', schema: { name: 'my_schema', encoding: 'jsonSchema' } },
+      manager,
+    );
+
+    await expect(localDataTrack.publish()).rejects.toStrictEqual(
+      DataTrackPublishError.invalidSchema(DataTrackSchemaError.missingFrameEncoding()),
+    );
+
+    // The invalid request must not be sent to the SFU.
+    expect(sfuPublishRequest).not.toHaveBeenCalled();
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
   });
 
   it('should test track publishing (cancellation half way through)', async () => {
