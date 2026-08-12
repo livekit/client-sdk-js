@@ -176,6 +176,16 @@ const MAX_WS_CLOSE_TIME = 250;
  */
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
+/**
+ * The parameters of a command. An effect that needs a parameter reads it here.
+ * The context goes with its own event through the runner, so the parameters
+ * cannot be lost or overwritten by another event.
+ */
+interface SignalCommandContext {
+  attempt?: PendingAttempt;
+  closeReason?: string;
+}
+
 /** @internal */
 export class SignalClient {
   requestQueue: AsyncQueue;
@@ -266,6 +276,18 @@ export class SignalClient {
     );
   }
 
+  /**
+   * Read the machine, and not the public state. `suspended` also reads as
+   * DISCONNECTED, but a close from `suspended` is a real transition: it clears
+   * the buffer.
+   */
+  private get isClosingOrClosed() {
+    return (
+      this.machine.status === SignalConnectionStatus.DISCONNECTING ||
+      this.machine.status === SignalConnectionStatus.CLOSED
+    );
+  }
+
   private get isEstablishingConnection() {
     return (
       this.state === SignalConnectionState.CONNECTING ||
@@ -296,7 +318,7 @@ export class SignalClient {
    * that aren't legal in the current status instead of silently accepting them.
    * @internal
    */
-  machine: SignalConnectionRunner;
+  machine: SignalConnectionRunner<SignalCommandContext>;
 
   private get state(): SignalConnectionState {
     return PUBLIC_STATE[this.machine.status];
@@ -326,23 +348,13 @@ export class SignalClient {
   }
 
   /**
-   * The reason for the next close_transport command. The machine decides when to
-   * close. The executor gives the parameters.
-   */
-  private pendingCloseReason?: string;
-
-  /** The attempt awaiting an open_transport command, if any. */
-  private pendingAttempt?: PendingAttempt;
-
-  /**
    * Start the connection attempt that the machine authorized. This is the only
    * caller of runAttempt. An attempt starts only if the machine accepted a
    * transition that asks for a transport.
    */
-  private openTransport() {
-    const attempt = this.pendingAttempt;
+  private openTransport(attempt: PendingAttempt | undefined) {
     if (!attempt || attempt.started) {
-      this.log.error('open_transport with no attempt prepared');
+      this.log.error('open_transport without an attempt to start');
       return;
     }
     attempt.started = true;
@@ -353,20 +365,20 @@ export class SignalClient {
    * Tell the transport to close. This starts the handshake only. The caller that
    * started the close waits for `ws.closed`, for a maximum of MAX_WS_CLOSE_TIME.
    */
-  private closeTransport() {
-    this.ws?.close({
-      closeCode: 1000,
-      reason: this.pendingCloseReason ?? 'Close method called on signal client',
-    });
+  private closeTransport(reason: string | undefined) {
+    this.ws?.close({ closeCode: 1000, reason: reason ?? 'Close method called on signal client' });
   }
 
-  private createMachine(): SignalConnectionRunner {
-    return new SignalConnectionRunner((effects) => this.executeEffects(effects), {
-      onStatusChanged: (status, previous) =>
-        this.log.debug(`signal lifecycle: ${previous} -> ${status}`, this.logContext),
-      onIgnored: (event, status) =>
-        this.log.debug(`ignoring ${event.type} while ${status}`, this.logContext),
-    });
+  private createMachine(): SignalConnectionRunner<SignalCommandContext> {
+    return new SignalConnectionRunner<SignalCommandContext>(
+      (effects, context) => this.executeEffects(effects, context),
+      {
+        onStatusChanged: (status, previous) =>
+          this.log.debug(`signal lifecycle: ${previous} -> ${status}`, this.logContext),
+        onIgnored: (event, status) =>
+          this.log.debug(`ignoring ${event.type} while ${status}`, this.logContext),
+      },
+    );
   }
 
   /**
@@ -381,7 +393,7 @@ export class SignalClient {
    * here would be a duplicate. The machine still gives the commands, because the
    * spec includes them.
    */
-  private executeEffects(effects: SignalEffect[]) {
+  private executeEffects(effects: SignalEffect[], context: SignalCommandContext | undefined) {
     for (const effect of effects) {
       switch (effect.type) {
         case 'start_ping':
@@ -395,10 +407,10 @@ export class SignalClient {
           this.queuedRequests = [];
           break;
         case 'open_transport':
-          this.openTransport();
+          this.openTransport(context?.attempt);
           break;
         case 'close_transport':
-          this.closeTransport();
+          this.closeTransport(context?.closeReason);
           break;
         case 'connection_lost':
           // The machine reports this only for a connection that reached
@@ -557,9 +569,7 @@ export class SignalClient {
       // The machine authorizes the transport with open_transport, and that
       // command starts the attempt. If the current status does not handle the
       // event, the attempt does not start and there is no work to wait for.
-      this.pendingAttempt = attempt;
-      this.machine.send(event);
-      this.pendingAttempt = undefined;
+      this.machine.send(event, { attempt });
       if (!attempt.started) {
         this.failAttempt(
           attempt,
@@ -616,6 +626,12 @@ export class SignalClient {
     this.ws = ws;
 
     const onTransportGone = (reason: string, detail: string) => {
+      // Ignore a socket that a later attempt replaced. Its late close must not
+      // move the status of the new attempt. `close()` clears this.ws, so a close
+      // that we started still reports here.
+      if (this.ws && this.ws !== ws) {
+        return;
+      }
       // Report the loss. The table decides what it means. From CONNECTED the
       // status becomes suspended, and connection_lost then calls onClose. In all
       // other phases the failure of this attempt is the outcome.
@@ -799,12 +815,8 @@ export class SignalClient {
   };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
-    if (
-      [SignalConnectionState.DISCONNECTING || SignalConnectionState.DISCONNECTED].includes(
-        this.state,
-      )
-    ) {
-      this.log.debug(`ignoring signal close as it's already in disconnecting state`);
+    if (this.isClosingOrClosed) {
+      this.log.debug('ignoring signal close: the connection is already closing or closed');
       return;
     }
     const unlock = await this.closingLock.lock();
@@ -815,8 +827,7 @@ export class SignalClient {
         // the other statuses there is no transport handshake to await, so it
         // terminates directly. The close_transport effect asks the socket to
         // close — and the table omits it where there is no transport left.
-        this.pendingCloseReason = reason;
-        this.machine.send({ type: 'close' });
+        this.machine.send({ type: 'close' }, { closeReason: reason });
       } else {
         // A teardown that must preserve the status — replacing the transport for
         // a reconnect — leaves the machine untouched. Conflating the two is what

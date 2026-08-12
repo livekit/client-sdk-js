@@ -15,8 +15,15 @@ import {
   transition,
 } from './SignalConnectionState';
 
-/** Receives the effects of one event, in order. */
-export type SignalEffectSink = (effects: SignalEffect[]) => void;
+/**
+ * Receives the effects of one event, in order, with the context that the sender
+ * gave to `send`. An effect that needs a parameter gets it from the context. The
+ * context travels with its own event, so a nested send cannot overwrite it.
+ */
+export type SignalEffectSink<Context> = (
+  effects: SignalEffect[],
+  context: Context | undefined,
+) => void;
 
 export interface SignalConnectionRunnerOptions {
   /** The first status. The default is the initial status of the machine. */
@@ -27,18 +34,18 @@ export interface SignalConnectionRunnerOptions {
   onIgnored?: (event: SignalEvent, status: SignalConnectionStatus) => void;
 }
 
-export class SignalConnectionRunner {
+export class SignalConnectionRunner<Context = void> {
   private currentStatus: SignalConnectionStatus;
 
-  private readonly pending: SignalEvent[] = [];
+  private readonly pending: Array<{ event: SignalEvent; context?: Context }> = [];
 
   private draining = false;
 
-  private readonly sink: SignalEffectSink;
+  private readonly sink: SignalEffectSink<Context>;
 
   private readonly options: SignalConnectionRunnerOptions;
 
-  constructor(sink: SignalEffectSink, options: SignalConnectionRunnerOptions = {}) {
+  constructor(sink: SignalEffectSink<Context>, options: SignalConnectionRunnerOptions = {}) {
     this.sink = sink;
     this.options = options;
     this.currentStatus = options.initialStatus ?? SignalConnectionStatus.NEW;
@@ -57,25 +64,25 @@ export class SignalConnectionRunner {
    * Submit an event. The runner does it now, or queues it if an earlier event is
    * still in progress.
    */
-  send(event: SignalEvent): void {
-    this.pending.push(event);
+  send(event: SignalEvent, context?: Context): void {
+    this.pending.push({ event, context });
     if (this.draining) {
       return;
     }
     this.draining = true;
     try {
       while (this.pending.length > 0) {
-        this.step(this.pending.shift()!);
+        const next = this.pending.shift()!;
+        this.step(next.event, next.context);
       }
     } finally {
-      // Clear the flag even if a sink throws, or the runner discards all later
-      // events.
+      // Clear the flag even if a sink throws. Keep the queue: the events behind
+      // the failed one are still valid, and the next send drains them.
       this.draining = false;
-      this.pending.length = 0;
     }
   }
 
-  private step(event: SignalEvent): void {
+  private step(event: SignalEvent, context: Context | undefined): void {
     const previous = this.currentStatus;
     const result = transition(previous, event);
 
@@ -89,7 +96,7 @@ export class SignalConnectionRunner {
     this.currentStatus = result.nextStatus;
 
     if (result.effects.length > 0) {
-      this.sink(result.effects);
+      this.sink(result.effects, context);
     }
 
     if (result.nextStatus !== previous) {

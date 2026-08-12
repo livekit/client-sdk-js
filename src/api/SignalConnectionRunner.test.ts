@@ -120,6 +120,38 @@ describe('SignalConnectionRunner', () => {
     }
   });
 
+  it('keeps queued events when a sink throws', () => {
+    // The events behind the failed one are still valid. Discarding them loses
+    // status changes with no report.
+    const seen: string[] = [];
+    let failNext = true;
+    let runner: SignalConnectionRunner;
+    runner = new SignalConnectionRunner((effects) => {
+      for (const effect of effects) {
+        if (effect.type === 'open_transport') {
+          // Queue a second event, then fail this one.
+          runner.send({ type: 'established' });
+          if (failNext) {
+            failNext = false;
+            throw new Error('sink blew up');
+          }
+        }
+        seen.push(effect.type);
+      }
+    });
+
+    expect(() => runner.send({ type: 'connect' })).toThrow('sink blew up');
+    expect(runner.status).toBe(SignalConnectionStatus.CONNECTING);
+    // The queued `established` survived the throw.
+    expect(runner.queueDepth).toBe(1);
+
+    // Any later send drains it. `connect` is ignored in both statuses here, so
+    // only the queued `established` moves the status.
+    runner.send({ type: 'connect' });
+    expect(runner.status).toBe(SignalConnectionStatus.CONNECTED);
+    expect(seen).toContain('start_ping');
+  });
+
   it('does not wedge when a sink throws', () => {
     // One failing effect handler must not leave the runner permanently draining
     // and silently swallowing every later event.
