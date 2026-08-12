@@ -20,26 +20,12 @@ const STATUS_MAP: Record<string, SignalConnectionStatus> = {
   closed: SignalConnectionStatus.CLOSED,
 };
 
-const PING_CONFIG = { intervalS: 5, timeoutS: 10 };
-
 /**
- * A representative event of the given type. Events are a discriminated union,
- * so a type alone is not constructible — this supplies the payload each variant
- * requires, which also documents what every event must carry.
+ * An event of the given type. The events are a discriminated union, so a type
+ * alone is not enough. Only `transport_closed` carries data.
  */
 function eventOf(type: SignalEventType): SignalEvent {
-  switch (type) {
-    case 'connect':
-      return { type, url: 'wss://example.com' };
-    case 'established':
-      return { type, pingConfig: PING_CONFIG };
-    case 'transport_closed':
-      return { type, reason: 'closed by peer' };
-    case 'leave_received_during_reconnect':
-      return { type, leaveAction: 2 };
-    default:
-      return { type };
-  }
+  return type === 'transport_closed' ? { type, reason: 'closed by peer' } : { type };
 }
 
 describe('signal connection transitions', () => {
@@ -161,7 +147,10 @@ describe('signal connection effects', () => {
       reason: '',
     });
     const lost = result.effects.find((e) => e.type === 'connection_lost');
-    expect((lost?.params?.failure as { message: string }).message).toBe('Unexpected WS error');
+    expect(lost).toEqual({
+      type: 'connection_lost',
+      failure: expect.objectContaining({ message: 'Unexpected WS error' }),
+    });
   });
 
   it('ignored events emit no effects', () => {

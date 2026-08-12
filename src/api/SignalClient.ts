@@ -65,7 +65,6 @@ import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arr
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { SignalConnectionRunner } from './SignalConnectionRunner';
 import {
-  type ConnectionFailure,
   type MessageKind,
   SignalConnectionStatus,
   type SignalEffect,
@@ -128,36 +127,32 @@ export enum SignalConnectionState {
 }
 
 /**
- * The lifecycle machine's 7 statuses collapsed onto this module's public 5-value
- * enum. `suspended` is a recoverable pause the public enum has never modelled,
- * so — like `new` and `closed` — it reads as DISCONNECTED to callers.
+ * The 7 statuses of the machine, mapped to the 5 values of the public enum. The
+ * public enum has no value for `suspended`, which is a recoverable pause. So
+ * `suspended`, `new` and `closed` all read as DISCONNECTED to a caller.
  */
-function toPublicState(status: SignalConnectionStatus): SignalConnectionState {
-  switch (status) {
-    case SignalConnectionStatus.CONNECTING:
-      return SignalConnectionState.CONNECTING;
-    case SignalConnectionStatus.CONNECTED:
-      return SignalConnectionState.CONNECTED;
-    case SignalConnectionStatus.RECONNECTING:
-      return SignalConnectionState.RECONNECTING;
-    case SignalConnectionStatus.DISCONNECTING:
-      return SignalConnectionState.DISCONNECTING;
-    default:
-      return SignalConnectionState.DISCONNECTED;
-  }
-}
+const PUBLIC_STATE: Record<SignalConnectionStatus, SignalConnectionState> = {
+  [SignalConnectionStatus.NEW]: SignalConnectionState.DISCONNECTED,
+  [SignalConnectionStatus.CONNECTING]: SignalConnectionState.CONNECTING,
+  [SignalConnectionStatus.CONNECTED]: SignalConnectionState.CONNECTED,
+  [SignalConnectionStatus.SUSPENDED]: SignalConnectionState.DISCONNECTED,
+  [SignalConnectionStatus.RECONNECTING]: SignalConnectionState.RECONNECTING,
+  [SignalConnectionStatus.DISCONNECTING]: SignalConnectionState.DISCONNECTING,
+  [SignalConnectionStatus.CLOSED]: SignalConnectionState.DISCONNECTED,
+};
 
 /**
- * One in-flight connection attempt. Holds the caller's promise so that whichever
- * part of the attempt reaches an outcome first — the transport, a timeout, the
- * first-message validation, or an abort — can settle it exactly once.
+ * One connection attempt in progress. It holds the promise of the caller. The
+ * transport, a timeout, the first-message check and an abort can all end the
+ * attempt. The first of them to do so settles the promise, and only once.
  */
 interface PendingAttempt {
   reconnect: boolean;
   /**
-   * Where to connect. A promise because the lifecycle event is raised
-   * synchronously — callers read `currentState` right after join()/reconnect() —
-   * while building the url is async. runAttempt awaits it before opening.
+   * Where to connect. This is a promise because the machine gets the event at
+   * once: a caller reads `currentState` directly after join() or reconnect().
+   * To build the url is asynchronous. runAttempt waits for the url before it
+   * opens the transport.
    */
   endpoint: Promise<{ rtcUrl: string; validateUrl: string }>;
   /** Set when the open_transport effect started the attempt. */
@@ -168,7 +163,7 @@ interface PendingAttempt {
   /** A classified error is on its way; generic reporters must stand down. */
   settling: boolean;
   wsTimeout?: ReturnType<typeof setTimeout>;
-  /** Releases the connection lock; present once runAttempt has taken it. */
+  /** Releases the connection lock. It is set after runAttempt takes the lock. */
   unlock?: () => void;
   cleanup: () => void;
 }
@@ -304,7 +299,7 @@ export class SignalClient {
   machine: SignalConnectionRunner;
 
   private get state(): SignalConnectionState {
-    return toPublicState(this.machine.status);
+    return PUBLIC_STATE[this.machine.status];
   }
 
   private connectionLock: Mutex;
@@ -331,9 +326,8 @@ export class SignalClient {
   }
 
   /**
-   * Close reason the next close_transport command will use. The machine decides
-   * *when* to close; the executor supplies the parameters — which is also why a
-   * reconnect's open_transport carries no url.
+   * The reason for the next close_transport command. The machine decides when to
+   * close. The executor gives the parameters.
    */
   private pendingCloseReason?: string;
 
@@ -341,9 +335,9 @@ export class SignalClient {
   private pendingAttempt?: PendingAttempt;
 
   /**
-   * Begin the connection attempt the lifecycle just authorised. This is the only
-   * caller of runAttempt, so an attempt runs if and only if the machine accepted
-   * a transition asking for a transport.
+   * Start the connection attempt that the machine authorized. This is the only
+   * caller of runAttempt. An attempt starts only if the machine accepted a
+   * transition that asks for a transport.
    */
   private openTransport() {
     const attempt = this.pendingAttempt;
@@ -356,8 +350,8 @@ export class SignalClient {
   }
 
   /**
-   * Ask the transport to close. Only starts the handshake; whoever initiated the
-   * close awaits `ws.closed` (bounded by MAX_WS_CLOSE_TIME).
+   * Tell the transport to close. This starts the handshake only. The caller that
+   * started the close waits for `ws.closed`, for a maximum of MAX_WS_CLOSE_TIME.
    */
   private closeTransport() {
     this.ws?.close({
@@ -376,15 +370,16 @@ export class SignalClient {
   }
 
   /**
-   * Performs the commands the machine emits for a transition.
+   * Does the commands that the machine gives for a transition.
    *
-   * The transport, the ping timer, the message buffer and the disconnect
-   * notification are all driven from here, so each is commanded by a
-   * transition rather than by whoever happened to call a method.
-   * `reconnect_completed` and `leave_received` remain unhandled: RTCEngine and
-   * `handleSignalResponse` already surface those, and duplicating them here
-   * would notify twice. The machine still emits them so the effect vocabulary
-   * matches the spec.
+   * The transport, the ping timer, the message buffer and the disconnect report
+   * all start here. A transition commands each of them. No method commands them
+   * directly.
+   *
+   * This function ignores `reconnect_completed` and `leave_received`. RTCEngine
+   * and `handleSignalResponse` already report those two events. A second report
+   * here would be a duplicate. The machine still gives the commands, because the
+   * spec includes them.
    */
   private executeEffects(effects: SignalEffect[]) {
     for (const effect of effects) {
@@ -405,15 +400,12 @@ export class SignalClient {
         case 'close_transport':
           this.closeTransport();
           break;
-        case 'connection_lost': {
-          // The machine emits this only for a connection that had reached
-          // CONNECTED, which is exactly when an unexpected disconnect should be
-          // reported. The phase check that used to guard this call is now the
-          // table's job.
-          const failure = effect.params?.failure as ConnectionFailure | undefined;
-          this.handleOnClose(failure?.message ?? 'connection lost');
+        case 'connection_lost':
+          // The machine reports this only for a connection that reached
+          // CONNECTED. That is when an unexpected disconnect must be reported.
+          // The table now makes that decision.
+          this.handleOnClose(effect.failure.message);
           break;
-        }
         default:
           break;
       }
@@ -441,7 +433,7 @@ export class SignalClient {
       url,
       token,
       opts,
-      { type: 'connect', url },
+      { type: 'connect' },
       abortSignal,
       useV0Path,
       publisherOffer,
@@ -489,13 +481,12 @@ export class SignalClient {
   }
 
   /**
-   * Ask the lifecycle to begin an attempt and hand back the promise for its
-   * outcome.
+   * Ask the machine to start an attempt. Return the promise of the outcome.
    *
-   * Synchronous up to the `send`, so the status has moved by the time this
-   * returns. The machine's open_transport effect starts the work; if the event
-   * was not legal in the current status nothing starts and the attempt fails
-   * here rather than connecting anyway.
+   * This function does no `await` before the `send`, so the status has changed
+   * when the function returns. The open_transport effect starts the work. If the
+   * current status does not handle the event, no work starts, and the attempt
+   * fails here.
    */
   private beginAttempt(
     url: string,
@@ -563,6 +554,9 @@ export class SignalClient {
         abortHandler(ConnectionError.timeout('room connection has timed out (signal)'));
       }, opts.websocketTimeout);
 
+      // The machine authorizes the transport with open_transport, and that
+      // command starts the attempt. If the current status does not handle the
+      // event, the attempt does not start and there is no work to wait for.
       this.pendingAttempt = attempt;
       this.machine.send(event);
       this.pendingAttempt = undefined;
@@ -578,14 +572,14 @@ export class SignalClient {
   }
 
   /**
-   * Drive one connection attempt: open the transport, read and validate the
-   * first message, then report the outcome to the machine and settle the
-   * caller's promise. Every exit reports to the machine exactly once, and the
-   * table turns that into the right status for the phase.
+   * Do one connection attempt. Open the transport, read the first message and
+   * check it. Then report the outcome to the machine and settle the promise of
+   * the caller. Each exit reports to the machine one time. The table then gives
+   * the correct status for the phase.
    */
   private async runAttempt(attempt: PendingAttempt) {
-    // Serialise attempts, as the previous connect() did. Released via
-    // attempt.cleanup() so whichever path settles the attempt frees the lock.
+    // Do one attempt at a time, as connect() did before. attempt.cleanup()
+    // releases the lock, so the path that settles the attempt also frees it.
     const unlock = await this.connectionLock.lock();
     if (attempt.settled) {
       unlock();
@@ -613,7 +607,7 @@ export class SignalClient {
 
     if (this.ws) {
       const startClose = performance.now();
-      // updateState = false: replacing the transport is not a lifecycle event.
+      // updateState = false: to replace the transport is not a lifecycle event.
       await this.close(false);
       this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
     }
@@ -622,12 +616,12 @@ export class SignalClient {
     this.ws = ws;
 
     const onTransportGone = (reason: string, detail: string) => {
-      // Report the loss and let the table decide what it means: from CONNECTED it
-      // suspends and emits connection_lost (which drives onClose); in any other
-      // phase this attempt's own rejection is the outcome.
+      // Report the loss. The table decides what it means. From CONNECTED the
+      // status becomes suspended, and connection_lost then calls onClose. In all
+      // other phases the failure of this attempt is the outcome.
       this.machine.send({ type: 'transport_closed', reason });
-      // `settling` means a classified error is already on its way; this generic
-      // one must not win that race.
+      // If `settling` is true, a more exact error will follow. Do not replace
+      // that error with this general one.
       if (!attempt.settling) {
         this.failAttempt(attempt, ConnectionError.internal(detail));
       }
@@ -635,9 +629,9 @@ export class SignalClient {
 
     ws.closed
       .then((closeInfo) => {
-        // A clean 1000 close is one we asked for, so it is not a transport loss:
-        // reporting it would turn a deliberate close — or the teardown that
-        // replaces the transport for a reconnect — into a lifecycle event.
+        // Code 1000 is a close that we asked for. It is not a loss of the
+        // transport. A report would make an intentional close, or the removal of
+        // the transport for a reconnect, into a lifecycle event.
         if (closeInfo.closeCode === 1000) {
           return;
         }
@@ -667,12 +661,15 @@ export class SignalClient {
         this.failAttempt(attempt, reason);
         return;
       }
-      // Claim the attempt before awaiting classification so the transport-closed
-      // handler cannot settle it with its generic error in the meantime.
+      // Claim the attempt before the wait for the error class. The
+      // transport_closed handler must not end the attempt with a general error
+      // during that wait.
       attempt.settling = true;
       this.machine.send({ type: 'attempt_failed' });
       const { validateUrl } = await attempt.endpoint;
-      this.failAttemptWith(attempt, await this.handleConnectionError(reason, validateUrl));
+      const error = await this.handleConnectionError(reason, validateUrl);
+      attempt.settling = false;
+      this.failAttempt(attempt, error);
       return;
     }
     clearTimeout(attempt.wsTimeout);
@@ -763,12 +760,6 @@ export class SignalClient {
     attempt.settled = true;
     attempt.cleanup();
     attempt.reject(error);
-  }
-
-  /** Reject with a classified error, overriding the `settling` claim. */
-  private failAttemptWith(attempt: PendingAttempt, error: unknown) {
-    attempt.settling = false;
-    this.failAttempt(attempt, error);
   }
 
   async startReadingLoop(
@@ -1292,14 +1283,10 @@ export class SignalClient {
     timeoutHandle: ReturnType<typeof setTimeout>,
     firstMessage?: SignalResponse,
   ) {
-    const pingConfig = {
-      intervalS: this.pingIntervalDuration ?? 0,
-      timeoutS: this.pingTimeoutDuration ?? 0,
-    };
-    // The table knows a resume from a first connection by the status this
-    // arrives in, and adds reconnect_completed accordingly. Either way the
-    // start_ping effect arms the keepalive.
-    this.machine.send({ type: 'established', pingConfig });
+    // The status this arrives in tells the table whether this is a resume or a
+    // first connection. The start_ping effect starts the ping in both cases. The
+    // ping durations are executor state, so the event does not carry them.
+    this.machine.send({ type: 'established' });
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
     this.startReadingLoop(connection.readable.getReader(), firstMessage);

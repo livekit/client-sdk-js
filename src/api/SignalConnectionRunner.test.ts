@@ -6,8 +6,6 @@ import {
   type SignalEvent,
 } from './SignalConnectionState';
 
-const PING_CONFIG = { intervalS: 5, timeoutS: 10 };
-
 /** Collects every effect the runner dispatches, flattened in dispatch order. */
 function collecting() {
   const effects: SignalEffect[] = [];
@@ -25,7 +23,7 @@ describe('SignalConnectionRunner', () => {
     const runner = new SignalConnectionRunner(c.sink);
 
     expect(runner.status).toBe(SignalConnectionStatus.NEW);
-    runner.send({ type: 'connect', url: 'wss://example.com' });
+    runner.send({ type: 'connect' });
 
     // No await anywhere: the status is already committed when send() returns.
     expect(runner.status).toBe(SignalConnectionStatus.CONNECTING);
@@ -69,7 +67,7 @@ describe('SignalConnectionRunner', () => {
         if (effect.type === 'open_transport') {
           // Re-entrant: arrives while this event's effects are still dispatching.
           order.push(`send:established@${runner.status}`);
-          runner.send({ type: 'established', pingConfig: PING_CONFIG });
+          runner.send({ type: 'established' });
           // Still processing the previous event, so nothing has advanced yet.
           order.push(`after-send:${runner.status}`);
           expect(runner.queueDepth).toBe(1);
@@ -78,7 +76,7 @@ describe('SignalConnectionRunner', () => {
     };
     runner = new SignalConnectionRunner(sink);
 
-    runner.send({ type: 'connect', url: 'wss://example.com' });
+    runner.send({ type: 'connect' });
 
     expect(order).toEqual([
       'effect:open_transport',
@@ -95,9 +93,9 @@ describe('SignalConnectionRunner', () => {
     const onStatusChanged = vi.fn();
     const runner = new SignalConnectionRunner(c.sink, { onStatusChanged });
 
-    runner.send({ type: 'connect', url: 'wss://example.com' });
-    runner.send({ type: 'established', pingConfig: PING_CONFIG });
-    runner.send({ type: 'connect', url: 'wss://example.com' }); // ignored in CONNECTED
+    runner.send({ type: 'connect' });
+    runner.send({ type: 'established' });
+    runner.send({ type: 'connect' }); // ignored in CONNECTED
 
     expect(onStatusChanged.mock.calls.map(([to, from]) => `${from}->${to}`)).toEqual([
       'new->connecting',
@@ -129,9 +127,7 @@ describe('SignalConnectionRunner', () => {
       throw new Error('sink blew up');
     });
 
-    expect(() => runner.send({ type: 'connect', url: 'wss://example.com' })).toThrow(
-      'sink blew up',
-    );
+    expect(() => runner.send({ type: 'connect' })).toThrow('sink blew up');
     expect(runner.status).toBe(SignalConnectionStatus.CONNECTING);
 
     // Still accepts events afterwards.

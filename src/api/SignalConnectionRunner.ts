@@ -1,22 +1,18 @@
 /**
  * Serialized event intake for the signal connection lifecycle machine.
  *
- * `transition()` in ./SignalConnectionState is pure, which makes transitions
- * verifiable but says nothing about *ordering*. This runner supplies the
- * ordering guarantee: it owns the current status, is the only writer of it, and
- * processes events one at a time to completion.
+ * `transition()` in ./SignalConnectionState is pure. That makes each transition
+ * correct, but it says nothing about order. This runner gives the order: it holds
+ * the status, it is the only writer of the status, and it does one event at a
+ * time until that event is complete.
  *
- * The property that matters: there is never an `await` between reading the
- * status and writing it. Callers hand events in and the status advances
- * synchronously, so an async operation that settles late cannot interleave a
- * status write and clobber a status set in the meantime — the failure mode that
- * lets a slow teardown overwrite a reconnect already in progress.
+ * There is no `await` between a read of the status and a write of the status.
+ * The status moves while the caller waits. An operation that completes late
+ * cannot then write a status and remove a status that a newer event set.
  *
- * Modelled on the engine task in client-sdk-esp32, where every callback posts to
- * a queue that a single task drains one event per iteration. Same discipline,
- * minus the threads: a re-entrant send from inside an effect handler is queued
- * rather than recursed, so each event's effects are fully dispatched before the
- * next event is considered.
+ * The model is the engine task in client-sdk-esp32. Each callback there posts to
+ * a queue, and one task reads one event per cycle. This runner does the same
+ * without threads. If an effect handler sends a new event, the runner queues it.
  */
 import {
   SignalConnectionStatus,
@@ -25,15 +21,15 @@ import {
   transition,
 } from './SignalConnectionState';
 
-/** Receives the effects produced by one event, in order. */
+/** Receives the effects of one event, in order. */
 export type SignalEffectSink = (effects: SignalEffect[]) => void;
 
 export interface SignalConnectionRunnerOptions {
-  /** Status to start from. Defaults to the machine's initial status. */
+  /** The first status. The default is the initial status of the machine. */
   initialStatus?: SignalConnectionStatus;
-  /** Called once per actual status change, after that event's effects are dispatched. */
+  /** Called after each change of status, and after the effects of that event. */
   onStatusChanged?: (status: SignalConnectionStatus, previous: SignalConnectionStatus) => void;
-  /** Called when an event is not handled in the current status (silently ignored). */
+  /** Called if the current status does not handle the event. */
   onIgnored?: (event: SignalEvent, status: SignalConnectionStatus) => void;
 }
 
@@ -58,15 +54,15 @@ export class SignalConnectionRunner {
     return this.currentStatus;
   }
 
-  /** Events queued but not yet processed. Non-zero only during a re-entrant send. */
+  /** The events in the queue. This is more than 0 only during a nested send. */
   get queueDepth(): number {
     return this.pending.length;
   }
 
   /**
-   * Submit an event. Processed immediately unless a drain is already in
-   * progress, in which case it is queued and handled once the current event
-   * completes.
+   * Submit an event. The runner does the event now, unless it is busy with an
+   * earlier event. In that case it queues the event and does it after the
+   * earlier one is complete.
    */
   send(event: SignalEvent): void {
     this.pending.push(event);
@@ -79,8 +75,8 @@ export class SignalConnectionRunner {
         this.step(this.pending.shift()!);
       }
     } finally {
-      // Cleared even if a sink throws, so one failing effect handler cannot
-      // wedge the runner and silently swallow every later event.
+      // Clear the flag even if a sink throws. If the flag stays set, the runner
+      // discards all later events.
       this.draining = false;
       this.pending.length = 0;
     }
@@ -95,8 +91,8 @@ export class SignalConnectionRunner {
       return;
     }
 
-    // Single writer, and committed before the effects run so that an effect
-    // handler reading `status` observes the status it is acting on behalf of.
+    // Write the status before the effects. An effect handler that reads the
+    // status must see the status that it acts for.
     this.currentStatus = result.nextStatus;
 
     if (result.effects.length > 0) {
