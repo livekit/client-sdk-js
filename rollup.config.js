@@ -48,7 +48,9 @@ export default {
       strict: true,
       sourcemap: true,
       name: kebabCaseToPascalCase(packageJson.name),
-      plugins: [terser()],
+      // mangle.safari10: avoid catch/finally identifier reuse that React Native 
+      // Hermes mis-resolves after catch return (client-sdk-js#1952).
+      plugins: [terser({ mangle: { safari10: true } })],
     },
   ],
   plugins: [typescript({ tsconfig: './tsconfig.json' }), ...commonPlugins],

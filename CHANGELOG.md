@@ -1,5 +1,33 @@
 # Change Log
 
+## 2.21.0
+
+### Minor Changes
+
+- fix: emit events that were buffered during resume after declaring the room as reconnected - [#2018](https://github.com/livekit/client-sdk-js/pull/2018) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for data streams v2 - [#1985](https://github.com/livekit/client-sdk-js/pull/1985) ([@1egoman](https://github.com/1egoman))
+
+### Patch Changes
+
+- chore: extract data channel handling into manager class - [#2014](https://github.com/livekit/client-sdk-js/pull/2014) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.20.2
+
+### Patch Changes
+
+- Ensure empty error reasons use fallback notation - [#1999](https://github.com/livekit/client-sdk-js/pull/1999) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove stale data track subscriber handles from the packet routing table - [#2011](https://github.com/livekit/client-sdk-js/pull/2011) ([@ladvoc](https://github.com/ladvoc))
+
+- Fix the reliable data channel dying under concurrent / multi-packet writes (#1995). Data-channel sends now use two-watermark flow control (fill up to a high-water mark, resume when drained to a low-water mark) and serialize contended senders through a per-kind lock, which prevents the SCTP send buffer from overflowing while keeping throughput saturated for data tracks. - [#2013](https://github.com/livekit/client-sdk-js/pull/2013) ([@1egoman](https://github.com/1egoman))
+
+- Handle data track SID reassignment - [#2000](https://github.com/livekit/client-sdk-js/pull/2000) ([@ladvoc](https://github.com/ladvoc))
+
+- Keep attached audio elements muted in startAudio() when webAudioMix is enabled, preventing double playback on platforms where element.volume has no effect (e.g. iOS Safari) - [#2004](https://github.com/livekit/client-sdk-js/pull/2004) ([@sawa-zen](https://github.com/sawa-zen))
+
+- Add a `localAudioTrack.applyConstraints` method with a subset of AudioCaptureOptions - [#2001](https://github.com/livekit/client-sdk-js/pull/2001) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.20.1
 
 ### Patch Changes

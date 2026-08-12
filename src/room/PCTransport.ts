@@ -15,17 +15,83 @@ interface TrackBitrateInfo {
   transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
+  isScreenShare?: boolean;
 }
 
-/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
-increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at
-the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
-eliminate this issue.
-*/
-const startBitrateForSVC = 0.7;
+/*
+ * Video codecs use a very low bitrate at the beginning and increase slowly by
+ * the bandwidth estimator until they reach the target bitrate. The process commonly
+ * costs more than 10 seconds causing subscribers to get blurry video at the first
+ * few seconds. We use x-google-start-bitrate to hint the BWE to start higher.
+ *
+ * Why 90%: Gives ~10% headroom for bandwidth estimation while starting close to target.
+ * Why same for all codecs: Target bitrate already accounts for codec efficiency
+ * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
+ * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
+ */
+const startBitrateMultiplier = 0.9;
+
+/** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
+const maxStartBitrateKbps = 1000;
 
 const debounceInterval = 20;
+
+/**
+ * Applies the configured start bitrate when this media section belongs to `cid`.
+ * This SDP munging is used for a bitrate setting that cannot be applied through
+ * `RTCRtpEncodingParameters`.
+ *
+ * Returns `undefined` when the section does not belong to the track, `0` when
+ * it does but does not offer the requested codec, and the codec payload when the
+ * requested codec is present (whether the bitrate was added or already set).
+ *
+ * @internal
+ */
+export function applyVideoStartBitrate(
+  media: MediaDescription,
+  cid: string,
+  codec: string,
+  maxbr: number,
+  isScreenShare = false,
+): number | undefined {
+  if (!media.msid?.includes(cid)) {
+    return undefined;
+  }
+
+  const codecPayload =
+    media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
+  if (codecPayload === 0) {
+    return 0;
+  }
+
+  // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE
+  // from starting too aggressively. Screen share is not capped since text/UI
+  // clarity requires high bitrate from the start.
+  // TODO: dynamically adjust start bitrate based on network conditions (e.g., previous BWE estimate)
+  const calculatedStartBitrate = Math.round(maxbr * startBitrateMultiplier);
+  const startBitrate = isScreenShare
+    ? calculatedStartBitrate
+    : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
+
+  const fmtp = media.fmtp.find((entry) => entry.payload === codecPayload);
+  if (fmtp) {
+    // If another track's fmtp already has a start bitrate, it cannot be
+    // overridden here because the payload type is shared across the bundle.
+    // This forces every track sharing that payload to use the initial track's
+    // start bitrate.
+    if (!fmtp.config.includes('x-google-start-bitrate')) {
+      fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
+    }
+  } else {
+    // VP8 and some codecs may not have an existing fmtp line.
+    media.fmtp.push({
+      payload: codecPayload,
+      config: `x-google-start-bitrate=${startBitrate}`,
+    });
+  }
+
+  return codecPayload;
+}
 
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
@@ -359,9 +425,15 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;
         if (options?.iceRestart && currentSD) {
-          // TODO: handle when ICE restart is needed but we don't have a remote description
-          // the best thing to do is to recreate the peerconnection
+          // roll the remote description back in so createOffer produces a valid
+          // ICE-restart offer on top of the already-negotiated state
           await this._pc.setRemoteDescription(currentSD);
+        } else if (options?.iceRestart) {
+          // ICE restart with no remote description to restart on: `renegotiate` would stall
+          // (the pending offer is never answered), so throw for the caller to recreate the PC.
+          throw new NegotiationError(
+            'ICE restart requested without a remote description, peer connection must be recreated',
+          );
         } else {
           this.renegotiate = true;
           this.log.debug('requesting renegotiation');
@@ -387,45 +459,25 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
-            if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
+            if (!trackbr.cid) {
               return false;
             }
 
-            let codecPayload = 0;
-            media.rtp.some((rtp): boolean => {
-              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-                codecPayload = rtp.payload;
-                return true;
-              }
+            const codecPayload = applyVideoStartBitrate(
+              media,
+              trackbr.cid,
+              trackbr.codec,
+              trackbr.maxbr,
+              trackbr.isScreenShare,
+            );
+            if (codecPayload === undefined) {
               return false;
-            });
-
-            if (codecPayload === 0) {
-              return true;
             }
 
-            if (isSVCCodec(trackbr.codec) && !isSafari()) {
+            if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
-            // mung sdp for bitrate setting that can't apply by sendEncoding
-            if (!isSVCCodec(trackbr.codec)) {
-              return true;
-            }
-
-            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
-
-            for (const fmtp of media.fmtp) {
-              if (fmtp.payload === codecPayload) {
-                // if another track's fmtp already is set, we cannot override the bitrate
-                // this has the unfortunate consequence of being forced to use the
-                // initial track's bitrate for all tracks
-                if (!fmtp.config.includes('x-google-start-bitrate')) {
-                  fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
-                }
-                break;
-              }
-            }
             return true;
           });
         }
@@ -698,7 +750,19 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   }
 }
 
-function ensureAudioNackAndStereo(
+/**
+ * Checks whether an fmtp config declares `param` as an exact, `;`-delimited
+ * token. A plain substring check conflates distinct opus parameters — e.g.
+ * `stereo=1` is a substring of `sprop-stereo=1` — so `param` must match a whole
+ * parameter, not appear anywhere within the config string.
+ * @internal
+ */
+export function fmtpConfigHasParam(config: string, param: string): boolean {
+  return config.split(';').some((entry) => entry.trim() === param);
+}
+
+/** @internal */
+export function ensureAudioNackAndStereo(
   media: {
     type: string;
     port: number;
@@ -714,7 +778,8 @@ function ensureAudioNackAndStereo(
   // found opus codec to add nack fb
   let opusPayload = 0;
   media.rtp.some((rtp): boolean => {
-    if (rtp.codec === 'opus') {
+    // rtpmap encoding names are case-insensitive (RFC 4855)
+    if (rtp.codec.toLowerCase() === 'opus') {
       opusPayload = rtp.payload;
       return true;
     }
@@ -740,7 +805,7 @@ function ensureAudioNackAndStereo(
     if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (!fmtp.config.includes('stereo=1')) {
+          if (!fmtpConfigHasParam(fmtp.config, 'stereo=1')) {
             fmtp.config += ';stereo=1';
           }
           return true;
@@ -831,7 +896,8 @@ export function conformBundledCodecFmtp(
   }
 }
 
-function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
+/** @internal */
+export function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
 } {
@@ -843,7 +909,8 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
     const mid = getMidString(media.mid!);
     if (media.type === 'audio') {
       media.rtp.some((rtp): boolean => {
-        if (rtp.codec === 'opus') {
+        // rtpmap encoding names are case-insensitive (RFC 4855)
+        if (rtp.codec.toLowerCase() === 'opus') {
           opusPayload = rtp.payload;
           return true;
         }
@@ -856,7 +923,7 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
 
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (fmtp.config.includes('sprop-stereo=1')) {
+          if (fmtpConfigHasParam(fmtp.config, 'sprop-stereo=1')) {
             stereoMids.push(mid);
           }
           return true;

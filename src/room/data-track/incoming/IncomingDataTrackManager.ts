@@ -147,6 +147,10 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
     let streamController: ReadableStreamDefaultController<DataTrackFrame> | null = null;
     const sfuSubscriptionComplete = new Future<void, DataTrackSubscribeError>();
 
+    // Hold the descriptor by reference: SID reassignment re-keys the map, so lookups
+    // with the SID captured at subscribe time would fail.
+    const descriptor = this.descriptors.get(sid);
+
     const detachSignal = () => {
       signal?.removeEventListener('abort', onAbort);
     };
@@ -158,8 +162,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         log.warn(`ReadableStream subscribed to ${sid} was not started.`);
         return;
       }
-      const descriptor = this.descriptors.get(sid);
-      if (!descriptor) {
+      if (!descriptor || this.descriptors.get(descriptor.info.sid) !== descriptor) {
         log.warn(`Unknown track ${sid}, skipping cancel...`);
         return;
       }
@@ -180,9 +183,8 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       if (!streamController) {
         return;
       }
-      const currentDescriptor = this.descriptors.get(sid);
-      if (currentDescriptor?.subscription.type === 'active') {
-        currentDescriptor.subscription.streamControllers.delete(streamController);
+      if (descriptor?.subscription.type === 'active') {
+        descriptor.subscription.streamControllers.delete(streamController);
       }
 
       streamController.error(DataTrackSubscribeError.cancelled());
@@ -198,8 +200,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
           this.subscribeRequest(sid, signal)
             .then(async () => {
-              const descriptor = this.descriptors.get(sid);
-              if (!descriptor) {
+              if (!descriptor || this.descriptors.get(descriptor.info.sid) !== descriptor) {
                 log.error(`Unknown track ${sid}`);
                 const err = DataTrackSubscribeError.disconnected();
                 controller.error(err);
@@ -330,7 +331,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
             descriptor.subscription = { type: 'none' };
 
             // Let the SFU know that the subscribe has been cancelled
-            this.emit('sfuUpdateSubscription', { sid, subscribe: false });
+            this.emit('sfuUpdateSubscription', { sid: descriptor.info.sid, subscribe: false });
 
             if (previousDescriptorSubscription.type === 'pending') {
               previousDescriptorSubscription.completionFuture.reject?.(
@@ -458,6 +459,9 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
         if (this.descriptors.has(info.sid)) {
           continue;
         }
+        if (this.handleSidReassigned(publisherIdentity, info)) {
+          continue;
+        }
         await this.handleTrackPublished(publisherIdentity, info);
       }
       publisherParticipantToSidsInUpdate.set(publisherIdentity, sidsInUpdate);
@@ -497,6 +501,62 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
 
     const track = new RemoteDataTrack(descriptor.info, this, { publisherIdentity });
     this.emit('trackPublished', { track });
+  }
+
+  /**
+   * Detects and handles SID reassignment, which occurs when the publisher
+   * republishes its tracks after a full reconnect.
+   *
+   * Returns `true` if an SID reassignment occurred, `false` otherwise.
+   */
+  private handleSidReassigned(
+    publisherIdentity: Participant['identity'],
+    info: DataTrackInfo,
+  ): boolean {
+    // Publisher identity and pub handle are stable across republications.
+    const existingEntry = Array.from(this.descriptors.entries()).find(
+      ([_sid, descriptor]) =>
+        descriptor.publisherIdentity === publisherIdentity &&
+        descriptor.info.pubHandle === info.pubHandle,
+    );
+    if (!existingEntry) {
+      return false;
+    }
+    const [oldSid, descriptor] = existingEntry;
+
+    // Invariant: other than SID, info should not have changed.
+    // TODO: consider refactoring to move SID out of info to allow for direct comparison.
+    const { name, usesE2ee } = descriptor.info;
+    if (name !== info.name || usesE2ee !== info.usesE2ee) {
+      log.warn(`Info mismatch for ${oldSid}, treating as new publication`);
+      return false;
+    }
+
+    const newSid = info.sid;
+    log.debug(`SID reassigned: ${oldSid} -> ${newSid}`);
+
+    if (!this.descriptors.delete(oldSid)) {
+      return false;
+    }
+    descriptor.info.sid = newSid;
+
+    switch (descriptor.subscription.type) {
+      case 'none':
+        break;
+      case 'pending':
+      case 'active':
+        // The SFU does not carry subscriptions across a publisher's full
+        // reconnect; re-request the subscription under the new SID.
+        this.emit('sfuUpdateSubscription', { sid: newSid, subscribe: true });
+        break;
+    }
+    if (descriptor.subscription.type === 'active') {
+      // Keep the routing index consistent until the SFU assigns a new handle
+      // (see `registerSubscriberHandle`).
+      this.subscriptionHandles.set(descriptor.subscription.subcriptionHandle, newSid);
+    }
+    this.descriptors.set(newSid, descriptor);
+    return true;
   }
 
   handleTrackUnpublished(sid: DataTrackSid) {
@@ -540,6 +600,7 @@ export default class IncomingDataTrackManager extends (EventEmitter as new () =>
       }
       case 'active': {
         // Update handle for an active subscription. This can occur following a full reconnect.
+        this.subscriptionHandles.delete(descriptor.subscription.subcriptionHandle);
         descriptor.subscription.subcriptionHandle = assignedHandle;
         this.subscriptionHandles.set(assignedHandle, sid);
         return;

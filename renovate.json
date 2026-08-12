@@ -5,6 +5,11 @@
   "minimumReleaseAge": "2 weeks",
   "packageRules": [
     {
+      "description": "Keep sdp-transform on v2: v3 corrupts valid MSIDs containing `|` (clux/sdp-transform#106).",
+      "matchPackageNames": ["sdp-transform", "@types/sdp-transform"],
+      "enabled": false
+    },
+    {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "groupName": "devDependencies (non-major)"

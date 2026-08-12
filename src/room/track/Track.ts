@@ -276,8 +276,9 @@ export abstract class Track<
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
     }
-    if (this.timeSyncHandle) {
+    if (this.timeSyncHandle !== undefined) {
       cancelAnimationFrame(this.timeSyncHandle);
+      this.timeSyncHandle = undefined;
     }
   }
 

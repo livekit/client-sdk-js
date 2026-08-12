@@ -145,7 +145,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
   ) {
     if (remoteClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
       // Send payload as a data stream - a "version 2" rpc request.
-      const writer = await this.outgoingDataStreamManager.streamText({
+      await this.outgoingDataStreamManager.sendText(payload, {
         topic: RPC_REQUEST_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
         attributes: {
@@ -155,9 +155,6 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
           [RpcRequestAttrs.RPC_REQUEST_VERSION]: `${RPC_VERSION_V2}`,
         },
       });
-
-      await writer.write(payload);
-      await writer.close();
       return;
     }
 
