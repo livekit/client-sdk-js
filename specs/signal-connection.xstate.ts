@@ -7,32 +7,16 @@
 // machine — see signal-connection.routing.md and signal-connection.buffer.md.
 import { setup } from 'xstate';
 
-interface ConnectionFailure {
-  reason: string;
-  message?: string;
-  retryable: boolean;
-  supportsRegionFailover: boolean;
-}
-
-interface PingConfig {
-  intervalS: number;
-  timeoutS: number;
-}
-
-// Event payloads are the executor's contract (used to build effects); the
-// machine itself stores none of them.
+// An event carries data only if a transition reads that data.
 type SignalEvents =
-  | { type: 'connect'; url: string }
-  | { type: 'established'; pingConfig: PingConfig }
-  | { type: 'attempt_failed'; failure: ConnectionFailure }
+  | { type: 'connect' }
+  | { type: 'established' }
+  | { type: 'attempt_failed' }
   | { type: 'attempt_timed_out' }
   | { type: 'transport_closed'; reason: string }
   | { type: 'ping_timeout' }
   | { type: 'start_reconnect' }
-  | { type: 'established'; pingConfig: PingConfig }
-  | { type: 'attempt_failed'; failure: ConnectionFailure }
-  | { type: 'attempt_timed_out' }
-  | { type: 'leave_received_during_reconnect'; failure: ConnectionFailure; leaveAction: number }
+  | { type: 'leave_received_during_reconnect' }
   | { type: 'close' }
   | { type: 'close_completed' };
 

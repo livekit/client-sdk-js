@@ -1,13 +1,9 @@
 /**
- * Signal connection lifecycle state machine.
+ * Signal connection lifecycle machine, per specs/signal-connection.scxml.
  *
- * This is the implementation of specs/signal-connection.scxml. The machine has
- * no extended state. `transition(status, event)` is a pure function. It returns
- * the next status and the effects that the executor must do.
- *
- * The machine does not route or buffer messages. `routeMessage` below is a
- * projection of the status. See specs/signal-connection.routing.md and
- * specs/signal-connection.buffer.md.
+ * The machine has no extended state. `transition` is pure: it returns the next
+ * status and the effects for the executor. `routeMessage` is a projection of the
+ * status, not a transition. See signal-connection.routing.md and .buffer.md.
  */
 
 export enum SignalConnectionStatus {
@@ -30,14 +26,9 @@ export interface ConnectionFailure {
 }
 
 /**
- * The events that the machine accepts.
- *
- * The events are phase-neutral. The status decides what an event means. An
- * `established` event in `reconnecting` is a resume. The same event in
- * `connecting` is a first connection. Per-phase names would move that decision
- * out of the table and into the executor.
- *
- * An event carries data only if a transition reads the data.
+ * The events are phase-neutral: the status decides what an event means, so
+ * `established` is a resume in `reconnecting` and a first connection in
+ * `connecting`. An event carries data only if a transition reads it.
  */
 export type SignalEvent =
   | { type: 'connect' }
@@ -53,12 +44,7 @@ export type SignalEvent =
 
 export type SignalEventType = SignalEvent['type'];
 
-/**
- * A command for the executor. It is not an event inside the machine.
- *
- * Only `connection_lost` carries data. It is the only effect whose data the
- * executor reads.
- */
+/** A command for the executor. Only `connection_lost` carries data. */
 export type SignalEffect =
   | { type: 'open_transport' }
   | { type: 'close_transport' }
@@ -78,9 +64,7 @@ export interface TransitionResult {
   effects: SignalEffect[];
 }
 
-// ---------------------------------------------------------------------------
-// Failures. Only an exit from `connected` reports one, so there are two.
-// ---------------------------------------------------------------------------
+// Only an exit from `connected` reports a failure, so there are two.
 
 /** An abnormal close gives an empty reason. Use this text instead. */
 const TRANSPORT_ERROR_FALLBACK = 'Unexpected WS error';
@@ -99,16 +83,9 @@ const PING_TIMEOUT: ConnectionFailure = {
   supportsRegionFailover: false,
 };
 
-// ---------------------------------------------------------------------------
-// The transition table.
-//
-// Each entry gives the target status and the effects for that edge. `effects` is
-// an array. It is a function of the event if an effect reads the event data. If a
-// status has no entry for an event, the machine ignores the event.
-//
-// Effects that belong to a status, and not to one edge, are in ON_EXIT and
-// ON_ENTRY.
-// ---------------------------------------------------------------------------
+// Each edge gives a target and its effects. `effects` is a function of the event
+// only if an effect reads the event. A missing entry means the machine ignores
+// the event. Effects of a status, not of one edge, are in ON_EXIT and ON_ENTRY.
 
 type Effects<E extends SignalEventType> =
   SignalEffect[] | ((event: Extract<SignalEvent, { type: E }>) => SignalEffect[]);
@@ -124,14 +101,14 @@ const TABLE: Table = {
     connect: { target: S.CONNECTING, effects: [{ type: 'open_transport' }] },
   },
 
-  // No edge here reports connection_lost. The connection was never established,
-  // so the attempt reports the outcome to its caller instead.
+  // No edge reports connection_lost: nothing was established, so the attempt
+  // reports the outcome to its caller.
   [S.CONNECTING]: {
     established: { target: S.CONNECTED, effects: [{ type: 'start_ping' }] },
     attempt_failed: { target: S.CLOSED },
     attempt_timed_out: { target: S.CLOSED },
     transport_closed: { target: S.CLOSED },
-    // Stop an attempt that is still in progress.
+    // Stop an attempt in progress.
     close: { target: S.CLOSED, effects: [{ type: 'close_transport' }] },
   },
 
@@ -160,8 +137,8 @@ const TABLE: Table = {
       target: S.CONNECTED,
       effects: [{ type: 'reconnect_completed' }, { type: 'start_ping' }],
     },
-    // The connection goes to `suspended`. The orchestrator can then try again.
-    // The caller already knows about the first loss, so there is no new report.
+    // Go to `suspended` so the orchestrator can try again. The caller already
+    // knows about the first loss, so there is no new report.
     attempt_failed: { target: S.SUSPENDED },
     attempt_timed_out: { target: S.SUSPENDED },
     leave_received_during_reconnect: {
@@ -193,14 +170,11 @@ const ON_ENTRY: Partial<Record<SignalConnectionStatus, SignalEffect[]>> = {
 };
 
 /**
- * The transition function. It changes no state.
- *
- * The effect order is exit, then edge, then entry. This is the SCXML order. The
- * exit and entry effects occur only if the status changes.
+ * The effect order is exit, edge, entry, as in SCXML. Exit and entry effects
+ * occur only if the status changes.
  */
 export function transition(status: SignalConnectionStatus, event: SignalEvent): TransitionResult {
-  // The lookup key is the event type, so it loses the narrow event variant. The
-  // edge was declared against that variant.
+  // The lookup by event type loses the narrow variant the edge was declared for.
   const edge = TABLE[status][event.type] as Edge<SignalEventType> | undefined;
   if (!edge) {
     return { handled: false, nextStatus: status, effects: [] };
@@ -222,21 +196,15 @@ export function transition(status: SignalConnectionStatus, event: SignalEvent): 
   };
 }
 
-// ---------------------------------------------------------------------------
-// Message routing. This is a projection of the status, and not a transition.
-// Routing never changes the status. See specs/signal-connection.routing.md.
-// ---------------------------------------------------------------------------
+// Message routing never changes the status. See signal-connection.routing.md.
 
-/** The caller selects the kind from the message type, and not from the status. */
+/** The caller selects the kind from the message type, not from the status. */
 export type MessageKind = 'passthrough' | 'queueable';
 
 /**
- * `dispatch`: give the message to the open transport now.
- * `buffer`: append the message to the executor's buffer. A drain sends it later,
- * in order.
- * `drop`: discard the message. A passthrough message has no value after its
- * moment.
- * `reject`: the status cannot serve the message.
+ * `dispatch` sends now. `buffer` appends for a later drain, in order. `drop`
+ * discards, because a passthrough message has no value later. `reject` means the
+ * status cannot serve the message.
  */
 export type MessageRoute = 'dispatch' | 'buffer' | 'drop' | 'reject';
 
@@ -256,8 +224,7 @@ export function routeMessage(
   bufferEmpty: boolean,
 ): MessageRoute {
   const route = ROUTES[status][kind];
-  // A queueable message must not pass the messages that are already in the
-  // buffer, because that breaks the order.
+  // A queueable message must not pass buffered messages: that breaks the order.
   if (route === 'dispatch' && kind === 'queueable' && !bufferEmpty) {
     return 'buffer';
   }

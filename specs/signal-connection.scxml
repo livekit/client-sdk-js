@@ -15,9 +15,9 @@
     reads this machine's state. See specs/signal-connection.routing.md (the
     route(state, message) table) and specs/signal-connection.buffer.md (the
     buffer ownership/ordering/drain/clear contract) for that layer.
-  - The executor owns the message buffer and the connection endpoint (url).
-    On reconnect the machine emits open_transport(reconnect=true) with no
-    url; the executor reuses the endpoint it was given at connect time.
+  - The executor owns the message buffer, the connection endpoint and the
+    ping durations. An event or command carries data only if a transition or
+    the executor reads that data. Only connection_lost carries data today.
 
   Conventions:
   - <send> elements represent effects (commands) emitted to the executor.
@@ -48,11 +48,8 @@
        =================================================================== -->
   <state id="new">
     <transition event="connect" target="connecting">
-      <!-- url travels on the event; executor retains it for later reconnects -->
-      <send event="open_transport">
-        <param name="url" expr="_event.data.url"/>
-        <param name="reconnect" expr="false"/>
-      </send>
+      <!-- The executor holds the endpoint. The command carries no url. -->
+      <send event="open_transport"/>
     </transition>
   </state>
 
@@ -61,9 +58,8 @@
        =================================================================== -->
   <state id="connecting">
     <transition event="established" target="connected">
-      <send event="start_ping">
-        <param name="config" expr="_event.data.pingConfig"/>
-      </send>
+      <!-- The executor holds the ping durations. The command carries none. -->
+      <send event="start_ping"/>
     </transition>
 
     <!-- No connection_lost on any edge out of connecting: nothing was ever
@@ -118,10 +114,7 @@
     </transition>
 
     <transition event="start_reconnect" target="reconnecting">
-      <!-- no url: executor reuses the endpoint from connect time -->
-      <send event="open_transport">
-        <param name="reconnect" expr="true"/>
-      </send>
+      <send event="open_transport"/>
     </transition>
 
     <transition event="close" target="disconnecting">
@@ -134,9 +127,7 @@
        =================================================================== -->
   <state id="suspended">
     <transition event="start_reconnect" target="reconnecting">
-      <send event="open_transport">
-        <param name="reconnect" expr="true"/>
-      </send>
+      <send event="open_transport"/>
     </transition>
 
     <!-- Transport already lost; nothing to close. onentry flushes buffer. -->
@@ -149,9 +140,7 @@
   <state id="reconnecting">
     <transition event="established" target="connected">
       <send event="reconnect_completed"/>
-      <send event="start_ping">
-        <param name="config" expr="_event.data.pingConfig"/>
-      </send>
+      <send event="start_ping"/>
     </transition>
 
     <!-- Parks in suspended so the orchestrator can retry. No connection_lost:
@@ -161,9 +150,7 @@
     <transition event="attempt_timed_out" target="suspended"/>
 
     <transition event="leave_received_during_reconnect" target="closed">
-      <send event="leave_received">
-        <param name="leaveAction" expr="_event.data.leaveAction"/>
-      </send>
+      <send event="leave_received"/>
     </transition>
 
     <!-- Abort a reconnect in progress. Best-effort abort the in-flight
