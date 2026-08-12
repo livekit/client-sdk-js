@@ -60,40 +60,22 @@
        CONNECTING — transport opening, waiting for first server message
        =================================================================== -->
   <state id="connecting">
-    <transition event="connection_established" target="connected">
+    <transition event="established" target="connected">
       <send event="start_ping">
         <param name="config" expr="_event.data.pingConfig"/>
       </send>
     </transition>
 
-    <transition event="connection_failed" target="closed">
-      <send event="connection_lost">
-        <param name="failure" expr="_event.data.failure"/>
-      </send>
-    </transition>
+    <!-- No connection_lost on any edge out of connecting: nothing was ever
+         established, so the outcome belongs to the pending attempt (which the
+         executor rejects with its own classified error), not to a disconnect
+         notification. Emitting both would race. -->
+    <transition event="attempt_failed" target="closed"/>
 
-    <transition event="connection_timed_out" target="closed">
-      <send event="connection_lost">
-        <param name="failure" expr="{
-          reason: 'connection_timeout',
-          message: 'Connection timed out',
-          retryable: true,
-          supportsRegionFailover: true
-        }"/>
-      </send>
-    </transition>
+    <transition event="attempt_timed_out" target="closed"/>
 
     <!-- Transport dropped before the connection was established -->
-    <transition event="transport_closed" target="closed">
-      <send event="connection_lost">
-        <param name="failure" expr="{
-          reason: 'transport_error',
-          message: _event.data.reason || 'Unexpected WS error',
-          retryable: true,
-          supportsRegionFailover: false
-        }"/>
-      </send>
-    </transition>
+    <transition event="transport_closed" target="closed"/>
 
     <!-- Abort an in-flight connection attempt. Go straight to closed and
          best-effort abort the half-open transport (no close_completed
@@ -128,7 +110,7 @@
       <send event="connection_lost">
         <param name="failure" expr="{
           reason: 'ping_timeout',
-          message: 'Ping timeout',
+          message: 'ping timeout',
           retryable: true,
           supportsRegionFailover: false
         }"/>
@@ -165,34 +147,20 @@
        RECONNECTING — new transport opening (executor buffers meanwhile)
        =================================================================== -->
   <state id="reconnecting">
-    <transition event="reconnect_established" target="connected">
+    <transition event="established" target="connected">
       <send event="reconnect_completed"/>
       <send event="start_ping">
         <param name="config" expr="_event.data.pingConfig"/>
       </send>
     </transition>
 
-    <transition event="reconnect_attempt_failed" target="suspended">
-      <send event="connection_lost">
-        <param name="failure" expr="_event.data.failure"/>
-      </send>
-    </transition>
+    <!-- Parks in suspended so the orchestrator can retry. No connection_lost:
+         the caller was already notified when the connection first dropped. -->
+    <transition event="attempt_failed" target="suspended"/>
 
-    <transition event="reconnect_timed_out" target="suspended">
-      <send event="connection_lost">
-        <param name="failure" expr="{
-          reason: 'connection_timeout',
-          message: 'Connection timed out',
-          retryable: true,
-          supportsRegionFailover: true
-        }"/>
-      </send>
-    </transition>
+    <transition event="attempt_timed_out" target="suspended"/>
 
     <transition event="leave_received_during_reconnect" target="closed">
-      <send event="connection_lost">
-        <param name="failure" expr="_event.data.failure"/>
-      </send>
       <send event="leave_received">
         <param name="leaveAction" expr="_event.data.leaveAction"/>
       </send>

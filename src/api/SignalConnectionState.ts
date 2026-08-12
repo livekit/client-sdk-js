@@ -44,16 +44,19 @@ export interface ConnectionFailure {
  */
 export type SignalEvent =
   | { type: 'connect'; url: string }
-  | { type: 'connection_established'; pingConfig: PingConfig }
-  | { type: 'connection_failed'; failure: ConnectionFailure }
-  | { type: 'connection_timed_out' }
+  // Phase-neutral: the executor reports *what happened*, and the table decides
+  // what it means from the status it happened in. An `established` in
+  // `reconnecting` is a resume; in `connecting` it is a first connection. An
+  // `attempt_failed` ends a first connection but only suspends a reconnect.
+  // Naming these per-phase would force the executor to re-derive the routing
+  // the table already encodes.
+  | { type: 'established'; pingConfig: PingConfig }
+  | { type: 'attempt_failed' }
+  | { type: 'attempt_timed_out' }
   | { type: 'transport_closed'; reason: string }
   | { type: 'ping_timeout' }
   | { type: 'start_reconnect' }
-  | { type: 'reconnect_established'; pingConfig: PingConfig }
-  | { type: 'reconnect_attempt_failed'; failure: ConnectionFailure }
-  | { type: 'reconnect_timed_out' }
-  | { type: 'leave_received_during_reconnect'; failure: ConnectionFailure; leaveAction: number }
+  | { type: 'leave_received_during_reconnect'; leaveAction: number }
   | { type: 'close' }
   | { type: 'close_completed' };
 
@@ -94,17 +97,16 @@ export const SIGNAL_STATUSES: SignalConnectionStatus[] = [
 
 // ---------------------------------------------------------------------------
 // Failures — the payloads carried by connection_lost.
+//
+// connection_lost is emitted only when a connection that had reached `connected`
+// is lost, so these are the only two ways that can happen. A failure *before*
+// the connection was established settles the pending attempt instead; the
+// machine does not describe it, because the executor already holds the
+// classified error it will reject with.
 // ---------------------------------------------------------------------------
-const CONNECTION_TIMEOUT: ConnectionFailure = {
-  reason: 'connection_timeout',
-  message: 'Connection timed out',
-  retryable: true,
-  supportsRegionFailover: true,
-};
-
 const PING_TIMEOUT: ConnectionFailure = {
   reason: 'ping_timeout',
-  message: 'Ping timeout',
+  message: 'ping timeout',
   retryable: true,
   supportsRegionFailover: false,
 };
@@ -176,15 +178,14 @@ const TABLE: Record<SignalConnectionStatus, StatusTransitions> = {
     connect: { target: S.CONNECTING, effects: (e) => [openTransport(e.url)] },
   },
 
+  // No connection_lost on any edge here: nothing was ever established, so the
+  // outcome belongs to the pending attempt, not to a disconnect notification.
   [S.CONNECTING]: {
-    connection_established: { target: S.CONNECTED, effects: (e) => [startPing(e.pingConfig)] },
-    connection_failed: { target: S.CLOSED, effects: (e) => [connectionLost(e.failure)] },
-    connection_timed_out: { target: S.CLOSED, effects: [connectionLost(CONNECTION_TIMEOUT)] },
+    established: { target: S.CONNECTED, effects: (e) => [startPing(e.pingConfig)] },
+    attempt_failed: { target: S.CLOSED },
+    attempt_timed_out: { target: S.CLOSED },
     // transport dropped before the connection was established
-    transport_closed: {
-      target: S.CLOSED,
-      effects: (e) => [connectionLost(transportError(e.reason))],
-    },
+    transport_closed: { target: S.CLOSED },
     // abort an in-flight connection attempt
     close: { target: S.CLOSED, effects: [closeTransport()] },
   },
@@ -207,15 +208,18 @@ const TABLE: Record<SignalConnectionStatus, StatusTransitions> = {
   },
 
   [S.RECONNECTING]: {
-    reconnect_established: {
+    established: {
       target: S.CONNECTED,
       effects: (e) => [reconnectCompleted(), startPing(e.pingConfig)],
     },
-    reconnect_attempt_failed: { target: S.SUSPENDED, effects: (e) => [connectionLost(e.failure)] },
-    reconnect_timed_out: { target: S.SUSPENDED, effects: [connectionLost(CONNECTION_TIMEOUT)] },
+    // A failed attempt parks in suspended so the orchestrator can retry. No
+    // connection_lost: the caller already learned of the loss when the
+    // connection first dropped, and this attempt's own rejection reports the rest.
+    attempt_failed: { target: S.SUSPENDED },
+    attempt_timed_out: { target: S.SUSPENDED },
     leave_received_during_reconnect: {
       target: S.CLOSED,
-      effects: (e) => [connectionLost(e.failure), leaveReceived(e.leaveAction)],
+      effects: (e) => [leaveReceived(e.leaveAction)],
     },
     // abort a reconnect in progress
     close: { target: S.CLOSED, effects: [closeTransport()] },
@@ -265,6 +269,61 @@ export function transition(status: SignalConnectionStatus, event: SignalEvent): 
   const onExit = changed ? (ON_EXIT[status] ?? []) : [];
   const onEntry = changed ? (ON_ENTRY[target] ?? []) : [];
   return { handled: true, nextStatus: target, effects: [...onExit, ...own, ...onEntry] };
+}
+
+// ---------------------------------------------------------------------------
+// Message routing — a projection of the lifecycle status, not a transition.
+//
+// Implements specs/signal-connection.routing.md. Routing never changes the
+// status, which is why it is a lookup here rather than a set of targetless
+// self-transitions in the table: encoding it there added no lifecycle semantics
+// and was the machine's only source of extended state.
+// ---------------------------------------------------------------------------
+
+/** Chosen by the caller from the message type, never from the status. */
+export type MessageKind = 'passthrough' | 'queueable';
+
+export type MessageRoute = 'dispatch' | 'buffer' | 'drop' | 'reject';
+
+/**
+ * Where a message goes, given the current status.
+ *
+ * `bufferEmpty` only matters for a queueable message while connected: if a
+ * drain is still pending, dispatching immediately would let the new message
+ * overtake older buffered ones and break FIFO, so it appends instead.
+ *
+ * - `dispatch` hand to the open transport now
+ * - `buffer`   append to the executor's buffer, flushed in order on drain
+ * - `drop`     silently discard; correct for passthrough with no live transport
+ * - `reject`   the status structurally cannot serve this message
+ */
+export function routeMessage(
+  status: SignalConnectionStatus,
+  kind: MessageKind,
+  bufferEmpty: boolean,
+): MessageRoute {
+  if (kind === 'passthrough') {
+    switch (status) {
+      case S.CONNECTING:
+      case S.CONNECTED:
+      case S.RECONNECTING:
+        return 'dispatch';
+      default:
+        // new, suspended, disconnecting, closed: a passthrough message that
+        // cannot be sent now is never sent.
+        return 'drop';
+    }
+  }
+  switch (status) {
+    case S.CONNECTED:
+      return bufferEmpty ? 'dispatch' : 'buffer';
+    case S.SUSPENDED:
+    case S.RECONNECTING:
+      return 'buffer';
+    default:
+      // new, connecting, disconnecting, closed
+      return 'reject';
+  }
 }
 
 /** Events that are handled (cause a transition) in the given status. */

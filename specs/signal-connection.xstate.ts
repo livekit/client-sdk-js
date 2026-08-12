@@ -24,15 +24,15 @@ interface PingConfig {
 // machine itself stores none of them.
 type SignalEvents =
   | { type: 'connect'; url: string }
-  | { type: 'connection_established'; pingConfig: PingConfig }
-  | { type: 'connection_failed'; failure: ConnectionFailure }
-  | { type: 'connection_timed_out' }
+  | { type: 'established'; pingConfig: PingConfig }
+  | { type: 'attempt_failed'; failure: ConnectionFailure }
+  | { type: 'attempt_timed_out' }
   | { type: 'transport_closed'; reason: string }
   | { type: 'ping_timeout' }
   | { type: 'start_reconnect' }
-  | { type: 'reconnect_established'; pingConfig: PingConfig }
-  | { type: 'reconnect_attempt_failed'; failure: ConnectionFailure }
-  | { type: 'reconnect_timed_out' }
+  | { type: 'established'; pingConfig: PingConfig }
+  | { type: 'attempt_failed'; failure: ConnectionFailure }
+  | { type: 'attempt_timed_out' }
   | { type: 'leave_received_during_reconnect'; failure: ConnectionFailure; leaveAction: number }
   | { type: 'close' }
   | { type: 'close_completed' };
@@ -53,9 +53,9 @@ export const signalConnectionMachine = setup({
 
     connecting: {
       on: {
-        connection_established: 'connected',
-        connection_failed: 'closed',
-        connection_timed_out: 'closed',
+        established: 'connected',
+        attempt_failed: 'closed',
+        attempt_timed_out: 'closed',
         // transport dropped before the connection was established
         transport_closed: 'closed',
         // abort an in-flight connection attempt
@@ -82,9 +82,9 @@ export const signalConnectionMachine = setup({
 
     reconnecting: {
       on: {
-        reconnect_established: 'connected',
-        reconnect_attempt_failed: 'suspended',
-        reconnect_timed_out: 'suspended',
+        established: 'connected',
+        attempt_failed: 'suspended',
+        attempt_timed_out: 'suspended',
         leave_received_during_reconnect: 'closed',
         // abort a reconnect in progress
         close: 'closed',

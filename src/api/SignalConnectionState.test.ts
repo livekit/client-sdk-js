@@ -20,12 +20,6 @@ const STATUS_MAP: Record<string, SignalConnectionStatus> = {
 };
 
 const PING_CONFIG = { intervalS: 5, timeoutS: 10 };
-const FAILURE = {
-  reason: 'internal_error',
-  message: 'boom',
-  retryable: true,
-  supportsRegionFailover: false,
-};
 
 /**
  * A representative event of the given type. Events are a discriminated union,
@@ -36,16 +30,12 @@ function eventOf(type: SignalEventType): SignalEvent {
   switch (type) {
     case 'connect':
       return { type, url: 'wss://example.com' };
-    case 'connection_established':
-    case 'reconnect_established':
+    case 'established':
       return { type, pingConfig: PING_CONFIG };
-    case 'connection_failed':
-    case 'reconnect_attempt_failed':
-      return { type, failure: FAILURE };
     case 'transport_closed':
       return { type, reason: 'closed by peer' };
     case 'leave_received_during_reconnect':
-      return { type, failure: FAILURE, leaveAction: 2 };
+      return { type, leaveAction: 2 };
     default:
       return { type };
   }
@@ -80,15 +70,13 @@ describe('signal connection effects', () => {
     expect(effectTypes(SignalConnectionStatus.NEW, 'connect')).toEqual(['open_transport']);
   });
 
-  it('connection_established starts the ping', () => {
-    expect(effectTypes(SignalConnectionStatus.CONNECTING, 'connection_established')).toEqual([
-      'start_ping',
-    ]);
+  it('established starts the ping', () => {
+    expect(effectTypes(SignalConnectionStatus.CONNECTING, 'established')).toEqual(['start_ping']);
   });
 
   it('every path into closed flushes the buffer via onEntry', () => {
     const intoClosed: Array<[SignalConnectionStatus, SignalEventType]> = [
-      [SignalConnectionStatus.CONNECTING, 'connection_failed'],
+      [SignalConnectionStatus.CONNECTING, 'attempt_failed'],
       [SignalConnectionStatus.CONNECTING, 'close'],
       [SignalConnectionStatus.SUSPENDED, 'close'],
       [SignalConnectionStatus.RECONNECTING, 'leave_received_during_reconnect'],
@@ -118,8 +106,8 @@ describe('signal connection effects', () => {
 
   it('entering connected starts the ping and does not stop it', () => {
     for (const [status, event] of [
-      [SignalConnectionStatus.CONNECTING, 'connection_established'],
-      [SignalConnectionStatus.RECONNECTING, 'reconnect_established'],
+      [SignalConnectionStatus.CONNECTING, 'established'],
+      [SignalConnectionStatus.RECONNECTING, 'established'],
     ] as Array<[SignalConnectionStatus, SignalEventType]>) {
       const effects = effectTypes(status, event);
       expect(effects).toContain('start_ping');

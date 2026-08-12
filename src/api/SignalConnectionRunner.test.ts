@@ -68,8 +68,8 @@ describe('SignalConnectionRunner', () => {
         order.push(`effect:${effect.type}`);
         if (effect.type === 'open_transport') {
           // Re-entrant: arrives while this event's effects are still dispatching.
-          order.push(`send:connection_established@${runner.status}`);
-          runner.send({ type: 'connection_established', pingConfig: PING_CONFIG });
+          order.push(`send:established@${runner.status}`);
+          runner.send({ type: 'established', pingConfig: PING_CONFIG });
           // Still processing the previous event, so nothing has advanced yet.
           order.push(`after-send:${runner.status}`);
           expect(runner.queueDepth).toBe(1);
@@ -82,7 +82,7 @@ describe('SignalConnectionRunner', () => {
 
     expect(order).toEqual([
       'effect:open_transport',
-      'send:connection_established@connecting',
+      'send:established@connecting',
       'after-send:connecting',
       'effect:start_ping',
     ]);
@@ -96,7 +96,7 @@ describe('SignalConnectionRunner', () => {
     const runner = new SignalConnectionRunner(c.sink, { onStatusChanged });
 
     runner.send({ type: 'connect', url: 'wss://example.com' });
-    runner.send({ type: 'connection_established', pingConfig: PING_CONFIG });
+    runner.send({ type: 'established', pingConfig: PING_CONFIG });
     runner.send({ type: 'connect', url: 'wss://example.com' }); // ignored in CONNECTED
 
     expect(onStatusChanged.mock.calls.map(([to, from]) => `${from}->${to}`)).toEqual([

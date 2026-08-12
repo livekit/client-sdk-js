@@ -66,8 +66,10 @@ import { AsyncQueue } from '../utils/AsyncQueue';
 import { SignalConnectionRunner } from './SignalConnectionRunner';
 import {
   type ConnectionFailure,
+  type MessageKind,
   SignalConnectionStatus,
   type SignalEffect,
+  routeMessage,
 } from './SignalConnectionState';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
@@ -334,32 +336,18 @@ export class SignalClient {
           // Reaching the terminal status drops whatever is still buffered.
           this.queuedRequests = [];
           break;
+        case 'connection_lost': {
+          // The machine emits this only for a connection that had reached
+          // CONNECTED, which is exactly when an unexpected disconnect should be
+          // reported. The phase check that used to guard this call is now the
+          // table's job.
+          const failure = effect.params?.failure as ConnectionFailure | undefined;
+          this.handleOnClose(failure?.message ?? 'connection lost');
+          break;
+        }
         default:
           break;
       }
-    }
-  }
-
-  /** Describe a failed attempt for the machine. */
-  private toFailure(error: unknown): ConnectionFailure {
-    return {
-      reason: error instanceof ConnectionError ? error.reasonName : 'internal_error',
-      message: error instanceof Error ? error.message : 'connection failed',
-      retryable: true,
-      supportsRegionFailover: false,
-    };
-  }
-
-  /**
-   * Report a failed attempt, routed by the phase it failed in: an initial
-   * connect ends the connection, a reconnect stays recoverable (suspended) so
-   * the orchestrator can retry.
-   */
-  private reportAttemptFailed(failure: ConnectionFailure) {
-    if (this.machine.status === SignalConnectionStatus.RECONNECTING) {
-      this.machine.send({ type: 'reconnect_attempt_failed', failure });
-    } else {
-      this.machine.send({ type: 'connection_failed', failure });
     }
   }
 
@@ -522,18 +510,14 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: this.state,
                 });
-                // Record the transport loss whatever the phase, but keep the
-                // unexpected-disconnect notification reserved for a connection
-                // that had reached CONNECTED: elsewhere the pending request's
-                // own rejection is the outcome, and firing both would race.
-                const wasConnected = this.machine.status === SignalConnectionStatus.CONNECTED;
+                // Report the loss and let the table decide what it means: from
+                // CONNECTED it suspends and emits connection_lost (which drives
+                // onClose); in any other phase the pending attempt's own
+                // rejection is the outcome and no notification is emitted.
                 this.machine.send({
                   type: 'transport_closed',
                   reason: closeInfo.reason ?? '',
                 });
-                if (wasConnected) {
-                  this.handleOnClose(closeInfo.reason || 'Unexpected WS error');
-                }
               }
               return;
             })
@@ -554,7 +538,7 @@ export class SignalClient {
               // reconnecting, the transport-closed handler below treats this as
               // an in-flight attempt and rejects it with its own generic error,
               // which would win the race against the classified one.
-              this.reportAttemptFailed(this.toFailure(reason));
+              this.machine.send({ type: 'attempt_failed' });
               const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
               return;
@@ -592,14 +576,9 @@ export class SignalClient {
             // No first message in time: release the reader and tear down the ws
             // so we surface the timeout instead of leaking an open connection.
             signalReader.releaseLock();
-            // Phase-routed: a timed-out reconnect returns to suspended so the
-            // orchestrator can retry, while an initial connect is terminal.
-            this.machine.send({
-              type:
-                this.machine.status === SignalConnectionStatus.RECONNECTING
-                  ? 'reconnect_timed_out'
-                  : 'connection_timed_out',
-            });
+            // The table routes this by phase: terminal for an initial connect,
+            // recoverable (suspended) for a reconnect.
+            this.machine.send({ type: 'attempt_timed_out' });
             reject(e);
             // The machine has already recorded why the attempt ended, so tear
             // the transport down without emitting a further lifecycle event.
@@ -922,14 +901,27 @@ export class SignalClient {
   }
 
   private async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
-    // capture all requests while reconnecting and put them in a queue
-    // unless the request originates from the queue, then don't enqueue again
-    const canQueue = !fromQueue && !canPassThroughQueue(message);
-    if (canQueue && this.state === SignalConnectionState.RECONNECTING) {
-      this.queuedRequests.push(async () => {
-        await this.sendRequest(message, true);
-      });
-      return;
+    // A request coming back out of the buffer is being drained: it has already
+    // been routed once and must dispatch, or it would be re-buffered forever.
+    if (!fromQueue) {
+      const kind: MessageKind = canPassThroughQueue(message) ? 'passthrough' : 'queueable';
+      // The buffer is queuedRequests; requestQueue only serializes in-flight
+      // writes and says nothing about ordering against buffered messages.
+      const route = routeMessage(this.machine.status, kind, this.queuedRequests.length === 0);
+      if (route === 'buffer') {
+        this.queuedRequests.push(async () => {
+          await this.sendRequest(message, true);
+        });
+        return;
+      }
+      if (route !== 'dispatch') {
+        // drop (passthrough with no live transport) or reject (a status that
+        // structurally cannot serve the message, e.g. mid room.connect()).
+        this.log.debug(
+          `${route}ing signal request (type: ${message.case}) while ${this.machine.status}`,
+        );
+        return;
+      }
     }
     // make sure previously queued requests are being sent first
     if (!fromQueue) {
@@ -937,12 +929,6 @@ export class SignalClient {
     }
     if (this.signalLatency) {
       await sleep(this.signalLatency);
-    }
-    if (this.isDisconnected) {
-      // Skip requests if the signal layer is disconnected
-      // This can happen if an event is sent in the mist of room.connect() initializing
-      this.log.debug(`skipping signal request (type: ${message.case}) - SignalClient disconnected`);
-      return;
     }
     if (!this.streamWriter) {
       this.log.error(`cannot send signal request before connected, type: ${message?.case}`);
@@ -1124,8 +1110,9 @@ export class SignalClient {
           Date.now() - this.pingTimeoutDuration! * 1000,
         ).toUTCString()}`,
       );
+      // connection_lost, emitted by the transition out of CONNECTED, drives the
+      // onClose notification.
       this.machine.send({ type: 'ping_timeout' });
-      this.handleOnClose('ping timeout');
     }, this.pingTimeoutDuration * 1000);
   }
 
@@ -1175,14 +1162,10 @@ export class SignalClient {
       intervalS: this.pingIntervalDuration ?? 0,
       timeoutS: this.pingTimeoutDuration ?? 0,
     };
-    // Phase-routed so a resume reports reconnect_established — which also emits
-    // reconnect_completed — rather than looking like a fresh connection. Either
-    // way the start_ping effect arms the keepalive.
-    if (this.machine.status === SignalConnectionStatus.RECONNECTING) {
-      this.machine.send({ type: 'reconnect_established', pingConfig });
-    } else {
-      this.machine.send({ type: 'connection_established', pingConfig });
-    }
+    // The table knows a resume from a first connection by the status this
+    // arrives in, and adds reconnect_completed accordingly. Either way the
+    // start_ping effect arms the keepalive.
+    this.machine.send({ type: 'established', pingConfig });
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
