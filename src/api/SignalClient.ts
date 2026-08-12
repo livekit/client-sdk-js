@@ -146,6 +146,24 @@ function toPublicState(status: SignalConnectionStatus): SignalConnectionState {
   }
 }
 
+/**
+ * One in-flight connection attempt. Holds the caller's promise so that whichever
+ * part of the attempt reaches an outcome first — the transport, a timeout, the
+ * first-message validation, or an abort — can settle it exactly once.
+ */
+interface PendingAttempt {
+  reconnect: boolean;
+  rtcUrl: string;
+  validateUrl: string;
+  resolve: (response: JoinResponse | ReconnectResponse | undefined) => void;
+  reject: (error: unknown) => void;
+  settled: boolean;
+  /** A classified error is on its way; generic reporters must stand down. */
+  settling: boolean;
+  wsTimeout?: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+}
+
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
 const MAX_WS_CLOSE_TIME = 250;
 
@@ -454,34 +472,60 @@ export class SignalClient {
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
+    try {
+      this.connectOptions = opts;
+      this.useV0SignalPath = useV0Path;
 
-    this.connectOptions = opts;
-    this.useV0SignalPath = useV0Path;
+      const clientInfo = getClientInfo(opts.clientInfoCapabilities);
+      const params = useV0Path
+        ? createConnectionParams(token, clientInfo, opts)
+        : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
+      const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
+      const validateUrl = createValidateUrl(rtcUrl).toString();
 
-    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
-    const params = useV0Path
-      ? createConnectionParams(token, clientInfo, opts)
-      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
-    const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
-    const validateUrl = createValidateUrl(rtcUrl).toString();
+      const redactedUrl = new URL(rtcUrl);
+      if (redactedUrl.searchParams.has('access_token')) {
+        redactedUrl.searchParams.set('access_token', '<redacted>');
+      }
 
-    return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
-      try {
-        let alreadyAborted = false;
-        const abortHandler = async (eventOrError: Event | Error) => {
-          if (alreadyAborted) {
-            return;
-          }
-          alreadyAborted = true;
+      if (this.ws) {
+        const startClose = performance.now();
+        await this.close(false);
+        this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
+      }
+
+      this.log.info(`signal connecting to ${redactedUrl}`, {
+        reconnect: opts.reconnect,
+        reconnectReason: opts.reconnectReason,
+      });
+
+      return await new Promise<JoinResponse | ReconnectResponse | undefined>((resolve, reject) => {
+        const attempt: PendingAttempt = {
+          reconnect: opts.reconnect ?? false,
+          rtcUrl,
+          validateUrl,
+          resolve,
+          reject,
+          settled: false,
+          settling: false,
+          cleanup: () => {
+            clearTimeout(attempt.wsTimeout);
+            abortSignal?.removeEventListener('abort', abortHandler);
+          },
+        };
+        const abortHandler = (eventOrError: Event | Error) => {
           // An Event comes from the caller's AbortSignal; an Error is raised by
-          // us (e.g. the connect timeout below).
+          // us (the connect timeout below).
           const isCallerAbort = eventOrError instanceof Event;
           const target = isCallerAbort ? eventOrError.currentTarget : eventOrError;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
+          if (attempt.settled) {
+            return;
+          }
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
             this.sendLeave()
-              .then(() => this.close(reason))
+              .then(() => this.close(true, reason))
               .catch((e) => {
                 this.log.error(e);
                 this.close();
@@ -489,11 +533,11 @@ export class SignalClient {
           } else {
             this.close();
           }
-          cleanupAbortHandlers();
           // Only the caller aborting is a cancellation. An error we raised
           // ourselves keeps its own reason, so callers can tell "gave up
           // waiting" from "caller cancelled" — they retry differently.
-          reject(
+          this.failAttempt(
+            attempt,
             !isCallerAbort && eventOrError instanceof ConnectionError
               ? eventOrError
               : ConnectionError.cancelled(reason),
@@ -501,44 +545,16 @@ export class SignalClient {
         };
 
         abortSignal?.addEventListener('abort', abortHandler);
-
-        const cleanupAbortHandlers = () => {
-          clearTimeout(wsTimeout);
-          abortSignal?.removeEventListener('abort', abortHandler);
-        };
-
-        const wsTimeout = setTimeout(() => {
+        attempt.wsTimeout = setTimeout(() => {
           abortHandler(ConnectionError.timeout('room connection has timed out (signal)'));
         }, opts.websocketTimeout);
 
-        const handleSignalConnected = (
-          connection: WebSocketConnection,
-          firstMessage?: SignalResponse,
-        ) => {
-          this.handleSignalConnected(connection, wsTimeout, firstMessage);
-        };
-
-        const redactedUrl = new URL(rtcUrl);
-        if (redactedUrl.searchParams.has('access_token')) {
-          redactedUrl.searchParams.set('access_token', '<redacted>');
-        }
-
-        if (this.ws) {
-          const startClose = performance.now();
-          await this.close(false);
-          this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
-        }
-
-        this.log.info(`signal connecting to ${redactedUrl}`, {
-          reconnect: opts.reconnect,
-          reconnectReason: opts.reconnectReason,
-        });
-
-        // Open only what the lifecycle authorised: if the machine refused the
-        // event that begins an attempt, no open_transport was emitted and there
-        // is nothing to connect.
+        // The lifecycle authorises the transport (open_transport, emitted by the
+        // event join()/reconnect() already sent). Without it there is nothing to
+        // run, because the event was not legal in the current status.
         if (!this.transportAuthorised) {
-          reject(
+          this.failAttempt(
+            attempt,
             ConnectionError.internal(
               `cannot ${opts.reconnect ? 'reconnect' : 'connect'} while ${this.machine.status}`,
             ),
@@ -546,153 +562,166 @@ export class SignalClient {
           return;
         }
         this.transportAuthorised = false;
-        this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
+        void this.runAttempt(attempt);
+      });
+    } finally {
+      unlock();
+    }
+  }
 
-        try {
-          this.ws.closed
-            .then((closeInfo) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.internal(
-                    `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
-                  ),
-                );
-              }
-              if (closeInfo.closeCode !== 1000) {
-                this.log.warn(`websocket closed`, {
-                  reason: closeInfo.reason,
-                  code: closeInfo.closeCode,
-                  wasClean: closeInfo.closeCode === 1000,
-                  state: this.state,
-                });
-                // Report the loss and let the table decide what it means: from
-                // CONNECTED it suspends and emits connection_lost (which drives
-                // onClose); in any other phase the pending attempt's own
-                // rejection is the outcome and no notification is emitted.
-                this.machine.send({
-                  type: 'transport_closed',
-                  reason: closeInfo.reason ?? '',
-                });
-              }
-              return;
-            })
-            .catch((reason) => {
-              if (this.isEstablishingConnection) {
-                reject(
-                  ConnectionError.internal(
-                    `Websocket error during a (re)connection attempt: ${reason}`,
-                  ),
-                );
-              }
-            });
-          const connection = await this.ws.opened.catch(async (reason: unknown) => {
-            if (this.state !== SignalConnectionState.CONNECTED) {
-              clearTimeout(wsTimeout);
-              // Leave the establishing phase synchronously, before awaiting
-              // classification. While the machine still reports connecting or
-              // reconnecting, the transport-closed handler below treats this as
-              // an in-flight attempt and rejects it with its own generic error,
-              // which would win the race against the classified one.
-              this.machine.send({ type: 'attempt_failed' });
-              const error = await this.handleConnectionError(reason, validateUrl);
-              reject(error);
-              return;
-            }
-            // other errors, handle
-            this.handleWSError(reason);
-            reject(reason);
-            return;
-          });
-          clearTimeout(wsTimeout);
-          if (!connection) {
-            return;
-          }
-          const signalReader = connection.readable.getReader();
-          this.streamWriter = connection.writable.getWriter();
+  /**
+   * Drive one connection attempt: open the transport, read and validate the
+   * first message, then report the outcome to the machine and settle the
+   * caller's promise. Every exit reports to the machine exactly once, and the
+   * table turns that into the right status for the phase.
+   */
+  private async runAttempt(attempt: PendingAttempt) {
+    const ws = new WebSocketStream<ArrayBuffer>(attempt.rtcUrl);
+    this.ws = ws;
 
-          // wsTimeout only guarded the upgrade; guard the first-message read with
-          // its own timeout so a silent server can't hang join() forever.
-          let firstMessage: ReadableStreamReadResult<string | ArrayBuffer>;
-          let firstMessageTimeout: ReturnType<typeof setTimeout> | undefined;
-          try {
-            firstMessage = await Promise.race([
-              signalReader.read(),
-              new Promise<never>((_, rejectRead) => {
-                firstMessageTimeout = setTimeout(() => {
-                  rejectRead(
-                    ConnectionError.timeout(
-                      'signal connection timed out while waiting for the first message',
-                    ),
-                  );
-                }, JOIN_RESPONSE_TIMEOUT);
-              }),
-            ]);
-          } catch (e) {
-            // No first message in time: release the reader and tear down the ws
-            // so we surface the timeout instead of leaking an open connection.
-            signalReader.releaseLock();
-            // The table routes this by phase: terminal for an initial connect,
-            // recoverable (suspended) for a reconnect.
-            this.machine.send({ type: 'attempt_timed_out' });
-            reject(e);
-            // The machine has already recorded why the attempt ended, so tear
-            // the transport down without emitting a further lifecycle event.
-            this.close(false);
-            return;
-          } finally {
-            clearTimeout(firstMessageTimeout);
-          }
-          signalReader.releaseLock();
-          if (!firstMessage.value) {
-            throw ConnectionError.internal('no message received as first message');
-          }
-
-          const firstSignalResponse = parseSignalResponse(firstMessage.value);
-
-          // Validate the first message
-          const validation = this.validateFirstMessage(
-            firstSignalResponse,
-            opts.reconnect ?? false,
-          );
-
-          if (!validation.isValid) {
-            reject(validation.error);
-            return;
-          }
-
-          // Handle join response
-          if (firstSignalResponse.message?.case === 'join') {
-            // Set up ping configuration
-            this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
-            this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
-
-            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
-              this.log.debug('ping config', {
-                timeout: this.pingTimeoutDuration,
-                interval: this.pingIntervalDuration,
-              });
-            }
-
-            if (this.onJoined) {
-              this.onJoined(firstSignalResponse.message.value);
-            }
-          }
-
-          // Handle successful connection
-          const firstMessageToProcess = validation.shouldProcessFirstMessage
-            ? firstSignalResponse
-            : undefined;
-          handleSignalConnected(connection, firstMessageToProcess);
-          resolve(validation.response);
-        } catch (e) {
-          reject(e);
-        } finally {
-          cleanupAbortHandlers();
-        }
-      } finally {
-        unlock();
+    const onTransportGone = (reason: string, detail: string) => {
+      // Report the loss and let the table decide what it means: from CONNECTED it
+      // suspends and emits connection_lost (which drives onClose); in any other
+      // phase this attempt's own rejection is the outcome.
+      this.machine.send({ type: 'transport_closed', reason });
+      // `settling` means a classified error is already on its way; this generic
+      // one must not win that race.
+      if (!attempt.settling) {
+        this.failAttempt(attempt, ConnectionError.internal(detail));
       }
-    });
+    };
+
+    ws.closed
+      .then((closeInfo) => {
+        if (closeInfo.closeCode !== 1000) {
+          this.log.warn(`websocket closed`, {
+            reason: closeInfo.reason,
+            code: closeInfo.closeCode,
+            wasClean: false,
+            state: this.state,
+          });
+        }
+        onTransportGone(
+          closeInfo.reason ?? '',
+          `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
+        );
+      })
+      .catch((reason) => {
+        onTransportGone('', `Websocket error during a (re)connection attempt: ${reason}`);
+      });
+
+    let connection: WebSocketConnection;
+    try {
+      connection = await ws.opened;
+    } catch (reason) {
+      clearTimeout(attempt.wsTimeout);
+      if (this.machine.status === SignalConnectionStatus.CONNECTED) {
+        // A live connection outlived this attempt; surface the error as-is.
+        this.handleWSError(reason);
+        this.failAttempt(attempt, reason);
+        return;
+      }
+      // Claim the attempt before awaiting classification so the transport-closed
+      // handler cannot settle it with its generic error in the meantime.
+      attempt.settling = true;
+      this.machine.send({ type: 'attempt_failed' });
+      this.failAttemptWith(attempt, await this.handleConnectionError(reason, attempt.validateUrl));
+      return;
+    }
+    clearTimeout(attempt.wsTimeout);
+
+    const signalReader = connection.readable.getReader();
+    this.streamWriter = connection.writable.getWriter();
+
+    // wsTimeout only guarded the upgrade; guard the first-message read with its
+    // own timeout so a silent server can't hang the attempt forever.
+    let firstMessage: ReadableStreamReadResult<string | ArrayBuffer>;
+    let firstMessageTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      firstMessage = await Promise.race([
+        signalReader.read(),
+        new Promise<never>((_, rejectRead) => {
+          firstMessageTimeout = setTimeout(() => {
+            rejectRead(
+              ConnectionError.timeout(
+                'signal connection timed out while waiting for the first message',
+              ),
+            );
+          }, JOIN_RESPONSE_TIMEOUT);
+        }),
+      ]);
+    } catch (e) {
+      signalReader.releaseLock();
+      // The table routes this by phase: terminal for an initial connect,
+      // recoverable (suspended) for a reconnect.
+      this.machine.send({ type: 'attempt_timed_out' });
+      this.failAttempt(attempt, e);
+      // The machine has already recorded why the attempt ended, so tear the
+      // transport down without emitting a further lifecycle event.
+      this.close(false);
+      return;
+    } finally {
+      clearTimeout(firstMessageTimeout);
+    }
+    signalReader.releaseLock();
+
+    try {
+      if (!firstMessage.value) {
+        throw ConnectionError.internal('no message received as first message');
+      }
+      const firstSignalResponse = parseSignalResponse(firstMessage.value);
+      const validation = this.validateFirstMessage(firstSignalResponse, attempt.reconnect);
+      if (!validation.isValid) {
+        this.failAttempt(attempt, validation.error);
+        return;
+      }
+
+      if (firstSignalResponse.message?.case === 'join') {
+        this.pingTimeoutDuration = firstSignalResponse.message.value.pingTimeout;
+        this.pingIntervalDuration = firstSignalResponse.message.value.pingInterval;
+        if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+          this.log.debug('ping config', {
+            timeout: this.pingTimeoutDuration,
+            interval: this.pingIntervalDuration,
+          });
+        }
+        this.onJoined?.(firstSignalResponse.message.value);
+      }
+
+      this.handleSignalConnected(
+        connection,
+        attempt.wsTimeout!,
+        validation.shouldProcessFirstMessage ? firstSignalResponse : undefined,
+      );
+      this.completeAttempt(attempt, validation.response);
+    } catch (e) {
+      this.failAttempt(attempt, e);
+    }
+  }
+
+  /** Resolve the pending attempt, at most once. */
+  private completeAttempt(
+    attempt: PendingAttempt,
+    response: JoinResponse | ReconnectResponse | undefined,
+  ) {
+    if (attempt.settled) return;
+    attempt.settled = true;
+    attempt.cleanup();
+    attempt.resolve(response);
+  }
+
+  /** Reject the pending attempt, at most once. */
+  private failAttempt(attempt: PendingAttempt, error: unknown) {
+    if (attempt.settled) return;
+    attempt.settled = true;
+    attempt.cleanup();
+    attempt.reject(error);
+  }
+
+  /** Reject with a classified error, overriding the `settling` claim. */
+  private failAttemptWith(attempt: PendingAttempt, error: unknown) {
+    attempt.settling = false;
+    this.failAttempt(attempt, error);
   }
 
   async startReadingLoop(
