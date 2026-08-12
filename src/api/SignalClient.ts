@@ -69,6 +69,7 @@ import {
   type MessageKind,
   SignalConnectionStatus,
   type SignalEffect,
+  type SignalEvent,
   routeMessage,
 } from './SignalConnectionState';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
@@ -153,14 +154,22 @@ function toPublicState(status: SignalConnectionStatus): SignalConnectionState {
  */
 interface PendingAttempt {
   reconnect: boolean;
-  rtcUrl: string;
-  validateUrl: string;
+  /**
+   * Where to connect. A promise because the lifecycle event is raised
+   * synchronously — callers read `currentState` right after join()/reconnect() —
+   * while building the url is async. runAttempt awaits it before opening.
+   */
+  endpoint: Promise<{ rtcUrl: string; validateUrl: string }>;
+  /** Set when the open_transport effect started the attempt. */
+  started: boolean;
   resolve: (response: JoinResponse | ReconnectResponse | undefined) => void;
   reject: (error: unknown) => void;
   settled: boolean;
   /** A classified error is on its way; generic reporters must stand down. */
   settling: boolean;
   wsTimeout?: ReturnType<typeof setTimeout>;
+  /** Releases the connection lock; present once runAttempt has taken it. */
+  unlock?: () => void;
   cleanup: () => void;
 }
 
@@ -328,21 +337,22 @@ export class SignalClient {
    */
   private pendingCloseReason?: string;
 
-  private transportAuthorised = false;
+  /** The attempt awaiting an open_transport command, if any. */
+  private pendingAttempt?: PendingAttempt;
 
   /**
-   * The lifecycle has authorised a transport. Consumed by `connect()`, which
-   * opens the socket once it has built the endpoint.
-   *
-   * The command and the opening are separated because the endpoint is not known
-   * when the transition happens: `join()`/`reconnect()` must move the status
-   * synchronously (callers read `currentState` straight after the call), while
-   * building the url is async. What the effect guarantees is that a socket is
-   * only ever created for an accepted transition — `connect()` used to open one
-   * regardless of whether the event was legal in the current status.
+   * Begin the connection attempt the lifecycle just authorised. This is the only
+   * caller of runAttempt, so an attempt runs if and only if the machine accepted
+   * a transition asking for a transport.
    */
   private openTransport() {
-    this.transportAuthorised = true;
+    const attempt = this.pendingAttempt;
+    if (!attempt || attempt.started) {
+      this.log.error('open_transport with no attempt prepared');
+      return;
+    }
+    attempt.started = true;
+    void this.runAttempt(attempt);
   }
 
   /**
@@ -422,14 +432,20 @@ export class SignalClient {
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
-    // A join begins a new connection lifecycle even if one is already running:
-    // a full reconnect replaces the previous connection rather than resuming it,
-    // so the machine is recreated rather than driven back to the start. Sent here
-    // rather than in connect() so the status moves before this method returns.
+    // A join begins a new connection lifecycle even if one is already running: a
+    // full reconnect replaces the previous connection rather than resuming it, so
+    // the machine is recreated rather than driven back to the start.
     this.machine = this.createMachine();
-    this.machine.send({ type: 'connect', url });
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
+    const res = await this.beginAttempt(
+      url,
+      token,
+      opts,
+      { type: 'connect', url },
+      abortSignal,
+      useV0Path,
+      publisherOffer,
+    );
     return res as JoinResponse;
   }
 
@@ -443,130 +459,122 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    // Moves the status before this method returns, as join() does. Leaving
-    // `connected` disarms the ping as an exit action, so nothing to clear here.
-    this.machine.send({ type: 'start_reconnect' });
-
-    const res = (await this.connect(
+    // Leaving `connected` disarms the ping as an exit action, so nothing to clear
+    // here; it restarts when the attempt reports `established`.
+    const res = (await this.beginAttempt(
       url,
       token,
-      {
-        ...this.options,
-        reconnect: true,
-        sid,
-        reconnectReason: reason,
-      },
+      { ...this.options, reconnect: true, sid, reconnectReason: reason },
+      { type: 'start_reconnect' },
       undefined,
       this.useV0SignalPath,
     )) as ReconnectResponse | undefined;
     return res;
   }
 
-  private async connect(
+  /** Build the signal endpoint for an attempt. Async for the v1 join request. */
+  private async buildEndpoint(
     url: string,
     token: string,
     opts: ConnectOpts,
+    useV0Path: boolean,
+    publisherOffer?: SessionDescription,
+  ): Promise<{ rtcUrl: string; validateUrl: string }> {
+    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
+    const params = useV0Path
+      ? createConnectionParams(token, clientInfo, opts)
+      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
+    const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
+    return { rtcUrl, validateUrl: createValidateUrl(rtcUrl).toString() };
+  }
+
+  /**
+   * Ask the lifecycle to begin an attempt and hand back the promise for its
+   * outcome.
+   *
+   * Synchronous up to the `send`, so the status has moved by the time this
+   * returns. The machine's open_transport effect starts the work; if the event
+   * was not legal in the current status nothing starts and the attempt fails
+   * here rather than connecting anyway.
+   */
+  private beginAttempt(
+    url: string,
+    token: string,
+    opts: ConnectOpts,
+    event: SignalEvent,
     abortSignal?: AbortSignal,
-    /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
-    const unlock = await this.connectionLock.lock();
-    try {
-      this.connectOptions = opts;
-      this.useV0SignalPath = useV0Path;
+    this.connectOptions = opts;
+    this.useV0SignalPath = useV0Path;
+    // Started, not awaited: the event must be raised synchronously.
+    const endpoint = this.buildEndpoint(url, token, opts, useV0Path, publisherOffer);
 
-      const clientInfo = getClientInfo(opts.clientInfoCapabilities);
-      const params = useV0Path
-        ? createConnectionParams(token, clientInfo, opts)
-        : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
-      const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
-      const validateUrl = createValidateUrl(rtcUrl).toString();
+    return new Promise<JoinResponse | ReconnectResponse | undefined>((resolve, reject) => {
+      const attempt: PendingAttempt = {
+        reconnect: opts.reconnect ?? false,
+        endpoint,
+        started: false,
+        resolve,
+        reject,
+        settled: false,
+        settling: false,
+        cleanup: () => {
+          clearTimeout(attempt.wsTimeout);
+          abortSignal?.removeEventListener('abort', abortHandler);
+          attempt.unlock?.();
+        },
+      };
 
-      const redactedUrl = new URL(rtcUrl);
-      if (redactedUrl.searchParams.has('access_token')) {
-        redactedUrl.searchParams.set('access_token', '<redacted>');
-      }
-
-      if (this.ws) {
-        const startClose = performance.now();
-        await this.close(false);
-        this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
-      }
-
-      this.log.info(`signal connecting to ${redactedUrl}`, {
-        reconnect: opts.reconnect,
-        reconnectReason: opts.reconnectReason,
-      });
-
-      return await new Promise<JoinResponse | ReconnectResponse | undefined>((resolve, reject) => {
-        const attempt: PendingAttempt = {
-          reconnect: opts.reconnect ?? false,
-          rtcUrl,
-          validateUrl,
-          resolve,
-          reject,
-          settled: false,
-          settling: false,
-          cleanup: () => {
-            clearTimeout(attempt.wsTimeout);
-            abortSignal?.removeEventListener('abort', abortHandler);
-          },
-        };
-        const abortHandler = (eventOrError: Event | Error) => {
-          // An Event comes from the caller's AbortSignal; an Error is raised by
-          // us (the connect timeout below).
-          const isCallerAbort = eventOrError instanceof Event;
-          const target = isCallerAbort ? eventOrError.currentTarget : eventOrError;
-          const reason = getAbortReasonAsString(target, 'Abort handler called');
-          if (attempt.settled) {
-            return;
-          }
-          // send leave if we have an active stream writer (connection is open)
-          if (this.streamWriter && !this.isDisconnected) {
-            this.sendLeave()
-              .then(() => this.close(true, reason))
-              .catch((e) => {
-                this.log.error(e);
-                this.close();
-              });
-          } else {
-            this.close();
-          }
-          // Only the caller aborting is a cancellation. An error we raised
-          // ourselves keeps its own reason, so callers can tell "gave up
-          // waiting" from "caller cancelled" — they retry differently.
-          this.failAttempt(
-            attempt,
-            !isCallerAbort && eventOrError instanceof ConnectionError
-              ? eventOrError
-              : ConnectionError.cancelled(reason),
-          );
-        };
-
-        abortSignal?.addEventListener('abort', abortHandler);
-        attempt.wsTimeout = setTimeout(() => {
-          abortHandler(ConnectionError.timeout('room connection has timed out (signal)'));
-        }, opts.websocketTimeout);
-
-        // The lifecycle authorises the transport (open_transport, emitted by the
-        // event join()/reconnect() already sent). Without it there is nothing to
-        // run, because the event was not legal in the current status.
-        if (!this.transportAuthorised) {
-          this.failAttempt(
-            attempt,
-            ConnectionError.internal(
-              `cannot ${opts.reconnect ? 'reconnect' : 'connect'} while ${this.machine.status}`,
-            ),
-          );
+      const abortHandler = (eventOrError: Event | Error) => {
+        // An Event comes from the caller's AbortSignal; an Error is raised by us
+        // (the connect timeout below).
+        const isCallerAbort = eventOrError instanceof Event;
+        const target = isCallerAbort ? eventOrError.currentTarget : eventOrError;
+        const reason = getAbortReasonAsString(target, 'Abort handler called');
+        if (attempt.settled) {
           return;
         }
-        this.transportAuthorised = false;
-        void this.runAttempt(attempt);
-      });
-    } finally {
-      unlock();
-    }
+        // send leave if we have an active stream writer (connection is open)
+        if (this.streamWriter && !this.isDisconnected) {
+          this.sendLeave()
+            .then(() => this.close(true, reason))
+            .catch((e) => {
+              this.log.error(e);
+              this.close();
+            });
+        } else {
+          this.close();
+        }
+        // Only the caller aborting is a cancellation. An error we raised
+        // ourselves keeps its own reason, so callers can tell "gave up waiting"
+        // from "caller cancelled" — they retry differently.
+        this.failAttempt(
+          attempt,
+          !isCallerAbort && eventOrError instanceof ConnectionError
+            ? eventOrError
+            : ConnectionError.cancelled(reason),
+        );
+      };
+
+      abortSignal?.addEventListener('abort', abortHandler);
+      attempt.wsTimeout = setTimeout(() => {
+        abortHandler(ConnectionError.timeout('room connection has timed out (signal)'));
+      }, opts.websocketTimeout);
+
+      this.pendingAttempt = attempt;
+      this.machine.send(event);
+      this.pendingAttempt = undefined;
+      if (!attempt.started) {
+        this.failAttempt(
+          attempt,
+          ConnectionError.internal(
+            `cannot ${opts.reconnect ? 'reconnect' : 'connect'} while ${this.machine.status}`,
+          ),
+        );
+      }
+    });
   }
 
   /**
@@ -576,7 +584,41 @@ export class SignalClient {
    * table turns that into the right status for the phase.
    */
   private async runAttempt(attempt: PendingAttempt) {
-    const ws = new WebSocketStream<ArrayBuffer>(attempt.rtcUrl);
+    // Serialise attempts, as the previous connect() did. Released via
+    // attempt.cleanup() so whichever path settles the attempt frees the lock.
+    const unlock = await this.connectionLock.lock();
+    if (attempt.settled) {
+      unlock();
+      return;
+    }
+    attempt.unlock = unlock;
+
+    let rtcUrl: string;
+    try {
+      ({ rtcUrl } = await attempt.endpoint);
+    } catch (e) {
+      this.machine.send({ type: 'attempt_failed' });
+      this.failAttempt(attempt, e);
+      return;
+    }
+    if (attempt.settled) {
+      return;
+    }
+
+    const redactedUrl = new URL(rtcUrl);
+    if (redactedUrl.searchParams.has('access_token')) {
+      redactedUrl.searchParams.set('access_token', '<redacted>');
+    }
+    this.log.info(`signal connecting to ${redactedUrl}`, { reconnect: attempt.reconnect });
+
+    if (this.ws) {
+      const startClose = performance.now();
+      // updateState = false: replacing the transport is not a lifecycle event.
+      await this.close(false);
+      this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
+    }
+
+    const ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
     this.ws = ws;
 
     const onTransportGone = (reason: string, detail: string) => {
@@ -593,14 +635,18 @@ export class SignalClient {
 
     ws.closed
       .then((closeInfo) => {
-        if (closeInfo.closeCode !== 1000) {
-          this.log.warn(`websocket closed`, {
-            reason: closeInfo.reason,
-            code: closeInfo.closeCode,
-            wasClean: false,
-            state: this.state,
-          });
+        // A clean 1000 close is one we asked for, so it is not a transport loss:
+        // reporting it would turn a deliberate close — or the teardown that
+        // replaces the transport for a reconnect — into a lifecycle event.
+        if (closeInfo.closeCode === 1000) {
+          return;
         }
+        this.log.warn(`websocket closed`, {
+          reason: closeInfo.reason,
+          code: closeInfo.closeCode,
+          wasClean: false,
+          state: this.state,
+        });
         onTransportGone(
           closeInfo.reason ?? '',
           `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
@@ -625,7 +671,8 @@ export class SignalClient {
       // handler cannot settle it with its generic error in the meantime.
       attempt.settling = true;
       this.machine.send({ type: 'attempt_failed' });
-      this.failAttemptWith(attempt, await this.handleConnectionError(reason, attempt.validateUrl));
+      const { validateUrl } = await attempt.endpoint;
+      this.failAttemptWith(attempt, await this.handleConnectionError(reason, validateUrl));
       return;
     }
     clearTimeout(attempt.wsTimeout);
