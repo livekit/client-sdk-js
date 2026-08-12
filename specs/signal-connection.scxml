@@ -22,11 +22,20 @@
   Conventions:
   - <send> elements represent effects (commands) emitted to the executor.
     They are output actions, not events routed within the machine.
+  - Effects that belong to a STATE rather than to one edge are declared as
+    <onexit>/<onentry> so no edge can omit them: stop_ping on leaving
+    connected, clear_queue on entering closed. Effects are emitted in SCXML
+    order — onexit(source), then the transition's own sends, then
+    onentry(target) — and only when the status actually changes.
   - clear_queue is a lifecycle-driven effect: entering the terminal state
     flushes the executor's buffer (see closed/onentry). Harmless no-op when
     the buffer is already empty.
-  - Unhandled events are silently ignored (matches TypeScript: handle()
-    returns null).
+  - Unhandled events are silently ignored (matches TypeScript: transition()
+    returns handled: false and leaves the status unchanged).
+  - Events reach the machine through a serialized intake: every producer posts
+    an event and a single drain loop processes them one at a time to
+    completion, so nothing interleaves a status write. See
+    src/api/SignalConnectionRunner.ts.
 -->
 <scxml xmlns="http://www.w3.org/2005/07/scxml"
        version="1.0"
@@ -79,7 +88,7 @@
       <send event="connection_lost">
         <param name="failure" expr="{
           reason: 'transport_error',
-          message: _event.data.reason,
+          message: _event.data.reason || 'Unexpected WS error',
           retryable: true,
           supportsRegionFailover: false
         }"/>
@@ -98,12 +107,17 @@
        CONNECTED — transport open, ping active, messages flow normally
        =================================================================== -->
   <state id="connected">
-    <transition event="transport_closed" target="suspended">
+    <!-- Leaving connected disarms the keepalive timer, whichever edge is taken.
+         Declared once here so a new edge out of connected cannot forget it. -->
+    <onexit>
       <send event="stop_ping"/>
+    </onexit>
+
+    <transition event="transport_closed" target="suspended">
       <send event="connection_lost">
         <param name="failure" expr="{
           reason: 'transport_error',
-          message: _event.data.reason,
+          message: _event.data.reason || 'Unexpected WS error',
           retryable: true,
           supportsRegionFailover: false
         }"/>
@@ -111,7 +125,6 @@
     </transition>
 
     <transition event="ping_timeout" target="suspended">
-      <send event="stop_ping"/>
       <send event="connection_lost">
         <param name="failure" expr="{
           reason: 'ping_timeout',
@@ -123,7 +136,6 @@
     </transition>
 
     <transition event="start_reconnect" target="reconnecting">
-      <send event="stop_ping"/>
       <!-- no url: executor reuses the endpoint from connect time -->
       <send event="open_transport">
         <param name="reconnect" expr="true"/>
@@ -131,7 +143,6 @@
     </transition>
 
     <transition event="close" target="disconnecting">
-      <send event="stop_ping"/>
       <send event="close_transport"/>
     </transition>
   </state>

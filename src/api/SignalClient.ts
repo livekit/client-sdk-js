@@ -63,6 +63,12 @@ import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { SignalConnectionRunner } from './SignalConnectionRunner';
+import {
+  type ConnectionFailure,
+  SignalConnectionStatus,
+  type SignalEffect,
+} from './SignalConnectionState';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
   createRtcUrl,
@@ -116,6 +122,26 @@ export enum SignalConnectionState {
   RECONNECTING,
   DISCONNECTING,
   DISCONNECTED,
+}
+
+/**
+ * The lifecycle machine's 7 statuses collapsed onto this module's public 5-value
+ * enum. `suspended` is a recoverable pause the public enum has never modelled,
+ * so — like `new` and `closed` — it reads as DISCONNECTED to callers.
+ */
+function toPublicState(status: SignalConnectionStatus): SignalConnectionState {
+  switch (status) {
+    case SignalConnectionStatus.CONNECTING:
+      return SignalConnectionState.CONNECTING;
+    case SignalConnectionStatus.CONNECTED:
+      return SignalConnectionState.CONNECTED;
+    case SignalConnectionStatus.RECONNECTING:
+      return SignalConnectionState.RECONNECTING;
+    case SignalConnectionStatus.DISCONNECTING:
+      return SignalConnectionState.DISCONNECTING;
+    default:
+      return SignalConnectionState.DISCONNECTED;
+  }
 }
 
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
@@ -240,7 +266,17 @@ export class SignalClient {
 
   private closingLock: Mutex;
 
-  private state: SignalConnectionState = SignalConnectionState.DISCONNECTED;
+  /**
+   * Connection lifecycle machine. The only writer of the connection status:
+   * every status change goes through an event, and the machine rejects events
+   * that aren't legal in the current status instead of silently accepting them.
+   * @internal
+   */
+  machine: SignalConnectionRunner;
+
+  private get state(): SignalConnectionState {
+    return toPublicState(this.machine.status);
+  }
 
   private connectionLock: Mutex;
 
@@ -262,7 +298,69 @@ export class SignalClient {
     this.queuedRequests = [];
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
-    this.state = SignalConnectionState.DISCONNECTED;
+    this.machine = this.createMachine();
+  }
+
+  private createMachine(): SignalConnectionRunner {
+    return new SignalConnectionRunner((effects) => this.executeEffects(effects), {
+      onStatusChanged: (status, previous) =>
+        this.log.debug(`signal lifecycle: ${previous} -> ${status}`, this.logContext),
+      onIgnored: (event, status) =>
+        this.log.debug(`ignoring ${event.type} while ${status}`, this.logContext),
+    });
+  }
+
+  /**
+   * Performs the commands the machine emits for a transition.
+   *
+   * Only the ping timer and the message buffer are driven from here.
+   * `open_transport`/`close_transport` stay no-ops because `connect()` and
+   * `close()` own the transport imperatively — url building, first-message
+   * validation and abort handling don't fit a synchronous handler. Likewise
+   * `connection_lost`, `reconnect_completed` and `leave_received` are already
+   * surfaced through the existing callbacks; the machine emits them so the
+   * effect vocabulary matches the spec.
+   */
+  private executeEffects(effects: SignalEffect[]) {
+    for (const effect of effects) {
+      switch (effect.type) {
+        case 'start_ping':
+          this.startPingInterval();
+          break;
+        case 'stop_ping':
+          this.clearPingInterval();
+          break;
+        case 'clear_queue':
+          // Reaching the terminal status drops whatever is still buffered.
+          this.queuedRequests = [];
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  /** Describe a failed attempt for the machine. */
+  private toFailure(error: unknown): ConnectionFailure {
+    return {
+      reason: error instanceof ConnectionError ? error.reasonName : 'internal_error',
+      message: error instanceof Error ? error.message : 'connection failed',
+      retryable: true,
+      supportsRegionFailover: false,
+    };
+  }
+
+  /**
+   * Report a failed attempt, routed by the phase it failed in: an initial
+   * connect ends the connection, a reconnect stays recoverable (suspended) so
+   * the orchestrator can retry.
+   */
+  private reportAttemptFailed(failure: ConnectionFailure) {
+    if (this.machine.status === SignalConnectionStatus.RECONNECTING) {
+      this.machine.send({ type: 'reconnect_attempt_failed', failure });
+    } else {
+      this.machine.send({ type: 'connection_failed', failure });
+    }
   }
 
   private get logContext() {
@@ -277,9 +375,11 @@ export class SignalClient {
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
-    // during a full reconnect, we'd want to start the sequence even if currently
-    // connected
-    this.state = SignalConnectionState.CONNECTING;
+    // A join begins a new connection lifecycle even if one is already running:
+    // a full reconnect replaces the previous connection rather than resuming it,
+    // so the machine is recreated rather than driven back to the start.
+    this.machine = this.createMachine();
+    this.machine.send({ type: 'connect', url });
     this.options = opts;
     const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
     return res as JoinResponse;
@@ -295,9 +395,9 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    this.state = SignalConnectionState.RECONNECTING;
-    // clear ping interval and restart it once reconnected
-    this.clearPingInterval();
+    // Leaving `connected` disarms the ping as an exit action, so no explicit
+    // clearPingInterval is needed here; it restarts on reconnect_established.
+    this.machine.send({ type: 'start_reconnect' });
 
     const res = (await this.connect(
       url,
@@ -343,7 +443,10 @@ export class SignalClient {
             return;
           }
           alreadyAborted = true;
-          const target = eventOrError instanceof Event ? eventOrError.currentTarget : eventOrError;
+          // An Event comes from the caller's AbortSignal; an Error is raised by
+          // us (e.g. the connect timeout below).
+          const isCallerAbort = eventOrError instanceof Event;
+          const target = isCallerAbort ? eventOrError.currentTarget : eventOrError;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
@@ -357,7 +460,14 @@ export class SignalClient {
             this.close();
           }
           cleanupAbortHandlers();
-          reject(ConnectionError.cancelled(reason));
+          // Only the caller aborting is a cancellation. An error we raised
+          // ourselves keeps its own reason, so callers can tell "gave up
+          // waiting" from "caller cancelled" — they retry differently.
+          reject(
+            !isCallerAbort && eventOrError instanceof ConnectionError
+              ? eventOrError
+              : ConnectionError.cancelled(reason),
+          );
         };
 
         abortSignal?.addEventListener('abort', abortHandler);
@@ -412,7 +522,16 @@ export class SignalClient {
                   wasClean: closeInfo.closeCode === 1000,
                   state: this.state,
                 });
-                if (this.state === SignalConnectionState.CONNECTED) {
+                // Record the transport loss whatever the phase, but keep the
+                // unexpected-disconnect notification reserved for a connection
+                // that had reached CONNECTED: elsewhere the pending request's
+                // own rejection is the outcome, and firing both would race.
+                const wasConnected = this.machine.status === SignalConnectionStatus.CONNECTED;
+                this.machine.send({
+                  type: 'transport_closed',
+                  reason: closeInfo.reason ?? '',
+                });
+                if (wasConnected) {
                   this.handleOnClose(closeInfo.reason || 'Unexpected WS error');
                 }
               }
@@ -429,8 +548,13 @@ export class SignalClient {
             });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
             if (this.state !== SignalConnectionState.CONNECTED) {
-              this.state = SignalConnectionState.DISCONNECTED;
               clearTimeout(wsTimeout);
+              // Leave the establishing phase synchronously, before awaiting
+              // classification. While the machine still reports connecting or
+              // reconnecting, the transport-closed handler below treats this as
+              // an in-flight attempt and rejects it with its own generic error,
+              // which would win the race against the classified one.
+              this.reportAttemptFailed(this.toFailure(reason));
               const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
               return;
@@ -468,8 +592,18 @@ export class SignalClient {
             // No first message in time: release the reader and tear down the ws
             // so we surface the timeout instead of leaking an open connection.
             signalReader.releaseLock();
+            // Phase-routed: a timed-out reconnect returns to suspended so the
+            // orchestrator can retry, while an initial connect is terminal.
+            this.machine.send({
+              type:
+                this.machine.status === SignalConnectionStatus.RECONNECTING
+                  ? 'reconnect_timed_out'
+                  : 'connection_timed_out',
+            });
             reject(e);
-            this.close();
+            // The machine has already recorded why the attempt ended, so tear
+            // the transport down without emitting a further lifecycle event.
+            this.close(false);
             return;
           } finally {
             clearTimeout(firstMessageTimeout);
@@ -574,9 +708,17 @@ export class SignalClient {
     }
     const unlock = await this.closingLock.lock();
     try {
-      this.clearPingInterval();
       if (updateState) {
-        this.state = SignalConnectionState.DISCONNECTING;
+        // Only a deliberate close is a lifecycle event. From `connected` this
+        // enters `disconnecting` (and disarms the ping as an exit action); from
+        // the other statuses there is no transport handshake to await, so it
+        // terminates directly.
+        this.machine.send({ type: 'close' });
+      } else {
+        // A teardown that must preserve the status — replacing the transport for
+        // a reconnect — leaves the machine untouched. Conflating the two is what
+        // makes a reconnect appear to close itself.
+        this.clearPingInterval();
       }
       if (this.ws) {
         this.ws.close({ closeCode: 1000, reason });
@@ -590,8 +732,10 @@ export class SignalClient {
     } catch (e) {
       this.log.debug('websocket error while closing', { error: e });
     } finally {
-      if (updateState) {
-        this.state = SignalConnectionState.DISCONNECTED;
+      if (updateState && this.machine.status === SignalConnectionStatus.DISCONNECTING) {
+        // The graceful close has run its course (or timed out waiting for the
+        // transport to confirm), so complete it rather than staying here.
+        this.machine.send({ type: 'close_completed' });
       }
       unlock();
     }
@@ -947,7 +1091,11 @@ export class SignalClient {
   }
 
   private async handleOnClose(reason: string) {
-    if (this.state === SignalConnectionState.DISCONNECTED) return;
+    // Suppress a duplicate notification once the connection is already terminal.
+    // Deliberately not a check on the public state: `suspended` also reads as
+    // DISCONNECTED, and that is exactly the status an unexpected close leaves
+    // behind — the case this method exists to report.
+    if (this.machine.status === SignalConnectionStatus.CLOSED) return;
     const onCloseCallback = this.onClose;
     await this.close(undefined, reason);
     this.log.info(`websocket connection closed: ${reason}`, { reason });
@@ -976,6 +1124,7 @@ export class SignalClient {
           Date.now() - this.pingTimeoutDuration! * 1000,
         ).toUTCString()}`,
       );
+      this.machine.send({ type: 'ping_timeout' });
       this.handleOnClose('ping timeout');
     }, this.pingTimeoutDuration * 1000);
   }
@@ -1022,10 +1171,20 @@ export class SignalClient {
     timeoutHandle: ReturnType<typeof setTimeout>,
     firstMessage?: SignalResponse,
   ) {
-    this.state = SignalConnectionState.CONNECTED;
+    const pingConfig = {
+      intervalS: this.pingIntervalDuration ?? 0,
+      timeoutS: this.pingTimeoutDuration ?? 0,
+    };
+    // Phase-routed so a resume reports reconnect_established — which also emits
+    // reconnect_completed — rather than looking like a fresh connection. Either
+    // way the start_ping effect arms the keepalive.
+    if (this.machine.status === SignalConnectionStatus.RECONNECTING) {
+      this.machine.send({ type: 'reconnect_established', pingConfig });
+    } else {
+      this.machine.send({ type: 'connection_established', pingConfig });
+    }
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
-    this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
   }
 
@@ -1122,6 +1281,16 @@ export class SignalClient {
           return ConnectionError.notAllowed(msg, resp.status);
         default:
           break;
+      }
+
+      // The server answered and reported itself unhealthy. That is strictly
+      // more informative than "the socket failed to open", so it wins over the
+      // transport rejection rather than being shadowed by it.
+      if (!resp.ok) {
+        return ConnectionError.internal(
+          `Server responded with ${resp.status} on the validate path`,
+          { status: resp.status, statusText: resp.statusText },
+        );
       }
 
       if (reason instanceof ConnectionError) {

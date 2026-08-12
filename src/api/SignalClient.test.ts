@@ -275,7 +275,10 @@ describe('SignalClient.connect', () => {
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.reason).toBe(ConnectionErrorReason.Cancelled);
+      // Giving up on a slow connect is a timeout, not a cancellation: only the
+      // caller's AbortSignal produces Cancelled. Room relies on the difference
+      // to decide region failover and back-off.
+      expect(error.reason).toBe(ConnectionErrorReason.Timeout);
     });
   });
 
@@ -627,7 +630,7 @@ describe('SignalClient.handleSignalConnected', () => {
     const mockConnection = createMockConnection(mockReadable);
 
     // Transition machine to CONNECTING first so connection_established is valid
-    signalClient.machine.handle({ type: 'connect', url: 'wss://test' });
+    signalClient.machine.send({ type: 'connect', url: 'wss://test' });
 
     // Access the method through a type assertion for testing
     const handleMethod = (signalClient as any).handleSignalConnected;
@@ -705,7 +708,7 @@ describe('SignalClient.validateFirstMessage', () => {
 
     // Set state to RECONNECTING to match the validation logic
     // Transition machine to RECONNECTING: new → connecting → connected → reconnecting
-signalClient.machine.handle({ type: 'start_reconnect' });
+    signalClient.machine.send({ type: 'start_reconnect' });
 
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
@@ -730,7 +733,7 @@ signalClient.machine.handle({ type: 'start_reconnect' });
 
     // Set state to reconnecting
     // Transition machine to RECONNECTING: new → connecting → connected → reconnecting
-signalClient.machine.handle({ type: 'start_reconnect' });
+    signalClient.machine.send({ type: 'start_reconnect' });
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
@@ -746,7 +749,7 @@ signalClient.machine.handle({ type: 'start_reconnect' });
   it('should reject leave request during connection attempt', () => {
     // Set state to CONNECTING to be in establishing connection state
     // Transition machine to CONNECTING: new → connecting
-signalClient.machine.handle({ type: 'connect', url: 'wss://test' });
+    signalClient.machine.send({ type: 'connect', url: 'wss://test' });
 
     const leaveRequest = new LeaveRequest({ reason: 1 });
     const signalResponse = createSignalResponse('leave', leaveRequest);
@@ -803,9 +806,13 @@ describe('SignalClient.handleConnectionError', () => {
   it('should return ConnectionError as-is if it is already a ConnectionError', async () => {
     const connectionError = ConnectionError.internal('Custom error');
 
+    // Validate succeeds, so the server has told us nothing about a failure and
+    // the transport's own error remains the best explanation. A non-OK validate
+    // would instead be classified from its status (see the next test).
     (global.fetch as any).mockResolvedValueOnce({
-      status: 500,
-      text: async () => 'Internal Server Error',
+      status: 200,
+      ok: true,
+      text: async () => 'success',
     });
 
     const handleMethod = (signalClient as any).handleConnectionError;

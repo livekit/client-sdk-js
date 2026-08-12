@@ -2,25 +2,25 @@
 -- signal-connection.allium
 
 -- Scope: Signal transport connection lifecycle for the LiveKit client SDK
--- Includes: Connection establishment, keepalive, validation on failure,
---           close/disconnect, aborting an in-flight connect or reconnect
+-- Includes: Connection establishment, keepalive-driven disconnect detection,
+--           close/disconnect, aborting an in-flight connect or reconnect,
+--           and the classification of a failed transport open
 -- Excludes:
 --   - Message routing and buffering (signal-connection.routing.md and
 --     signal-connection.buffer.md — the executor owns the buffer; whether a
 --     message is dispatched/buffered/dropped/rejected is a pure projection of
 --     the lifecycle status, not part of this machine)
+--   - Keepalive timer mechanics. The executor owns the ping interval and the
+--     inactivity timer. This machine only arms and disarms that timer through
+--     lifecycle transitions, and consumes the PingTimeout the executor raises.
+--     No keepalive state lives here.
+--   - The connection endpoint and credentials. The executor retains the url
+--     and token supplied at connect time and reuses them on reconnect, so
+--     neither is state of this machine.
 --   - Reconnection decision logic (orchestrator spec)
 --   - Region discovery and selection (region spec)
 --   - PeerConnection management (peer-connection spec)
 --   - Room-level state (room-connection spec)
-
-------------------------------------------------------------
--- External Entities
-------------------------------------------------------------
-
-external entity Token {
-    value: String
-}
 
 ------------------------------------------------------------
 -- Enumerations
@@ -45,10 +45,16 @@ enum ConnectionFailureReason {
 
 value ConnectionFailure {
     reason: ConnectionFailureReason
-    message: String?
+    message: String
     retryable: Boolean
     supports_region_failover: Boolean
 }
+
+-- `message` is required, not optional: every failure carries a human-readable
+-- description. Where the underlying cause supplies no text — a transport that
+-- closes abnormally reports an empty reason rather than an absent one — the
+-- executor substitutes a canonical notation for that failure kind. A blank
+-- message is never propagated.
 
 ------------------------------------------------------------
 -- Entities
@@ -58,7 +64,9 @@ value ConnectionFailure {
 --   new:           Initial state, never connected.
 --   connecting:    Transport opening in progress (initial connect).
 --                  Can be aborted via CloseConnection.
---   connected:     Transport active. Keepalive tracked.
+--   connected:     Transport active. Executor's keepalive timer is armed on
+--                  entry and disarmed on exit, so every edge out of connected
+--                  releases it without each one having to say so.
 --   suspended:     Transport lost unexpectedly (close / ping timeout).
 --                  Executor buffers queueable messages — orchestrator
 --                  decides next step.
@@ -67,14 +75,12 @@ value ConnectionFailure {
 --   disconnecting: Graceful close in progress (close frame sent).
 --   closed:        Terminal. Executor buffer cleared, no further operations.
 --
--- This entity holds no message buffer: message routing and the buffer are
--- owned by the executor (see signal-connection.buffer.md). The fields below
--- are the connection identity and keepalive state that drive lifecycle
--- transitions.
+-- This entity holds nothing but its lifecycle status: it is a pure Mealy
+-- machine whose every transition is a function of (status, event). The message
+-- buffer, the endpoint, the credentials and the keepalive timer are all owned
+-- by the executor.
 
 entity SignalConnection {
-    url: String
-    token: Token
     status: new | connecting | connected | suspended | reconnecting | disconnecting | closed
 
     transitions status {
@@ -92,15 +98,6 @@ entity SignalConnection {
         disconnecting -> closed
         terminal: closed
     }
-
-    last_signal_at: Timestamp? when status = connected | reconnecting
-    ping_interval: Duration? when status = connected
-    ping_timeout: Duration? when status = connected
-
-    -- Derived
-    -- Any incoming server message (not just pong) resets the keepalive timer.
-    -- A connection is alive as long as some message arrived within the timeout window.
-    is_alive: last_signal_at != null and last_signal_at + ping_timeout > now when status = connected
 }
 
 ------------------------------------------------------------
@@ -109,8 +106,23 @@ entity SignalConnection {
 
 config {
     transport_timeout: Duration = 10.seconds
-    max_close_time: Duration = 1.seconds
+    join_response_timeout: Duration = 5.seconds
+    max_close_time: Duration = 250.milliseconds
 }
+
+-- Two independent guards protect a connection attempt, and they cover
+-- different phases:
+--   transport_timeout     — bounds opening the transport itself. Disarmed the
+--                           moment the transport reports open.
+--   join_response_timeout — bounds waiting for the server's first message
+--                           after the transport is open. A server that accepts
+--                           the socket and then stays silent trips this one, so
+--                           an attempt can never hang indefinitely.
+-- Both surface through the timeout rules below; which guard fired is an
+-- observability detail, not a lifecycle distinction.
+--
+-- max_close_time bounds how long a graceful close waits for the transport to
+-- confirm it has closed before the connection proceeds to closed regardless.
 
 ------------------------------------------------------------
 -- Rules
@@ -123,8 +135,11 @@ rule Connect {
     requires: connection.status = new
     ensures:
         connection.status = connecting
-        connection.url = url
-        connection.token = token
+
+    @guidance
+        -- url and token travel on the event and are retained by the executor,
+        -- not stored here. Later reconnects reuse the endpoint the executor was
+        -- given at connect time, so no reconnect event carries a url.
 }
 
 rule ConnectionEstablished {
@@ -132,9 +147,12 @@ rule ConnectionEstablished {
     requires: connection.status = connecting
     ensures:
         connection.status = connected
-        connection.ping_interval = ping_interval
-        connection.ping_timeout = ping_timeout
-        connection.last_signal_at = now
+
+    @guidance
+        -- The server's keepalive parameters travel on the event. Entering
+        -- connected obliges the executor to arm its keepalive timer with them;
+        -- leaving connected obliges it to disarm. The parameters themselves are
+        -- executor state.
 }
 
 rule ConnectionFailed {
@@ -148,6 +166,12 @@ rule ConnectionFailed {
         -- Initial connection failure is terminal from this connection's
         -- perspective. The orchestrator may create a new SignalConnection
         -- to retry, but this instance is done.
+        --
+        -- While a connection is still being established the failure reaches
+        -- the caller by rejecting the pending connect request. The
+        -- unexpected-disconnect notification is reserved for a connection that
+        -- had reached connected. ConnectionLost names the outcome, not the
+        -- channel; see UnexpectedDisconnect.
 }
 
 rule TransportClosedWhileConnecting {
@@ -160,9 +184,13 @@ rule TransportClosedWhileConnecting {
     @guidance
         -- The transport dropped before the connection was established.
         -- failure.reason = transport_error, retryable = true,
-        -- supports_region_failover = false. The reason parameter is included
-        -- as the failure message. Terminal for this connection — distinct
-        -- from the connected case, which moves to suspended.
+        -- supports_region_failover = false. The reason parameter supplies the
+        -- failure message, falling back to a canonical notation when the
+        -- transport reports a blank reason. Terminal for this connection —
+        -- distinct from the connected case, which moves to suspended.
+        --
+        -- As with ConnectionFailed, this surfaces by rejecting the pending
+        -- connect request rather than as an unexpected-disconnect notification.
 }
 
 rule CloseFromConnecting {
@@ -194,12 +222,20 @@ rule UnexpectedDisconnect {
     @guidance
         -- failure.reason = transport_error, retryable = true,
         -- supports_region_failover = false.
-        -- The reason parameter from the transport close event is included
-        -- as the failure message.
+        -- The reason parameter from the transport close event supplies the
+        -- failure message. An abnormal close reports an empty reason, so a
+        -- blank value is replaced by a canonical notation before the failure
+        -- is emitted — consumers can rely on a non-empty message.
+        --
+        -- This is the only phase in which loss of the transport is reported as
+        -- an unexpected disconnect. A transport that dies while connecting,
+        -- reconnecting or disconnecting settles the pending request (or is
+        -- simply absorbed) instead; reporting it as an unexpected disconnect
+        -- would race with the request's own outcome.
 }
 
 rule PingTimeoutDetected {
-    when: connection: SignalConnection.last_signal_at + connection.ping_timeout <= now
+    when: PingTimeout(connection)
     requires: connection.status = connected
     ensures:
         connection.status = suspended
@@ -208,8 +244,10 @@ rule PingTimeoutDetected {
     @guidance
         -- failure.reason = ping_timeout, retryable = true,
         -- supports_region_failover = false.
-        -- last_signal_at is reset by ANY incoming server message, not just
-        -- pong responses. Any server activity proves the connection is alive.
+        -- Raised by the executor's keepalive timer. That timer is reset by ANY
+        -- incoming server message, not just pong responses: any server activity
+        -- proves the connection is alive, so a busy connection never trips it
+        -- even when pongs are delayed.
         -- Distinct from connection_timeout for observability, but the
         -- orchestrator treats both as "signal disconnected, try to reconnect".
 }
@@ -223,6 +261,13 @@ rule StartReconnect {
     requires: connection.status in {connected, suspended}
     ensures:
         connection.status = reconnecting
+
+    @guidance
+        -- Opening the reconnect transport obliges the executor to first tear
+        -- down any transport it still holds. That teardown is not a lifecycle
+        -- event: it must leave the status at reconnecting. Only CloseConnection
+        -- moves a connection out of reconnecting. Conflating the two is what
+        -- makes a reconnect appear to close itself.
 }
 
 rule ReconnectEstablished {
@@ -230,12 +275,11 @@ rule ReconnectEstablished {
     requires: connection.status = reconnecting
     ensures:
         connection.status = connected
-        connection.ping_interval = ping_interval
-        connection.ping_timeout = ping_timeout
-        connection.last_signal_at = now
         ReconnectCompleted(connection: connection)
 
     @guidance
+        -- Re-arms the executor's keepalive timer with the parameters on the
+        -- event, as ConnectionEstablished does.
         -- Draining the executor's buffer is orchestrator-timed and happens
         -- after this rule fires (see signal-connection.buffer.md). It is not
         -- modeled here.
@@ -255,7 +299,7 @@ rule ReconnectAttemptFailed {
 }
 
 rule ReconnectTimedOut {
-    when: ConnectionTimedOut(connection)
+    when: ReconnectTimedOut(connection)
     requires: connection.status = reconnecting
     ensures:
         connection.status = suspended
@@ -264,9 +308,13 @@ rule ReconnectTimedOut {
     @guidance
         -- failure.reason = connection_timeout, retryable = true,
         -- supports_region_failover = true.
-        -- Fired when the transport_timeout is exceeded during a
-        -- reconnection attempt. Returns to suspended so the
-        -- orchestrator can retry or give up.
+        -- Raised when either connection guard — transport_timeout or
+        -- join_response_timeout — expires during a reconnect attempt. Returns
+        -- to suspended so the orchestrator can retry or give up.
+        --
+        -- A distinct trigger from ConnectionTimedOut, which is scoped to the
+        -- initial connect. The two phases are never interchangeable: a timeout
+        -- raised for the wrong phase is not handled.
 }
 
 rule LeaveReceivedDuringReconnect {
@@ -282,7 +330,8 @@ rule LeaveReceivedDuringReconnect {
         -- A server Leave during reconnect is terminal for this connection.
         -- The LeaveReceived trigger is emitted so the orchestrator can decide
         -- whether to create a new connection (full reconnect) or disconnect
-        -- based on the server's leave action. The executor's buffer is
+        -- based on the server's leave action. The action is forwarded verbatim;
+        -- this machine does not interpret it. The executor's buffer is
         -- cleared on entry to closed (see buffer contract).
 }
 
@@ -298,21 +347,6 @@ rule CloseFromReconnecting {
         -- pass through disconnecting — there is no clean transport to wait on.
 }
 
--- == Keepalive ==
-
-rule ServerMessageReceived {
-    when: ServerMessageReceived(connection)
-    requires: connection.status = connected
-    ensures:
-        connection.last_signal_at = now
-
-    @guidance
-        -- Any incoming server message (pong, signal response, token refresh,
-        -- etc.) resets the keepalive timer. This means a busy connection that
-        -- is actively exchanging messages will never hit a ping timeout, even
-        -- if pong responses are delayed.
-}
-
 -- == Timeouts ==
 
 rule ConnectionTimedOut {
@@ -325,8 +359,15 @@ rule ConnectionTimedOut {
     @guidance
         -- failure.reason = connection_timeout, retryable = true,
         -- supports_region_failover = true.
-        -- Fired when the transport_timeout is exceeded during the
-        -- initial connection attempt. Terminal for this connection.
+        -- Raised when either connection guard — transport_timeout or
+        -- join_response_timeout — expires during the initial connection
+        -- attempt. Terminal for this connection.
+        --
+        -- Distinct from CloseConnection: giving up on a slow server is not a
+        -- cancellation. Only the caller withdrawing its request is, and the two
+        -- carry different failure reasons because they warrant different
+        -- responses — a timeout is worth retrying elsewhere, a cancellation is
+        -- not. supports_region_failover = true depends on this distinction.
 }
 
 -- == Graceful close ==
@@ -338,6 +379,10 @@ rule CloseFromConnected {
     requires: connection.status = connected
     ensures:
         connection.status = disconnecting
+
+    @guidance
+        -- Asks the transport to close. A deliberate close is not an unexpected
+        -- disconnect: no ConnectionLost is emitted on this path.
 }
 
 rule CloseCompleted {
@@ -356,7 +401,8 @@ rule TransportDroppedWhileDisconnecting {
     @guidance
         -- The transport dropped instead of closing cleanly. Reaching closed
         -- here rather than waiting indefinitely for CloseCompleted prevents
-        -- the graceful-close path from hanging.
+        -- the graceful-close path from hanging. Absorbed silently: the close
+        -- was deliberate, so no ConnectionLost is emitted.
 }
 
 rule CloseFromSuspended {
@@ -369,6 +415,23 @@ rule CloseFromSuspended {
         -- The orchestrator has given up on reconnecting. No transport
         -- to close gracefully, so we skip disconnecting and go
         -- straight to closed.
+}
+
+-- == Terminal entry ==
+
+rule TerminalEntryFlushesBuffer {
+    when: connection: SignalConnection.status becomes closed
+    ensures:
+        BufferCleared(connection: connection)
+
+    @guidance
+        -- Entering the terminal status by ANY path — failed connect, aborted
+        -- connect or reconnect, leave during reconnect, graceful close, or a
+        -- transport that dropped while disconnecting — flushes the executor's
+        -- message buffer. Stated once here rather than repeated on each rule
+        -- that reaches closed, so no path can forget it. Harmless when the
+        -- buffer is already empty. The buffer itself is executor state; its
+        -- ownership and ordering contract live in signal-connection.buffer.md.
 }
 
 -- == Validation on connection failure ==
@@ -401,6 +464,18 @@ rule ValidateRoomNotFound {
     @guidance
         -- failure.reason = room_not_found, retryable = false,
         -- supports_region_failover = false
+        --
+        -- A 404 is ambiguous: it means either "this room does not exist" or
+        -- "this server has no such endpoint". The response body is the only
+        -- discriminator, so the two cases are classified separately here and
+        -- in ValidateServiceNotFound.
+        --
+        -- The distinction is deliberately narrower at the SDK boundary than it
+        -- is here: the published error reason for this case is not_allowed,
+        -- because both a missing room and a rejected token mean "you may not
+        -- join", and callers act on them identically. Classifying separately
+        -- inside the spec keeps the diagnostic available (it reaches logs and
+        -- the failure message) without widening the public surface.
 }
 
 rule ValidateServiceNotFound {
@@ -414,6 +489,8 @@ rule ValidateServiceNotFound {
     @guidance
         -- failure.reason = service_not_found, retryable = false,
         -- supports_region_failover = false
+        -- Indicates the negotiated signal path is absent on this server,
+        -- typically an older server that predates it.
 }
 
 rule ValidateServerUnreachable {
@@ -424,6 +501,8 @@ rule ValidateServerUnreachable {
     @guidance
         -- failure.reason = server_unreachable, retryable = true,
         -- supports_region_failover = true
+        -- The validation request itself could not be completed, so nothing is
+        -- known about the server beyond its being unreachable.
 }
 
 rule ValidateInternalError {
@@ -435,6 +514,12 @@ rule ValidateInternalError {
     @guidance
         -- failure.reason = internal_error, retryable = true,
         -- supports_region_failover = true
+        --
+        -- A server that answers with an error status has told us more than a
+        -- transport that merely failed to open, so this classification takes
+        -- precedence over the transport-level rejection that accompanies it.
+        -- Only a validate response that succeeds leaves the transport error as
+        -- the best available explanation.
 }
 
 -- Dispatch a classified failure to the failure event for the current phase.
@@ -467,10 +552,16 @@ rule FailureClassifiedWhileReconnecting {
 -- Invariants
 ------------------------------------------------------------
 
--- The message-buffer invariant (empty when closed) lives in
--- signal-connection.buffer.md, since the executor now owns the buffer.
-
-invariant KeepaliveTrackedOnlyWhileLive {
-    for c in SignalConnections:
-        c.ping_interval != null implies c.status = connected
-}
+-- This machine has no extended state, so it carries no state invariants. The
+-- properties that used to live here now belong to the layers that own the
+-- state they constrain:
+--   - the buffer is empty once a connection is closed —
+--     signal-connection.buffer.md
+--   - keepalive is armed only while connected — an executor obligation tied to
+--     entering and leaving that status, stated once in the status semantics
+--     above rather than on each edge that crosses the boundary
+--   - every emitted failure carries a non-empty message — stated on the
+--     ConnectionFailure value type
+--
+-- The lifecycle's own structural guarantees (reachability, terminality) are
+-- enforced by the transitions block on SignalConnection.status.
