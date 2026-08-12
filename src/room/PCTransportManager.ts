@@ -65,6 +65,8 @@ export class PCTransportManager {
 
   private log = log;
 
+  private iceLog = log;
+
   private loggerOptions: LoggerOptions;
 
   private _mode: PCMode;
@@ -74,8 +76,9 @@ export class PCTransportManager {
   }
 
   constructor(mode: PCMode, loggerOptions: LoggerOptions, rtcConfig?: RTCConfiguration) {
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
     this.loggerOptions = loggerOptions;
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager, () => this.logContext);
+    this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
 
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
@@ -151,7 +154,7 @@ export class PCTransportManager {
             publisher.removeTrack(sender);
           }
         } catch (e) {
-          this.log.warn('could not removeTrack', { ...this.logContext, error: e });
+          this.log.warn('could not removeTrack', { error: e });
         }
       }
     }
@@ -160,6 +163,7 @@ export class PCTransportManager {
   }
 
   async triggerIceRestart() {
+    this.iceLog.warn('triggering ICE restart');
     if (this.subscriber) {
       this.subscriber.restartingIce = true;
     }
@@ -170,6 +174,7 @@ export class PCTransportManager {
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
+    this.iceLog.debug('adding remote ICE candidate', { target, candidate });
     if (target === SignalTarget.PUBLISHER) {
       await this.publisher.addIceCandidate(candidate);
     } else {
@@ -179,7 +184,6 @@ export class PCTransportManager {
 
   async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit, offerId: number) {
     this.log.debug('received server offer', {
-      ...this.logContext,
       RTCSdpType: sd.type,
       sdp: sd.sdp,
       signalingState: this.subscriber?.getSignallingState().toString(),
@@ -200,6 +204,7 @@ export class PCTransportManager {
   }
 
   updateConfiguration(config: RTCConfiguration, iceRestart?: boolean) {
+    this.log.debug('updating rtc configuration', { iceRestart });
     this.publisher.setConfiguration(config);
     this.subscriber?.setConfiguration(config);
     if (iceRestart) {
@@ -215,7 +220,7 @@ export class PCTransportManager {
         this.publisher.getConnectionState() !== 'connected' &&
         this.publisher.getConnectionState() !== 'connecting'
       ) {
-        this.log.debug('negotiation required, start negotiating', this.logContext);
+        this.log.debug('negotiation required, start negotiating');
         this.publisher.negotiate();
       }
       await Promise.all(
@@ -368,7 +373,6 @@ export class PCTransportManager {
         `pc state change: from ${PCTransportState[previousState]} to ${
           PCTransportState[this.state]
         }`,
-        this.logContext,
       );
       this.onStateChange?.(
         this.state,
@@ -390,7 +394,7 @@ export class PCTransportManager {
 
     return new Promise<void>(async (resolve, reject) => {
       const abortHandler = () => {
-        this.log.warn('abort transport connection', this.logContext);
+        this.log.warn('abort transport connection');
         CriticalTimers.clearTimeout(connectTimeout);
 
         reject(ConnectionError.cancelled('room connection has been cancelled'));

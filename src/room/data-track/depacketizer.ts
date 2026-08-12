@@ -1,5 +1,6 @@
 import { type Throws } from '@livekit/throws-transformer/throws';
 import { LoggerNames, getLogger } from '../../logger';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrameInternal } from './frame';
 import { DataTrackPacket, FrameMarker } from './packet';

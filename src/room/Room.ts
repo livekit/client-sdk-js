@@ -46,6 +46,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { CLIENT_PROTOCOL_DEFAULT } from '../version';
@@ -112,11 +113,13 @@ import {
   Future,
   createDummyVideoStreamTrack,
   extractChatMessage,
+  extractTrackSid,
   extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
+  isCompressionStreamSupported,
   isLocalAudioTrack,
   isLocalParticipant,
   isReactNative,
@@ -216,6 +219,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private isResuming: boolean = false;
 
+  private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
+
   /**
    * map to store first point in time when a particular transcription segment was received
    */
@@ -267,7 +272,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.maybeCreateEngine();
 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine, this.log);
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(
+      this.engine,
+      this.log,
+      this.getRemoteParticipantClientProtocol,
+      this.getRemoteParticipantCapabilities,
+      this.getAllRemoteParticipantIdentities,
+    );
 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager
@@ -313,7 +324,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on('packetAvailable', ({ handle, bytes }) => {
         this.engine
-          .sendLossyBytes(bytes, DataChannelKind.DATA_TRACK_LOSSY, 'wait')
+          .sendDataTrackFrame(bytes)
           .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
@@ -628,10 +639,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
         this.updateSubscriptions();
-        this.emitBufferedEvents();
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
         }
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
@@ -976,11 +987,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
-        clientInfoCapabilities:
-          isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
-          !!this.e2eeManager
-            ? [ClientInfo_Capability.CAP_PACKET_TRAILER]
-            : undefined,
+        clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,
@@ -1388,7 +1395,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       await Promise.all([
         this.acquireAudioContext(),
         ...elements.map((e) => {
-          e.muted = false;
+          // when webAudioMix is enabled, attached elements are deliberately kept muted by
+          // RemoteAudioTrack.attach() and audio is routed through the web audio graph instead.
+          // unmuting them here would cause double playback on platforms where element.volume
+          // has no effect (e.g. iOS Safari)
+          if (!this.options.webAudioMix) {
+            e.muted = false;
+          }
           return e.play();
         }),
       ]);
@@ -1585,23 +1598,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
+      const pendingTrackSid = extractTrackSid(mediaTrack, stream);
       const reconnectedHandler = () => {
         this.log.debug('deferring on track for later', {
           mediaTrackId: mediaTrack.id,
           mediaStreamId: stream.id,
           tracksInStream: stream.getTracks().map((track) => track.id),
         });
-        this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
+        this.onTrackAdded(mediaTrack, stream, receiver);
       };
       const cleanup = () => {
         this.off(RoomEvent.Reconnected, reconnectedHandler);
         this.off(RoomEvent.Connected, reconnectedHandler);
         this.off(RoomEvent.Disconnected, cleanup);
+        if (pendingTrackSid) {
+          const pendingCallbacks = this.pendingTrackAddedCallbacks.get(pendingTrackSid);
+          pendingCallbacks?.delete(cleanup);
+          if (pendingCallbacks?.size === 0) {
+            this.pendingTrackAddedCallbacks.delete(pendingTrackSid);
+          }
+        }
       };
       this.once(RoomEvent.Reconnected, reconnectedHandler);
       this.once(RoomEvent.Connected, reconnectedHandler);
       this.once(RoomEvent.Disconnected, cleanup);
+      if (pendingTrackSid) {
+        const pendingCallbacks =
+          this.pendingTrackAddedCallbacks.get(pendingTrackSid) ?? new Set<() => void>();
+        pendingCallbacks.add(cleanup);
+        this.pendingTrackAddedCallbacks.set(pendingTrackSid, pendingCallbacks);
+      }
       return;
     }
     if (this.state === ConnectionState.Disconnected) {
@@ -1614,11 +1641,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     const parts = unpackStreamId(stream.id);
     const participantSid = parts[0];
-    let streamId = parts[1];
-    let trackId = mediaTrack.id;
+    const streamId = parts[1];
     // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
     // and generates its own track id instead of infer from sdp track id.
-    if (streamId && streamId.startsWith('TR')) trackId = streamId;
+    let trackId = extractTrackSid(mediaTrack, stream) ?? mediaTrack.id;
 
     if (participantSid === this.localParticipant.sid) {
       this.log.warn('tried to create RemoteParticipant for local participant');
@@ -1685,6 +1711,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ),
       );
     }
+  }
+
+  private cancelPendingTrackAdded(trackSid: Track.SID) {
+    this.pendingTrackAddedCallbacks.get(trackSid)?.forEach((cleanup) => cleanup());
   }
 
   private handleLocalTrackSubscribed(subscribedSid: string) {
@@ -2004,8 +2034,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       const newStreamState = Track.streamStateFromProto(streamState.state);
+      const prevStreamState = pub.track.streamState;
       pub.track.setStreamState(newStreamState);
-      if (newStreamState !== pub.track.streamState) {
+      if (newStreamState !== prevStreamState) {
         participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
         this.emitWhenConnected(
           RoomEvent.TrackStreamStateChanged,
@@ -2031,6 +2062,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleSubscriptionError = (update: SubscriptionResponse) => {
+    this.cancelPendingTrackAdded(update.trackSid);
+
     const participant = Array.from(this.remoteParticipants.values()).find((p) =>
       p.trackPublications.has(update.trackSid),
     );
@@ -2405,6 +2438,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
+        this.cancelPendingTrackAdded(publication.trackSid);
         this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
@@ -2504,8 +2538,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
+  private getClientInfoCapabilities(
+    roomOptions: InternalRoomOptions,
+  ): Array<ClientInfo_Capability> {
+    const capabilities: Array<ClientInfo_Capability> = [];
+    if (
+      isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
+      !!this.e2eeManager
+    ) {
+      capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
+    }
+    // Advertise deflate-raw decompression support so peers know they can send us compressed data
+    // streams (gated separately from clientProtocol — see the data streams v2 spec).
+    if (isCompressionStreamSupported()) {
+      capabilities.push(ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW);
+    }
+    return capabilities;
+  }
+
   private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
     return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
+  };
+
+  private getRemoteParticipantCapabilities = (
+    identity: Participant['identity'],
+  ): Array<ClientInfo_Capability> => {
+    return this.remoteParticipants.get(identity)?.capabilities ?? [];
+  };
+
+  private getAllRemoteParticipantIdentities = () => {
+    return Array.from(this.remoteParticipants.keys());
   };
 
   private registerRpcDataStreamHandler() {
@@ -2548,11 +2611,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             : undefined,
         });
         if (consecutiveFailures >= 3) {
-          this.recreateEngine();
-          this.handleDisconnect(
-            this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.STATE_MISMATCH,
-          );
+          this.clearConnectionReconcile();
+          if (this.engine && !this.engine.isClosed) {
+            // The transport silently died while we still looked connected. Try a full reconnect
+            // (keeps the room alive; the engine falls back to Disconnected if it ultimately fails).
+            this.log.warn('detected connection state mismatch, attempting full reconnect');
+            this.engine.reconnect();
+          } else {
+            // No usable engine to reconnect with; tear down.
+            this.recreateEngine();
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              DisconnectReason.STATE_MISMATCH,
+            );
+          }
         }
       } else {
         consecutiveFailures = 0;

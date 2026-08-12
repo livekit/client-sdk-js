@@ -29,6 +29,7 @@ import {
   isFrameMetadataSupported,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -81,8 +82,10 @@ import {
   sourceToKind,
 } from '../track/utils';
 import {
+  type ByteStreamInfo,
   type ChatMessage,
   type DataPublishOptions,
+  type SendBytesOptions,
   type SendFileOptions,
   type SendTextOptions,
   type StreamBytesOptions,
@@ -99,6 +102,7 @@ import {
   isLocalVideoTrack,
   isSVCCodec,
   isSafari17Based,
+  isVideoCodec,
   isVideoTrack,
   isWeb,
   sleep,
@@ -1248,12 +1252,21 @@ export default class LocalParticipant extends Participant {
               maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
             });
           }
-        } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
-          this.engine.pcManager.publisher.setTrackCodecBitrate({
-            cid: req.cid,
-            codec: track.codec,
-            maxbr: encodings[0].maxBitrate / 1000,
-          });
+        } else if (track.codec && isVideoCodec(track.codec)) {
+          // Apply start bitrate for all video codecs to prevent initial blurriness.
+          // - SVC codecs: use first encoding's bitrate (single stream with built-in layers)
+          // - Simulcast: sum all encoding bitrates (independent streams, BWE needs total)
+          const targetBitrate = isSVCCodec(track.codec)
+            ? (encodings[0]?.maxBitrate ?? 0)
+            : encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
+          if (targetBitrate > 0) {
+            this.engine.pcManager.publisher.setTrackCodecBitrate({
+              cid: req.cid,
+              codec: track.codec,
+              maxbr: targetBitrate / 1000,
+              isScreenShare: track.source === Track.Source.ScreenShare,
+            });
+          }
         }
       }
 
@@ -1838,6 +1851,17 @@ export default class LocalParticipant extends Participant {
    */
   async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
     return this.roomOutgoingDataStreamManager.sendFile(file, options);
+  }
+
+  /**
+   * Sends the given bytes to participants in the room via the data channel.
+   * For files, consider using {@link sendFile}; for longer/incremental payloads, {@link streamBytes}.
+   *
+   * @param bytes The byte payload
+   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
+   */
+  async sendBytes(bytes: Uint8Array, options?: SendBytesOptions): Promise<ByteStreamInfo> {
+    return this.roomOutgoingDataStreamManager.sendBytes(bytes, options);
   }
 
   /**

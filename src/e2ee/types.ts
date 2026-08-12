@@ -2,6 +2,7 @@ import type { FrameMetadataPayload } from '../frameMetadata/frameMetadata';
 import type { FrameMetadataPublishOptions } from '../frameMetadata/types';
 import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
 

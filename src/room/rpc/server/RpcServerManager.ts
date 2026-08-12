@@ -263,13 +263,11 @@ export default class RpcServerManager extends (EventEmitter as new () => TypedEm
 
     if (callerClientProtocol >= CLIENT_PROTOCOL_DATA_STREAM_RPC) {
       // Send response as a data stream
-      const writer = await this.outgoingDataStreamManager.streamText({
+      await this.outgoingDataStreamManager.sendText(payload, {
         topic: RPC_RESPONSE_DATA_STREAM_TOPIC,
         destinationIdentities: [destinationIdentity],
         attributes: { [RpcRequestAttrs.RPC_REQUEST_ID]: requestId },
       });
-      await writer.write(payload);
-      await writer.close();
       return;
     }
 

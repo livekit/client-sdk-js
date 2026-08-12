@@ -15,17 +15,83 @@ interface TrackBitrateInfo {
   transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
+  isScreenShare?: boolean;
 }
 
-/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
-increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at
-the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
-eliminate this issue.
-*/
-const startBitrateForSVC = 0.7;
+/*
+ * Video codecs use a very low bitrate at the beginning and increase slowly by
+ * the bandwidth estimator until they reach the target bitrate. The process commonly
+ * costs more than 10 seconds causing subscribers to get blurry video at the first
+ * few seconds. We use x-google-start-bitrate to hint the BWE to start higher.
+ *
+ * Why 90%: Gives ~10% headroom for bandwidth estimation while starting close to target.
+ * Why same for all codecs: Target bitrate already accounts for codec efficiency
+ * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
+ * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
+ */
+const startBitrateMultiplier = 0.9;
+
+/** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
+const maxStartBitrateKbps = 1000;
 
 const debounceInterval = 20;
+
+/**
+ * Applies the configured start bitrate when this media section belongs to `cid`.
+ * This SDP munging is used for a bitrate setting that cannot be applied through
+ * `RTCRtpEncodingParameters`.
+ *
+ * Returns `undefined` when the section does not belong to the track, `0` when
+ * it does but does not offer the requested codec, and the codec payload when the
+ * requested codec is present (whether the bitrate was added or already set).
+ *
+ * @internal
+ */
+export function applyVideoStartBitrate(
+  media: MediaDescription,
+  cid: string,
+  codec: string,
+  maxbr: number,
+  isScreenShare = false,
+): number | undefined {
+  if (!media.msid?.includes(cid)) {
+    return undefined;
+  }
+
+  const codecPayload =
+    media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
+  if (codecPayload === 0) {
+    return 0;
+  }
+
+  // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE
+  // from starting too aggressively. Screen share is not capped since text/UI
+  // clarity requires high bitrate from the start.
+  // TODO: dynamically adjust start bitrate based on network conditions (e.g., previous BWE estimate)
+  const calculatedStartBitrate = Math.round(maxbr * startBitrateMultiplier);
+  const startBitrate = isScreenShare
+    ? calculatedStartBitrate
+    : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
+
+  const fmtp = media.fmtp.find((entry) => entry.payload === codecPayload);
+  if (fmtp) {
+    // If another track's fmtp already has a start bitrate, it cannot be
+    // overridden here because the payload type is shared across the bundle.
+    // This forces every track sharing that payload to use the initial track's
+    // start bitrate.
+    if (!fmtp.config.includes('x-google-start-bitrate')) {
+      fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
+    }
+  } else {
+    // VP8 and some codecs may not have an existing fmtp line.
+    media.fmtp.push({
+      payload: codecPayload,
+      config: `x-google-start-bitrate=${startBitrate}`,
+    });
+  }
+
+  return codecPayload;
+}
 
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
@@ -52,6 +118,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   private config?: RTCConfiguration;
 
   private log = log;
+
+  private iceLog = log;
 
   private loggerOptions: LoggerOptions;
 
@@ -95,8 +163,12 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
-    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
     this.loggerOptions = loggerOptions;
+    this.log = getLogger(
+      loggerOptions.loggerName ?? LoggerNames.PCTransport,
+      () => this.logContext,
+    );
+    this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
     this.config = config;
     this._pc = this.createPC();
     this.offerLock = new Mutex();
@@ -107,24 +179,33 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
+      this.iceLog.debug('local ICE candidate gathered', { candidate: ev.candidate.candidate });
       this.onIceCandidate?.(ev.candidate);
     };
     pc.onicecandidateerror = (ev) => {
+      this.iceLog.debug('ICE candidate error', { event: ev });
       this.onIceCandidateError?.(ev);
     };
 
     pc.oniceconnectionstatechange = () => {
+      this.iceLog.debug(`ICE connection state: ${pc.iceConnectionState}`);
       this.onIceConnectionStateChange?.(pc.iceConnectionState);
     };
 
     pc.onsignalingstatechange = () => {
+      this.log.debug(`signaling state: ${pc.signalingState}`);
       this.onSignalingStatechange?.(pc.signalingState);
     };
 
     pc.onconnectionstatechange = () => {
+      this.log.debug(`connection state: ${pc.connectionState}`);
       this.onConnectionStateChange?.(pc.connectionState);
     };
     pc.ondatachannel = (ev) => {
+      this.log.debug('data channel opened by peer', {
+        label: ev.channel.label,
+        id: ev.channel.id,
+      });
       this.onDataChannel?.(ev);
     };
     pc.ontrack = (ev) => {
@@ -150,6 +231,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (this.pc.remoteDescription && !this.restartingIce) {
       return this.pc.addIceCandidate(candidate);
     }
+    this.iceLog.debug('queuing remote ICE candidate until remote description applied', {
+      pendingCount: this.pendingCandidates.length + 1,
+    });
     this.pendingCandidates.push(candidate);
   }
 
@@ -161,7 +245,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       offerId !== this.latestOfferId
     ) {
       this.log.warn('ignoring answer for old offer', {
-        ...this.logContext,
         offerId,
         latestOfferId: this.latestOfferId,
       });
@@ -180,7 +263,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
         });
-        this.log.debug('setting pending initial offer before processing answer', this.logContext);
+        this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(initialOffer, write(sdpParsed));
       }
       const sdpParsed = parse(sd.sdp ?? '');
@@ -234,10 +317,26 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           });
         }
       });
+      // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
+      // the sections mapped to a published track, but leaves the pre-populated
+      // recvonly placeholder sections with defaults. Conform the placeholders so
+      // each shared payload type is consistent across the bundle, otherwise
+      // libwebrtc flags a "bundled payload type collision".
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       mungedSDP = write(sdpParsed);
     }
     await this.setMungedSDP(sd, mungedSDP, true);
 
+    if (this.pendingCandidates.length > 0) {
+      this.iceLog.debug('flushing queued ICE candidates', {
+        count: this.pendingCandidates.length,
+      });
+    }
     this.pendingCandidates.forEach((candidate) => {
       this.pc.addIceCandidate(candidate);
     });
@@ -287,10 +386,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     const unlock = await this.offerLock.lock();
     try {
       if (this.pc.signalingState !== 'stable') {
-        this.log.warn(
-          'signaling state is not stable, cannot create initial offer',
-          this.logContext,
-        );
+        this.log.warn('signaling state is not stable, cannot create initial offer');
         return;
       }
       const offerId = this.latestOfferId + 1;
@@ -317,7 +413,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       }
 
       if (options?.iceRestart) {
-        this.log.debug('restarting ICE', this.logContext);
+        this.iceLog.debug('restarting ICE');
         this.restartingIce = true;
       }
 
@@ -329,26 +425,32 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;
         if (options?.iceRestart && currentSD) {
-          // TODO: handle when ICE restart is needed but we don't have a remote description
-          // the best thing to do is to recreate the peerconnection
+          // roll the remote description back in so createOffer produces a valid
+          // ICE-restart offer on top of the already-negotiated state
           await this._pc.setRemoteDescription(currentSD);
+        } else if (options?.iceRestart) {
+          // ICE restart with no remote description to restart on: `renegotiate` would stall
+          // (the pending offer is never answered), so throw for the caller to recreate the PC.
+          throw new NegotiationError(
+            'ICE restart requested without a remote description, peer connection must be recreated',
+          );
         } else {
           this.renegotiate = true;
-          this.log.debug('requesting renegotiation', { ...this.logContext });
+          this.log.debug('requesting renegotiation');
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
-        this.log.warn('could not createOffer with closed peer connection', this.logContext);
+        this.log.warn('could not createOffer with closed peer connection');
         return;
       }
 
       // actually negotiate
-      this.log.debug('starting to negotiate', this.logContext);
+      this.log.debug('starting to negotiate');
       // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer(options);
-      this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
+      this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -357,52 +459,42 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
-            if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
+            if (!trackbr.cid) {
               return false;
             }
 
-            let codecPayload = 0;
-            media.rtp.some((rtp): boolean => {
-              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-                codecPayload = rtp.payload;
-                return true;
-              }
+            const codecPayload = applyVideoStartBitrate(
+              media,
+              trackbr.cid,
+              trackbr.codec,
+              trackbr.maxbr,
+              trackbr.isScreenShare,
+            );
+            if (codecPayload === undefined) {
               return false;
-            });
-
-            if (codecPayload === 0) {
-              return true;
             }
 
-            if (isSVCCodec(trackbr.codec) && !isSafari()) {
+            if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
-            // mung sdp for bitrate setting that can't apply by sendEncoding
-            if (!isSVCCodec(trackbr.codec)) {
-              return true;
-            }
-
-            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
-
-            for (const fmtp of media.fmtp) {
-              if (fmtp.payload === codecPayload) {
-                // if another track's fmtp already is set, we cannot override the bitrate
-                // this has the unfortunate consequence of being forced to use the
-                // initial track's bitrate for all tracks
-                if (!fmtp.config.includes('x-google-start-bitrate')) {
-                  fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
-                }
-                break;
-              }
-            }
             return true;
           });
         }
       });
+      // Conform the placeholder sections (pre-populated, or reverted after an
+      // unpublish) so every shared payload type carries identical fmtp across the
+      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // Detection is by transceiver (mids are stable across renegotiations) since
+      // an unpublished section keeps its `a=msid`.
+      const placeholderMids = this.getPlaceholderMids();
+      if (placeholderMids.size > 0) {
+        conformBundledCodecFmtp(sdpParsed.media, (media) =>
+          placeholderMids.has(getMidString(media.mid!)),
+        );
+      }
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
-          ...this.logContext,
           latestOfferId: this.latestOfferId,
           offerId,
         });
@@ -426,6 +518,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     });
     await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
+  }
+
+  /**
+   * Returns the mids of transceivers that carry no outgoing track on this
+   * (publisher) connection: the pre-populated placeholders added by
+   * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
+   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
+   * published tracks so a shared payload type stays consistent across the bundle.
+   */
+  private getPlaceholderMids(): Set<string> {
+    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -543,6 +646,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (!this._pc) {
       return;
     }
+    this.log.debug('closing peer connection');
     this.pendingInitialOffer = undefined;
     this._pc.close();
     this._pc.onconnectionstatechange = null;
@@ -564,10 +668,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     if (munged) {
       sd.sdp = munged;
       try {
-        this.log.debug(
-          `setting munged ${remote ? 'remote' : 'local'} description`,
-          this.logContext,
-        );
+        this.log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
         if (remote) {
           await this.pc.setRemoteDescription(sd);
         } else {
@@ -576,7 +677,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         return;
       } catch (e) {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-          ...this.logContext,
           error: e,
           mungedSdp: munged,
           originalSdp,
@@ -609,7 +709,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
-      this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
+      this.log.error(`unable to set ${sd.type}`, { fields });
       throw new NegotiationError(msg);
     }
   }
@@ -650,7 +750,19 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   }
 }
 
-function ensureAudioNackAndStereo(
+/**
+ * Checks whether an fmtp config declares `param` as an exact, `;`-delimited
+ * token. A plain substring check conflates distinct opus parameters — e.g.
+ * `stereo=1` is a substring of `sprop-stereo=1` — so `param` must match a whole
+ * parameter, not appear anywhere within the config string.
+ * @internal
+ */
+export function fmtpConfigHasParam(config: string, param: string): boolean {
+  return config.split(';').some((entry) => entry.trim() === param);
+}
+
+/** @internal */
+export function ensureAudioNackAndStereo(
   media: {
     type: string;
     port: number;
@@ -666,7 +778,8 @@ function ensureAudioNackAndStereo(
   // found opus codec to add nack fb
   let opusPayload = 0;
   media.rtp.some((rtp): boolean => {
-    if (rtp.codec === 'opus') {
+    // rtpmap encoding names are case-insensitive (RFC 4855)
+    if (rtp.codec.toLowerCase() === 'opus') {
       opusPayload = rtp.payload;
       return true;
     }
@@ -692,7 +805,7 @@ function ensureAudioNackAndStereo(
     if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (!fmtp.config.includes('stereo=1')) {
+          if (!fmtpConfigHasParam(fmtp.config, 'stereo=1')) {
             fmtp.config += ';stereo=1';
           }
           return true;
@@ -703,7 +816,88 @@ function ensureAudioNackAndStereo(
   }
 }
 
-function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
+/**
+ * Returns the mids of transceivers that carry no outgoing track: the
+ * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
+ * plus any transceiver that was used for a track and reverted on unpublish. The
+ * `sender.track` check is the reliable signal — an unpublished section keeps its
+ * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
+ * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * this works for every offer/answer after the first.
+ * @internal
+ */
+export function placeholderMidsFromTransceivers(
+  transceivers: readonly RTCRtpTransceiver[],
+): Set<string> {
+  const mids = new Set<string>();
+  for (const transceiver of transceivers) {
+    if (transceiver.mid && !transceiver.sender.track) {
+      mids.add(transceiver.mid);
+    }
+  }
+  return mids;
+}
+
+/**
+ * Within a BUNDLE group a payload type must map to identical codec parameters
+ * across every m-line. When the same payload type carries different fmtp between
+ * sections — e.g. opus `usedtx=1` on the published microphone but not on the
+ * pre-populated recvonly placeholders, or H.265 with different `level-id` between
+ * a published video track and a placeholder — libwebrtc flags a "bundled payload
+ * type collision".
+ *
+ * Rewrite the placeholder sections so every shared payload type carries the
+ * same fmtp. Real (non-placeholder) sections always win the canonical value, so
+ * a published track's encoder parameters are never altered. When no real
+ * section declares a payload type — e.g. a placeholder that was reused for a
+ * track and then reverted to recvonly keeps its send-derived `level-id` while
+ * fresh placeholders use the default — the placeholders still converge on the
+ * first value seen, so two placeholders can't disagree either. Only placeholder
+ * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * `isPlaceholder` identifies the sections to conform.
+ * @internal
+ */
+export function conformBundledCodecFmtp(
+  media: MediaDescription[],
+  isPlaceholder: (media: MediaDescription) => boolean,
+) {
+  // Canonical fmtp per payload type. Payload types are unique within a BUNDLE
+  // group, so keying by payload alone (across audio and video) is safe. A real
+  // section's value always takes precedence; otherwise the first placeholder
+  // value seen is used so divergent placeholders still converge.
+  const canonicalByPayload = new Map<number, string>();
+  const fromRealSection = new Set<number>();
+  for (const m of media) {
+    const placeholder = isPlaceholder(m);
+    for (const fmtp of m.fmtp ?? []) {
+      if (!placeholder) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+        fromRealSection.add(fmtp.payload);
+      } else if (!canonicalByPayload.has(fmtp.payload)) {
+        canonicalByPayload.set(fmtp.payload, fmtp.config);
+      }
+    }
+  }
+  if (canonicalByPayload.size === 0) {
+    return;
+  }
+
+  // Conform placeholder sections to the canonical fmtp for each shared payload.
+  for (const m of media) {
+    if (!isPlaceholder(m)) {
+      continue;
+    }
+    for (const fmtp of m.fmtp ?? []) {
+      const config = canonicalByPayload.get(fmtp.payload);
+      if (config !== undefined && fmtp.config !== config) {
+        fmtp.config = config;
+      }
+    }
+  }
+}
+
+/** @internal */
+export function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
 } {
@@ -715,7 +909,8 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
     const mid = getMidString(media.mid!);
     if (media.type === 'audio') {
       media.rtp.some((rtp): boolean => {
-        if (rtp.codec === 'opus') {
+        // rtpmap encoding names are case-insensitive (RFC 4855)
+        if (rtp.codec.toLowerCase() === 'opus') {
           opusPayload = rtp.payload;
           return true;
         }
@@ -728,7 +923,7 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
 
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          if (fmtp.config.includes('sprop-stereo=1')) {
+          if (fmtpConfigHasParam(fmtp.config, 'sprop-stereo=1')) {
             stereoMids.push(mid);
           }
           return true;

@@ -208,7 +208,7 @@ export class UnsupportedServer extends LivekitError {
   readonly name = 'UnsupportedServer';
 
   constructor(message?: string) {
-    super(10, message ?? 'unsupported server');
+    super(10, message || 'unsupported server');
   }
 }
 
@@ -216,7 +216,7 @@ export class UnexpectedConnectionState extends LivekitError {
   readonly name = 'UnexpectedConnectionState';
 
   constructor(message?: string) {
-    super(12, message ?? 'unexpected connection state');
+    super(12, message || 'unexpected connection state');
   }
 }
 
@@ -224,7 +224,7 @@ export class NegotiationError extends LivekitError {
   readonly name = 'NegotiationError';
 
   constructor(message?: string) {
-    super(13, message ?? 'unable to negotiate');
+    super(13, message || 'unable to negotiate');
   }
 }
 
@@ -232,7 +232,7 @@ export class PublishDataError extends LivekitError {
   readonly name = 'PublishDataError';
 
   constructor(message?: string) {
-    super(14, message ?? 'unable to publish data');
+    super(14, message || 'unable to publish data');
   }
 }
 
@@ -248,8 +248,7 @@ export class PublishTrackError extends LivekitError {
 }
 
 export type RequestErrorReason =
-  | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
-  | 'TimeoutError';
+  Exclude<RequestResponse_Reason, RequestResponse_Reason.OK> | 'TimeoutError';
 
 export class SignalRequestError extends LivekitReasonedError<RequestErrorReason> {
   readonly name = 'SignalRequestError';
@@ -287,6 +286,12 @@ export enum DataStreamErrorReason {
 
   // Encryption type mismatch.
   EncryptionTypeMismatch = 8,
+
+  // The serialized stream header packet (driven mainly by attributes) exceeds the MTU budget.
+  HeaderTooLarge = 9,
+
+  // The stream's (decompressed) payload exceeds the maximum allowed size.
+  PayloadTooLarge = 10,
 }
 
 export class DataStreamError extends LivekitReasonedError<DataStreamErrorReason> {

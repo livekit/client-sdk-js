@@ -1,4 +1,5 @@
 import { type DataPacket, EncryptedPacketPayload } from '@livekit/protocol';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM } from './constants';
 import type { KeyProviderOptions } from './types';
 
@@ -138,7 +139,7 @@ export function needsRbspUnescaping(frameData: NonSharedUint8Array) {
 export function parseRbsp(stream: NonSharedUint8Array): NonSharedUint8Array {
   const dataOut: number[] = [];
   var length = stream.length;
-  for (var i = 0; i < stream.length; ) {
+  for (var i = 0; i < stream.length;) {
     // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
     // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
     // above, and that expression will produce the number of bytes left in

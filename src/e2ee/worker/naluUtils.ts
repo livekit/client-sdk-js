@@ -2,6 +2,7 @@
  * NALU (Network Abstraction Layer Unit) utilities for H.264 and H.265 video processing
  * Contains functions for parsing and working with NALUs in video frames
  */
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 
 /**
  * Mask for extracting NALU type from H.264 header byte

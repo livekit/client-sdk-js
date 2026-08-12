@@ -7,6 +7,7 @@ import {
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
@@ -780,6 +781,73 @@ export function splitUtf8(s: string, n: number): NonSharedUint8Array[] {
   return result;
 }
 
+/** Wraps a byte array in a `ReadableStream` that yields it as a single chunk and then closes. */
+export function readableFromBytes(bytes: NonSharedUint8Array): ReadableStream<NonSharedUint8Array> {
+  return new ReadableStream<NonSharedUint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+/**
+ * Re-chunks a byte stream into pieces of exactly `chunkSize` bytes (the final piece may be
+ * smaller), coalescing or splitting the source's pieces as needed. Memory use is bounded to roughly
+ * `chunkSize` plus one source read, so it never buffers the whole stream — used to pack
+ * `CompressionStream`/`file.stream()` output into MTU-sized data-stream chunks.
+ */
+export async function* readBytesInChunks(
+  source: ReadableStream<NonSharedUint8Array>,
+  chunkSize: number,
+): AsyncGenerator<NonSharedUint8Array> {
+  const reader = source.getReader();
+  let buffer = new Uint8Array(0);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value.byteLength === 0) {
+        continue;
+      }
+      const merged = new Uint8Array(buffer.byteLength + value.byteLength);
+      merged.set(buffer);
+      merged.set(value, buffer.byteLength);
+      buffer = merged;
+      while (buffer.byteLength >= chunkSize) {
+        yield buffer.slice(0, chunkSize);
+        buffer = buffer.slice(chunkSize);
+      }
+    }
+    if (buffer.byteLength > 0) {
+      yield buffer;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** Encodes a byte array as a base64 string (suitable for embedding binary data in a string field). */
+export function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
+}
+
+/** Decodes a base64 string (as produced by {@link encodeBase64}) back into a byte array. */
+export function decodeBase64(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export function extractMaxAgeFromRequestHeaders(headers: Headers): number | undefined {
   const cacheControl = headers.get('Cache-Control');
   if (cacheControl) {
@@ -798,4 +866,17 @@ export function isCompressionStreamSupported() {
 export function isPublisherOfferWithJoinSupported() {
   // we have connectivity issue about publisher offer with join on firefox #1919
   return isCompressionStreamSupported() && !isFireFox();
+}
+
+export function extractTrackSid(
+  mediaTrack: MediaStreamTrack,
+  stream: MediaStream,
+): Track.SID | undefined {
+  const [, streamId] = unpackStreamId(stream.id);
+  if (streamId?.startsWith('TR')) {
+    return streamId;
+  }
+  if (mediaTrack.id.startsWith('TR')) {
+    return mediaTrack.id;
+  }
 }

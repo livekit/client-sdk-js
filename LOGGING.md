@@ -48,4 +48,3 @@ this.log.debug('got ICE candidate from peer', { candidate, target });
 The context provider is invoked on every call, so updates to `logContext`
 are reflected automatically.
 
-

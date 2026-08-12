@@ -1,3 +1,4 @@
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { DataTrackExtensions, DataTrackUserTimestampExtension } from './packet/extensions';
 
 /** A pair of payload bytes and packet extensions which can be fed into a {@link DataTrackPacketizer}. */

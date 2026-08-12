@@ -1,4 +1,5 @@
 import { workerLogger } from '../../logger';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import type { DecodeRatchetOptions, KeySet, RatchetResult } from '../types';

@@ -10,6 +10,7 @@ import { hasFrameMetadataPublishOptions } from '../../frameMetadata/utils';
 import { workerLogger } from '../../logger';
 import { type VideoCodec, videoCodecs } from '../../room/track/options';
 import { mimeTypeToVideoCodecString } from '../../room/track/utils';
+import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
