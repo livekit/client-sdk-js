@@ -99,9 +99,18 @@ const SCHEMA_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownSchemaEncod
   jsonSchema: ProtocolWellKnownSchemaEncoding.JSON_SCHEMA,
 };
 
-const WELL_KNOWN_TO_SCHEMA_ENCODING = Object.fromEntries(
-  Object.entries(SCHEMA_ENCODING_TO_WELL_KNOWN).map(([key, value]) => [value, key]),
-) as Partial<Record<ProtocolWellKnownSchemaEncoding, DataTrackSchemaEncoding>>;
+// Note: not using Object.fromEntries as it requires ES2019.
+function invert<V extends number>(mapping: Record<string, V>): Partial<Record<V, string>> {
+  const inverted: Partial<Record<V, string>> = {};
+  for (const [key, value] of Object.entries(mapping)) {
+    inverted[value] = key;
+  }
+  return inverted;
+}
+
+const WELL_KNOWN_TO_SCHEMA_ENCODING = invert(SCHEMA_ENCODING_TO_WELL_KNOWN) as Partial<
+  Record<ProtocolWellKnownSchemaEncoding, DataTrackSchemaEncoding>
+>;
 
 const FRAME_ENCODING_TO_WELL_KNOWN: Record<string, ProtocolWellKnownFrameEncoding> = {
   ros1: ProtocolWellKnownFrameEncoding.ROS1,
