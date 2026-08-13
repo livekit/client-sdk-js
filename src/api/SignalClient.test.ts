@@ -550,6 +550,50 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Transport closed while connected', () => {
+    /** Joins with a `closed` promise the test controls, and reports what onClose saw. */
+    async function joinWithControllableClose() {
+      let closeTransport: (info: WebSocketCloseInfo) => void = () => {};
+      const closed = new Promise<WebSocketCloseInfo>((resolve) => {
+        closeTransport = resolve;
+      });
+      const mockReadable = createMockReadableStream([
+        createSignalResponse('join', createJoinResponse()),
+      ]);
+      mockWebSocketStream({ connection: createMockConnection(mockReadable), closed });
+
+      const closeReasons: Array<string> = [];
+      signalClient.onClose = (reason) => closeReasons.push(reason);
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+
+      return { closeTransport, closeReasons };
+    }
+
+    it('reports a clean server close, which used to be treated as nothing happening', async () => {
+      const { closeTransport, closeReasons } = await joinWithControllableClose();
+
+      // a server dropping signalling closes cleanly — the client has to notice, or it keeps
+      // writing to a dead socket
+      closeTransport({ closeCode: 1000, reason: 'server dropped signalling' });
+      await vi.waitFor(() => expect(closeReasons).toEqual(['server dropped signalling']));
+
+      expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
+    });
+
+    it('ignores a close from a transport that has already been replaced', async () => {
+      const { closeTransport, closeReasons } = await joinWithControllableClose();
+
+      // a newer attempt takes over before the old socket reports its close
+      (signalClient as any).sendLifecycleInput({ type: 'resume' });
+      closeTransport({ closeCode: 1006, reason: 'late close from the old socket' });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(closeReasons).toEqual([]);
+      expect(signalClient.currentState).toBe(SignalConnectionState.RECONNECTING);
+    });
+  });
+
   describe('Edge Cases and State Management', () => {
     it('should set state to CONNECTING when joining', async () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);

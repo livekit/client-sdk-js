@@ -494,15 +494,21 @@ export class SignalClient {
                   ),
                 );
               }
-              if (closeInfo.closeCode !== 1000) {
-                this.log.warn(`websocket closed`, {
-                  reason: closeInfo.reason,
-                  code: closeInfo.closeCode,
-                  wasClean: closeInfo.closeCode === 1000,
-                  state: this.lifecycleState,
-                });
-                this.handleOnClose(closeInfo.reason || 'Unexpected WS error', attemptId);
-              }
+              this.log.debug('websocket closed', {
+                reason: closeInfo.reason,
+                code: closeInfo.closeCode,
+                attemptId,
+                state: this.lifecycleState,
+              });
+              // Every close of the live transport is reported, including a clean 1000 one: a server
+              // that drops signalling closes cleanly (the disconnect-signal-on-resume scenario does
+              // exactly that), and treating that as "nothing happened" left the client writing to a
+              // dead socket. Closes we caused ourselves, and closes from a transport that has since
+              // been replaced, are dropped by the machine rather than by a close-code test.
+              this.handleOnClose(
+                closeInfo.reason || `websocket closed with code ${closeInfo.closeCode}`,
+                attemptId,
+              );
               return;
             })
             .catch((reason) => {
@@ -1059,11 +1065,18 @@ export class SignalClient {
   private async handleOnClose(reason: string, attemptId: number = this.attemptId) {
     const onCloseCallback = this.onClose;
     if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
-      // not connected, or a transport that has since been replaced reporting in late
+      // a close we caused ourselves, or one from a transport that has since been replaced: logged
+      // rather than dropped silently, because a close that goes unnoticed leaves the client writing
+      // to a dead socket
+      this.log.debug(`ignoring transport close in state ${this.lifecycleState}`, {
+        reason,
+        attemptId,
+        currentAttemptId: this.attemptId,
+      });
       return;
     }
+    this.log.warn(`websocket connection closed: ${reason}`, { reason });
     await this.teardownTransport(reason);
-    this.log.info(`websocket connection closed: ${reason}`, { reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
     }
