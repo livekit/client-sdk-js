@@ -57,12 +57,18 @@ import {
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
 import { type DataTrackSid } from '../room/data-track/types';
-import { ConnectionError } from '../room/errors';
+import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import {
+  type SignalLifecycleState,
+  type SignalMachine,
+  type SignalMachineInput,
+  createSignalMachine,
+} from './SignalClientStateMachine';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
 import {
   createRtcUrl,
@@ -104,6 +110,20 @@ const passThroughQueueSignals: Array<SignalKind> = [
   'leave',
 ];
 
+/**
+ * Whether a failed resume may be followed by another one. Mirrors how `RTCEngine` classifies these
+ * errors: a server leave ends the session, and an expired token cannot be recovered by retrying.
+ */
+function isRecoverableReconnectError(error: unknown): boolean {
+  if (error instanceof ConnectionError) {
+    return (
+      error.reason !== ConnectionErrorReason.LeaveRequest &&
+      error.reason !== ConnectionErrorReason.NotAllowed
+    );
+  }
+  return true;
+}
+
 function canPassThroughQueue(req: SignalMessage): boolean {
   const canPass = passThroughQueueSignals.indexOf(req!.case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
@@ -117,6 +137,21 @@ export enum SignalConnectionState {
   DISCONNECTING,
   DISCONNECTED,
 }
+
+/**
+ * Public projection of the lifecycle machine's states. `new`, `offline` and `closed` are all
+ * reported as `DISCONNECTED`: they differ in what may happen next (first connect, resume, or
+ * nothing), which is the machine's concern, not the consumer's.
+ */
+const lifecycleToConnectionState: Record<SignalLifecycleState, SignalConnectionState> = {
+  new: SignalConnectionState.DISCONNECTED,
+  connecting: SignalConnectionState.CONNECTING,
+  connected: SignalConnectionState.CONNECTED,
+  offline: SignalConnectionState.DISCONNECTED,
+  reconnecting: SignalConnectionState.RECONNECTING,
+  disconnecting: SignalConnectionState.DISCONNECTING,
+  closed: SignalConnectionState.DISCONNECTED,
+};
 
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
 const MAX_WS_CLOSE_TIME = 250;
@@ -206,21 +241,42 @@ export class SignalClient {
   ws?: WebSocketStream;
 
   get currentState() {
-    return this.state;
+    return lifecycleToConnectionState[this.lifecycleState];
   }
 
   get isDisconnected() {
+    const state = this.currentState;
     return (
-      this.state === SignalConnectionState.DISCONNECTING ||
-      this.state === SignalConnectionState.DISCONNECTED
+      state === SignalConnectionState.DISCONNECTING || state === SignalConnectionState.DISCONNECTED
     );
   }
 
+  /** Runtime lifecycle state, finer grained than the public {@link currentState} projection. */
+  private get lifecycleState(): SignalLifecycleState {
+    return this.machine.currentState();
+  }
+
+  /** Id of the current connection attempt and of the transport it owns. */
+  private get attemptId() {
+    return this.machine.context.attemptId;
+  }
+
+  /**
+   * Applies a lifecycle input and reports whether it moved the machine. Inputs the current state
+   * does not handle are dropped rather than throwing: most call sites are transport callbacks where
+   * an unexpected input means "this no longer applies", not "something went wrong".
+   *
+   * The return value is how callers learn that a decision was theirs to act on — the machine
+   * resolves guards such as "is this the transport we still care about", not the caller.
+   */
+  private sendLifecycleInput(input: SignalMachineInput): boolean {
+    const before = this.lifecycleState;
+    this.machine.handle(input.type, input);
+    return this.lifecycleState !== before;
+  }
+
   private get isEstablishingConnection() {
-    return (
-      this.state === SignalConnectionState.CONNECTING ||
-      this.state === SignalConnectionState.RECONNECTING
-    );
+    return this.lifecycleState === 'connecting' || this.lifecycleState === 'reconnecting';
   }
 
   private getNextRequestId() {
@@ -240,7 +296,7 @@ export class SignalClient {
 
   private closingLock: Mutex;
 
-  private state: SignalConnectionState = SignalConnectionState.DISCONNECTED;
+  private machine: SignalMachine;
 
   private connectionLock: Mutex;
 
@@ -262,7 +318,15 @@ export class SignalClient {
     this.queuedRequests = [];
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
-    this.state = SignalConnectionState.DISCONNECTED;
+    this.machine = createSignalMachine();
+    this.machine.on('transitioned', ({ fromState, toState }) => {
+      this.log.debug(`signal lifecycle: ${fromState} -> ${toState}`);
+    });
+    this.machine.on('nohandler', ({ inputName }) => {
+      this.log.debug(
+        `ignoring signal lifecycle input ${inputName} in state ${this.lifecycleState}`,
+      );
+    });
   }
 
   private get logContext() {
@@ -279,10 +343,17 @@ export class SignalClient {
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
-    this.state = SignalConnectionState.CONNECTING;
+    this.sendLifecycleInput({ type: 'connect' });
     this.options = opts;
-    const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
-    return res as JoinResponse;
+    try {
+      const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
+      return res as JoinResponse;
+    } catch (e) {
+      // reported here rather than at each rejection site inside connect(), so that no failure
+      // path can leave the machine stuck in `connecting`
+      this.sendLifecycleInput({ type: 'connectFailed', error: e });
+      throw e;
+    }
   }
 
   async reconnect(
@@ -295,23 +366,32 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    this.state = SignalConnectionState.RECONNECTING;
+    this.sendLifecycleInput({ type: 'reconnect' });
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = (await this.connect(
-      url,
-      token,
-      {
-        ...this.options,
-        reconnect: true,
-        sid,
-        reconnectReason: reason,
-      },
-      undefined,
-      this.useV0SignalPath,
-    )) as ReconnectResponse | undefined;
-    return res;
+    try {
+      const res = (await this.connect(
+        url,
+        token,
+        {
+          ...this.options,
+          reconnect: true,
+          sid,
+          reconnectReason: reason,
+        },
+        undefined,
+        this.useV0SignalPath,
+      )) as ReconnectResponse | undefined;
+      return res;
+    } catch (e) {
+      this.sendLifecycleInput({
+        type: 'reconnectFailed',
+        error: e,
+        recoverable: isRecoverableReconnectError(e),
+      });
+      throw e;
+    }
   }
 
   private async connect(
@@ -385,9 +465,13 @@ export class SignalClient {
 
         if (this.ws) {
           const startClose = performance.now();
-          await this.close(false);
+          await this.teardownTransport('replaced by a new connection attempt');
           this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
         }
+
+        // the transport created below belongs to this attempt; events arriving from it after a
+        // newer attempt has started are dropped by the machine
+        const attemptId = this.attemptId;
 
         this.log.info(`signal connecting to ${redactedUrl}`, {
           reconnect: opts.reconnect,
@@ -410,11 +494,9 @@ export class SignalClient {
                   reason: closeInfo.reason,
                   code: closeInfo.closeCode,
                   wasClean: closeInfo.closeCode === 1000,
-                  state: this.state,
+                  state: this.lifecycleState,
                 });
-                if (this.state === SignalConnectionState.CONNECTED) {
-                  this.handleOnClose(closeInfo.reason || 'Unexpected WS error');
-                }
+                this.handleOnClose(closeInfo.reason || 'Unexpected WS error', attemptId);
               }
               return;
             })
@@ -428,8 +510,7 @@ export class SignalClient {
               }
             });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
-            if (this.state !== SignalConnectionState.CONNECTED) {
-              this.state = SignalConnectionState.DISCONNECTED;
+            if (this.lifecycleState !== 'connected') {
               clearTimeout(wsTimeout);
               const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
@@ -564,20 +645,28 @@ export class SignalClient {
   };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
-    if (
-      [SignalConnectionState.DISCONNECTING || SignalConnectionState.DISCONNECTED].includes(
-        this.state,
-      )
-    ) {
-      this.log.debug(`ignoring signal close as it's already in disconnecting state`);
-      return;
-    }
+    // when the lifecycle is already shutting down (or another close owns it), only the transport
+    // teardown below still applies — it is idempotent, so callers can always await a close
+    const drivesLifecycle = updateState && this.sendLifecycleInput({ type: 'close', reason });
     const unlock = await this.closingLock.lock();
     try {
-      this.clearPingInterval();
-      if (updateState) {
-        this.state = SignalConnectionState.DISCONNECTING;
+      await this.teardownTransport(reason);
+    } finally {
+      if (drivesLifecycle) {
+        this.sendLifecycleInput({ type: 'closeComplete' });
       }
+      unlock();
+    }
+  }
+
+  /**
+   * Releases the transport and everything tied to it, without touching the lifecycle state. Used
+   * both by {@link close} and by paths that replace the transport under a live lifecycle (a new
+   * attempt, or an unexpected close that leaves the client in `offline`).
+   */
+  private async teardownTransport(reason: string) {
+    try {
+      this.clearPingInterval();
       if (this.ws) {
         this.ws.close({ closeCode: 1000, reason });
 
@@ -589,11 +678,6 @@ export class SignalClient {
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { error: e });
-    } finally {
-      if (updateState) {
-        this.state = SignalConnectionState.DISCONNECTED;
-      }
-      unlock();
     }
   }
 
@@ -781,7 +865,7 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
-    if (canQueue && this.state === SignalConnectionState.RECONNECTING) {
+    if (canQueue && this.lifecycleState === 'reconnecting') {
       this.queuedRequests.push(async () => {
         await this.sendRequest(message, true);
       });
@@ -794,7 +878,11 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (this.isDisconnected) {
+    // `leave` is the one request whose purpose is to be sent on the way out (an aborted connect
+    // attempt tells the server before tearing down), so it is allowed through for as long as the
+    // transport is still there
+    const isLeaveOnShutdown = message.case === 'leave' && !!this.streamWriter;
+    if (this.isDisconnected && !isLeaveOnShutdown) {
       // Skip requests if the signal layer is disconnected
       // This can happen if an event is sent in the mist of room.connect() initializing
       this.log.debug(`skipping signal request (type: ${message.case}) - SignalClient disconnected`);
@@ -946,10 +1034,17 @@ export class SignalClient {
     }
   }
 
-  private async handleOnClose(reason: string) {
-    if (this.state === SignalConnectionState.DISCONNECTED) return;
+  /**
+   * Handles a transport we lost without asking to. The client goes to `offline` rather than
+   * `closed`: whether this session gets resumed, restarted or given up on is the engine's call.
+   */
+  private async handleOnClose(reason: string, attemptId: number = this.attemptId) {
     const onCloseCallback = this.onClose;
-    await this.close(undefined, reason);
+    if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
+      // not connected, or a transport that has since been replaced reporting in late
+      return;
+    }
+    await this.teardownTransport(reason);
     this.log.info(`websocket connection closed: ${reason}`, { reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
@@ -1022,7 +1117,11 @@ export class SignalClient {
     timeoutHandle: ReturnType<typeof setTimeout>,
     firstMessage?: SignalResponse,
   ) {
-    this.state = SignalConnectionState.CONNECTED;
+    this.sendLifecycleInput(
+      this.lifecycleState === 'reconnecting'
+        ? { type: 'reconnectComplete' }
+        : { type: 'connectComplete' },
+    );
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
     this.startPingInterval();
@@ -1051,7 +1150,7 @@ export class SignalClient {
         response: firstSignalResponse.message.value,
       };
     } else if (
-      this.state === SignalConnectionState.RECONNECTING &&
+      this.lifecycleState === 'reconnecting' &&
       firstSignalResponse.message?.case !== 'leave'
     ) {
       if (firstSignalResponse.message?.case === 'reconnect') {

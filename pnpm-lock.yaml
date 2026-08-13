@@ -35,6 +35,9 @@ importers:
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
+      machina:
+        specifier: ^6.3.0
+        version: 6.3.0
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
@@ -3079,6 +3082,10 @@ packages:
 
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
+
+  machina@6.3.0:
+    resolution: {integrity: sha512-Yukbm1At06LxJi5lK0QDu3jTg69XzDX7tkb/dwMFPiXIFFIyOcLMgX2NWq4qVclIva6xYLDWT3jZnNMDGqSDNw==}
+    engines: {node: '>=22.22'}
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -7266,6 +7273,8 @@ snapshots:
       yallist: 3.1.1
 
   lunr@2.3.9: {}
+
+  machina@6.3.0: {}
 
   magic-string@0.30.21:
     dependencies:

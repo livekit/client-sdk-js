@@ -626,6 +626,9 @@ describe('SignalClient.handleSignalConnected', () => {
     const mockReadable = new ReadableStream<ArrayBuffer>();
     const mockConnection = createMockConnection(mockReadable);
 
+    // handleSignalConnected only ever runs with an attempt in flight, so establish that first
+    (signalClient as any).sendLifecycleInput({ type: 'connect' });
+
     // Access the method through a type assertion for testing
     const handleMethod = (signalClient as any).handleSignalConnected;
     if (handleMethod) {
@@ -700,8 +703,8 @@ describe('SignalClient.validateFirstMessage', () => {
     mockWebSocketStream({ connection: initialMockConnection });
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-    // Set state to RECONNECTING to match the validation logic
-    (signalClient as any).state = SignalConnectionState.RECONNECTING;
+    // Move the lifecycle machine to reconnecting to match the validation logic
+    (signalClient as any).sendLifecycleInput({ type: 'reconnect' });
 
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
@@ -724,8 +727,8 @@ describe('SignalClient.validateFirstMessage', () => {
     mockWebSocketStream({ connection: initialMockConnection });
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-    // Set state to reconnecting
-    (signalClient as any).state = SignalConnectionState.RECONNECTING;
+    // Move the lifecycle machine to reconnecting
+    (signalClient as any).sendLifecycleInput({ type: 'reconnect' });
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
@@ -739,8 +742,8 @@ describe('SignalClient.validateFirstMessage', () => {
   });
 
   it('should reject leave request during connection attempt', () => {
-    // Set state to CONNECTING to be in establishing connection state
-    (signalClient as any).state = SignalConnectionState.CONNECTING;
+    // Move the lifecycle machine to connecting to be in establishing connection state
+    (signalClient as any).sendLifecycleInput({ type: 'connect' });
 
     const leaveRequest = new LeaveRequest({ reason: 1 });
     const signalResponse = createSignalResponse('leave', leaveRequest);
