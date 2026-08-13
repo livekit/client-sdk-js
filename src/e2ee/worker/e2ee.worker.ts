@@ -163,15 +163,32 @@ onmessage = (ev) => {
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
-        const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-        trackCryptor.setVideoCodec(data.codec);
+        const trackCryptor = getTrackCryptor(
+          data.participantIdentity,
+          data.trackId,
+          data.previousTrackId,
+        );
+        if (data.codec) {
+          trackCryptor.setVideoCodec(data.codec);
+        }
         trackCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
+          previousTrackId: data.previousTrackId,
           codec: data.codec,
           hasPacketTrailer: data.hasPacketTrailer,
         });
+        // Sent on transceiver reuse, where the main thread cannot hand us a new
+        // pipeline. If the previous one died in the meantime we have to rebuild it
+        // here or no frame ever gets decrypted again.
+        if (data.previousTrackId !== undefined && !trackCryptor.ensureTransform()) {
+          workerLogger.error('could not re-establish transform for reused receiver', {
+            participantIdentity: data.participantIdentity,
+            trackId: data.trackId,
+            previousTrackId: data.previousTrackId,
+          });
+        }
         break;
       case 'setRTPMap':
         // this is only used for the local participant
@@ -210,8 +227,26 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   }
 }
 
-function getTrackCryptor(participantIdentity: string, trackId: string) {
+function getTrackCryptor(participantIdentity: string, trackId: string, previousTrackId?: string) {
   let cryptors = participantCryptors.filter((c) => c.getTrackId() === trackId);
+
+  if (cryptors.length === 0 && previousTrackId !== undefined && previousTrackId !== trackId) {
+    // A reused transceiver carries a new trackId, but the cryptor that owns this
+    // receiver's encoded streams is still keyed on the old one. Re-point it instead
+    // of creating a fresh cryptor that has no pipeline (and leaving the old one
+    // piping frames with no participant assigned).
+    const previous = participantCryptors.filter((c) => c.getTrackId() === previousTrackId);
+    if (previous.length > 0) {
+      workerLogger.info('reusing cryptor from previous trackId', {
+        participantIdentity,
+        trackId,
+        previousTrackId,
+      });
+      previous[0].setTrackId(trackId);
+      cryptors = previous;
+    }
+  }
+
   if (cryptors.length > 1) {
     const debugInfo = cryptors
       .map((c) => {
