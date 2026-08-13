@@ -21,7 +21,7 @@ import { LivekitReasonedError } from '../errors';
  * where possible. The identifier must be non-empty and no longer than 32 characters.
  *
  * `'other'` is only produced when receiving a well-known encoding introduced after
- * this SDK version; it is not meant to be sent.
+ * this SDK version; it cannot be used when publishing.
  */
 export type DataTrackSchemaEncoding =
   /** Protocol Buffer IDL, describes `'protobuf'` encoded frames. */
@@ -54,7 +54,7 @@ export type DataTrackSchemaEncoding =
  * longer than 32 characters.
  *
  * `'other'` is only produced when receiving a well-known encoding introduced after
- * this SDK version; it is not meant to be sent.
+ * this SDK version; it cannot be used when publishing.
  */
 export type DataTrackFrameEncoding =
   /** ROS 1, must be described by a `'ros1Msg'` schema. */
@@ -200,13 +200,19 @@ export const DataTrackFrameEncoding = {
   /**
    * Whether frames with this encoding can be described by a schema with the given encoding.
    *
-   * Returns `undefined` when this cannot be determined ('other' or a custom frame encoding).
+   * Returns `undefined` when this cannot be determined ('other' or a custom encoding
+   * on either side).
    */
   isDescribedBy(
     encoding: DataTrackFrameEncoding,
     schemaEncoding: DataTrackSchemaEncoding,
   ): boolean | undefined {
-    if (typeof encoding === 'object' || encoding === 'other') {
+    if (
+      typeof encoding === 'object' ||
+      encoding === 'other' ||
+      typeof schemaEncoding === 'object' ||
+      schemaEncoding === 'other'
+    ) {
       return undefined; // Cannot be validated
     }
     return (COMPATIBLE_SCHEMA_ENCODINGS[encoding] ?? []).includes(schemaEncoding);
@@ -237,6 +243,10 @@ export enum DataTrackSchemaErrorReason {
 
   /** Specified schema and frame encodings are incompatible. */
   Incompatible = 2,
+
+  /** The 'other' encoding represents an unrecognized encoding on received tracks
+   * and cannot be used when publishing. */
+  OtherEncoding = 3,
 }
 
 export class DataTrackSchemaError<
@@ -274,13 +284,21 @@ export class DataTrackSchemaError<
       DataTrackSchemaErrorReason.Incompatible,
     );
   }
+
+  static otherEncoding() {
+    return new DataTrackSchemaError(
+      "The 'other' encoding cannot be used when publishing",
+      DataTrackSchemaErrorReason.OtherEncoding,
+    );
+  }
 }
 
 /**
  * Validates that the given frame and schema encodings are compatible.
  *
- * Combinations involving 'other' or custom encodings cannot be validated and
- * are accepted as-is.
+ * Combinations involving custom encodings cannot be validated and are accepted
+ * as-is. The 'other' encoding only represents unrecognized encodings on received
+ * tracks and is rejected.
  *
  * @internal
  */
@@ -288,6 +306,9 @@ export function validateSchemaMetadata(
   frameEncoding: DataTrackFrameEncoding | undefined,
   schemaEncoding: DataTrackSchemaEncoding | undefined,
 ): Throws<void, DataTrackSchemaError> {
+  if (frameEncoding === 'other' || schemaEncoding === 'other') {
+    throw DataTrackSchemaError.otherEncoding();
+  }
   if (frameEncoding === undefined) {
     if (schemaEncoding !== undefined) {
       throw DataTrackSchemaError.missingFrameEncoding();

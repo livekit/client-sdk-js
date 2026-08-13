@@ -144,6 +144,22 @@ describe('validateSchemaMetadata', () => {
     ).not.toThrow();
   });
 
+  it('accepts a custom schema encoding with a well-known frame encoding', () => {
+    expect(() => validateSchemaMetadata('json', { custom: 'my-schema-encoding' })).not.toThrow();
+  });
+
+  it("rejects an 'other' schema encoding", () => {
+    expectSchemaError(DataTrackSchemaErrorReason.OtherEncoding, () =>
+      validateSchemaMetadata('json', 'other'),
+    );
+  });
+
+  it("rejects an 'other' frame encoding", () => {
+    expectSchemaError(DataTrackSchemaErrorReason.OtherEncoding, () =>
+      validateSchemaMetadata('other', undefined),
+    );
+  });
+
   it('rejects a schema without a frame encoding', () => {
     expectSchemaError(DataTrackSchemaErrorReason.MissingFrameEncoding, () =>
       validateSchemaMetadata(undefined, 'protobuf'),
