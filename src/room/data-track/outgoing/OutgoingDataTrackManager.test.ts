@@ -319,6 +319,15 @@ describe('DataTrackOutgoingManager', () => {
       // 4. The metadata is reflected on the local track's info
       expect(localDataTrack.info?.schema).toStrictEqual(schema);
       expect(localDataTrack.info?.frameEncoding).toStrictEqual(frameEncoding);
+
+      // 5. Republishing after a full reconnect re-announces the track with the same metadata,
+      // since a track's schema is immutable even though it is assigned a new sid.
+      manager.sfuWillRepublishTracks();
+
+      const republishEvent = await managerEvents.waitFor('sfuPublishRequest');
+      expect(republishEvent.handle).toStrictEqual(handle);
+      expect(republishEvent.schema).toStrictEqual(schema);
+      expect(republishEvent.frameEncoding).toStrictEqual(frameEncoding);
     },
   );
 
