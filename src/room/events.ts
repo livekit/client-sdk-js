@@ -630,6 +630,8 @@ export enum EngineEvent {
   UnPublishDataTrackResponse = 'unPublishDataTrackResponse',
   DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
   DataTrackPacketReceived = 'dataTrackPacketReceived',
+  StoreDataBlobResponse = 'storeDataBlobResponse',
+  GetDataBlobResponse = 'getDataBlobResponse',
   Joined = 'joined',
   TokenRefreshed = 'tokenRefreshed',
   ServerRegionsReported = 'serverRegionsReported',

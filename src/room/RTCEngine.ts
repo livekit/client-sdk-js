@@ -13,6 +13,7 @@ import {
   EncryptedPacket,
   EncryptedPacketPayload,
   Encryption_Type,
+  type GetDataBlobResponse,
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
@@ -31,6 +32,7 @@ import {
   SessionDescription,
   SignalTarget,
   SpeakerInfo,
+  type StoreDataBlobResponse,
   type StreamStateUpdate,
   SubscribedQualityUpdate,
   type SubscriptionPermissionUpdate,
@@ -733,6 +735,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onDataTrackSubscriberHandles = (event: DataTrackSubscriberHandles) => {
       this.emit(EngineEvent.DataTrackSubscriberHandles, event);
+    };
+
+    this.client.onStoreDataBlobResponse = (res: StoreDataBlobResponse) => {
+      this.emit(EngineEvent.StoreDataBlobResponse, res);
+    };
+
+    this.client.onGetDataBlobResponse = (res: GetDataBlobResponse) => {
+      this.emit(EngineEvent.GetDataBlobResponse, res);
     };
 
     this.client.onClose = () => {
@@ -2054,6 +2064,8 @@ export type EngineEventCallbacks = {
   unPublishDataTrackResponse: (event: UnpublishDataTrackResponse) => void;
   dataTrackSubscriberHandles: (event: DataTrackSubscriberHandles) => void;
   dataTrackPacketReceived: (packet: Uint8Array) => void;
+  storeDataBlobResponse: (res: StoreDataBlobResponse) => void;
+  getDataBlobResponse: (res: GetDataBlobResponse) => void;
   joined: (joinResponse: JoinResponse) => void;
   tokenRefreshed: (token: string) => void;
   serverRegionsReported: (regions: RegionSettings) => void;

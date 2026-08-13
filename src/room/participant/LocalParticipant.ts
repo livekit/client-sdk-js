@@ -5,9 +5,12 @@ import {
   BackupCodecPolicy,
   ChatMessage as ChatMessageModel,
   Codec,
+  DataBlob,
+  type DataBlobKey,
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
+  type GetDataBlobResponse,
   JoinResponse,
   PacketTrailerFeature,
   ParticipantInfo,
@@ -15,12 +18,14 @@ import {
   RequestResponse_Reason,
   SimulcastCodec,
   SipDTMF,
+  type StoreDataBlobResponse,
   SubscribedQualityUpdate,
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
+import type { Throws } from '@livekit/throws-transformer/throws';
 import { SignalConnectionState } from '../../api/SignalClient';
 import {
   getFrameMetadataFeatures,
@@ -31,6 +36,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
+import { abortSignalAny, abortSignalTimeout } from '../../utils/abort-signal-polyfill';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
@@ -40,6 +46,8 @@ import LocalDataTrack from '../data-track/LocalDataTrack';
 import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
 import { DataTrackPublishError } from '../data-track/outgoing/errors';
 import type { DataTrackOptions } from '../data-track/outgoing/types';
+import { DataTrackSchemaStorageError } from '../data-track/schema-storage';
+import { DataTrackSchemaId } from '../data-track/types';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -119,6 +127,9 @@ import {
   getDefaultDegradationPreference,
 } from './publishUtils';
 
+/** How long to wait for the server to respond to a data blob request. */
+const DATA_BLOB_REQUEST_TIMEOUT_MILLISECONDS = 5_000;
+
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
 
@@ -179,6 +190,16 @@ export default class LocalParticipant extends Participant {
     }
   >;
 
+  private pendingStoreDataBlobRequests: Map<
+    number,
+    Future<StoreDataBlobResponse, DataTrackSchemaStorageError>
+  >;
+
+  private pendingGetDataBlobRequests: Map<
+    number,
+    Future<GetDataBlobResponse, DataTrackSchemaStorageError>
+  >;
+
   private enabledPublishVideoCodecs: Codec[] = [];
 
   /** @internal */
@@ -208,6 +229,8 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
+    this.pendingStoreDataBlobRequests = new Map();
+    this.pendingGetDataBlobRequests = new Map();
     this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
     this.rpcClientManager = rpcClientManager;
@@ -271,7 +294,9 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
-      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
+      .on(EngineEvent.StoreDataBlobResponse, this.handleStoreDataBlobResponse)
+      .on(EngineEvent.GetDataBlobResponse, this.handleGetDataBlobResponse);
   }
 
   private handleReconnecting = () => {
@@ -302,6 +327,17 @@ export default class LocalParticipant extends Participant {
     this.activeAgentFuture?.reject?.(new Error('Got disconnected without active agent present'));
     this.activeAgentFuture = undefined;
     this.firstActiveAgent = undefined;
+
+    // In-flight data blob requests are orphaned on close — the server will never respond,
+    // so fail them fast instead of letting them run into their timeout.
+    for (const future of this.pendingStoreDataBlobRequests.values()) {
+      future.reject?.(DataTrackSchemaStorageError.disconnected());
+    }
+    this.pendingStoreDataBlobRequests.clear();
+    for (const future of this.pendingGetDataBlobRequests.values()) {
+      future.reject?.(DataTrackSchemaStorageError.disconnected());
+    }
+    this.pendingGetDataBlobRequests.clear();
   };
 
   private handleSignalConnected = (joinResponse: JoinResponse) => {
@@ -323,6 +359,21 @@ export default class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
+    }
+
+    // Data blob requests report success via their own response messages and errors via
+    // `RequestResponse`; both carry the request id, so both paths are correlated by it.
+    const pendingDataBlobRequest =
+      this.pendingStoreDataBlobRequests.get(requestId) ??
+      this.pendingGetDataBlobRequests.get(requestId);
+    if (pendingDataBlobRequest && reason !== RequestResponse_Reason.OK) {
+      pendingDataBlobRequest.reject?.(
+        reason === RequestResponse_Reason.NOT_FOUND
+          ? DataTrackSchemaStorageError.notFound(message)
+          : DataTrackSchemaStorageError.requestFailed(reason, message),
+      );
+      this.pendingStoreDataBlobRequests.delete(requestId);
+      this.pendingGetDataBlobRequests.delete(requestId);
     }
 
     switch (response.request.case) {
@@ -352,6 +403,22 @@ export default class LocalParticipant extends Participant {
         );
         break;
       }
+    }
+  };
+
+  private handleStoreDataBlobResponse = (response: StoreDataBlobResponse) => {
+    const pendingRequest = this.pendingStoreDataBlobRequests.get(response.requestId);
+    if (pendingRequest) {
+      this.pendingStoreDataBlobRequests.delete(response.requestId);
+      pendingRequest.resolve?.(response);
+    }
+  };
+
+  private handleGetDataBlobResponse = (response: GetDataBlobResponse) => {
+    const pendingRequest = this.pendingGetDataBlobRequests.get(response.requestId);
+    if (pendingRequest) {
+      this.pendingGetDataBlobRequests.delete(response.requestId);
+      pendingRequest.resolve?.(response);
     }
   };
 
@@ -2186,5 +2253,134 @@ export default class LocalParticipant extends Participant {
     await track.publish();
 
     return track;
+  }
+
+  /**
+   * Stores the definition of a data track schema.
+   *
+   * Called by a publisher to make a schema available to subscribers, who can later look
+   * up its definition via {@link getSchema}. Define a schema before publishing any data
+   * track that references it, so that subscribers can resolve the schema by its ID.
+   *
+   * A schema can only be defined once. Attempting to redefine an existing schema results
+   * in an error.
+   *
+   * @param id Identifies the schema; the same ID is provided when publishing a data track
+   *   that uses it.
+   * @param definition The schema definition, stored as-is. It is neither parsed nor
+   *   validated against its {@link DataTrackSchemaId.encoding | encoding}, so the caller
+   *   is responsible for ensuring it is well-formed.
+   * @param signal Optional abort signal to cancel the request.
+   */
+  async defineSchema(
+    id: DataTrackSchemaId,
+    definition: string,
+    signal?: AbortSignal,
+  ): Promise<Throws<void, DataTrackSchemaStorageError>> {
+    await this.storeDataBlob(
+      DataTrackSchemaId.toDataBlobKey(id),
+      new TextEncoder().encode(definition),
+      signal,
+    );
+  }
+
+  /**
+   * Retrieves the definition for a data track schema.
+   *
+   * Called by a subscriber that wants to inspect the schema a participant
+   * {@link defineSchema | defined} for a data track it is publishing. Results in an error
+   * if the participant has not defined a schema with this ID.
+   *
+   * @param id Identifies the schema to retrieve.
+   * @param participantIdentity Identity of the participant that defined the schema.
+   * @param signal Optional abort signal to cancel the request.
+   */
+  async getSchema(
+    id: DataTrackSchemaId,
+    participantIdentity: string,
+    signal?: AbortSignal,
+  ): Promise<Throws<string, DataTrackSchemaStorageError>> {
+    const contents = await this.getDataBlob(
+      DataTrackSchemaId.toDataBlobKey(id),
+      participantIdentity,
+      signal,
+    );
+
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(contents);
+    } catch (error) {
+      throw DataTrackSchemaStorageError.invalidDefinition({ cause: error });
+    }
+  }
+
+  /** Stores an arbitrary blob of data on the server, keyed by `key`. */
+  private async storeDataBlob(
+    key: DataBlobKey,
+    contents: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<Throws<void, DataTrackSchemaStorageError>> {
+    const requestId = await this.engine.client.sendStoreDataBlobRequest(
+      new DataBlob({ key, contents }),
+    );
+
+    // The response's key field is ignored; its arrival alone indicates success.
+    await this.waitForDataBlobResponse(this.pendingStoreDataBlobRequests, requestId, signal);
+  }
+
+  /** Retrieves a blob of data previously stored by `participantIdentity` under `key`. */
+  private async getDataBlob(
+    key: DataBlobKey,
+    participantIdentity: string,
+    signal?: AbortSignal,
+  ): Promise<Throws<Uint8Array, DataTrackSchemaStorageError>> {
+    const requestId = await this.engine.client.sendGetDataBlobRequest(key, participantIdentity);
+
+    const response = await this.waitForDataBlobResponse(
+      this.pendingGetDataBlobRequests,
+      requestId,
+      signal,
+    );
+    if (!response.blob) {
+      throw DataTrackSchemaStorageError.malformedResponse();
+    }
+    return response.blob.contents;
+  }
+
+  /**
+   * Waits for the response to a data blob request, correlated by request id.
+   *
+   * The registered future is resolved by the matching response handler or rejected via
+   * `RequestResponse`; this adds the timeout and caller-cancellation paths and guarantees
+   * the pending entry is removed however the wait ends.
+   */
+  private async waitForDataBlobResponse<T>(
+    pendingRequests: Map<number, Future<T, DataTrackSchemaStorageError>>,
+    requestId: number,
+    signal?: AbortSignal,
+  ): Promise<Throws<T, DataTrackSchemaStorageError>> {
+    const future = new Future<T, DataTrackSchemaStorageError>();
+    pendingRequests.set(requestId, future);
+
+    const timeoutSignal = abortSignalTimeout(DATA_BLOB_REQUEST_TIMEOUT_MILLISECONDS);
+    const combinedSignal = signal ? abortSignalAny([signal, timeoutSignal]) : timeoutSignal;
+    const onAbort = () => {
+      future.reject?.(
+        timeoutSignal.aborted
+          ? DataTrackSchemaStorageError.timeout()
+          : DataTrackSchemaStorageError.cancelled(),
+      );
+    };
+    if (combinedSignal.aborted) {
+      onAbort();
+    } else {
+      combinedSignal.addEventListener('abort', onAbort);
+    }
+
+    try {
+      return await future.promise;
+    } finally {
+      pendingRequests.delete(requestId);
+      combinedSignal.removeEventListener('abort', onAbort);
+    }
   }
 }
