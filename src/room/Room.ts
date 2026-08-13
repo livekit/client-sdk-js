@@ -642,6 +642,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (this.state === ConnectionState.Reconnecting || this.isResuming) {
           this.sendSyncState();
         }
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.Restarted, this.handleRestarted)
@@ -2641,9 +2642,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
 
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
-    if (this.state === ConnectionState.Connected) {
-      this.emitBufferedEvents();
-    }
+
     return true;
   }
 
