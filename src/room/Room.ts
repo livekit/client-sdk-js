@@ -1590,13 +1590,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (
-      [
-        ConnectionState.Connecting,
-        ConnectionState.Reconnecting,
-        ConnectionState.SignalReconnecting,
-      ].includes(this.state)
-    ) {
+    if ([ConnectionState.Connecting, ConnectionState.Reconnecting].includes(this.state)) {
       const pendingTrackSid = extractTrackSid(mediaTrack, stream);
       this.log.debug('deferring on track for later', {
         mediaTrackId: mediaTrack.id,
