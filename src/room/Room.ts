@@ -639,10 +639,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
-        this.bufferedEvents = [];
         if (this.state === ConnectionState.Reconnecting || this.isResuming) {
           this.sendSyncState();
         }
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.Restarted, this.handleRestarted)
@@ -1591,14 +1591,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
+    if ([ConnectionState.Connecting, ConnectionState.Reconnecting].includes(this.state)) {
       const pendingTrackSid = extractTrackSid(mediaTrack, stream);
+      this.log.debug('deferring on track for later', {
+        mediaTrackId: mediaTrack.id,
+        mediaStreamId: stream.id,
+        tracksInStream: stream.getTracks().map((track) => track.id),
+      });
       const reconnectedHandler = () => {
-        this.log.debug('deferring on track for later', {
-          mediaTrackId: mediaTrack.id,
-          mediaStreamId: stream.id,
-          tracksInStream: stream.getTracks().map((track) => track.id),
-        });
         cleanup();
         this.onTrackAdded(mediaTrack, stream, receiver);
       };
@@ -2640,7 +2640,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log.info(`connection state changed: ${this.state} -> ${state}`);
     this.state = state;
     this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
+
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
+
     return true;
   }
 
