@@ -64,6 +64,7 @@ import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } fro
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import {
+  type SendRequestInput,
   type SignalLifecycleState,
   type SignalMachine,
   type SignalMachineInput,
@@ -114,7 +115,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
  * Whether a failed resume may be followed by another one. Mirrors how `RTCEngine` classifies these
  * errors: a server leave ends the session, and an expired token cannot be recovered by retrying.
  */
-function isRecoverableReconnectError(error: unknown): boolean {
+function isRecoverableResumeError(error: unknown): boolean {
   if (error instanceof ConnectionError) {
     return (
       error.reason !== ConnectionErrorReason.LeaveRequest &&
@@ -141,14 +142,16 @@ export enum SignalConnectionState {
 /**
  * Public projection of the lifecycle machine's states. `new`, `offline` and `closed` are all
  * reported as `DISCONNECTED`: they differ in what may happen next (first connect, resume, or
- * nothing), which is the machine's concern, not the consumer's.
+ * nothing), which is the machine's concern, not the consumer's. `signalResumed` reports as
+ * `CONNECTED` because the transport is usable there, exactly as it was before the machine existed.
  */
 const lifecycleToConnectionState: Record<SignalLifecycleState, SignalConnectionState> = {
   new: SignalConnectionState.DISCONNECTED,
   connecting: SignalConnectionState.CONNECTING,
   connected: SignalConnectionState.CONNECTED,
   offline: SignalConnectionState.DISCONNECTED,
-  reconnecting: SignalConnectionState.RECONNECTING,
+  resuming: SignalConnectionState.RECONNECTING,
+  signalResumed: SignalConnectionState.CONNECTED,
   disconnecting: SignalConnectionState.DISCONNECTING,
   closed: SignalConnectionState.DISCONNECTED,
 };
@@ -164,8 +167,6 @@ const JOIN_RESPONSE_TIMEOUT = 5_000;
 /** @internal */
 export class SignalClient {
   requestQueue: AsyncQueue;
-
-  queuedRequests: Array<() => Promise<void>>;
 
   useJSON: boolean;
 
@@ -276,7 +277,7 @@ export class SignalClient {
   }
 
   private get isEstablishingConnection() {
-    return this.lifecycleState === 'connecting' || this.lifecycleState === 'reconnecting';
+    return this.lifecycleState === 'connecting' || this.lifecycleState === 'resuming';
   }
 
   private getNextRequestId() {
@@ -315,7 +316,6 @@ export class SignalClient {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal, () => this.logContext);
     this.useJSON = useJSON;
     this.requestQueue = new AsyncQueue();
-    this.queuedRequests = [];
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
     this.machine = createSignalMachine();
@@ -356,6 +356,11 @@ export class SignalClient {
     }
   }
 
+  /**
+   * Resumes the existing session — the SDK's resume path, driven by `RTCEngine.resumeConnection`.
+   * A full reconnect joins a new session and goes through {@link join} instead. The method keeps
+   * the protocol's name (`reconnect=1`); the lifecycle it drives uses the SDK's, `resume`.
+   */
   async reconnect(
     url: string,
     token: string,
@@ -366,7 +371,7 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    this.sendLifecycleInput({ type: 'reconnect' });
+    this.sendLifecycleInput({ type: 'resume' });
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
@@ -386,9 +391,9 @@ export class SignalClient {
       return res;
     } catch (e) {
       this.sendLifecycleInput({
-        type: 'reconnectFailed',
+        type: 'resumeFailed',
         error: e,
-        recoverable: isRecoverableReconnectError(e),
+        recoverable: isRecoverableResumeError(e),
       });
       throw e;
     }
@@ -861,16 +866,28 @@ export class SignalClient {
     });
   }
 
-  private async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
-    // capture all requests while reconnecting and put them in a queue
-    // unless the request originates from the queue, then don't enqueue again
-    const canQueue = !fromQueue && !canPassThroughQueue(message);
-    if (canQueue && this.lifecycleState === 'reconnecting') {
-      this.queuedRequests.push(async () => {
-        await this.sendRequest(message, true);
-      });
-      return;
+  private sendRequest(message: SignalMessage): Promise<void> {
+    if (canPassThroughQueue(message)) {
+      // negotiation and leave traffic is never held back
+      return this.writeRequest(message);
     }
+    // offer the request to the machine, which parks it while the transport is down and replays it
+    // once the engine reports the reconnect complete
+    const input: SendRequestInput = {
+      type: 'sendRequest',
+      write: (held) =>
+        held
+          ? // a released request is written inside the serialized queue, so it still goes out
+            // ahead of requests made since — those wait for the queue to drain first
+            this.requestQueue.run(() => this.writeRequest(message, true))
+          : this.writeRequest(message),
+    };
+    this.machine.handle(input.type, input);
+    // a parked request resolves for the caller right away, as the previous request queue did
+    return input.sent ?? Promise.resolve();
+  }
+
+  private async writeRequest(message: SignalMessage, fromQueue: boolean = false) {
     // make sure previously queued requests are being sent first
     if (!fromQueue) {
       await this.requestQueue.flush();
@@ -1025,13 +1042,14 @@ export class SignalClient {
     }
   }
 
+  /**
+   * Reports that the reconnect is complete, on either recovery path, releasing the requests the
+   * machine held while the transport was down. The engine owns this call because only it knows when
+   * a resume is really done: the transport coming back is not enough, the peer connection has to be
+   * back too.
+   */
   setReconnected() {
-    while (this.queuedRequests.length > 0) {
-      const req = this.queuedRequests.shift();
-      if (req) {
-        this.requestQueue.run(req);
-      }
-    }
+    this.sendLifecycleInput({ type: 'reconnected' });
   }
 
   /**
@@ -1118,9 +1136,7 @@ export class SignalClient {
     firstMessage?: SignalResponse,
   ) {
     this.sendLifecycleInput(
-      this.lifecycleState === 'reconnecting'
-        ? { type: 'reconnectComplete' }
-        : { type: 'connectComplete' },
+      this.lifecycleState === 'resuming' ? { type: 'resumeComplete' } : { type: 'connectComplete' },
     );
     this.log.info('signal connected');
     clearTimeout(timeoutHandle);
@@ -1150,7 +1166,7 @@ export class SignalClient {
         response: firstSignalResponse.message.value,
       };
     } else if (
-      this.lifecycleState === 'reconnecting' &&
+      this.lifecycleState === 'resuming' &&
       firstSignalResponse.message?.case !== 'leave'
     ) {
       if (firstSignalResponse.message?.case === 'reconnect') {

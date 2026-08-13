@@ -571,6 +571,85 @@ describe('SignalClient.connect', () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
   });
+
+  describe('Requests during a resume', () => {
+    it('holds queueable requests until the engine declares the session resumed', async () => {
+      const writtenMessages: Array<ArrayBuffer | string> = [];
+      const mockConnection: WebSocketConnection = {
+        readable: createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        writable: new WritableStream({
+          write(chunk) {
+            writtenMessages.push(chunk);
+            return Promise.resolve();
+          },
+        }),
+        protocol: '',
+        extensions: '',
+      };
+      mockWebSocketStream({ connection: mockConnection });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      const written = () =>
+        writtenMessages.map(
+          (data) => SignalRequest.fromBinary(new Uint8Array(data as ArrayBuffer)).message?.case,
+        );
+
+      // a queueable request made while the transport is down is held back
+      (signalClient as any).sendLifecycleInput({ type: 'resume' });
+      await signalClient.sendMuteTrack('track-sid', true);
+      expect(written()).toEqual([]);
+
+      // ...while a pass-through request still goes out
+      await signalClient.sendLeave();
+      expect(written()).toEqual(['leave']);
+
+      // the transport coming back is not enough, since the resume isn't complete until the peer
+      // connection is back too
+      (signalClient as any).sendLifecycleInput({ type: 'resumeComplete' });
+      expect(written()).toEqual(['leave']);
+
+      // the engine declaring the session live releases what was held
+      signalClient.setReconnected();
+      await signalClient.requestQueue.flush();
+      expect(written()).toEqual(['leave', 'mute']);
+    });
+
+    it('releases held requests when the resume escalates to a full reconnect', async () => {
+      const writtenMessages: Array<ArrayBuffer | string> = [];
+      const recordingWritable = () =>
+        new WritableStream<ArrayBuffer | string>({
+          write(chunk) {
+            writtenMessages.push(chunk);
+            return Promise.resolve();
+          },
+        });
+      const connection = (): WebSocketConnection => ({
+        readable: createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        writable: recordingWritable(),
+        protocol: '',
+        extensions: '',
+      });
+
+      mockWebSocketStream({ connection: connection() });
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      (signalClient as any).sendLifecycleInput({ type: 'resume' });
+      await signalClient.sendMuteTrack('track-sid', true);
+      expect(writtenMessages).toHaveLength(0);
+
+      // the engine gives up on resuming and starts a fresh session instead
+      mockWebSocketStream({ connection: connection() });
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      await signalClient.requestQueue.flush();
+
+      expect(
+        writtenMessages.map(
+          (data) => SignalRequest.fromBinary(new Uint8Array(data as ArrayBuffer)).message?.case,
+        ),
+      ).toEqual(['mute']);
+    });
+  });
 });
 
 describe('SignalClient utility functions', () => {
@@ -704,7 +783,7 @@ describe('SignalClient.validateFirstMessage', () => {
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
     // Move the lifecycle machine to reconnecting to match the validation logic
-    (signalClient as any).sendLifecycleInput({ type: 'reconnect' });
+    (signalClient as any).sendLifecycleInput({ type: 'resume' });
 
     const reconnectResponse = new ReconnectResponse({ iceServers: [] });
     const signalResponse = createSignalResponse('reconnect', reconnectResponse);
@@ -728,7 +807,7 @@ describe('SignalClient.validateFirstMessage', () => {
     await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
     // Move the lifecycle machine to reconnecting
-    (signalClient as any).sendLifecycleInput({ type: 'reconnect' });
+    (signalClient as any).sendLifecycleInput({ type: 'resume' });
 
     const updateSignalResponse = createSignalResponse('update', { participants: [] });
 
