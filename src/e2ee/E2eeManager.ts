@@ -12,6 +12,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
 import type { Track } from '../room/track/Track';
+import type { TrackPublication } from '../room/track/TrackPublication';
 import type { TrackPublishOptions, VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import {
@@ -23,7 +24,7 @@ import {
 } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
-import { E2EE_FLAG } from './constants';
+import { E2EE_FLAG, E2EE_TRACK_ID } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
   DecryptDataRequestMessage,
@@ -279,20 +280,14 @@ export class E2EEManager
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackPublished, (pub, participant) =>
-      this.setParticipantCryptorEnabled(
-        pub.trackInfo!.encryption !== Encryption_Type.NONE,
-        participant.identity,
-      ),
+      this.setParticipantCryptorEnabledForPublication(pub, participant.identity),
     );
     room
       .on(RoomEvent.ConnectionStateChanged, (state) => {
         if (state === ConnectionState.Connected) {
           room.remoteParticipants.forEach((participant) => {
             participant.trackPublications.forEach((pub) => {
-              this.setParticipantCryptorEnabled(
-                pub.trackInfo!.encryption !== Encryption_Type.NONE,
-                participant.identity,
-              );
+              this.setParticipantCryptorEnabledForPublication(pub, participant.identity);
             });
           });
         }
@@ -482,6 +477,29 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
+  /**
+   * Derive the participant's encryption state from one of its publications.
+   * Publications without trackInfo are skipped rather than thrown on: throwing
+   * inside the forEach above would leave every remaining participant without an
+   * encryption state, and a cryptor with unknown state can no longer decrypt.
+   */
+  private setParticipantCryptorEnabledForPublication(
+    pub: TrackPublication,
+    participantIdentity: string,
+  ) {
+    if (!pub.trackInfo) {
+      log.warn('skipping e2ee enabled update for publication without trackInfo', {
+        participant: participantIdentity,
+        trackSid: pub.trackSid,
+      });
+      return;
+    }
+    this.setParticipantCryptorEnabled(
+      pub.trackInfo.encryption !== Encryption_Type.NONE,
+      participantIdentity,
+    );
+  }
+
   private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {
     if (!track.receiver) {
       return;
@@ -544,18 +562,27 @@ export class E2EEManager
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      if (E2EE_FLAG in receiver && codec) {
-        // update track-specific state when the transceiver is reused
+      if (E2EE_FLAG in receiver) {
+        // The transceiver is being reused for a new track. We cannot set up a new
+        // pipeline from here: this receiver's encoded streams were transferred to
+        // the worker on first setup and a transferred stream can't be transferred
+        // again, while createEncodedStreams() may only be called once per receiver.
+        // So hand the worker the new track/participant and let it re-point (and if
+        // necessary rebuild) the cryptor that still owns those streams.
         const msg: UpdateCodecMessage = {
           kind: 'updateCodec',
           data: {
             trackId,
+            // @ts-ignore
+            previousTrackId: receiver[E2EE_TRACK_ID],
             codec,
             participantIdentity,
             hasPacketTrailer,
           },
         };
         this.worker.postMessage(msg);
+        // @ts-ignore
+        receiver[E2EE_TRACK_ID] = trackId;
         return;
       }
       // @ts-ignore
@@ -591,6 +618,8 @@ export class E2EEManager
 
     // @ts-ignore
     receiver[E2EE_FLAG] = true;
+    // @ts-ignore
+    receiver[E2EE_TRACK_ID] = trackId;
   }
 
   /**
