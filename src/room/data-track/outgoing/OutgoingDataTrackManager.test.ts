@@ -135,8 +135,9 @@ describe('DataTrackOutgoingManager', () => {
 
   it('should reject publishing when schema metadata is invalid', async () => {
     const manager = new OutgoingDataTrackManager();
-    const sfuPublishRequest = vi.fn();
-    manager.on('sfuPublishRequest', sfuPublishRequest);
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+    ]);
 
     // Providing a schema ID without a frame encoding is invalid.
     const localDataTrack = new LocalDataTrack(
@@ -149,7 +150,7 @@ describe('DataTrackOutgoingManager', () => {
     );
 
     // The invalid request must not be sent to the SFU.
-    expect(sfuPublishRequest).not.toHaveBeenCalled();
+    expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
     expect(localDataTrack.isPublished()).toStrictEqual(false);
   });
 
