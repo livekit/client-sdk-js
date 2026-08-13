@@ -1,12 +1,16 @@
 import {
   ClientInfo_Capability,
+  DataBlob,
+  DataBlobKey,
   DisconnectReason,
+  GetDataBlobResponse,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
   SignalRequest,
   SignalResponse,
+  StoreDataBlobResponse,
   WrappedJoinRequest,
   WrappedJoinRequest_Compression,
 } from '@livekit/protocol';
@@ -33,7 +37,8 @@ function createJoinResponse() {
 }
 
 function createSignalResponse(
-  messageCase: 'join' | 'reconnect' | 'leave' | 'update',
+  messageCase:
+    'join' | 'reconnect' | 'leave' | 'update' | 'storeDataBlobResponse' | 'getDataBlobResponse',
   value: any,
 ): SignalResponse {
   return new SignalResponse({
@@ -570,6 +575,88 @@ describe('SignalClient.connect', () => {
 
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
+  });
+});
+
+describe('SignalClient data blobs', () => {
+  let signalClient: SignalClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    signalClient = new SignalClient(false);
+  });
+
+  function clientInternals() {
+    return signalClient as unknown as {
+      state: SignalConnectionState;
+      streamWriter: { write: (chunk: ArrayBuffer) => Promise<void> } | undefined;
+      handleSignalResponse: (res: SignalResponse) => void;
+    };
+  }
+
+  it('dispatches store data blob responses', () => {
+    const received: StoreDataBlobResponse[] = [];
+    signalClient.onStoreDataBlobResponse = (res) => received.push(res);
+
+    clientInternals().handleSignalResponse(
+      createSignalResponse('storeDataBlobResponse', new StoreDataBlobResponse({ requestId: 42 })),
+    );
+
+    expect(received).toHaveLength(1);
+    expect(received[0].requestId).toBe(42);
+  });
+
+  it('dispatches get data blob responses', () => {
+    const received: GetDataBlobResponse[] = [];
+    signalClient.onGetDataBlobResponse = (res) => received.push(res);
+
+    clientInternals().handleSignalResponse(
+      createSignalResponse(
+        'getDataBlobResponse',
+        new GetDataBlobResponse({
+          requestId: 43,
+          blob: new DataBlob({ contents: new TextEncoder().encode('definition') }),
+        }),
+      ),
+    );
+
+    expect(received).toHaveLength(1);
+    expect(received[0].requestId).toBe(43);
+    expect(new TextDecoder().decode(received[0].blob?.contents)).toBe('definition');
+  });
+
+  it('sends blob requests with increasing request ids', async () => {
+    const written: SignalRequest[] = [];
+    const internals = clientInternals();
+    internals.state = SignalConnectionState.CONNECTED;
+    internals.streamWriter = {
+      write: async (chunk) => {
+        written.push(SignalRequest.fromBinary(new Uint8Array(chunk)));
+      },
+    };
+
+    const key = new DataBlobKey({ key: { case: 'generic', value: 'my-key' } });
+    const storeRequestId = await signalClient.sendStoreDataBlobRequest(
+      new DataBlob({ key, contents: new TextEncoder().encode('contents') }),
+    );
+    const getRequestId = await signalClient.sendGetDataBlobRequest(key, 'publisher-identity');
+
+    expect(getRequestId).toBe(storeRequestId + 1);
+    expect(written).toHaveLength(2);
+
+    const storeMessage = written[0].message;
+    expect(storeMessage.case).toStrictEqual('storeDataBlobRequest');
+    if (storeMessage.case !== 'storeDataBlobRequest') throw new Error('unreachable');
+    expect(storeMessage.value.requestId).toBe(storeRequestId);
+    expect(storeMessage.value.blob?.key?.key).toStrictEqual({ case: 'generic', value: 'my-key' });
+    expect(new TextDecoder().decode(storeMessage.value.blob?.contents)).toBe('contents');
+
+    const getMessage = written[1].message;
+    expect(getMessage.case).toStrictEqual('getDataBlobRequest');
+    if (getMessage.case !== 'getDataBlobRequest') throw new Error('unreachable');
+    expect(getMessage.value.requestId).toBe(getRequestId);
+    expect(getMessage.value.participantIdentity).toStrictEqual('publisher-identity');
+    expect(getMessage.value.key?.key).toStrictEqual({ case: 'generic', value: 'my-key' });
   });
 });
 
