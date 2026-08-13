@@ -1,4 +1,5 @@
 import {
+  DataBlobKey,
   DataTrackFrameEncoding as ProtocolDataTrackFrameEncoding,
   DataTrackSchemaEncoding as ProtocolDataTrackSchemaEncoding,
   DataTrackSchemaId as ProtocolDataTrackSchemaId,
@@ -111,6 +112,19 @@ describe('DataTrackSchemaId', () => {
   it('defaults encoding to "other" when the protobuf encoding is absent', () => {
     const protobuf = new ProtocolDataTrackSchemaId({ name: 'rgb' });
     expect(DataTrackSchemaId.from(protobuf)).toStrictEqual({ name: 'rgb', encoding: 'other' });
+  });
+
+  it.each([
+    { title: 'well-known encoding', encoding: 'jsonSchema' as DataTrackSchemaEncoding },
+    { title: 'custom encoding', encoding: { custom: 'my_encoding' } },
+  ])('converts to a data blob key ($title)', ({ encoding }) => {
+    const schemaId: DataTrackSchemaId = { name: 'rgb', encoding };
+    const key = DataTrackSchemaId.toDataBlobKey(schemaId);
+    expect(key).toBeInstanceOf(DataBlobKey);
+    expect(key.key.case).toStrictEqual('schemaId');
+    expect(DataTrackSchemaId.from(key.key.value as ProtocolDataTrackSchemaId)).toStrictEqual(
+      schemaId,
+    );
   });
 });
 
