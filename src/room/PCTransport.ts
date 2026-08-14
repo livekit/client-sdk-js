@@ -7,7 +7,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
+import { ddExtensionURI, isChromiumBased, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -458,6 +458,12 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         if (media.type === 'audio') {
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
+          // Chrome 152 stopped decoding AV1 that arrives without DD
+          // (frames get assembled, none ever decode), which breaks
+          // subscribing to AV1 wherever we own the offer, i.e. on a single peer connection.
+          if (isChromiumBased() && videoSectionCanReceiveAV1(media)) {
+            this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+          }
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
               return false;
@@ -475,7 +481,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
-              this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+              this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
             }
 
             return true;
@@ -713,41 +719,86 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       throw new NegotiationError(msg);
     }
   }
+}
 
-  private ensureVideoDDExtensionForSVC(
-    media: {
-      type: string;
-      port: number;
-      protocol: string;
-      payloads?: string | undefined;
-    } & MediaDescription,
-    sdp: SessionDescription,
-  ) {
-    const ddFound = media.ext?.some((ext): boolean => {
-      if (ext.uri === ddExtensionURI) {
-        return true;
-      }
-      return false;
+/**
+ * Adds the AV1 dependency descriptor extension to `media` unless it is already there, and
+ * returns the id it is mapped to so callers can pass it back in as `ddExtID` (0 when no id has
+ * been chosen yet).
+ *
+ * A bundle has to map one URI to one id, so an id already in use for the extension anywhere in
+ * `sdp` wins over both the cached one and a fresh one: Chrome advertises the extension itself on
+ * sections it can send on, and an earlier offer may have munged it into others.
+ * @internal
+ */
+export function ensureVideoDDExtension(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+  sdp: SessionDescription,
+  ddExtID: number,
+): number {
+  const id = existingDDExtensionID(sdp) ?? (ddExtID === 0 ? unusedExtensionID(sdp) : ddExtID);
+
+  if (!media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
+    media.ext ??= [];
+    media.ext.push({
+      value: id,
+      uri: ddExtensionURI,
     });
+  }
+  return id;
+}
 
-    if (!ddFound) {
-      if (this.ddExtID === 0) {
-        let maxID = 0;
-        sdp.media.forEach((m) => {
-          m.ext?.forEach((ext) => {
-            if (ext.value > maxID) {
-              maxID = ext.value;
-            }
-          });
-        });
-        this.ddExtID = maxID + 1;
-      }
-      media.ext?.push({
-        value: this.ddExtID,
-        uri: ddExtensionURI,
-      });
+/** The id the dependency descriptor extension is already mapped to in `sdp`, if any. */
+function existingDDExtensionID(sdp: SessionDescription): number | undefined {
+  for (const media of sdp.media) {
+    const ext = media.ext?.find((candidate) => candidate.uri === ddExtensionURI);
+    if (ext) {
+      return ext.value;
     }
   }
+  return undefined;
+}
+
+/**
+ * An id no extension in `sdp` uses. Stays above every id in use rather than filling gaps, so it
+ * cannot collide with an id the browser allocates to another extension later, and steps over 15,
+ * which RFC 8285 reserves.
+ */
+function unusedExtensionID(sdp: SessionDescription): number {
+  let maxID = 0;
+  sdp.media.forEach((media) => {
+    media.ext?.forEach((ext) => {
+      if (ext.value > maxID) {
+        maxID = ext.value;
+      }
+    });
+  });
+  return maxID + 1 === 15 ? 16 : maxID + 1;
+}
+
+/**
+ * Whether AV1 could arrive on this section, i.e. it is one we receive on and AV1 survived
+ * negotiation. Which codec the server actually sends is decided after negotiation, so any
+ * receiving section offering AV1 has to be prepared for it.
+ * @internal
+ */
+export function videoSectionCanReceiveAV1(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+): boolean {
+  if (media.direction !== 'recvonly' && media.direction !== 'sendrecv') {
+    return false;
+  }
+  return media.rtp.some((rtp) => rtp.codec.toLowerCase() === 'av1');
 }
 
 /**
