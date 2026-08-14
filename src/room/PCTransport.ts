@@ -125,6 +125,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private ddExtID = 0;
 
+  /**
+   * Whether remote media arrives on this connection, which is only true of the publisher
+   * transport when it is the only one. Everywhere else the server offers the sections media
+   * arrives on, so our offers describe sending alone.
+   */
+  receivesRemoteMedia: boolean = false;
+
   latestOfferId: number = 0;
 
   latestAcknowledgedOfferId: number = 0;
@@ -461,7 +468,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           // Chrome 152 stopped decoding AV1 that arrives without DD
           // (frames get assembled, none ever decode), which breaks
           // subscribing to AV1 wherever we own the offer, i.e. on a single peer connection.
-          if (isChromiumBased() && videoSectionCanReceiveAV1(media)) {
+          if (this.receivesRemoteMedia && isChromiumBased() && videoSectionCanReceiveAV1(media)) {
             this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
           }
           this.trackBitrates.some((trackbr): boolean => {
@@ -741,7 +748,10 @@ export function ensureVideoDDExtension(
   sdp: SessionDescription,
   ddExtID: number,
 ): number {
-  const id = existingDDExtensionID(sdp) ?? (ddExtID === 0 ? unusedExtensionID(sdp) : ddExtID);
+  const id = ddExtensionIDFor(sdp, ddExtID);
+  if (id === undefined) {
+    return ddExtID;
+  }
 
   if (!media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
     media.ext ??= [];
@@ -753,10 +763,31 @@ export function ensureVideoDDExtension(
   return id;
 }
 
-/** The id the dependency descriptor extension is already mapped to in `sdp`, if any. */
-function existingDDExtensionID(sdp: SessionDescription): number | undefined {
+/**
+ * The id to map the dependency descriptor to throughout `sdp`, or undefined when no id would be
+ * consistent for the whole bundle and the extension therefore has to be left out.
+ */
+function ddExtensionIDFor(sdp: SessionDescription, cachedID: number): number | undefined {
+  const mapped = mappedExtensionID(sdp, ddExtensionURI);
+  if (mapped !== undefined) {
+    // Adopting an id that also stands for another URI is what the browser rejects the bundle
+    // over, and its own half of the map is not ours to renumber, so give up on this offer.
+    return usedForOtherURI(sdp, mapped, ddExtensionURI) ? undefined : mapped;
+  }
+  // Reusing the id from the last offer keeps the mapping stable across renegotiations, but only
+  // while nothing else has taken it: the browser assigns ids to its own extensions without
+  // knowing about ours, so an id that was free when we picked it can since have been claimed —
+  // typically by the fuller extension set that arrives with the first section we send on.
+  if (cachedID !== 0 && !usedForOtherURI(sdp, cachedID, ddExtensionURI)) {
+    return cachedID;
+  }
+  return unusedExtensionID(sdp);
+}
+
+/** The id `uri` is mapped to in `sdp`, if any section maps it. */
+function mappedExtensionID(sdp: SessionDescription, uri: string): number | undefined {
   for (const media of sdp.media) {
-    const ext = media.ext?.find((candidate) => candidate.uri === ddExtensionURI);
+    const ext = media.ext?.find((candidate) => candidate.uri === uri);
     if (ext) {
       return ext.value;
     }
@@ -764,10 +795,15 @@ function existingDDExtensionID(sdp: SessionDescription): number | undefined {
   return undefined;
 }
 
+/** Whether `id` stands for anything in `sdp` other than `uri`. */
+function usedForOtherURI(sdp: SessionDescription, id: number, uri: string): boolean {
+  return sdp.media.some((media) => media.ext?.some((ext) => ext.value === id && ext.uri !== uri));
+}
+
 /**
  * An id no extension in `sdp` uses. Stays above every id in use rather than filling gaps, so it
- * cannot collide with an id the browser allocates to another extension later, and steps over 15,
- * which RFC 8285 reserves.
+ * is less likely to be an id the browser goes on to allocate to another extension, and steps
+ * over 15, which RFC 8285 reserves.
  */
 function unusedExtensionID(sdp: SessionDescription): number {
   let maxID = 0;

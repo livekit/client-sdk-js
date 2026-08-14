@@ -376,6 +376,29 @@ a=extmap:3 ${ddExtensionURI}`);
     expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(16);
   });
 
+  it('abandons the cached id once something else stands for it', () => {
+    // The id was free when it was picked, then the first section we send on brought the fuller
+    // extension set along and claimed it. Reusing it anyway is what makes the browser reject
+    // the offer with "a BUNDLE group contains a codec collision for header extension id".
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 12)).toBe(13);
+    expect(ddOf(sdp.media, '1')).toBe(13);
+  });
+
+  it('leaves the offer alone when the mapped id is contested', () => {
+    // Nothing consistent for the whole bundle is available: the extension is mapped to 12 on one
+    // section and 12 means something else on another, and the browser's half of the map is not
+    // ours to renumber. Losing AV1 beats an offer that cannot be applied at all.
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+    sectionOf(sdp.media, '2').ext!.push({ value: 12, uri: ddExtensionURI });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(0);
+    expect(ddOf(sdp.media, '1')).toBeUndefined();
+  });
+
   it('adds the extension to a section that has none', () => {
     const sdp = parse(SINGLE_PC_OFFER);
     const section = sectionOf(sdp.media, '1');
