@@ -348,12 +348,32 @@ describe('ensureVideoDDExtension', () => {
     expect(ddOf(sdp.media, '2')).toBe(7);
   });
 
-  it('leaves a section that already carries the extension alone', () => {
+  it('leaves a section that already carries the extension alone, and reports its id', () => {
     const sdp = parse(`${SINGLE_PC_OFFER}
 a=extmap:3 ${ddExtensionURI}`);
-    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 0)).toBe(0);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 0)).toBe(3);
     expect(sectionOf(sdp.media, '2').ext).toHaveLength(2);
     expect(ddOf(sdp.media, '2')).toBe(3);
+  });
+
+  it('adopts the id the browser already advertises rather than inventing a second one', () => {
+    // Chrome maps the extension itself on the section it sends AV1 on, but not on recvonly
+    // ones. A bundle has to map the URI to one id, so the send section's id has to win over
+    // both a fresh id and the cached one.
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 13, uri: ddExtensionURI });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(13);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 7)).toBe(13);
+    expect(ddOf(sdp.media, '1')).toBe(13);
+    expect(ddOf(sdp.media, '2')).toBe(13);
+  });
+
+  it('steps over the id RFC 8285 reserves', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 14, uri: 'urn:3gpp:video-orientation' });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(16);
   });
 
   it('adds the extension to a section that has none', () => {

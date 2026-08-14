@@ -722,7 +722,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 }
 
 /**
- * Adds the AV1 dependency descriptor extension to `media` unless it is already there.
+ * Adds the AV1 dependency descriptor extension to `media` unless it is already there, and
+ * returns the id it is mapped to so callers can pass it back in as `ddExtID` (0 when no id has
+ * been chosen yet).
+ *
+ * A bundle has to map one URI to one id, so an id already in use for the extension anywhere in
+ * `sdp` wins over both the cached one and a fresh one: Chrome advertises the extension itself on
+ * sections it can send on, and an earlier offer may have munged it into others.
  * @internal
  */
 export function ensureVideoDDExtension(
@@ -735,27 +741,44 @@ export function ensureVideoDDExtension(
   sdp: SessionDescription,
   ddExtID: number,
 ): number {
-  if (media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
-    return ddExtID;
-  }
+  const id = existingDDExtensionID(sdp) ?? (ddExtID === 0 ? unusedExtensionID(sdp) : ddExtID);
 
-  if (ddExtID === 0) {
-    let maxID = 0;
-    sdp.media.forEach((m) => {
-      m.ext?.forEach((ext) => {
-        if (ext.value > maxID) {
-          maxID = ext.value;
-        }
-      });
+  if (!media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
+    media.ext ??= [];
+    media.ext.push({
+      value: id,
+      uri: ddExtensionURI,
     });
-    ddExtID = maxID + 1;
   }
-  media.ext ??= [];
-  media.ext.push({
-    value: ddExtID,
-    uri: ddExtensionURI,
+  return id;
+}
+
+/** The id the dependency descriptor extension is already mapped to in `sdp`, if any. */
+function existingDDExtensionID(sdp: SessionDescription): number | undefined {
+  for (const media of sdp.media) {
+    const ext = media.ext?.find((candidate) => candidate.uri === ddExtensionURI);
+    if (ext) {
+      return ext.value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * An id no extension in `sdp` uses. Stays above every id in use rather than filling gaps, so it
+ * cannot collide with an id the browser allocates to another extension later, and steps over 15,
+ * which RFC 8285 reserves.
+ */
+function unusedExtensionID(sdp: SessionDescription): number {
+  let maxID = 0;
+  sdp.media.forEach((media) => {
+    media.ext?.forEach((ext) => {
+      if (ext.value > maxID) {
+        maxID = ext.value;
+      }
+    });
   });
-  return ddExtID;
+  return maxID + 1 === 15 ? 16 : maxID + 1;
 }
 
 /**
