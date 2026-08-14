@@ -7,7 +7,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
+import { ddExtensionURI, isChromiumBased, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -461,7 +461,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
           // Chrome 152 stopped decoding AV1 that arrives without DD
           // (frames get assembled, none ever decode), which breaks
           // subscribing to AV1 wherever we own the offer, i.e. on a single peer connection.
-          if (!isSafari() && videoSectionCanReceiveAV1(media)) {
+          if (isChromiumBased() && videoSectionCanReceiveAV1(media)) {
             this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
           }
           this.trackBitrates.some((trackbr): boolean => {
