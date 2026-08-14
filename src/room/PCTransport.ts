@@ -775,7 +775,7 @@ export function videoSectionCanReceiveAV1(
   if (media.direction !== 'recvonly' && media.direction !== 'sendrecv') {
     return false;
   }
-  return media.rtp.some((rtp) => rtp.codec.toUpperCase() === 'AV1');
+  return media.rtp.some((rtp) => rtp.codec.toLowerCase() === 'av1');
 }
 
 /**
