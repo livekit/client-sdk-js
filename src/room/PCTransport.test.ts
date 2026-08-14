@@ -4,10 +4,13 @@ import {
   applyVideoStartBitrate,
   conformBundledCodecFmtp,
   ensureAudioNackAndStereo,
+  ensureVideoDDExtension,
   extractStereoAndNackAudioFromOffer,
   fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
+  videoSectionCanReceiveAV1,
 } from './PCTransport';
+import { ddExtensionURI } from './utils';
 
 /** Parse the `key[=value]` pairs of an fmtp config into a comparable set. */
 const paramSet = (config: string) => new Set(config.split(';').filter(Boolean));
@@ -274,5 +277,90 @@ ${fmtp}`,
       offerWith('a=rtpmap:111 OPUS/48000/2', 'a=fmtp:111 minptime=10;sprop-stereo=1'),
     );
     expect(stereoMids).toEqual(['0']);
+  });
+});
+
+// A single peer connection bundle as Chrome offers it: the section our camera sends on, the
+// recvonly sections subscribed tracks arrive on, and one that lost AV1 in negotiation.
+const SINGLE_PC_OFFER = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1 2
+m=video 9 UDP/TLS/RTP/SAVPF 96 45
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sendonly
+a=msid:s cam
+a=rtpmap:96 VP8/90000
+a=rtpmap:45 AV1/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+a=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id
+m=video 9 UDP/TLS/RTP/SAVPF 96 45
+c=IN IP4 0.0.0.0
+a=mid:1
+a=recvonly
+a=rtpmap:96 VP8/90000
+a=rtpmap:45 AV1/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:2
+a=recvonly
+a=rtpmap:96 VP8/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time`;
+
+const sectionOf = (media: MediaDescription[], mid: string) =>
+  media.find((section) => `${section.mid}` === mid)!;
+
+const ddOf = (media: MediaDescription[], mid: string) =>
+  sectionOf(media, mid).ext?.find((ext) => ext.uri === ddExtensionURI)?.value;
+
+describe('videoSectionCanReceiveAV1', () => {
+  const { media } = parse(SINGLE_PC_OFFER);
+
+  it('is true for a section we receive on that kept AV1', () => {
+    expect(videoSectionCanReceiveAV1(sectionOf(media, '1'))).toBe(true);
+  });
+
+  it('is false for a send-only section, where the SVC path owns the extension', () => {
+    expect(videoSectionCanReceiveAV1(sectionOf(media, '0'))).toBe(false);
+  });
+
+  it('is false when AV1 did not survive negotiation', () => {
+    expect(videoSectionCanReceiveAV1(sectionOf(media, '2'))).toBe(false);
+  });
+});
+
+describe('ensureVideoDDExtension', () => {
+  it('assigns an id above every extension in the bundle', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    // 11 is the highest in use, across all sections rather than just this one
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(12);
+    expect(ddOf(sdp.media, '1')).toBe(12);
+  });
+
+  it('reuses the id already chosen for the connection', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 7)).toBe(7);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 7)).toBe(7);
+    expect(ddOf(sdp.media, '1')).toBe(7);
+    expect(ddOf(sdp.media, '2')).toBe(7);
+  });
+
+  it('leaves a section that already carries the extension alone', () => {
+    const sdp = parse(`${SINGLE_PC_OFFER}
+a=extmap:3 ${ddExtensionURI}`);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 0)).toBe(0);
+    expect(sectionOf(sdp.media, '2').ext).toHaveLength(2);
+    expect(ddOf(sdp.media, '2')).toBe(3);
+  });
+
+  it('adds the extension to a section that has none', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    const section = sectionOf(sdp.media, '1');
+    delete section.ext;
+    expect(ensureVideoDDExtension(section, sdp, 0)).toBe(12);
+    expect(ddOf(sdp.media, '1')).toBe(12);
   });
 });

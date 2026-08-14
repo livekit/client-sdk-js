@@ -458,6 +458,12 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         if (media.type === 'audio') {
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
+          // Chrome 152 stopped decoding AV1 that arrives without DD
+          // (frames get assembled, none ever decode), which breaks
+          // subscribing to AV1 wherever we own the offer, i.e. on a single peer connection.
+          if (!isSafari() && videoSectionCanReceiveAV1(media)) {
+            this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+          }
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
               return false;
@@ -475,7 +481,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
-              this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+              this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
             }
 
             return true;
@@ -713,41 +719,63 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       throw new NegotiationError(msg);
     }
   }
+}
 
-  private ensureVideoDDExtensionForSVC(
-    media: {
-      type: string;
-      port: number;
-      protocol: string;
-      payloads?: string | undefined;
-    } & MediaDescription,
-    sdp: SessionDescription,
-  ) {
-    const ddFound = media.ext?.some((ext): boolean => {
-      if (ext.uri === ddExtensionURI) {
-        return true;
-      }
-      return false;
-    });
-
-    if (!ddFound) {
-      if (this.ddExtID === 0) {
-        let maxID = 0;
-        sdp.media.forEach((m) => {
-          m.ext?.forEach((ext) => {
-            if (ext.value > maxID) {
-              maxID = ext.value;
-            }
-          });
-        });
-        this.ddExtID = maxID + 1;
-      }
-      media.ext?.push({
-        value: this.ddExtID,
-        uri: ddExtensionURI,
-      });
-    }
+/**
+ * Adds the AV1 dependency descriptor extension to `media` unless it is already there.
+ * @internal
+ */
+export function ensureVideoDDExtension(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+  sdp: SessionDescription,
+  ddExtID: number,
+): number {
+  if (media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
+    return ddExtID;
   }
+
+  if (ddExtID === 0) {
+    let maxID = 0;
+    sdp.media.forEach((m) => {
+      m.ext?.forEach((ext) => {
+        if (ext.value > maxID) {
+          maxID = ext.value;
+        }
+      });
+    });
+    ddExtID = maxID + 1;
+  }
+  media.ext ??= [];
+  media.ext.push({
+    value: ddExtID,
+    uri: ddExtensionURI,
+  });
+  return ddExtID;
+}
+
+/**
+ * Whether AV1 could arrive on this section, i.e. it is one we receive on and AV1 survived
+ * negotiation. Which codec the server actually sends is decided after negotiation, so any
+ * receiving section offering AV1 has to be prepared for it.
+ * @internal
+ */
+export function videoSectionCanReceiveAV1(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+): boolean {
+  if (media.direction !== 'recvonly' && media.direction !== 'sendrecv') {
+    return false;
+  }
+  return media.rtp.some((rtp) => rtp.codec.toUpperCase() === 'AV1');
 }
 
 /**
