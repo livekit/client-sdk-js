@@ -101,6 +101,7 @@ import {
   isVideoCodec,
   isVideoTrack,
   isWeb,
+  negotiateDependencyDescriptor,
   sleep,
   supportsAddTrack,
   supportsTransceiver,
@@ -844,8 +845,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     for (let i: number = 0; i < numAudios; i++) {
       this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
     }
+    // media only arrives on these sections when there is no subscriber connection to arrive on
+    const receivesMedia = this.pcManager?.mode === 'publisher-only';
     for (let i: number = 0; i < numVideos; i++) {
-      this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      const transceiver = this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      if (receivesMedia && transceiver) {
+        this.log.debug('dependency descriptor negotiated for received video', {
+          negotiated: negotiateDependencyDescriptor(transceiver),
+        });
+      }
     }
   }
 

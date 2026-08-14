@@ -8,7 +8,6 @@ import {
   extractStereoAndNackAudioFromOffer,
   fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
-  videoSectionCanReceiveAV1,
 } from './PCTransport';
 import { ddExtensionURI } from './utils';
 
@@ -315,22 +314,6 @@ const sectionOf = (media: MediaDescription[], mid: string) =>
 
 const ddOf = (media: MediaDescription[], mid: string) =>
   sectionOf(media, mid).ext?.find((ext) => ext.uri === ddExtensionURI)?.value;
-
-describe('videoSectionCanReceiveAV1', () => {
-  const { media } = parse(SINGLE_PC_OFFER);
-
-  it('is true for a section we receive on that kept AV1', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '1'))).toBe(true);
-  });
-
-  it('is false for a send-only section, where the SVC path owns the extension', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '0'))).toBe(false);
-  });
-
-  it('is false when AV1 did not survive negotiation', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '2'))).toBe(false);
-  });
-});
 
 describe('ensureVideoDDExtension', () => {
   it('assigns an id above every extension in the bundle', () => {

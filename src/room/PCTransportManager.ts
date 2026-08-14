@@ -83,8 +83,6 @@ export class PCTransportManager {
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
     this.publisher = new PCTransport(rtcConfig, loggerOptions);
-    // with no subscriber transport, remote media arrives on the publisher one
-    this.publisher.receivesRemoteMedia = mode === 'publisher-only';
     this._mode = mode;
     if (mode !== 'publisher-only') {
       this.subscriber = new PCTransport(rtcConfig, loggerOptions);

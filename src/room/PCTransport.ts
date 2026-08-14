@@ -7,7 +7,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isChromiumBased, isSVCCodec, isSafari } from './utils';
+import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -124,13 +124,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   private loggerOptions: LoggerOptions;
 
   private ddExtID = 0;
-
-  /**
-   * Whether remote media arrives on this connection, which is only true of the publisher
-   * transport when it is the only one. Everywhere else the server offers the sections media
-   * arrives on, so our offers describe sending alone.
-   */
-  receivesRemoteMedia: boolean = false;
 
   latestOfferId: number = 0;
 
@@ -465,12 +458,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         if (media.type === 'audio') {
           ensureAudioNackAndStereo(media, ['all'], []);
         } else if (media.type === 'video') {
-          // Chrome 152 stopped decoding AV1 that arrives without DD
-          // (frames get assembled, none ever decode), which breaks
-          // subscribing to AV1 wherever we own the offer, i.e. on a single peer connection.
-          if (this.receivesRemoteMedia && isChromiumBased() && videoSectionCanReceiveAV1(media)) {
-            this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
-          }
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
               return false;
@@ -815,26 +802,6 @@ function unusedExtensionID(sdp: SessionDescription): number {
     });
   });
   return maxID + 1 === 15 ? 16 : maxID + 1;
-}
-
-/**
- * Whether AV1 could arrive on this section, i.e. it is one we receive on and AV1 survived
- * negotiation. Which codec the server actually sends is decided after negotiation, so any
- * receiving section offering AV1 has to be prepared for it.
- * @internal
- */
-export function videoSectionCanReceiveAV1(
-  media: {
-    type: string;
-    port: number;
-    protocol: string;
-    payloads?: string | undefined;
-  } & MediaDescription,
-): boolean {
-  if (media.direction !== 'recvonly' && media.direction !== 'sendrecv') {
-    return false;
-  }
-  return media.rtp.some((rtp) => rtp.codec.toLowerCase() === 'av1');
 }
 
 /**
