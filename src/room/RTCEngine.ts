@@ -850,9 +850,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     for (let i: number = 0; i < numVideos; i++) {
       const transceiver = this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
       if (receivesMedia && transceiver) {
-        this.log.debug('dependency descriptor negotiated for received video', {
-          negotiated: negotiateDependencyDescriptor(transceiver),
-        });
+        const negotiated = negotiateDependencyDescriptor(transceiver);
+
+        this.log.debug('dependency descriptor negotiated for received video', { negotiated });
       }
     }
   }
