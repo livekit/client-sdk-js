@@ -1466,9 +1466,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new Error('simulated failure');
     }
 
-    await this.pcManager.triggerIceRestart();
+    // Hold the subscriber in "awaiting a fresh ICE generation" for the duration, so remote
+    // candidates queue rather than being applied to a generation that may be on its way out.
+    // The server only re-offers the subscriber when this resume moved us to another node, so
+    // on an ordinary signal-only resume no offer is coming and nothing else would close that
+    // window; left open, the subscriber silently stops adopting new network paths for the rest
+    // of the session. `finally` so that every exit closes it, including a publisher offer that
+    // throws before we ever wait.
+    this.pcManager.beginSubscriberIceRestart();
+    try {
+      await this.pcManager.triggerIceRestart();
 
-    await this.waitForPCReconnected();
+      await this.waitForPCReconnected();
+    } finally {
+      this.pcManager.finishSubscriberIceRestart();
+    }
 
     // re-check signal connection state before setting engine as resumed
     if (this.client.currentState !== SignalConnectionState.CONNECTED) {

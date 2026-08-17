@@ -237,6 +237,43 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     this.pendingCandidates.push(candidate);
   }
 
+  /**
+   * Ends a `restartingIce` window without a new remote description having arrived, applying
+   * anything that queued behind it.
+   *
+   * {@link setRemoteDescription} already does this when a description does arrive, so this is
+   * a no-op in that case. It exists for the subscriber, whose `restartingIce` is set
+   * speculatively by {@link PCTransportManager.triggerIceRestart}: the server only re-offers
+   * the subscriber when the resume moved us to another node, so after an ordinary
+   * signal-only resume no description is coming and nothing would otherwise clear the flag.
+   * Left set, every subsequent remote candidate is buffered instead of applied and the
+   * transport can no longer adopt any new network path the server proposes.
+   */
+  finishRestartingIce() {
+    if (!this.restartingIce) {
+      return;
+    }
+    this.restartingIce = false;
+
+    // Anything queued belongs to the generation that is still current, so it can be applied
+    // exactly as it would have been before the restart began. With no remote description to
+    // apply them against there is still nothing to do, so leave them queued as
+    // `addIceCandidate` itself would.
+    if (!this._pc?.remoteDescription) {
+      return;
+    }
+
+    if (this.pendingCandidates.length > 0) {
+      this.iceLog.debug('applying queued ICE candidates after ICE restart window closed', {
+        count: this.pendingCandidates.length,
+      });
+    }
+    this.pendingCandidates.forEach((candidate) => {
+      this.pc.addIceCandidate(candidate);
+    });
+    this.pendingCandidates = [];
+  }
+
   async setRemoteDescription(sd: RTCSessionDescriptionInit, offerId: number): Promise<boolean> {
     if (
       sd.type === 'answer' &&

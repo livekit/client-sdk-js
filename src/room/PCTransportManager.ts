@@ -162,11 +162,33 @@ export class PCTransportManager {
     this.updateState();
   }
 
-  async triggerIceRestart() {
-    this.iceLog.warn('triggering ICE restart');
+  /**
+   * Holds the subscriber in "awaiting a fresh ICE generation", so remote candidates queue
+   * rather than being applied to a generation that may be on its way out.
+   *
+   * MUST be paired with {@link finishSubscriberIceRestart} on every exit from the reconnect,
+   * including failures. Unlike the publisher — which sets the same flag alongside an offer it
+   * will certainly receive an answer to — this is speculative: the server only re-offers the
+   * subscriber when the reconnect moved us to a different node, so on the common signal-only
+   * resume no offer arrives and nothing else ever closes the window.
+   */
+  beginSubscriberIceRestart() {
     if (this.subscriber) {
       this.subscriber.restartingIce = true;
     }
+  }
+
+  /**
+   * Closes the window opened by {@link beginSubscriberIceRestart}, applying any candidates
+   * that queued while it was open. Idempotent, and a no-op when the server's offer already
+   * closed it.
+   */
+  finishSubscriberIceRestart() {
+    this.subscriber?.finishRestartingIce();
+  }
+
+  async triggerIceRestart() {
+    this.iceLog.warn('triggering ICE restart');
     // only restart publisher if it's needed
     if (this.needsPublisher) {
       await this.createAndSendPublisherOffer({ iceRestart: true });

@@ -1,6 +1,6 @@
 import { type MediaDescription, parse } from 'sdp-transform';
-import { describe, expect, it } from 'vitest';
-import {
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import PCTransport, {
   applyVideoStartBitrate,
   conformBundledCodecFmtp,
   ensureAudioNackAndStereo,
@@ -388,5 +388,119 @@ a=extmap:3 ${ddExtensionURI}`);
     delete section.ext;
     expect(ensureVideoDDExtension(section, sdp, 0)).toBe(12);
     expect(ddOf(sdp.media, '1')).toBe(12);
+  });
+});
+
+/**
+ * Minimal RTCPeerConnection stand-in: enough surface for PCTransport's constructor to attach
+ * its handlers, plus the candidate/description state these tests assert on.
+ */
+class StubPC {
+  remoteDescription: RTCSessionDescription | null = null;
+
+  addIceCandidate = vi.fn(async (_c: RTCIceCandidateInit) => {});
+
+  onicecandidate: unknown = null;
+
+  onicecandidateerror: unknown = null;
+
+  oniceconnectionstatechange: unknown = null;
+
+  onsignalingstatechange: unknown = null;
+
+  onconnectionstatechange: unknown = null;
+
+  ondatachannel: unknown = null;
+
+  ontrack: unknown = null;
+}
+
+describe('PCTransport.finishRestartingIce', () => {
+  let originalRTCPeerConnection: unknown;
+  let stub: StubPC;
+
+  beforeEach(() => {
+    originalRTCPeerConnection = (globalThis as unknown as { RTCPeerConnection?: unknown })
+      .RTCPeerConnection;
+    stub = new StubPC();
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = function () {
+      return stub;
+    };
+  });
+
+  afterEach(() => {
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection =
+      originalRTCPeerConnection;
+  });
+
+  /** A transport whose remote description is already applied, as a resume finds it. */
+  const negotiated = () => {
+    stub.remoteDescription = { type: 'offer', sdp: 'x' } as RTCSessionDescription;
+    return new PCTransport();
+  };
+
+  const candidate = (port: number): RTCIceCandidateInit => ({
+    candidate: `candidate:1 1 UDP 2130706431 192.168.1.1 ${port} typ host`,
+    sdpMid: '0',
+    sdpMLineIndex: 0,
+  });
+
+  it('applies candidates that queued while awaiting an offer that never came', async () => {
+    const transport = negotiated();
+
+    // The resume opens the window; candidates must queue rather than be applied to a
+    // generation that may be on its way out.
+    transport.restartingIce = true;
+    await transport.addIceCandidate(candidate(50000));
+    expect(stub.addIceCandidate).not.toHaveBeenCalled();
+    expect(transport.pendingCandidates).toHaveLength(1);
+
+    // The server never re-offers -- the signal-only resume case -- so closing the window has
+    // to apply what queued behind it.
+    transport.finishRestartingIce();
+    expect(transport.restartingIce).toBe(false);
+    expect(transport.pendingCandidates).toHaveLength(0);
+    expect(stub.addIceCandidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes applying later candidates directly', async () => {
+    const transport = negotiated();
+    transport.restartingIce = true;
+    transport.finishRestartingIce();
+
+    // This is the user-visible symptom: with the window stuck open, every subsequent network
+    // path the server proposes is buffered and never used.
+    await transport.addIceCandidate(candidate(50001));
+    expect(stub.addIceCandidate).toHaveBeenCalledTimes(1);
+    expect(transport.pendingCandidates).toHaveLength(0);
+  });
+
+  it('is idempotent and safe when no window is open', async () => {
+    const transport = negotiated();
+
+    // Never opened: must not disturb anything.
+    transport.finishRestartingIce();
+    expect(transport.restartingIce).toBe(false);
+
+    // Opened and closed twice: the server's offer may already have closed it.
+    transport.restartingIce = true;
+    transport.finishRestartingIce();
+    transport.finishRestartingIce();
+    expect(transport.restartingIce).toBe(false);
+  });
+
+  it('leaves candidates queued while there is still no remote description', async () => {
+    const transport = new PCTransport(); // no remote description applied
+
+    // This candidate is queued because there is nothing to apply it against, not because of
+    // an ICE restart, so closing the window must not try to flush it.
+    await transport.addIceCandidate(candidate(50000));
+    expect(transport.pendingCandidates).toHaveLength(1);
+
+    transport.restartingIce = true;
+    transport.finishRestartingIce();
+
+    expect(transport.pendingCandidates).toHaveLength(1);
+    expect(stub.addIceCandidate).not.toHaveBeenCalled();
   });
 });
