@@ -163,33 +163,19 @@ export class PCTransportManager {
   }
 
   /**
-   * Holds the subscriber in "awaiting a fresh ICE generation", so remote candidates queue
-   * rather than being applied to a generation that may be on its way out.
+   * Restarts ICE on the transports that need it. Only the publisher: the server restarts the
+   * subscriber's ICE itself and follows with a fresh offer.
    *
-   * MUST be paired with {@link finishSubscriberIceRestart} on every exit from the reconnect,
-   * including failures. Unlike the publisher — which sets the same flag alongside an offer it
-   * will certainly receive an answer to — this is speculative: the server only re-offers the
-   * subscriber when the reconnect moved us to a different node, so on the common signal-only
-   * resume no offer arrives and nothing else ever closes the window.
+   * The subscriber deliberately does NOT enter `restartingIce` here. Queueing its remote
+   * candidates would guard against candidates for a new generation arriving before the offer
+   * that introduces it, but the server does not send them in that order -- on a same-node
+   * resume it buffers them until the offer has gone out, and on a reconnect that lands on
+   * another node it withholds subscriber candidates until immediately before creating the
+   * offer. Setting the flag only risks withholding candidates during the window that decides
+   * whether the reconnect succeeded.
    */
-  beginSubscriberIceRestart() {
-    if (this.subscriber) {
-      this.subscriber.restartingIce = true;
-    }
-  }
-
-  /**
-   * Closes the window opened by {@link beginSubscriberIceRestart}, applying any candidates
-   * that queued while it was open. Idempotent, and a no-op when the server's offer already
-   * closed it.
-   */
-  finishSubscriberIceRestart() {
-    this.subscriber?.finishRestartingIce();
-  }
-
   async triggerIceRestart() {
     this.iceLog.warn('triggering ICE restart');
-    // only restart publisher if it's needed
     if (this.needsPublisher) {
       await this.createAndSendPublisherOffer({ iceRestart: true });
     }
