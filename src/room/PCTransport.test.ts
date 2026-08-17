@@ -8,7 +8,6 @@ import {
   extractStereoAndNackAudioFromOffer,
   fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
-  videoSectionCanReceiveAV1,
 } from './PCTransport';
 import { ddExtensionURI } from './utils';
 
@@ -316,22 +315,6 @@ const sectionOf = (media: MediaDescription[], mid: string) =>
 const ddOf = (media: MediaDescription[], mid: string) =>
   sectionOf(media, mid).ext?.find((ext) => ext.uri === ddExtensionURI)?.value;
 
-describe('videoSectionCanReceiveAV1', () => {
-  const { media } = parse(SINGLE_PC_OFFER);
-
-  it('is true for a section we receive on that kept AV1', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '1'))).toBe(true);
-  });
-
-  it('is false for a send-only section, where the SVC path owns the extension', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '0'))).toBe(false);
-  });
-
-  it('is false when AV1 did not survive negotiation', () => {
-    expect(videoSectionCanReceiveAV1(sectionOf(media, '2'))).toBe(false);
-  });
-});
-
 describe('ensureVideoDDExtension', () => {
   it('assigns an id above every extension in the bundle', () => {
     const sdp = parse(SINGLE_PC_OFFER);
@@ -374,6 +357,29 @@ a=extmap:3 ${ddExtensionURI}`);
     sectionOf(sdp.media, '0').ext!.push({ value: 14, uri: 'urn:3gpp:video-orientation' });
 
     expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(16);
+  });
+
+  it('abandons the cached id once something else stands for it', () => {
+    // The id was free when it was picked, then the first section we send on brought the fuller
+    // extension set along and claimed it. Reusing it anyway is what makes the browser reject
+    // the offer with "a BUNDLE group contains a codec collision for header extension id".
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 12)).toBe(13);
+    expect(ddOf(sdp.media, '1')).toBe(13);
+  });
+
+  it('leaves the offer alone when the mapped id is contested', () => {
+    // Nothing consistent for the whole bundle is available: the extension is mapped to 12 on one
+    // section and 12 means something else on another, and the browser's half of the map is not
+    // ours to renumber. Losing AV1 beats an offer that cannot be applied at all.
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+    sectionOf(sdp.media, '2').ext!.push({ value: 12, uri: ddExtensionURI });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(0);
+    expect(ddOf(sdp.media, '1')).toBeUndefined();
   });
 
   it('adds the extension to a section that has none', () => {
