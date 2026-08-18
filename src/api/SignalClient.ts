@@ -140,8 +140,7 @@ export enum SignalConnectionState {
 
 /**
  * Public projection of the lifecycle machine's states. `new`, `offline` and `closed` are all
- * reported as `DISCONNECTED`: they differ in what may happen next (first connect, resume, or
- * nothing), which is the machine's concern, not the consumer's.
+ * reported as `DISCONNECTED`: they differ in what may happen next
  */
 const lifecycleToConnectionState: Record<SignalLifecycleState, SignalConnectionState> = {
   new: SignalConnectionState.DISCONNECTED,
@@ -262,12 +261,7 @@ export class SignalClient {
   }
 
   /**
-   * Applies a lifecycle input and reports whether it moved the machine. Inputs the current state
-   * does not handle are dropped rather than throwing: most call sites are transport callbacks where
-   * an unexpected input means "this no longer applies", not "something went wrong".
-   *
-   * The return value is how callers learn that a decision was theirs to act on — the machine
-   * resolves guards such as "is this the transport we still care about", not the caller.
+   * Applies a lifecycle input and reports whether it moved the machine
    */
   private sendLifecycleInput(input: SignalMachineInput): boolean {
     const before = this.lifecycleState;

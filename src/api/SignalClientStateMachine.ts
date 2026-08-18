@@ -11,11 +11,7 @@ export type SignalLifecycleState =
   'new' | 'connecting' | 'connected' | 'offline' | 'reconnecting' | 'disconnecting' | 'closed';
 
 export interface SignalMachineContext {
-  /**
-   * Monotonic id of the current (re)connection attempt and of the transport it owns. Bumped
-   * whenever an attempt starts, so events from a transport that has since been replaced carry a
-   * stale id and are ignored instead of tearing down the live connection.
-   */
+  /** Monotonic id of the current (re)connection attempt and of the transport it owns */
   attemptId: number;
   /** Error or reason that ended the last attempt, kept for diagnostics. */
   lastError?: unknown;
@@ -47,8 +43,7 @@ type Handler = HandlerFn<SignalMachineContext, SignalLifecycleState>;
 
 /**
  * Declares a handler for one input, restoring the payload typing that machina's `...unknown[]`
- * handler arguments give up. Inputs are dispatched as `handle(event.type, event)`, so the whole
- * event object arrives as the single extra argument.
+ * handler arguments give up.
  */
 function on<T extends SignalMachineInput['type']>(
   handler: (
@@ -59,10 +54,6 @@ function on<T extends SignalMachineInput['type']>(
   return handler as Handler;
 }
 
-// Establishing a session is legal in every state: `RTCEngine` restarts from `connected` (full
-// reconnect), escalates a failed resume from `offline`/`reconnecting`, and resumes from `connected`
-// when only the peer connection was severed. Starting an attempt bumps `attemptId`, which is what
-// invalidates the previous attempt's transport events.
 const startConnect = on<'connect'>(({ ctx }) => {
   ctx.attemptId += 1;
   ctx.lastError = undefined;
