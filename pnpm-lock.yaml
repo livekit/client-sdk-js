@@ -36,8 +36,8 @@ importers:
         specifier: ^1.9.2
         version: 1.9.2
       machina:
-        specifier: ^6.3.0
-        version: 6.3.0
+        specifier: ^7.0.0
+        version: 7.0.1
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
@@ -138,6 +138,9 @@ importers:
       eslint-plugin-import-x:
         specifier: ^4.16.1
         version: 4.17.1(@typescript-eslint/utils@8.64.0(eslint@10.7.0(jiti@2.4.2))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint@10.7.0(jiti@2.4.2))
+      eslint-plugin-machina:
+        specifier: ^0.1.4
+        version: 0.1.4(eslint@10.7.0(jiti@2.4.2))(machina@7.0.1)
       eslint-plugin-prettier:
         specifier: ^5.5.4
         version: 5.5.6(@types/eslint@8.44.7)(eslint-config-prettier@10.1.8(eslint@10.7.0(jiti@2.4.2)))(eslint@10.7.0(jiti@2.4.2))(prettier@3.9.5)
@@ -2375,6 +2378,11 @@ packages:
       '@typescript-eslint/parser':
         optional: true
 
+  eslint-plugin-machina@0.1.4:
+    resolution: {integrity: sha512-CmnVQq8AjKObn76/xluy64YvmEY7b9Jjue46VkKQDhCZQNwm1Z9lqqEQPsE1qQinpIHEwqTInqw5q4Gr4W8mGg==}
+    peerDependencies:
+      eslint: '>=9.0.0'
+
   eslint-plugin-n@17.23.1:
     resolution: {integrity: sha512-68PealUpYoHOBh332JLLD9Sj7OQUDkFpmcfqt8R9sySfFSeuGJjMTJQvCRRB96zO3A/PELRLkPrzsHmzEFQQ5A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -3083,8 +3091,14 @@ packages:
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
 
-  machina@6.3.0:
-    resolution: {integrity: sha512-Yukbm1At06LxJi5lK0QDu3jTg69XzDX7tkb/dwMFPiXIFFIyOcLMgX2NWq4qVclIva6xYLDWT3jZnNMDGqSDNw==}
+  machina-inspect@4.0.0:
+    resolution: {integrity: sha512-TGYqjwaX8Ys0i2wWrtRgvlasKVtA/g6KP1r6cGGaRXkm7atGnjF0eXnMgJ7JIYKNy8Lhd+jW+4bRgvG8iP6rSg==}
+    engines: {node: '>=22.22'}
+    peerDependencies:
+      machina: '>=7.0.0'
+
+  machina@7.0.1:
+    resolution: {integrity: sha512-0Xkgs8NeBvO2hW6bjJT8ewLWrMfh1haMPstaghpASWjXkLjRhtDiaJG1Kb7mslaOHxZYxpH7PIjpmirRVYbMMA==}
     engines: {node: '>=22.22'}
 
   magic-string@0.30.21:
@@ -6501,6 +6515,13 @@ snapshots:
       - supports-color
     optional: true
 
+  eslint-plugin-machina@0.1.4(eslint@10.7.0(jiti@2.4.2))(machina@7.0.1):
+    dependencies:
+      eslint: 10.7.0(jiti@2.4.2)
+      machina-inspect: 4.0.0(machina@7.0.1)
+    transitivePeerDependencies:
+      - machina
+
   eslint-plugin-n@17.23.1(eslint@10.7.0(jiti@2.4.2))(typescript@5.9.3):
     dependencies:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.7.0(jiti@2.4.2))
@@ -7274,7 +7295,12 @@ snapshots:
 
   lunr@2.3.9: {}
 
-  machina@6.3.0: {}
+  machina-inspect@4.0.0(machina@7.0.1):
+    dependencies:
+      acorn: 8.16.0
+      machina: 7.0.1
+
+  machina@7.0.1: {}
 
   magic-string@0.30.21:
     dependencies:
