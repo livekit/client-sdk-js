@@ -80,7 +80,7 @@ export enum RoomEvent {
    * When a [[RemoteParticipant]] leaves *after* the local
    * participant has joined.
    *
-   * args: ([[RemoteParticipant]])
+   * args: ([[RemoteParticipant]], [[DisconnectReason]] | undefined)
    */
   ParticipantDisconnected = 'participantDisconnected',
 
