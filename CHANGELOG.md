@@ -1,5 +1,35 @@
 # Change Log
 
+## 2.22.0
+
+### Minor Changes
+
+- introduce DevelopmentTokenServer and deprecate SandboxTokenServer - [#2032](https://github.com/livekit/client-sdk-js/pull/2032) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Decode text data streams without TextDecoder fatal mode for broader runtime support - [#2037](https://github.com/livekit/client-sdk-js/pull/2037) ([@JoelTowell](https://github.com/JoelTowell))
+
+- fix: ensure buffered events are flushed on signal reconnection - [#2043](https://github.com/livekit/client-sdk-js/pull/2043) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: cancel pending onTrack callbacks when subscription fails - [#2019](https://github.com/livekit/client-sdk-js/pull/2019) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: match opus fmtp parameters by exact token and look up the opus codec case-insensitively when munging SDP - [#2036](https://github.com/livekit/client-sdk-js/pull/2036) ([@lukasIO](https://github.com/lukasIO))
+
+- Only run the `TrackEvent.TimeSyncUpdate` animation frame loop while something is subscribed to the event, and clear the frame handle when a track's monitor is stopped so the loop can be restarted - [#2038](https://github.com/livekit/client-sdk-js/pull/2038) ([@U-OK](https://github.com/U-OK))
+
+- fix: emit TrackStreamStateChanged again by reading the previous stream state before overwriting it - [#2039](https://github.com/livekit/client-sdk-js/pull/2039) ([@tomkail](https://github.com/tomkail))
+
+- Apply the resolved degradation preference to the backup codec's sender - [#2040](https://github.com/livekit/client-sdk-js/pull/2040) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+  Degradation preference is a property of the sender, not of the track, and a backup codec publishes over its own sender. Previously only the primary sender was configured, so the backup encoder resolved a preference implicitly and could adapt along a different axis than the primary.
+
+- fix: recover broken publish paths — act on local `ConnectionQuality.Lost`, recreate the peer connection when an ICE restart has no remote description, bound how long a transport may stay connecting, and reconnect (instead of disconnecting) on a detected connection state mismatch - [#2030](https://github.com/livekit/client-sdk-js/pull/2030) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: enable Terser `mangle.safari10` to fix scoping issues for variables in react-native - [#2028](https://github.com/livekit/client-sdk-js/pull/2028) ([@davidliu](https://github.com/davidliu))
+
+- fix: ensure dd extension also for recvonly - [#2052](https://github.com/livekit/client-sdk-js/pull/2052) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.21.0
 
 ### Minor Changes

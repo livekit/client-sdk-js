@@ -146,6 +146,45 @@ export function isSVCCodec(codec?: string): boolean {
   return codec === 'av1' || codec === 'vp9';
 }
 
+/**
+ * Opts `transceiver` into negotiating the AV1 dependency descriptor, reporting whether it will be.
+ *
+ * Chrome only offers the extension on transceivers that can send, so one we create to receive on
+ * never negotiates it — and Chrome 152 stopped decoding AV1 that arrives without it: frames get
+ * assembled, none ever decode, and the receiver asks for a keyframe forever. Asking through the
+ * transceiver rather than munging the extension into the SDP leaves the browser owning the
+ * extension id, which is what keeps that id consistent across the bundle and across
+ * renegotiations.
+ *
+ * A no-op where the browser offers no such control, or does not know the extension at all.
+ * @internal
+ */
+export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): boolean {
+  const extensions = transceiver.getHeaderExtensionsToNegotiate?.();
+  if (!extensions || !transceiver.setHeaderExtensionsToNegotiate) {
+    return false;
+  }
+  const dd = extensions.find((ext) => ext.uri === ddExtensionURI);
+  if (!dd) {
+    return false;
+  }
+  if (dd.direction !== 'stopped') {
+    return true;
+  }
+  // sendrecv rather than recvonly, so that the extension is written as a plain `a=extmap` line —
+  // the form the server already emits where it is the one offering — rather than one carrying a
+  // `/recvonly` suffix that its parser may not expect
+  dd.direction = 'sendrecv';
+  try {
+    transceiver.setHeaderExtensionsToNegotiate(extensions);
+    return true;
+  } catch (e) {
+    // a rejected direction throws. Negotiating without the extension is what happened before this
+    // existed, so it is not worth failing the connection over
+    return false;
+  }
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;

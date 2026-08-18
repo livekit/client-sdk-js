@@ -475,7 +475,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
             }
 
             if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
-              this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+              this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
             }
 
             return true;
@@ -713,41 +713,95 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       throw new NegotiationError(msg);
     }
   }
+}
 
-  private ensureVideoDDExtensionForSVC(
-    media: {
-      type: string;
-      port: number;
-      protocol: string;
-      payloads?: string | undefined;
-    } & MediaDescription,
-    sdp: SessionDescription,
-  ) {
-    const ddFound = media.ext?.some((ext): boolean => {
-      if (ext.uri === ddExtensionURI) {
-        return true;
-      }
-      return false;
+/**
+ * Adds the AV1 dependency descriptor extension to `media` unless it is already there, and
+ * returns the id it is mapped to so callers can pass it back in as `ddExtID` (0 when no id has
+ * been chosen yet).
+ *
+ * A bundle has to map one URI to one id, so an id already in use for the extension anywhere in
+ * `sdp` wins over both the cached one and a fresh one: Chrome advertises the extension itself on
+ * sections it can send on, and an earlier offer may have munged it into others.
+ * @internal
+ */
+export function ensureVideoDDExtension(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+  sdp: SessionDescription,
+  ddExtID: number,
+): number {
+  const id = ddExtensionIDFor(sdp, ddExtID);
+  if (id === undefined) {
+    return ddExtID;
+  }
+
+  if (!media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
+    media.ext ??= [];
+    media.ext.push({
+      value: id,
+      uri: ddExtensionURI,
     });
+  }
+  return id;
+}
 
-    if (!ddFound) {
-      if (this.ddExtID === 0) {
-        let maxID = 0;
-        sdp.media.forEach((m) => {
-          m.ext?.forEach((ext) => {
-            if (ext.value > maxID) {
-              maxID = ext.value;
-            }
-          });
-        });
-        this.ddExtID = maxID + 1;
-      }
-      media.ext?.push({
-        value: this.ddExtID,
-        uri: ddExtensionURI,
-      });
+/**
+ * The id to map the dependency descriptor to throughout `sdp`, or undefined when no id would be
+ * consistent for the whole bundle and the extension therefore has to be left out.
+ */
+function ddExtensionIDFor(sdp: SessionDescription, cachedID: number): number | undefined {
+  const mapped = mappedExtensionID(sdp, ddExtensionURI);
+  if (mapped !== undefined) {
+    // Adopting an id that also stands for another URI is what the browser rejects the bundle
+    // over, and its own half of the map is not ours to renumber, so give up on this offer.
+    return usedForOtherURI(sdp, mapped, ddExtensionURI) ? undefined : mapped;
+  }
+  // Reusing the id from the last offer keeps the mapping stable across renegotiations, but only
+  // while nothing else has taken it: the browser assigns ids to its own extensions without
+  // knowing about ours, so an id that was free when we picked it can since have been claimed —
+  // typically by the fuller extension set that arrives with the first section we send on.
+  if (cachedID !== 0 && !usedForOtherURI(sdp, cachedID, ddExtensionURI)) {
+    return cachedID;
+  }
+  return unusedExtensionID(sdp);
+}
+
+/** The id `uri` is mapped to in `sdp`, if any section maps it. */
+function mappedExtensionID(sdp: SessionDescription, uri: string): number | undefined {
+  for (const media of sdp.media) {
+    const ext = media.ext?.find((candidate) => candidate.uri === uri);
+    if (ext) {
+      return ext.value;
     }
   }
+  return undefined;
+}
+
+/** Whether `id` stands for anything in `sdp` other than `uri`. */
+function usedForOtherURI(sdp: SessionDescription, id: number, uri: string): boolean {
+  return sdp.media.some((media) => media.ext?.some((ext) => ext.value === id && ext.uri !== uri));
+}
+
+/**
+ * An id no extension in `sdp` uses. Stays above every id in use rather than filling gaps, so it
+ * is less likely to be an id the browser goes on to allocate to another extension, and steps
+ * over 15, which RFC 8285 reserves.
+ */
+function unusedExtensionID(sdp: SessionDescription): number {
+  let maxID = 0;
+  sdp.media.forEach((media) => {
+    media.ext?.forEach((ext) => {
+      if (ext.value > maxID) {
+        maxID = ext.value;
+      }
+    });
+  });
+  return maxID + 1 === 15 ? 16 : maxID + 1;
 }
 
 /**
