@@ -551,6 +551,26 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Failure Case - Closed After Upgrade', () => {
+    it('fails fast rather than waiting out the first-message timeout', async () => {
+      // The upgrade succeeds and the server then closes without sending a join response. Nothing
+      // else will reject here, so the close has to — otherwise the attempt hangs until the
+      // first-message timeout and reports a timeout instead of the close that caused it.
+      const neverYields = new ReadableStream<ArrayBuffer>({ start() {} });
+      mockWebSocketStream({
+        connection: createMockConnection(neverYields),
+        closed: Promise.resolve({ closeCode: 1011, reason: 'closed before join' }),
+      });
+
+      const err = await signalClient
+        .join('wss://test.livekit.io', 'test-token', defaultOptions)
+        .then(() => undefined, (e) => e);
+
+      expect(err).toMatchObject({ reason: ConnectionErrorReason.InternalError });
+      expect((err as Error).message).toContain('Websocket got closed during');
+    });
+  });
+
   describe('Failure Case - Upgrade Rejected', () => {
     it('surfaces the classified error, not the close that races it', async () => {
       // A refused token fails the upgrade and closes the socket at once, but classifying the failure

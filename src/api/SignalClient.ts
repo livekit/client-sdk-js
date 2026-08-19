@@ -496,22 +496,21 @@ export class SignalClient {
         });
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
-        // A failed upgrade closes the socket, so both `opened` and `closed` settle for the same
-        // cause — but only the `opened` path can classify it (a 401 is known after asking the
-        // validate endpoint). Observing the upgrade outcome *before* the close handler is registered
-        // means it runs first, so a close that merely reflects a failed upgrade stands down and lets
-        // the classified error reach the caller. A close with no upgrade outcome at all still fails
-        // the attempt immediately.
-        let upgradeSettled = false;
-        const markUpgradeSettled = () => {
-          upgradeSettled = true;
-        };
-        this.ws.opened.then(markUpgradeSettled, markUpgradeSettled);
+        // A failed upgrade closes the socket, so `opened` and `closed` settle for the same cause — but
+        // only the `opened` path can classify it (a 401 is known after asking the validate endpoint).
+        // Noting the failure *before* the close handler is registered means it runs first, so a close
+        // that merely reflects a failed upgrade stands down and lets the classified error reach the
+        // caller. Any other close still fails the attempt straight away: after a successful upgrade
+        // nothing else would, short of the first-message timeout.
+        let upgradeFailed = false;
+        this.ws.opened.catch(() => {
+          upgradeFailed = true;
+        });
 
         try {
           this.ws.closed
             .then((closeInfo) => {
-              if (this.isEstablishingConnection && !upgradeSettled) {
+              if (this.isEstablishingConnection && !upgradeFailed) {
                 reject(
                   ConnectionError.internal(
                     `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
@@ -530,7 +529,7 @@ export class SignalClient {
               return;
             })
             .catch((reason) => {
-              if (this.isEstablishingConnection && !upgradeSettled) {
+              if (this.isEstablishingConnection && !upgradeFailed) {
                 reject(
                   ConnectionError.internal(
                     `Websocket error during a (re)connection attempt: ${reason}`,
