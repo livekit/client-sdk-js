@@ -62,9 +62,9 @@ type TransitionTarget = SignalLifecycleState | 'ignored';
  * oracle for the random walks, so adding a state or an input cannot silently leave a hole.
  */
 const documentedTransitions: Record<string, Record<string, TransitionTarget>> = {
-  // Establishing a session is legal only where no transport and no attempt are in play: `new`,
-  // `closed`, `offline`. From anywhere else it is a caller error, and `SignalClient` refuses rather
-  // than opening a transport the lifecycle would not own.
+  // Establishing a session is legal exactly where no transport and no attempt are in play: `new`,
+  // `offline`, `closed`. Elsewhere it is a caller error, and `SignalClient` refuses rather than
+  // opening a transport the lifecycle would not own — except from `disconnecting`, which it waits out.
   new: {
     connect: 'connecting',
     close: 'disconnecting',
@@ -135,7 +135,7 @@ const documentedTransitions: Record<string, Record<string, TransitionTarget>> = 
   },
   closed: {
     connect: 'connecting',
-    reconnect: 'ignored', // the engine joins a new session rather than resuming a torn-down one
+    reconnect: 'reconnecting', // a closed transport does not end the session; the engine resumes
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     reconnectComplete: 'ignored',
@@ -305,6 +305,20 @@ describe('signal lifecycle machine', () => {
       expect(machine.currentState()).toBe('closed');
     });
 
+    it('is legal after a close, because a closed transport does not end the session', () => {
+      // the engine's recovery path after an unexpected close: close() takes the client to `closed`,
+      // then onClose has the engine resume the session it still holds
+      const machine = machineIn('connected');
+      send(machine, { type: 'close', reason: 'transport lost' });
+      send(machine, { type: 'closeComplete' });
+      expect(machine.currentState()).toBe('closed');
+
+      send(machine, { type: 'reconnect' });
+      expect(machine.currentState()).toBe('reconnecting');
+      send(machine, { type: 'reconnectComplete', attemptId: machine.context.attemptId });
+      expect(machine.currentState()).toBe('connected');
+    });
+
     it('can escalate to a full reconnect from offline', () => {
       const machine = machineIn('offline');
       send(machine, { type: 'connect' });
@@ -369,6 +383,21 @@ describe('signal lifecycle machine', () => {
       close: { type: 'close', reason: 'probe' },
       closeComplete: { type: 'closeComplete' },
     };
+
+    it('agrees with canHandle, which is what tooling highlights as available', () => {
+      // The inspector example lights up an input when `canHandle` is true. That highlight is only
+      // trustworthy if it matches the table, so pin the two together: an input is handled exactly
+      // where the table gives it a target. (Holds because no current handler declines under the
+      // matrix probes — one that did would belong in `payloadDependent`.)
+      for (const state of signalLifecycleStates) {
+        const machine = machineIn(state);
+        const handled = Object.keys(probes).filter((input) => machine.canHandle(input));
+        const documented = Object.entries(documentedTransitions[state])
+          .filter(([, target]) => target !== 'ignored')
+          .map(([input]) => input);
+        expect(handled.sort()).toEqual(documented.sort());
+      }
+    });
 
     it('matches the documented table', () => {
       const matrix: Record<string, Record<string, TransitionTarget>> = {};

@@ -578,6 +578,25 @@ describe('SignalClient.connect', () => {
       expect(vi.mocked(WebSocketStream).mock.calls.length).toBe(transportsOpened);
     });
 
+    it('resumes after a close, which is how the engine recovers from an unexpected one', async () => {
+      await joinSuccessfully();
+      await signalClient.close();
+      expect((signalClient as any).lifecycleState).toBe('closed');
+
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([
+            createSignalResponse('reconnect', new ReconnectResponse({ iceServers: [] })),
+          ]),
+        ),
+      });
+
+      await expect(
+        signalClient.reconnect('wss://test.livekit.io', 'test-token', 'PA_session'),
+      ).resolves.toBeDefined();
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+    });
+
     it('waits for an in-flight close to settle instead of racing its teardown', async () => {
       await joinSuccessfully();
       mockWebSocketStream({

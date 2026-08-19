@@ -217,15 +217,35 @@ export function mountInspector(root: HTMLElement, machines: MachineRegistration[
     el('description').textContent = registration.description ?? '';
     el('context').textContent = JSON.stringify(fsm.context ?? {}, null, 2);
 
+    const graph = buildStateGraph(fsm);
+    const outbound = graph.nodes[current]?.edges ?? [];
+
+    /** Where an input leads from here, as the graph sees it. */
+    function destination(input: string) {
+      const targets = outbound.filter((edge) => edge.inputName === input);
+      if (targets.length === 0) {
+        // a handler exists but never returns a state the analysis can see
+        return '?';
+      }
+      return targets
+        .map((edge) => `${edge.to}${edge.confidence === 'possible' ? '?' : ''}`)
+        .join(' | ');
+    }
+
+    // One row in a fixed order, so a button never moves as the state changes — only whether it is
+    // lit. The label stays the input name alone for the same reason: a varying label would reflow
+    // the row. Where a lit input leads is on its tooltip.
     const inputs = el('inputs');
     inputs.innerHTML = '';
     for (const input of allInputs(fsm)) {
+      const handled = fsm.canHandle(input);
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = input;
-      // legal here vs merely declared somewhere in the machine: firing an illegal one is allowed,
-      // and watching it get dropped is the point
-      button.className = fsm.canHandle(input) ? 'legal' : 'illegal';
+      button.className = handled ? 'legal' : 'illegal';
+      button.title = handled
+        ? `${input} → ${destination(input)}`
+        : `${input} is not handled in '${current}' — firing it will be dropped`;
       button.addEventListener('click', () => fire(input));
       button.addEventListener('pointerenter', () => showPayloadFor(input));
       inputs.append(button);
@@ -243,7 +263,6 @@ export function mountInspector(root: HTMLElement, machines: MachineRegistration[
       )
       .join('');
 
-    const graph = buildStateGraph(fsm);
     const ubiquitous = ubiquitousInputs(graph);
     const foldLabel = el<HTMLLabelElement>('fold-label');
     foldLabel.hidden = ubiquitous.length === 0;

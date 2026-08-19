@@ -13,8 +13,13 @@ pnpm examples:machine
   current state highlighted. `?` marks an edge the handler only takes conditionally. Inputs that are
   legal from _every_ state are folded away by default — in a machine where some input can fire from
   anywhere, those edges alone swamp the diagram.
-- **Every declared input** as a button, whether or not the current state handles it. Handled ones are
-  solid, the rest dashed: firing one you cannot fire is the interesting case.
+- **Every declared input** as a button, in one fixed row that never reorders — only whether a button
+  is lit changes as you move. Lit means the current state handles it, straight from `canHandle`;
+  hovering shows where it leads. Unlit ones stay clickable, because firing an input the state does
+  not handle and watching it get dropped is the interesting case. Read legality from the buttons
+  rather than off the diagram: mermaid routes long edges through shared corridors, so an edge label
+  can render nowhere near its source node, which makes "can I do X from here?" easy to misread off
+  the picture.
 - **The payload**, prefilled from the machine's registration and editable before firing. This is how
   you exercise payload-dependent behaviour — send a stale id to an identity-guarded input and watch
   it get declined.

@@ -21,14 +21,18 @@ export interface SignalMachineContext {
 
 export type SignalMachineInput =
   /**
-   * Start an initial session, or restart from scratch (full reconnect). Legal only where no
-   * transport and no attempt are in play — `new`, `closed`, `offline`. Establishing a session over a
-   * live one, or over an attempt already in flight, is a caller error: close first.
+   * Start an initial session, or restart from scratch (full reconnect).
+   *
+   * Establishing is legal exactly where no transport and no attempt are in play: `new`, `offline`
+   * and `closed`. `closed` is included because it means "no transport", not "session over" — a
+   * deliberate close and an unexpected loss leave the session equally resumable, and the engine
+   * recovers from both. Establishing over a live session, or over an attempt already in flight, is
+   * a caller error; `disconnecting` is waited out rather than refused.
    */
   | { type: 'connect' }
   /**
-   * Resume the existing session. Legal from `connected` (the peer connection was severed while
-   * signalling stayed up) and from `offline` (the transport is gone and a retry is due).
+   * Resume the existing session: legal wherever establishing is, minus `new` (nothing to resume
+   * yet), plus `connected` — the peer connection can be severed while signalling stays up.
    */
   | { type: 'reconnect' }
   /**
@@ -142,8 +146,11 @@ const signalStates = {
   disconnecting: {
     closeComplete: 'closed',
   },
+  // No transport, but the session may still be resumable: the engine resumes after an unexpected
+  // close just as it does from `offline`.
   closed: {
     connect: startConnect,
+    reconnect: startReconnect,
   },
 } as const;
 
