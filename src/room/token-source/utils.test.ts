@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { TOKENS } from './test-tokens';
 import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenValid } from './utils';
 
+function unsignedToken(payload: Record<string, unknown>) {
+  const encode = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
+}
+
 describe('isResponseTokenValid', () => {
   it('should find a valid jwt not expired', () => {
     const isValid = isResponseTokenValid(
@@ -30,6 +36,33 @@ describe('isResponseTokenValid', () => {
       }),
     );
     expect(isValid).toBe(false);
+  });
+  it('should treat a jwt without exp as expired', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: unsignedToken({ sub: '1234567890', nbf: 1234567890, iat: 1234567890 }),
+      }),
+    );
+    expect(isValid).toBe(false);
+  });
+  it('should honor exp when nbf is absent', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: unsignedToken({ sub: '1234567890', exp: 1234567891, iat: 1234567890 }),
+      }),
+    );
+    expect(isValid).toBe(false);
+  });
+  it('should accept a non-expired jwt that omits nbf', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: unsignedToken({ sub: '1234567890', exp: 9876543210, iat: 1234567890 }),
+      }),
+    );
+    expect(isValid).toBe(true);
   });
 });
 
