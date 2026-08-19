@@ -150,6 +150,8 @@ function lifecycleToConnectionState(lifecycle: SignalLifecycleState): SignalConn
       return SignalConnectionState.CONNECTING;
     case 'reconnecting':
       return SignalConnectionState.RECONNECTING;
+    case 'disconnecting':
+      return SignalConnectionState.DISCONNECTING;
     default:
       return SignalConnectionState.DISCONNECTED;
   }
@@ -272,6 +274,16 @@ export class SignalClient {
     return this.lifecycleState !== before;
   }
 
+  /**
+   * Waits out a close that is already in flight. Establishing a session while one is tearing down
+   * would race it for the transport — the teardown can close the socket the new attempt just
+   * opened.
+   */
+  private async settleInFlightClose() {
+    this.log.debug('waiting for an in-flight close to settle before establishing a session');
+    (await this.closingLock.lock())();
+  }
+
   private get isEstablishingConnection() {
     return this.lifecycleState === 'connecting' || this.lifecycleState === 'reconnecting';
   }
@@ -338,9 +350,17 @@ export class SignalClient {
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
   ): Promise<JoinResponse> {
-    // during a full reconnect, we'd want to start the sequence even if currently
-    // connected
-    this.sendLifecycleInput({ type: 'connect' });
+    if (this.lifecycleState === 'disconnecting') {
+      await this.settleInFlightClose();
+    }
+    if (!this.sendLifecycleInput({ type: 'connect' })) {
+      // Proceeding would open a transport the lifecycle does not own: its completion would be
+      // discarded and the session left claiming a transport that had been torn down. Every caller
+      // that restarts a session closes the previous one first (see RTCEngine.restartConnection).
+      throw ConnectionError.internal(
+        `cannot establish a signal session from '${this.lifecycleState}', close the current one first`,
+      );
+    }
     this.options = opts;
     try {
       const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
@@ -363,7 +383,14 @@ export class SignalClient {
       this.log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
     }
-    this.sendLifecycleInput({ type: 'reconnect' });
+    if (this.lifecycleState === 'disconnecting') {
+      await this.settleInFlightClose();
+    }
+    if (!this.sendLifecycleInput({ type: 'reconnect' })) {
+      throw ConnectionError.internal(
+        `cannot resume the signal session from '${this.lifecycleState}'`,
+      );
+    }
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 

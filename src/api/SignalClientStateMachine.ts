@@ -20,9 +20,16 @@ export interface SignalMachineContext {
 }
 
 export type SignalMachineInput =
-  /** Start an initial session, or restart from scratch (full reconnect). Legal in every state. */
+  /**
+   * Start an initial session, or restart from scratch (full reconnect). Legal only where no
+   * transport and no attempt are in play — `new`, `closed`, `offline`. Establishing a session over a
+   * live one, or over an attempt already in flight, is a caller error: close first.
+   */
   | { type: 'connect' }
-  /** Resume the existing session. Legal in every state. */
+  /**
+   * Resume the existing session. Legal from `connected` (the peer connection was severed while
+   * signalling stayed up) and from `offline` (the transport is gone and a retry is due).
+   */
   | { type: 'reconnect' }
   /**
    * An attempt established its transport. Carries the attempt it belongs to: an attempt that a
@@ -94,12 +101,9 @@ const requestClose = on<'close'>(({ ctx }, event) => {
 const signalStates = {
   new: {
     connect: startConnect,
-    reconnect: startReconnect,
     close: requestClose,
   },
   connecting: {
-    connect: startConnect,
-    reconnect: startReconnect,
     connectComplete: attemptEstablished,
     // An initial connect has no session to fall back on, so failure is terminal.
     connectFailed: on<'connectFailed'>(({ ctx }, event) => {
@@ -109,7 +113,6 @@ const signalStates = {
     close: requestClose,
   },
   connected: {
-    connect: startConnect,
     reconnect: startReconnect,
     transportFailed: on<'transportFailed'>(({ ctx }, event) => {
       if (!isCurrentAttempt(ctx, event)) {
@@ -127,8 +130,6 @@ const signalStates = {
     close: requestClose,
   },
   reconnecting: {
-    connect: startConnect,
-    reconnect: startReconnect,
     reconnectComplete: attemptEstablished,
     reconnectFailed: on<'reconnectFailed'>(({ ctx }, event) => {
       ctx.lastError = event.error;
@@ -139,13 +140,10 @@ const signalStates = {
   // Owns the transport until the close handshake settles. Every path into this state is followed
   // by a `closeComplete`, so it cannot become a trap.
   disconnecting: {
-    connect: startConnect,
-    reconnect: startReconnect,
     closeComplete: 'closed',
   },
   closed: {
     connect: startConnect,
-    reconnect: startReconnect,
   },
 } as const;
 

@@ -62,10 +62,13 @@ type TransitionTarget = SignalLifecycleState | 'ignored';
  * oracle for the random walks, so adding a state or an input cannot silently leave a hole.
  */
 const documentedTransitions: Record<string, Record<string, TransitionTarget>> = {
+  // Establishing a session is legal only where no transport and no attempt are in play: `new`,
+  // `closed`, `offline`. From anywhere else it is a caller error, and `SignalClient` refuses rather
+  // than opening a transport the lifecycle would not own.
   new: {
     connect: 'connecting',
-    reconnect: 'reconnecting',
     close: 'disconnecting',
+    reconnect: 'ignored', // nothing to resume yet
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     reconnectComplete: 'ignored',
@@ -74,21 +77,21 @@ const documentedTransitions: Record<string, Record<string, TransitionTarget>> = 
     closeComplete: 'ignored',
   },
   connecting: {
-    connect: 'ignored', // re-enters connecting: same state, new attempt id
-    reconnect: 'reconnecting',
     connectComplete: 'connected',
     connectFailed: 'closed',
     close: 'disconnecting',
+    connect: 'ignored', // an attempt is in flight; starting another abandons it
+    reconnect: 'ignored',
     reconnectComplete: 'ignored',
     reconnectFailed: 'ignored',
     transportFailed: 'ignored',
     closeComplete: 'ignored',
   },
   connected: {
-    connect: 'connecting',
-    reconnect: 'reconnecting',
+    reconnect: 'reconnecting', // the peer connection was severed while signalling stayed up
     transportFailed: 'offline',
     close: 'disconnecting',
+    connect: 'ignored', // close this session before starting another
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     reconnectComplete: 'ignored',
@@ -96,8 +99,8 @@ const documentedTransitions: Record<string, Record<string, TransitionTarget>> = 
     closeComplete: 'ignored',
   },
   offline: {
-    connect: 'connecting',
-    reconnect: 'reconnecting',
+    connect: 'connecting', // escalation: give up on the session and join a new one
+    reconnect: 'reconnecting', // the retry the engine drives after its backoff
     close: 'disconnecting',
     connectComplete: 'ignored',
     connectFailed: 'ignored',
@@ -107,20 +110,22 @@ const documentedTransitions: Record<string, Record<string, TransitionTarget>> = 
     closeComplete: 'ignored',
   },
   reconnecting: {
-    connect: 'connecting',
-    reconnect: 'ignored', // re-enters reconnecting: same state, new attempt id
     reconnectComplete: 'connected',
     reconnectFailed: 'offline', // probe is recoverable; terminal goes to closed
     close: 'disconnecting',
+    connect: 'ignored', // an attempt is in flight
+    reconnect: 'ignored',
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     transportFailed: 'ignored',
     closeComplete: 'ignored',
   },
+  // Establishing here would race the teardown for the transport, so callers wait for the close to
+  // settle and establish from `closed` instead.
   disconnecting: {
-    connect: 'connecting',
-    reconnect: 'reconnecting',
     closeComplete: 'closed',
+    connect: 'ignored',
+    reconnect: 'ignored',
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     reconnectComplete: 'ignored',
@@ -130,7 +135,7 @@ const documentedTransitions: Record<string, Record<string, TransitionTarget>> = 
   },
   closed: {
     connect: 'connecting',
-    reconnect: 'reconnecting',
+    reconnect: 'ignored', // the engine joins a new session rather than resuming a torn-down one
     connectComplete: 'ignored',
     connectFailed: 'ignored',
     reconnectComplete: 'ignored',
@@ -244,24 +249,27 @@ describe('signal lifecycle machine', () => {
     });
 
     it('ignores a completion from an attempt that has been superseded', () => {
+      // the abort-then-retry sequence: an attempt is abandoned, a new one starts, and the first
+      // one's transport reports success afterwards
       const machine = machineIn('connecting');
-      const supersededAttemptId = machine.context.attemptId;
-
-      // a newer attempt starts before the first one hears back from the server
+      const abandonedAttemptId = machine.context.attemptId;
+      send(machine, { type: 'connectFailed', error: new Error('aborted') });
       send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete', attemptId: supersededAttemptId });
 
-      // still establishing: the stale attempt cannot declare the session live
+      send(machine, { type: 'connectComplete', attemptId: abandonedAttemptId });
+
+      // still establishing: the abandoned attempt cannot declare the session live
       expect(machine.currentState()).toBe('connecting');
       send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
       expect(machine.currentState()).toBe('connected');
     });
 
     it('ignores a resume completion from an attempt that has been superseded', () => {
-      const machine = machineIn('reconnecting');
+      // a resume starts while the transport of the previous attempt is still reporting in
+      const machine = machineIn('offline');
       const supersededAttemptId = machine.context.attemptId;
-
       send(machine, { type: 'reconnect' });
+
       send(machine, { type: 'reconnectComplete', attemptId: supersededAttemptId });
 
       expect(machine.currentState()).toBe('reconnecting');
@@ -309,11 +317,16 @@ describe('signal lifecycle machine', () => {
       expect(machine.currentState()).toBe('reconnecting');
     });
 
-    it('bumps the attempt id per attempt, including a re-entrant one', () => {
-      const machine = machineIn('reconnecting');
+    it('bumps the attempt id for every attempt, so transports stay distinguishable', () => {
+      const machine = machineIn('offline');
       const first = machine.context.attemptId;
+
       send(machine, { type: 'reconnect' });
       expect(machine.context.attemptId).toBe(first + 1);
+
+      send(machine, { type: 'reconnectFailed', recoverable: true });
+      send(machine, { type: 'connect' });
+      expect(machine.context.attemptId).toBe(first + 2);
     });
   });
 

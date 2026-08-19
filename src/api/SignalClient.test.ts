@@ -551,6 +551,53 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Establishing over an existing session', () => {
+    async function joinSuccessfully() {
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+      });
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+    }
+
+    it('refuses a join over a live session rather than opening a transport it would discard', async () => {
+      await joinSuccessfully();
+      const transportsOpened = vi.mocked(WebSocketStream).mock.calls.length;
+
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("from 'connected'"),
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      // refusing is not a teardown: the live session is untouched and no transport was opened
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+      expect(vi.mocked(WebSocketStream).mock.calls.length).toBe(transportsOpened);
+    });
+
+    it('waits for an in-flight close to settle instead of racing its teardown', async () => {
+      await joinSuccessfully();
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+      });
+
+      // close and join without awaiting the close in between. The public projection folds
+      // `disconnecting` into DISCONNECTED, so the precondition is read off the lifecycle itself.
+      const closing = signalClient.close();
+      expect((signalClient as any).lifecycleState).toBe('disconnecting');
+      const joining = signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      await closing;
+      await expect(joining).resolves.toBeDefined();
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+    });
+  });
+
   describe('Edge Cases and State Management', () => {
     it('should set state to CONNECTING when joining', async () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
