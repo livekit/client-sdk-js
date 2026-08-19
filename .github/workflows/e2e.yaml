@@ -14,6 +14,11 @@ jobs:
     name: Signal e2e (browser / ubuntu)
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        # -o pipefail so a failing test isn't masked by the exit code of `tee`
+        shell: bash -eo pipefail {0}
+
     services:
       testserver:
         image: livekit/test-server:latest
