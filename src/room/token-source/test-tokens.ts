@@ -1,3 +1,11 @@
+// Builds an unsigned (`alg: none`) JWT. These aren't signed at all, so they can only be used in
+// tests which don't care about the signature.
+function unsignedToken(payload: Record<string, unknown>) {
+  const encode = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`;
+}
+
 // Test JWTs created for test purposes only.
 // None of these actually auth against anything.
 export const TOKENS = {
@@ -25,4 +33,16 @@ export const TOKENS = {
   // A dummy roomConfig value is also set, with room_config.name = "test room name", room_config.extraField = "extra field value", and room_config.agents = [{"agentName": "test agent name","metadata":"test agent metadata","extraField":"extra field value"}]
   EXTRA_FIELDS:
     'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjo5ODc2NTQzMjEwLCJuYmYiOjEyMzQ1Njc4OTAsImlhdCI6MTIzNDU2Nzg5MCwicm9vbUNvbmZpZyI6eyJuYW1lIjoidGVzdCByb29tIG5hbWUiLCJlbXB0eVRpbWVvdXQiOjAsImRlcGFydHVyZVRpbWVvdXQiOjAsIm1heFBhcnRpY2lwYW50cyI6MCwibWluUGxheW91dERlbGF5IjowLCJtYXhQbGF5b3V0RGVsYXkiOjAsInN5bmNTdHJlYW1zIjpmYWxzZSwiYWdlbnRzIjpbeyJhZ2VudE5hbWUiOiJ0ZXN0IGFnZW50IG5hbWUiLCJtZXRhZGF0YSI6InRlc3QgYWdlbnQgbWV0YWRhdGEiLCJleHRyYUZpZWxkIjoiZXh0cmEgZmllbGQgdmFsdWUifV0sIm1ldGFkYXRhIjoiIiwiZXh0cmFGaWVsZCI6ImV4dHJhIGZpZWxkIHZhbHVlIn19Cg.EDetpHG8cSubaApzgWJaQrpCiSy9KDBlfCfVdIydbQ-_CHiNnXOK_f_mCJbTf9A-duT1jmvPOkLrkkWFT60XPQ',
+
+  // Nbf date set at 1234567890 seconds (Fri Feb 13 2009 23:31:30 GMT+0000)
+  // No exp date set at all
+  NO_EXP: unsignedToken({ sub: '1234567890', nbf: 1234567890, iat: 1234567890 }),
+
+  // No nbf date set at all
+  // Exp date set at 1234567891 seconds (Fri Feb 13 2009 23:31:31 GMT+0000)
+  EXP_IN_PAST_NO_NBF: unsignedToken({ sub: '1234567890', exp: 1234567891, iat: 1234567890 }),
+
+  // No nbf date set at all
+  // Exp date set at 9876543210 seconds (Fri Dec 22 2282 20:13:30 GMT+0000)
+  VALID_NO_NBF: unsignedToken({ sub: '1234567890', exp: 9876543210, iat: 1234567890 }),
 };
