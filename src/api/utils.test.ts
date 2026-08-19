@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRtcUrl, createValidateUrl } from './utils';
+import { createRtcUrl, createValidateUrl, getAbortReasonAsString } from './utils';
 
 describe('createRtcUrl', () => {
   it('should create a basic RTC URL', () => {
@@ -123,5 +123,24 @@ describe('createValidateUrl', () => {
 
     const parsedResult = new URL(result);
     expect(parsedResult.pathname).toBe('/sub/path/rtc/validate');
+  });
+});
+
+describe('getAbortReasonAsString', () => {
+  it('uses an error message, which is how the connect timeout describes itself', () => {
+    // the timeout hands the abort handler an Error, not a signal
+    expect(
+      getAbortReasonAsString(new Error('room connection has timed out (signal)'), 'fallback'),
+    ).toBe('room connection has timed out (signal)');
+  });
+
+  it("reads an abort signal's reason", () => {
+    const controller = new AbortController();
+    controller.abort('user navigated away');
+    expect(getAbortReasonAsString(controller.signal, 'fallback')).toBe('user navigated away');
+  });
+
+  it('falls back when there is nothing to describe', () => {
+    expect(getAbortReasonAsString(undefined, 'fallback')).toBe('fallback');
   });
 });

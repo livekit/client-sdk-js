@@ -461,7 +461,15 @@ export class SignalClient {
             this.close();
           }
           cleanupAbortHandlers();
-          reject(ConnectionError.cancelled(reason));
+          // The caller may already have classified this failure: the connect timeout hands us a
+          // Timeout error. Only a genuine abort is a cancellation, and reporting a stalled connect as
+          // one makes the engine read it as user intent — skipping region failover and never
+          // recording the attempt against the backoff strategy (see Room.connect).
+          reject(
+            eventOrError instanceof ConnectionError
+              ? eventOrError
+              : ConnectionError.cancelled(reason),
+          );
         };
 
         abortSignal?.addEventListener('abort', abortHandler);

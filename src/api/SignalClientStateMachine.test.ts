@@ -18,39 +18,7 @@ function send(machine: SignalMachine, input: SignalMachineInput) {
 
 /** Drives a machine into `state` through legal inputs only. */
 function machineIn(state: SignalLifecycleState): SignalMachine {
-  const machine = createSignalMachine();
-  switch (state) {
-    case 'new':
-      break;
-    case 'connecting':
-      send(machine, { type: 'connect' });
-      break;
-    case 'connected':
-      send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
-      break;
-    case 'offline':
-      send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
-      send(machine, {
-        type: 'transportFailed',
-        attemptId: machine.context.attemptId,
-        reason: 'ws closed',
-      });
-      break;
-    case 'reconnecting':
-      send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
-      send(machine, { type: 'reconnect' });
-      break;
-    case 'disconnecting':
-      send(machine, { type: 'close', reason: 'test' });
-      break;
-    case 'closed':
-      send(machine, { type: 'close', reason: 'test' });
-      send(machine, { type: 'closeComplete' });
-      break;
-  }
+  const machine = createSignalMachine(state);
   expect(machine.currentState()).toBe(state);
   return machine;
 }

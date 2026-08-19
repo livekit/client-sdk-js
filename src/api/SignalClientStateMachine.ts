@@ -164,11 +164,11 @@ const signalStates = {
  *
  * Each client gets its own instance: the context is mutable and per-connection.
  */
-export function createSignalMachine() {
+export function createSignalMachine(initialState: SignalLifecycleState = 'new') {
   const context: SignalMachineContext = { attemptId: 0 };
   return createFsm({
     id: 'signal',
-    initialState: 'new',
+    initialState: initialState,
     context,
     states: signalStates,
   });

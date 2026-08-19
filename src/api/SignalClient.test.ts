@@ -276,7 +276,10 @@ describe('SignalClient.connect', () => {
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ConnectionError);
-      expect(error.reason).toBe(ConnectionErrorReason.Cancelled);
+      // a stalled connect is a timeout, not a cancellation: the distinction is what lets Room try
+      // the next region and record the attempt against the backoff strategy
+      expect(error.reason).toBe(ConnectionErrorReason.Timeout);
+      expect(error.message).toContain('room connection has timed out');
     });
   });
 
@@ -548,6 +551,24 @@ describe('SignalClient.connect', () => {
         message: 'Websocket got closed during a (re)connection attempt: Connection lost',
         reason: ConnectionErrorReason.InternalError,
       });
+    });
+  });
+
+  describe('Resuming a client that never joined', () => {
+    it('is refused by the missing options rather than by the lifecycle', async () => {
+      // The engine can hold a freshly created client (Room.recreateEngine) whose machine is still
+      // `new`. Nothing there is resumable, and the options guard is what says so — it runs before the
+      // lifecycle input, so the caller gets a warning and undefined rather than a thrown refusal.
+      // If session identity ever became rehydratable, `new` would have to accept `reconnect` and this
+      // is the test that should change.
+      expect((signalClient as any).lifecycleState).toBe('new');
+
+      await expect(
+        signalClient.reconnect('wss://test.livekit.io', 'test-token', 'PA_session'),
+      ).resolves.toBeUndefined();
+
+      expect((signalClient as any).lifecycleState).toBe('new');
+      expect(WebSocketStream).not.toHaveBeenCalled();
     });
   });
 
