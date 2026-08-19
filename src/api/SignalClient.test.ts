@@ -551,6 +551,40 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Failure Case - Upgrade Rejected', () => {
+    it('surfaces the classified error, not the close that races it', async () => {
+      // A refused token fails the upgrade and closes the socket at once, but classifying the failure
+      // needs a round trip to the validate endpoint. The close must not pre-empt that answer, or a
+      // caller checking for a 401 sees a generic "websocket got closed" instead.
+      vi.mocked(fetch).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(
+              () => resolve({ status: 401, text: async () => 'permission denied' } as Response),
+              20,
+            );
+          }),
+      );
+
+      vi.mocked(WebSocketStream).mockImplementation(function () {
+        return {
+          url: 'wss://test.livekit.io',
+          opened: Promise.reject(new Error('HTTP Authentication failed')),
+          closed: Promise.resolve({ closeCode: 1006, reason: '' }),
+          close: vi.fn(),
+          readyState: 3,
+        } as any;
+      });
+
+      await expect(
+        signalClient.join('wss://test.livekit.io', 'bad-token', defaultOptions),
+      ).rejects.toMatchObject({
+        reason: ConnectionErrorReason.NotAllowed,
+        status: 401,
+      });
+    });
+  });
+
   describe('Establishing over an existing session', () => {
     async function joinSuccessfully() {
       mockWebSocketStream({

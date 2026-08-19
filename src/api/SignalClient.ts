@@ -496,10 +496,22 @@ export class SignalClient {
         });
         this.ws = new WebSocketStream<ArrayBuffer>(rtcUrl);
 
+        // A failed upgrade closes the socket, so both `opened` and `closed` settle for the same
+        // cause — but only the `opened` path can classify it (a 401 is known after asking the
+        // validate endpoint). Observing the upgrade outcome *before* the close handler is registered
+        // means it runs first, so a close that merely reflects a failed upgrade stands down and lets
+        // the classified error reach the caller. A close with no upgrade outcome at all still fails
+        // the attempt immediately.
+        let upgradeSettled = false;
+        const markUpgradeSettled = () => {
+          upgradeSettled = true;
+        };
+        this.ws.opened.then(markUpgradeSettled, markUpgradeSettled);
+
         try {
           this.ws.closed
             .then((closeInfo) => {
-              if (this.isEstablishingConnection) {
+              if (this.isEstablishingConnection && !upgradeSettled) {
                 reject(
                   ConnectionError.internal(
                     `Websocket got closed during a (re)connection attempt: ${closeInfo.reason}`,
@@ -518,7 +530,7 @@ export class SignalClient {
               return;
             })
             .catch((reason) => {
-              if (this.isEstablishingConnection) {
+              if (this.isEstablishingConnection && !upgradeSettled) {
                 reject(
                   ConnectionError.internal(
                     `Websocket error during a (re)connection attempt: ${reason}`,
@@ -528,6 +540,8 @@ export class SignalClient {
             });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
             if (this.lifecycleState !== 'connected') {
+              // claimed synchronously, before the await below: the socket's close event is already
+              // on its way and would otherwise reject first with a less useful error
               clearTimeout(wsTimeout);
               const error = await this.handleConnectionError(reason, validateUrl);
               reject(error);
