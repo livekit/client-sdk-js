@@ -149,7 +149,7 @@ function lifecycleToConnectionState(lifecycle: SignalLifecycleState): SignalConn
     case 'connecting':
       return SignalConnectionState.CONNECTING;
     case 'reconnecting':
-      return SignalConnectionState.DISCONNECTING;
+      return SignalConnectionState.RECONNECTING;
     default:
       return SignalConnectionState.DISCONNECTED;
   }
@@ -448,13 +448,6 @@ export class SignalClient {
           abortHandler(ConnectionError.timeout('room connection has timed out (signal)'));
         }, opts.websocketTimeout);
 
-        const handleSignalConnected = (
-          connection: WebSocketConnection,
-          firstMessage?: SignalResponse,
-        ) => {
-          this.handleSignalConnected(connection, wsTimeout, firstMessage);
-        };
-
         const redactedUrl = new URL(rtcUrl);
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
@@ -592,7 +585,7 @@ export class SignalClient {
           const firstMessageToProcess = validation.shouldProcessFirstMessage
             ? firstSignalResponse
             : undefined;
-          handleSignalConnected(connection, firstMessageToProcess);
+          this.handleSignalConnected(connection, wsTimeout, attemptId, firstMessageToProcess);
           resolve(validation.response);
         } catch (e) {
           reject(e);
@@ -1112,15 +1105,27 @@ export class SignalClient {
   private handleSignalConnected(
     connection: WebSocketConnection,
     timeoutHandle: ReturnType<typeof setTimeout>,
+    attemptId: number,
     firstMessage?: SignalResponse,
   ) {
-    this.sendLifecycleInput(
-      this.lifecycleState === 'reconnecting'
-        ? { type: 'reconnectComplete' }
-        : { type: 'connectComplete' },
-    );
-    this.log.info('signal connected');
     clearTimeout(timeoutHandle);
+    const established = this.sendLifecycleInput(
+      this.lifecycleState === 'reconnecting'
+        ? { type: 'reconnectComplete', attemptId }
+        : { type: 'connectComplete', attemptId },
+    );
+    if (!established) {
+      // The attempt was abandoned while we waited for the server's first message: it was closed, or
+      // a newer attempt superseded it. Arming the ping interval and the read loop here would outlive
+      // the session that owns them, so leave the transport to whoever holds the lifecycle now.
+      this.log.debug('discarding a connection whose attempt no longer owns the session', {
+        attemptId,
+        currentAttemptId: this.attemptId,
+        state: this.lifecycleState,
+      });
+      return;
+    }
+    this.log.info('signal connected');
     this.startPingInterval();
     this.startReadingLoop(connection.readable.getReader(), firstMessage);
   }

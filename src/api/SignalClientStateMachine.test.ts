@@ -27,11 +27,11 @@ function machineIn(state: SignalLifecycleState): SignalMachine {
       break;
     case 'connected':
       send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete' });
+      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
       break;
     case 'offline':
       send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete' });
+      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
       send(machine, {
         type: 'transportFailed',
         attemptId: machine.context.attemptId,
@@ -40,7 +40,7 @@ function machineIn(state: SignalLifecycleState): SignalMachine {
       break;
     case 'reconnecting':
       send(machine, { type: 'connect' });
-      send(machine, { type: 'connectComplete' });
+      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
       send(machine, { type: 'reconnect' });
       break;
     case 'disconnecting':
@@ -152,26 +152,42 @@ const payloadDependent: Record<string, Array<TransitionTarget>> = {
 };
 
 /**
- * Deterministic payload generators for the walks: handlers that read their payload would throw on
- * a bare `handle(input)`, and a counter rather than a random value keeps a seed reproducible.
+ * A machine factory paired with deterministic payload generators. Handlers that read their payload
+ * would throw on a bare `handle(input)`, and alternating rather than random values keep a seed
+ * reproducible.
  *
- * `transportFailed` cycles through attempt ids so walks exercise both the live transport and one
- * that has already been replaced.
+ * The generators read the machine the factory last produced, so attempt-scoped inputs can address
+ * the live attempt. `transportFailed` alternates between the live attempt and a stale one, so walks
+ * exercise the identity guard from both sides.
  */
-function walkPayloads() {
-  let attemptId = 0;
+function walkSetup(create: () => SignalMachine = createSignalMachine) {
+  let machine: SignalMachine | undefined;
   let recoverable = true;
+  let stale = false;
+  const liveAttemptId = () => machine?.context.attemptId ?? 0;
   return {
-    connectFailed: () => ({ type: 'connectFailed', error: new Error('walk') }),
-    reconnectFailed: () => {
-      recoverable = !recoverable;
-      return { type: 'reconnectFailed', error: new Error('walk'), recoverable };
+    factory: () => {
+      machine = create();
+      return machine;
     },
-    transportFailed: () => {
-      attemptId = (attemptId + 1) % 4;
-      return { type: 'transportFailed', attemptId, reason: 'walk' };
+    inputs: {
+      connectComplete: () => ({ type: 'connectComplete', attemptId: liveAttemptId() }),
+      reconnectComplete: () => ({ type: 'reconnectComplete', attemptId: liveAttemptId() }),
+      connectFailed: () => ({ type: 'connectFailed', error: new Error('walk') }),
+      reconnectFailed: () => {
+        recoverable = !recoverable;
+        return { type: 'reconnectFailed', error: new Error('walk'), recoverable };
+      },
+      transportFailed: () => {
+        stale = !stale;
+        return {
+          type: 'transportFailed',
+          attemptId: stale ? liveAttemptId() - 1 : liveAttemptId(),
+          reason: 'walk',
+        };
+      },
+      close: () => ({ type: 'close', reason: 'walk' }),
     },
-    close: () => ({ type: 'close', reason: 'walk' }),
   };
 }
 
@@ -227,6 +243,30 @@ describe('signal lifecycle machine', () => {
       expect(machine.currentState()).toBe('reconnecting');
     });
 
+    it('ignores a completion from an attempt that has been superseded', () => {
+      const machine = machineIn('connecting');
+      const supersededAttemptId = machine.context.attemptId;
+
+      // a newer attempt starts before the first one hears back from the server
+      send(machine, { type: 'connect' });
+      send(machine, { type: 'connectComplete', attemptId: supersededAttemptId });
+
+      // still establishing: the stale attempt cannot declare the session live
+      expect(machine.currentState()).toBe('connecting');
+      send(machine, { type: 'connectComplete', attemptId: machine.context.attemptId });
+      expect(machine.currentState()).toBe('connected');
+    });
+
+    it('ignores a resume completion from an attempt that has been superseded', () => {
+      const machine = machineIn('reconnecting');
+      const supersededAttemptId = machine.context.attemptId;
+
+      send(machine, { type: 'reconnect' });
+      send(machine, { type: 'reconnectComplete', attemptId: supersededAttemptId });
+
+      expect(machine.currentState()).toBe('reconnecting');
+    });
+
     it('is ignored while establishing, where the attempt itself reports the outcome', () => {
       const machine = machineIn('connecting');
       send(machine, {
@@ -247,7 +287,7 @@ describe('signal lifecycle machine', () => {
       // the retry the engine drives after its backoff
       send(machine, { type: 'reconnect' });
       expect(machine.currentState()).toBe('reconnecting');
-      send(machine, { type: 'reconnectComplete' });
+      send(machine, { type: 'reconnectComplete', attemptId: machine.context.attemptId });
       expect(machine.currentState()).toBe('connected');
     });
 
@@ -307,10 +347,10 @@ describe('signal lifecycle machine', () => {
   describe('transition matrix', () => {
     const probes: Record<SignalMachineInput['type'], SignalMachineInput> = {
       connect: { type: 'connect' },
-      connectComplete: { type: 'connectComplete' },
+      connectComplete: { type: 'connectComplete', attemptId: 0 },
       connectFailed: { type: 'connectFailed' },
       reconnect: { type: 'reconnect' },
-      reconnectComplete: { type: 'reconnectComplete' },
+      reconnectComplete: { type: 'reconnectComplete', attemptId: 0 },
       reconnectFailed: { type: 'reconnectFailed', recoverable: true },
       transportFailed: { type: 'transportFailed', attemptId: 0, reason: 'probe' },
       close: { type: 'close', reason: 'probe' },
@@ -323,11 +363,9 @@ describe('signal lifecycle machine', () => {
         matrix[state] = {};
         for (const [type, probe] of Object.entries(probes)) {
           const machine = machineIn(state);
-          // the probe carries the live attempt id, so only the state gates the transition
+          // attempt-scoped probes address the live attempt, so only the state gates the transition
           const input =
-            probe.type === 'transportFailed'
-              ? { ...probe, attemptId: machine.context.attemptId }
-              : probe;
+            'attemptId' in probe ? { ...probe, attemptId: machine.context.attemptId } : probe;
           const before = machine.currentState();
           send(machine, input);
           const after = machine.currentState();
@@ -343,11 +381,12 @@ describe('signal lifecycle machine', () => {
   // Seeded, so a failure replays exactly; the seed is reported in the failure either way.
   describe('random walks', () => {
     it('only ever takes transitions the table documents', () => {
-      walkAll(createSignalMachine, {
+      const { factory, inputs } = walkSetup();
+      walkAll(factory, {
         seed: 20260818,
         walks: 200,
         maxSteps: 25,
-        inputs: walkPayloads(),
+        inputs,
         invariant({ state, previousState, input }) {
           const actual: TransitionTarget =
             state === previousState ? 'ignored' : (state as TransitionTarget);
@@ -364,13 +403,14 @@ describe('signal lifecycle machine', () => {
     });
 
     it('never starts a recovery attempt that was not requested', () => {
-      walkAll(() => machineIn('connected'), {
+      const { factory, inputs } = walkSetup(() => machineIn('connected'));
+      walkAll(factory, {
         seed: 20260818,
         walks: 200,
         maxSteps: 25,
         // the two inputs that ask for recovery; everything else is an outcome or a close
         exclude: ['connect', 'reconnect'],
-        inputs: walkPayloads(),
+        inputs,
         invariant({ state, previousState, input }) {
           if (state === 'connecting' || state === 'reconnecting') {
             throw new Error(`entered ${state} from ${previousState} on ${input}, unrequested`);
@@ -383,11 +423,12 @@ describe('signal lifecycle machine', () => {
       // keyed on the context object: each walk gets a fresh machine, and the invariant only runs
       // on transitions, so `step` cannot be used to tell one walk from the next
       const highest = new WeakMap<SignalMachineContext, number>();
-      walkAll(createSignalMachine, {
+      const { factory, inputs } = walkSetup();
+      walkAll(factory, {
         seed: 20260818,
         walks: 200,
         maxSteps: 25,
-        inputs: walkPayloads(),
+        inputs,
         invariant({ ctx }) {
           const context = ctx as SignalMachineContext;
           const previous = highest.get(context) ?? 0;
@@ -400,11 +441,12 @@ describe('signal lifecycle machine', () => {
     });
 
     it('always knows why it is closing', () => {
-      walkAll(createSignalMachine, {
+      const { factory, inputs } = walkSetup();
+      walkAll(factory, {
         seed: 20260818,
         walks: 200,
         maxSteps: 25,
-        inputs: walkPayloads(),
+        inputs,
         invariant({ state, ctx }) {
           const { closeReason } = ctx as SignalMachineContext;
           if (state === 'disconnecting' && closeReason === undefined) {

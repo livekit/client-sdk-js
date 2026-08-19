@@ -12,6 +12,7 @@ import {
 } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
+import CriticalTimers from '../room/timers';
 import { SignalClient, SignalConnectionState } from './SignalClient';
 import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
@@ -632,9 +633,60 @@ describe('SignalClient.handleSignalConnected', () => {
     // Access the method through a type assertion for testing
     const handleMethod = (signalClient as any).handleSignalConnected;
     if (handleMethod) {
-      handleMethod.call(signalClient, mockConnection);
+      handleMethod.call(signalClient, mockConnection, undefined, (signalClient as any).attemptId);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     }
+  });
+
+  it('discards a connection whose attempt was abandoned while awaiting the first message', () => {
+    const mockReadable = new ReadableStream<ArrayBuffer>();
+    const mockConnection = createMockConnection(mockReadable);
+    const setIntervalSpy = vi.spyOn(CriticalTimers, 'setInterval');
+    const getReaderSpy = vi.spyOn(mockConnection.readable, 'getReader');
+
+    // a previous session supplied the keepalive config, so arming really would start a timer
+    (signalClient as any).pingIntervalDuration = 10;
+    (signalClient as any).pingTimeoutDuration = 30;
+
+    // an attempt is in flight, and its transport opens...
+    (signalClient as any).sendLifecycleInput({ type: 'connect' });
+    const abandonedAttemptId = (signalClient as any).attemptId;
+
+    // ...but the caller gives up before the server's first message arrives
+    (signalClient as any).sendLifecycleInput({
+      type: 'connectFailed',
+      error: new Error('aborted'),
+    });
+    expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
+
+    // the first message lands anyway: it must not arm a heartbeat or a reader for a dead session
+    (signalClient as any).handleSignalConnected(mockConnection, undefined, abandonedAttemptId);
+
+    expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(getReaderSpy).not.toHaveBeenCalled();
+    expect((signalClient as any).pingInterval).toBeUndefined();
+  });
+
+  it('still arms the heartbeat and reader for the attempt that owns the session', () => {
+    const mockReadable = new ReadableStream<ArrayBuffer>();
+    const mockConnection = createMockConnection(mockReadable);
+    const setIntervalSpy = vi.spyOn(CriticalTimers, 'setInterval');
+    const getReaderSpy = vi.spyOn(mockConnection.readable, 'getReader');
+
+    (signalClient as any).pingIntervalDuration = 10;
+    (signalClient as any).pingTimeoutDuration = 30;
+
+    (signalClient as any).sendLifecycleInput({ type: 'connect' });
+    (signalClient as any).handleSignalConnected(
+      mockConnection,
+      undefined,
+      (signalClient as any).attemptId,
+    );
+
+    expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+    expect(setIntervalSpy).toHaveBeenCalled();
+    expect(getReaderSpy).toHaveBeenCalled();
   });
 
   it('should start reading loop without first message', async () => {

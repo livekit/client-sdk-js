@@ -24,9 +24,13 @@ export type SignalMachineInput =
   | { type: 'connect' }
   /** Resume the existing session. Legal in every state. */
   | { type: 'reconnect' }
-  | { type: 'connectComplete' }
+  /**
+   * An attempt established its transport. Carries the attempt it belongs to: an attempt that a
+   * newer one has already superseded must not declare the session live.
+   */
+  | { type: 'connectComplete'; attemptId: number }
   | { type: 'connectFailed'; error?: unknown }
-  | { type: 'reconnectComplete' }
+  | { type: 'reconnectComplete'; attemptId: number }
   /**
    * A resume attempt ended. `recoverable` distinguishes "another resume may follow" (→ `offline`)
    * from a terminal outcome such as a server leave or an expired token (→ `closed`).
@@ -54,6 +58,22 @@ function on<T extends SignalMachineInput['type']>(
   return handler as Handler;
 }
 
+/**
+ * Whether a transport-originated input belongs to the attempt that currently owns the session.
+ * Inputs from a superseded attempt are dropped: its transport is already being replaced, so it can
+ * neither declare the session live nor take it down.
+ */
+function isCurrentAttempt(ctx: SignalMachineContext, event: { attemptId: number }) {
+  return event.attemptId === ctx.attemptId;
+}
+
+const attemptEstablished = on<'connectComplete' | 'reconnectComplete'>(({ ctx }, event) => {
+  if (!isCurrentAttempt(ctx, event)) {
+    return;
+  }
+  return 'connected';
+});
+
 const startConnect = on<'connect'>(({ ctx }) => {
   ctx.attemptId += 1;
   ctx.lastError = undefined;
@@ -80,7 +100,7 @@ const signalStates = {
   connecting: {
     connect: startConnect,
     reconnect: startReconnect,
-    connectComplete: 'connected',
+    connectComplete: attemptEstablished,
     // An initial connect has no session to fall back on, so failure is terminal.
     connectFailed: on<'connectFailed'>(({ ctx }, event) => {
       ctx.lastError = event.error;
@@ -92,7 +112,7 @@ const signalStates = {
     connect: startConnect,
     reconnect: startReconnect,
     transportFailed: on<'transportFailed'>(({ ctx }, event) => {
-      if (event.attemptId !== ctx.attemptId) {
+      if (!isCurrentAttempt(ctx, event)) {
         // a transport that has already been replaced, reporting its close late
         return;
       }
@@ -109,7 +129,7 @@ const signalStates = {
   reconnecting: {
     connect: startConnect,
     reconnect: startReconnect,
-    reconnectComplete: 'connected',
+    reconnectComplete: attemptEstablished,
     reconnectFailed: on<'reconnectFailed'>(({ ctx }, event) => {
       ctx.lastError = event.error;
       return event.recoverable ? 'offline' : 'closed';
