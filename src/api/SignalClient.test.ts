@@ -564,7 +564,10 @@ describe('SignalClient.connect', () => {
 
       const err = await signalClient
         .join('wss://test.livekit.io', 'test-token', defaultOptions)
-        .then(() => undefined, (e) => e);
+        .then(
+          () => undefined,
+          (e) => e,
+        );
 
       expect(err).toMatchObject({ reason: ConnectionErrorReason.InternalError });
       expect((err as Error).message).toContain('Websocket got closed during');
