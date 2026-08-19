@@ -349,7 +349,8 @@ describe('signal lifecycle machine', () => {
         maxSteps: 25,
         inputs: walkPayloads(),
         invariant({ state, previousState, input }) {
-          const actual = state === previousState ? 'ignored' : state;
+          const actual: TransitionTarget =
+            state === previousState ? 'ignored' : (state as TransitionTarget);
           const allowed = payloadDependent[`${previousState}.${input}`] ?? [
             documentedTransitions[previousState]?.[input],
           ];

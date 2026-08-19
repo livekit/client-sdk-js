@@ -142,15 +142,18 @@ export enum SignalConnectionState {
  * Public projection of the lifecycle machine's states. `new`, `offline` and `closed` are all
  * reported as `DISCONNECTED`: they differ in what may happen next
  */
-const lifecycleToConnectionState: Record<SignalLifecycleState, SignalConnectionState> = {
-  new: SignalConnectionState.DISCONNECTED,
-  connecting: SignalConnectionState.CONNECTING,
-  connected: SignalConnectionState.CONNECTED,
-  offline: SignalConnectionState.DISCONNECTED,
-  reconnecting: SignalConnectionState.RECONNECTING,
-  disconnecting: SignalConnectionState.DISCONNECTING,
-  closed: SignalConnectionState.DISCONNECTED,
-};
+function lifecycleToConnectionState(lifecycle: SignalLifecycleState): SignalConnectionState {
+  switch (lifecycle) {
+    case 'connected':
+      return SignalConnectionState.CONNECTED;
+    case 'connecting':
+      return SignalConnectionState.CONNECTING;
+    case 'reconnecting':
+      return SignalConnectionState.DISCONNECTING;
+    default:
+      return SignalConnectionState.DISCONNECTED;
+  }
+}
 
 /** specifies how much time (in ms) we allow for the ws to close its connection gracefully before continuing */
 const MAX_WS_CLOSE_TIME = 250;
@@ -240,7 +243,7 @@ export class SignalClient {
   ws?: WebSocketStream;
 
   get currentState() {
-    return lifecycleToConnectionState[this.lifecycleState];
+    return lifecycleToConnectionState(this.lifecycleState);
   }
 
   get isDisconnected() {
