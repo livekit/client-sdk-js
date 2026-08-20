@@ -1,5 +1,6 @@
 import { LivekitReasonedError } from '../../errors';
 import { DataTrackPacketizerError } from '../packetizer';
+import type { DataTrackSchemaError } from '../schema';
 
 export enum DataTrackPublishErrorReason {
   /**
@@ -30,6 +31,9 @@ export enum DataTrackPublishErrorReason {
   /** There was an error publishing, but it was not something that could be sorted into a known
    * category. */
   Unknown = 7,
+
+  /** Schema metadata is invalid. */
+  InvalidSchema = 8,
 }
 
 export class DataTrackPublishError<
@@ -107,6 +111,12 @@ export class DataTrackPublishError<
       'Publish data track cancelled by caller',
       DataTrackPublishErrorReason.Cancelled,
     );
+  }
+
+  static invalidSchema(cause: DataTrackSchemaError) {
+    return new DataTrackPublishError(cause.message, DataTrackPublishErrorReason.InvalidSchema, {
+      cause,
+    });
   }
 }
 

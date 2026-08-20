@@ -8,6 +8,7 @@ import { Future } from '../../utils';
 import LocalDataTrack from '../LocalDataTrack';
 import type { DataTrackFrameInternal } from '../frame';
 import { DataTrackHandle, DataTrackHandleAllocator } from '../handle';
+import { type DataTrackSchemaError, validateSchemaMetadata } from '../schema';
 import { type DataTrackInfo } from '../types';
 import {
   DataTrackPublishError,
@@ -215,6 +216,12 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
     options: DataTrackOptions,
     signal?: AbortSignal,
   ): Promise<Throws<DataTrackHandle, DataTrackPublishError>> {
+    try {
+      validateSchemaMetadata(options.frameEncoding, options.schema?.encoding);
+    } catch (error) {
+      throw DataTrackPublishError.invalidSchema(error as DataTrackSchemaError);
+    }
+
     const handle = this.handleAllocator.get();
     if (!handle) {
       throw DataTrackPublishError.limitReached();
@@ -263,6 +270,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
       handle,
       name: options.name,
       usesE2ee: this.e2eeManager !== null,
+      schema: options.schema,
+      frameEncoding: options.frameEncoding,
     });
 
     await descriptor.completionFuture.promise;
@@ -397,6 +406,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
             handle: descriptor.info.pubHandle,
             name: descriptor.info.name,
             usesE2ee: descriptor.info.usesE2ee,
+            schema: descriptor.info.schema,
+            frameEncoding: descriptor.info.frameEncoding,
           });
       }
     }

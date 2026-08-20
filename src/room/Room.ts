@@ -305,7 +305,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.outgoingDataTrackManager
       .on('sfuPublishRequest', (event) => {
-        this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
+        this.engine.client.sendPublishDataTrackRequest(
+          event.handle,
+          event.name,
+          event.usesE2ee,
+          event.schema,
+          event.frameEncoding,
+        );
       })
       .on('sfuUnpublishRequest', (event) => {
         this.engine.client.sendUnPublishDataTrackRequest(event.handle);
@@ -687,12 +693,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
         this.outgoingDataTrackManager.receivedSfuPublishResponse(event.info.pubHandle, {
           type: 'ok',
-          data: {
-            sid: event.info.sid,
-            pubHandle: event.info.pubHandle,
-            name: event.info.name,
-            usesE2ee: event.info.encryption !== Encryption_Type.NONE,
-          },
+          data: DataTrackInfo.from(event.info),
         });
       })
       .on(EngineEvent.UnPublishDataTrackResponse, (event) => {

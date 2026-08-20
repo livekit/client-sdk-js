@@ -11,6 +11,7 @@ import RTCEngine from '../../RTCEngine';
 import Room from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
+import { DataTrackSchemaError } from '../schema';
 import OutgoingDataTrackManager, {
   type DataTrackOutgoingManagerCallbacks,
   Descriptor,
@@ -132,6 +133,27 @@ describe('DataTrackOutgoingManager', () => {
     );
   });
 
+  it('should reject publishing when schema metadata is invalid', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+    ]);
+
+    // Providing a schema ID without a frame encoding is invalid.
+    const localDataTrack = new LocalDataTrack(
+      { name: 'test', schema: { name: 'my_schema', encoding: 'jsonSchema' } },
+      manager,
+    );
+
+    await expect(localDataTrack.publish()).rejects.toStrictEqual(
+      DataTrackPublishError.invalidSchema(DataTrackSchemaError.missingFrameEncoding()),
+    );
+
+    // The invalid request must not be sent to the SFU.
+    expect(managerEvents.areThereBufferedEvents('sfuPublishRequest')).toBe(false);
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+  });
+
   it('should test track publishing (cancellation half way through)', async () => {
     const manager = new OutgoingDataTrackManager();
     const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
@@ -250,6 +272,65 @@ describe('DataTrackOutgoingManager', () => {
     // publish attempt.
     expect(handle).not.toStrictEqual(handle2);
   });
+
+  it.each([
+    {
+      title: 'well-known encodings',
+      schema: { name: 'my_schema', encoding: 'jsonSchema' },
+      frameEncoding: 'json',
+    },
+    {
+      title: 'custom encodings',
+      schema: { name: 'my_schema', encoding: { custom: 'a' } },
+      frameEncoding: { custom: 'b' },
+    },
+  ] as const)(
+    'should forward schema and frame encoding on publish ($title)',
+    async ({ schema, frameEncoding }) => {
+      const manager = new OutgoingDataTrackManager();
+      const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+        'sfuPublishRequest',
+      ]);
+
+      const localDataTrack = new LocalDataTrack({ name: 'test', schema, frameEncoding }, manager);
+
+      // 1. Publish a data track with schema metadata
+      const publishRequestPromise = localDataTrack.publish();
+
+      // 2. The publish request sent to the SFU carries the schema and frame encoding
+      const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+      expect(sfuPublishEvent.schema).toStrictEqual(schema);
+      expect(sfuPublishEvent.frameEncoding).toStrictEqual(frameEncoding);
+      const handle = sfuPublishEvent.handle;
+
+      // 3. Respond as the SFU would, echoing the metadata back on the DataTrackInfo
+      manager.receivedSfuPublishResponse(handle, {
+        type: 'ok',
+        data: {
+          sid: 'bogus-sid',
+          pubHandle: handle,
+          name: 'test',
+          usesE2ee: false,
+          schema,
+          frameEncoding,
+        },
+      });
+      await publishRequestPromise;
+
+      // 4. The metadata is reflected on the local track's info
+      expect(localDataTrack.info?.schema).toStrictEqual(schema);
+      expect(localDataTrack.info?.frameEncoding).toStrictEqual(frameEncoding);
+
+      // 5. Republishing after a full reconnect re-announces the track with the same metadata,
+      // since a track's schema is immutable even though it is assigned a new sid.
+      manager.sfuWillRepublishTracks();
+
+      const republishEvent = await managerEvents.waitFor('sfuPublishRequest');
+      expect(republishEvent.handle).toStrictEqual(handle);
+      expect(republishEvent.schema).toStrictEqual(schema);
+      expect(republishEvent.frameEncoding).toStrictEqual(frameEncoding);
+    },
+  );
 
   it.each([
     // Single packet payload case
