@@ -1,4 +1,3 @@
-/* eslint-disable import/no-extraneous-dependencies */
 import { babel } from '@rollup/plugin-babel';
 import dns from 'dns';
 import { resolve } from 'path';
@@ -20,7 +19,7 @@ export default defineConfig({
     target: 'es2019',
     lib: {
       // Could also be a dictionary or array of multiple entry points
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(import.meta.dirname, 'src/index.ts'),
       name: 'Livekit Client SDK JS',
       // the proper extensions will be added
       fileName: 'livekit-client',
@@ -41,6 +40,7 @@ export default defineConfig({
     },
   },
   test: {
+    globals: true,
     environment: 'happy-dom',
     // e2e tests need a real server + node WebSocket; run them via the
     // dedicated `pnpm test:e2e` config (vitest.e2e.config.mts), not the unit run.
