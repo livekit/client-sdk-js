@@ -58,7 +58,7 @@ export function supportsAddTrack() {
 }
 
 export function supportsAdaptiveStream() {
-  return typeof ResizeObserver !== undefined && typeof IntersectionObserver !== undefined;
+  return typeof ResizeObserver !== 'undefined' && typeof IntersectionObserver !== 'undefined';
 }
 
 export function supportsDynacast() {
