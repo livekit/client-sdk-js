@@ -572,6 +572,53 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Transport closed while connected', () => {
+    /** Joins with a `closed` promise the test controls, and reports what onClose saw. */
+    async function joinWithControllableClose() {
+      let closeTransport: (info: WebSocketCloseInfo) => void = () => {};
+      const closed = new Promise<WebSocketCloseInfo>((resolve) => {
+        closeTransport = resolve;
+      });
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+        closed,
+      });
+
+      const closeReasons: Array<string> = [];
+      signalClient.onClose = (reason) => closeReasons.push(reason);
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+
+      return { closeTransport, closeReasons };
+    }
+
+    it('reports a clean server close, which used to be treated as nothing happening', async () => {
+      const { closeTransport, closeReasons } = await joinWithControllableClose();
+
+      // A server that drops signalling closes cleanly — a migration that never sends its
+      // Leave{action=RESUME} does exactly this. Swallowing it leaves Room and RTCEngine believing
+      // they are still connected until the connection reconcile forces a full reconnect.
+      closeTransport({ closeCode: 1000, reason: 'server dropped signalling' });
+      await vi.waitFor(() => expect(closeReasons).toEqual(['server dropped signalling']));
+
+      expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
+    });
+
+    it('ignores a close from a transport that has already been replaced', async () => {
+      const { closeTransport, closeReasons } = await joinWithControllableClose();
+
+      // a newer attempt takes over before the old socket reports its close
+      (signalClient as any).sendLifecycleInput({ type: 'reconnect' });
+      closeTransport({ closeCode: 1006, reason: 'late close from the old socket' });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(closeReasons).toEqual([]);
+      expect(signalClient.currentState).toBe(SignalConnectionState.RECONNECTING);
+    });
+  });
+
   describe('Failure Case - Closed After Upgrade', () => {
     it('fails fast rather than waiting out the first-message timeout', async () => {
       // The upgrade succeeds and the server then closes without sending a join response. Nothing

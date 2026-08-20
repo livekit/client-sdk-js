@@ -171,7 +171,10 @@ describe('signal lifecycle machine', () => {
 
   it('gives every client its own context', () => {
     const a = machineIn('connected');
-    const b = createSignalMachine();
+    const b = machineIn('connected');
+
+    send(a, { type: 'reconnect' });
+
     expect(a.context.attemptId).toBe(1);
     expect(b.context.attemptId).toBe(0);
   });
