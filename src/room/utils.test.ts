@@ -1,11 +1,12 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   negotiateDependencyDescriptor,
   splitUtf8,
+  supportsAdaptiveStream,
   toWebsocketUrl,
 } from './utils';
 
@@ -255,5 +256,27 @@ describe('negotiateDependencyDescriptor', () => {
     const { transceiver } = transceiverWith([{ uri: ddExtensionURI, direction: 'stopped' }], true);
 
     expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+  });
+});
+
+describe('supportsAdaptiveStream', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reports support where both observers exist', () => {
+    expect(supportsAdaptiveStream()).toBe(true);
+  });
+
+  it('reports no support where ResizeObserver is missing', () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+
+    expect(supportsAdaptiveStream()).toBe(false);
+  });
+
+  it('reports no support where IntersectionObserver is missing', () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+
+    expect(supportsAdaptiveStream()).toBe(false);
   });
 });
