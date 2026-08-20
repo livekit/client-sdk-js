@@ -1,4 +1,5 @@
 import {
+  DataBlobKey,
   DataTrackFrameEncoding as ProtocolDataTrackFrameEncoding,
   DataTrackSchemaEncoding as ProtocolDataTrackSchemaEncoding,
   DataTrackSchemaId as ProtocolDataTrackSchemaId,
@@ -230,6 +231,12 @@ export const DataTrackSchemaId = {
     return new ProtocolDataTrackSchemaId({
       name: schemaId.name,
       encoding: DataTrackSchemaEncoding.toProtobuf(schemaId.encoding),
+    });
+  },
+  /** Key under which the schema's definition is stored as a data blob. */
+  toDataBlobKey(schemaId: DataTrackSchemaId): DataBlobKey {
+    return new DataBlobKey({
+      key: { case: 'schemaId', value: DataTrackSchemaId.toProtobuf(schemaId) },
     });
   },
 };

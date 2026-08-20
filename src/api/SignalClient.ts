@@ -6,9 +6,13 @@ import {
   ClientInfo_Capability,
   ConnectionQualityUpdate,
   ConnectionSettings,
+  DataBlob,
+  DataBlobKey,
   DataTrackSubscriberHandles,
   DisconnectReason,
   Encryption_Type,
+  GetDataBlobRequest,
+  GetDataBlobResponse,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
@@ -30,6 +34,8 @@ import {
   SignalTarget,
   SimulateScenario,
   SpeakerInfo,
+  StoreDataBlobRequest,
+  StoreDataBlobResponse,
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermission,
@@ -202,6 +208,10 @@ export class SignalClient {
   onUnPublishDataTrackResponse?: (event: UnpublishDataTrackResponse) => void;
 
   onDataTrackSubscriberHandles?: (event: DataTrackSubscriberHandles) => void;
+
+  onStoreDataBlobResponse?: (res: StoreDataBlobResponse) => void;
+
+  onGetDataBlobResponse?: (res: GetDataBlobResponse) => void;
 
   onJoined?: (event: JoinResponse) => void;
 
@@ -774,6 +784,24 @@ export class SignalClient {
     });
   }
 
+  async sendStoreDataBlobRequest(blob: DataBlob) {
+    const requestId = this.getNextRequestId();
+    await this.sendRequest({
+      case: 'storeDataBlobRequest',
+      value: new StoreDataBlobRequest({ requestId, blob }),
+    });
+    return requestId;
+  }
+
+  async sendGetDataBlobRequest(key: DataBlobKey, participantIdentity: string) {
+    const requestId = this.getNextRequestId();
+    await this.sendRequest({
+      case: 'getDataBlobRequest',
+      value: new GetDataBlobRequest({ requestId, participantIdentity, key }),
+    });
+    return requestId;
+  }
+
   sendUpdateDataSubscription(sid: DataTrackSid, subscribe: boolean) {
     return this.sendRequest({
       case: 'updateDataSubscription',
@@ -939,6 +967,14 @@ export class SignalClient {
     } else if (msg.case === 'dataTrackSubscriberHandles') {
       if (this.onDataTrackSubscriberHandles) {
         this.onDataTrackSubscriberHandles(msg.value);
+      }
+    } else if (msg.case === 'storeDataBlobResponse') {
+      if (this.onStoreDataBlobResponse) {
+        this.onStoreDataBlobResponse(msg.value);
+      }
+    } else if (msg.case === 'getDataBlobResponse') {
+      if (this.onGetDataBlobResponse) {
+        this.onGetDataBlobResponse(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { msgCase: msg.case });
