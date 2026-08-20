@@ -120,6 +120,30 @@ export interface InternalRoomOptions {
    * @default true
    */
   singlePeerConnection: boolean;
+
+  /**
+   * Options controlling data stream behavior for this room.
+   */
+  dataStream?: RoomDataStreamOptions;
+}
+
+/**
+ * Options controlling data stream behavior for a room.
+ */
+export interface RoomDataStreamOptions {
+  /**
+   * Maximum size, in bytes, of the payload this client accepts from a single incoming data stream.
+   *
+   * A compressed stream can inflate to an arbitrarily large payload, so the decompressed output is
+   * bounded rather than trusting the size declared on the wire. An incoming stream that exceeds the
+   * cap fails with a `DataStreamErrorReason.PayloadTooLarge` error on the next read instead of
+   * buffering without bound.
+   *
+   * This is enforced on the receiving side only: raising it on a sender has no effect.
+   *
+   * @default 5_000_000_000 (5 GB)
+   */
+  maxPayloadByteLength?: number;
 }
 
 /**
