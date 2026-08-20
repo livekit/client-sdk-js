@@ -15,6 +15,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "include": ["../../src/**/*", "inspector.ts", "machines.ts", "main.ts"],
+  "include": ["../../src/**/*", "inspector.ts", "machines.ts", "main.ts", "../shared/**/*"],
   "exclude": ["**/*.test.ts", "build/**/*"]
 }

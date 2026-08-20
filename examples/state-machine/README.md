@@ -46,3 +46,14 @@ defineMachine({
 
 `defineMachine` keeps the payload builders typed against that machine's own context. Inputs with no
 entry are fired without a payload. With more than one machine registered, a picker appears.
+
+## Watching a real session instead
+
+The playground drives a machine you construct. To watch the machines a _live_ session is driving,
+run the demo (`pnpm examples:demo`) and press **State machines** — the panel there subscribes to
+`src/utils/machineInspector`, which every machine announces itself to, and renders the same diagram
+this page does via `examples/shared/machineGraph.ts`.
+
+The two views are deliberately different in one respect: the playground fires inputs into the
+machine, the panel never does. Its fault buttons close the real socket or ask the server for a
+scenario, so the machine is always reacting to something that actually happened.

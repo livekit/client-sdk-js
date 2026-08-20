@@ -1,24 +1,7 @@
-import { type StateGraph, buildStateGraph } from 'machina-inspect';
-import mermaid from 'mermaid';
+import { type InspectableFsm, allInputs, destination, renderDiagram } from '../shared/machineGraph';
 
-/**
- * The slice of machina's `Fsm` surface the inspector needs. Structural rather than machina's own
- * `Fsm` type so that any machine satisfies it regardless of its state and input unions.
- */
-export interface InspectableFsm {
-  readonly id: string;
-  readonly initialState: string;
-  readonly states: Record<string, Record<string, unknown>>;
-  readonly context?: unknown;
-  currentState(): string;
-  canHandle(input: string): boolean;
-  handle(input: string, ...args: unknown[]): void;
-}
+export type { InspectableFsm };
 
-/**
- * A machina FSM registered with the inspector. Nothing here is specific to a particular machine:
- * states, inputs and edges are all derived from the machine itself.
- */
 export interface MachineRegistration<TFsm extends InspectableFsm = InspectableFsm> {
   /** Shown in the picker. */
   name: string;
@@ -45,9 +28,6 @@ export function defineMachine<TFsm extends InspectableFsm>(
   return registration as unknown as MachineRegistration;
 }
 
-/** Keys in a machina state definition that are lifecycle hooks rather than inputs. */
-const RESERVED = new Set(['_onEnter', '_onExit', '_child', '*']);
-
 type Outcome = 'moved' | 'declined' | 'unhandled';
 
 interface LogEntry {
@@ -57,67 +37,14 @@ interface LogEntry {
   outcome: Outcome;
 }
 
-/** Every input the machine declares in any state, so illegal ones can be fired too. */
-function allInputs(fsm: InspectableFsm): string[] {
-  const names = new Set<string>();
-  for (const definition of Object.values(fsm.states)) {
-    for (const key of Object.keys(definition)) {
-      if (!RESERVED.has(key)) {
-        names.add(key);
-      }
-    }
-  }
-  return [...names];
-}
-
-/**
- * Inputs every state handles. In a machine where some input is legal everywhere — a connect that may
- * restart from any state, a cancel — those edges alone are O(states) and swamp the diagram, so they
- * can be folded away without losing the shape of the machine.
- */
-function ubiquitousInputs(graph: StateGraph): string[] {
-  const stateCount = Object.keys(graph.nodes).length;
-  const sources = new Map<string, Set<string>>();
-  for (const node of Object.values(graph.nodes)) {
-    for (const edge of node.edges) {
-      const seen = sources.get(edge.inputName) ?? new Set<string>();
-      seen.add(edge.from);
-      sources.set(edge.inputName, seen);
-    }
-  }
-  return [...sources.entries()]
-    .filter(([, froms]) => froms.size === stateCount)
-    .map(([input]) => input);
-}
-
-function toMermaid(graph: StateGraph, current: string, hidden: string[]): string {
-  const lines = ['stateDiagram-v2', `  [*] --> ${graph.initialState}`];
-  for (const node of Object.values(graph.nodes)) {
-    for (const edge of node.edges) {
-      if (hidden.includes(edge.inputName)) {
-        continue;
-      }
-      // a "possible" edge is one the handler only takes conditionally, so it is marked as such
-      const label = edge.confidence === 'possible' ? `${edge.inputName} ?` : edge.inputName;
-      lines.push(`  ${edge.from} --> ${edge.to} : ${label}`);
-    }
-  }
-  lines.push('  classDef current fill:#2563eb,stroke:#1e40af,color:#fff,font-weight:bold');
-  lines.push(`  class ${current} current`);
-  return lines.join('\n');
-}
-
 export function mountInspector(root: HTMLElement, machines: MachineRegistration[]) {
   if (machines.length === 0) {
     throw new Error('mountInspector needs at least one machine');
   }
 
-  mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
-
   let registration = machines[0];
   let fsm = registration.create();
   let log: LogEntry[] = [];
-  let diagramId = 0;
   let foldUbiquitous = true;
 
   root.innerHTML = `
@@ -213,24 +140,10 @@ export function mountInspector(root: HTMLElement, machines: MachineRegistration[
 
   async function render() {
     const current = fsm.currentState();
+    const { svg, graph, ubiquitous } = await renderDiagram(fsm, current, { foldUbiquitous });
     el('state').textContent = current;
     el('description').textContent = registration.description ?? '';
     el('context').textContent = JSON.stringify(fsm.context ?? {}, null, 2);
-
-    const graph = buildStateGraph(fsm);
-    const outbound = graph.nodes[current]?.edges ?? [];
-
-    /** Where an input leads from here, as the graph sees it. */
-    function destination(input: string) {
-      const targets = outbound.filter((edge) => edge.inputName === input);
-      if (targets.length === 0) {
-        // a handler exists but never returns a state the analysis can see
-        return '?';
-      }
-      return targets
-        .map((edge) => `${edge.to}${edge.confidence === 'possible' ? '?' : ''}`)
-        .join(' | ');
-    }
 
     // One row in a fixed order, so a button never moves as the state changes — only whether it is
     // lit. The label stays the input name alone for the same reason: a varying label would reflow
@@ -244,7 +157,7 @@ export function mountInspector(root: HTMLElement, machines: MachineRegistration[
       button.textContent = input;
       button.className = handled ? 'legal' : 'illegal';
       button.title = handled
-        ? `${input} → ${destination(input)}`
+        ? `${input} → ${destination(graph, current, input)}`
         : `${input} is not handled in '${current}' — firing it will be dropped`;
       button.addEventListener('click', () => fire(input));
       button.addEventListener('pointerenter', () => showPayloadFor(input));
@@ -263,17 +176,11 @@ export function mountInspector(root: HTMLElement, machines: MachineRegistration[
       )
       .join('');
 
-    const ubiquitous = ubiquitousInputs(graph);
     const foldLabel = el<HTMLLabelElement>('fold-label');
     foldLabel.hidden = ubiquitous.length === 0;
     (foldLabel.querySelector('span') as HTMLSpanElement).textContent =
       `fold away ${ubiquitous.join(', ')} (legal from every state)`;
 
-    diagramId += 1;
-    const { svg } = await mermaid.render(
-      `diagram-${diagramId}`,
-      toMermaid(graph, current, foldUbiquitous ? ubiquitous : []),
-    );
     el('diagram').innerHTML = svg;
   }
 

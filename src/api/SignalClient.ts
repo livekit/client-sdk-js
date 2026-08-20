@@ -63,6 +63,7 @@ import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { announceMachine } from '../utils/machineInspector';
 import {
   type SignalLifecycleState,
   type SignalMachine,
@@ -336,6 +337,8 @@ export class SignalClient {
         `ignoring signal lifecycle input ${inputName} in state ${this.lifecycleState}`,
       );
     });
+    // no-op unless a development tool asked for it; see utils/machineInspector
+    announceMachine('signal', this.machine);
   }
 
   private get logContext() {
