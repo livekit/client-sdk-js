@@ -4,10 +4,12 @@ import {
   applyVideoStartBitrate,
   conformBundledCodecFmtp,
   ensureAudioNackAndStereo,
+  ensureVideoDDExtension,
   extractStereoAndNackAudioFromOffer,
   fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
 } from './PCTransport';
+import { ddExtensionURI } from './utils';
 
 /** Parse the `key[=value]` pairs of an fmtp config into a comparable set. */
 const paramSet = (config: string) => new Set(config.split(';').filter(Boolean));
@@ -274,5 +276,117 @@ ${fmtp}`,
       offerWith('a=rtpmap:111 OPUS/48000/2', 'a=fmtp:111 minptime=10;sprop-stereo=1'),
     );
     expect(stereoMids).toEqual(['0']);
+  });
+});
+
+// A single peer connection bundle as Chrome offers it: the section our camera sends on, the
+// recvonly sections subscribed tracks arrive on, and one that lost AV1 in negotiation.
+const SINGLE_PC_OFFER = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1 2
+m=video 9 UDP/TLS/RTP/SAVPF 96 45
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sendonly
+a=msid:s cam
+a=rtpmap:96 VP8/90000
+a=rtpmap:45 AV1/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+a=extmap:11 urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id
+m=video 9 UDP/TLS/RTP/SAVPF 96 45
+c=IN IP4 0.0.0.0
+a=mid:1
+a=recvonly
+a=rtpmap:96 VP8/90000
+a=rtpmap:45 AV1/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:2
+a=recvonly
+a=rtpmap:96 VP8/90000
+a=extmap:2 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time`;
+
+const sectionOf = (media: MediaDescription[], mid: string) =>
+  media.find((section) => `${section.mid}` === mid)!;
+
+const ddOf = (media: MediaDescription[], mid: string) =>
+  sectionOf(media, mid).ext?.find((ext) => ext.uri === ddExtensionURI)?.value;
+
+describe('ensureVideoDDExtension', () => {
+  it('assigns an id above every extension in the bundle', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    // 11 is the highest in use, across all sections rather than just this one
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(12);
+    expect(ddOf(sdp.media, '1')).toBe(12);
+  });
+
+  it('reuses the id already chosen for the connection', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 7)).toBe(7);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 7)).toBe(7);
+    expect(ddOf(sdp.media, '1')).toBe(7);
+    expect(ddOf(sdp.media, '2')).toBe(7);
+  });
+
+  it('leaves a section that already carries the extension alone, and reports its id', () => {
+    const sdp = parse(`${SINGLE_PC_OFFER}
+a=extmap:3 ${ddExtensionURI}`);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 0)).toBe(3);
+    expect(sectionOf(sdp.media, '2').ext).toHaveLength(2);
+    expect(ddOf(sdp.media, '2')).toBe(3);
+  });
+
+  it('adopts the id the browser already advertises rather than inventing a second one', () => {
+    // Chrome maps the extension itself on the section it sends AV1 on, but not on recvonly
+    // ones. A bundle has to map the URI to one id, so the send section's id has to win over
+    // both a fresh id and the cached one.
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 13, uri: ddExtensionURI });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(13);
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '2'), sdp, 7)).toBe(13);
+    expect(ddOf(sdp.media, '1')).toBe(13);
+    expect(ddOf(sdp.media, '2')).toBe(13);
+  });
+
+  it('steps over the id RFC 8285 reserves', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 14, uri: 'urn:3gpp:video-orientation' });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(16);
+  });
+
+  it('abandons the cached id once something else stands for it', () => {
+    // The id was free when it was picked, then the first section we send on brought the fuller
+    // extension set along and claimed it. Reusing it anyway is what makes the browser reject
+    // the offer with "a BUNDLE group contains a codec collision for header extension id".
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 12)).toBe(13);
+    expect(ddOf(sdp.media, '1')).toBe(13);
+  });
+
+  it('leaves the offer alone when the mapped id is contested', () => {
+    // Nothing consistent for the whole bundle is available: the extension is mapped to 12 on one
+    // section and 12 means something else on another, and the browser's half of the map is not
+    // ours to renumber. Losing AV1 beats an offer that cannot be applied at all.
+    const sdp = parse(SINGLE_PC_OFFER);
+    sectionOf(sdp.media, '0').ext!.push({ value: 12, uri: 'urn:3gpp:video-orientation' });
+    sectionOf(sdp.media, '2').ext!.push({ value: 12, uri: ddExtensionURI });
+
+    expect(ensureVideoDDExtension(sectionOf(sdp.media, '1'), sdp, 0)).toBe(0);
+    expect(ddOf(sdp.media, '1')).toBeUndefined();
+  });
+
+  it('adds the extension to a section that has none', () => {
+    const sdp = parse(SINGLE_PC_OFFER);
+    const section = sectionOf(sdp.media, '1');
+    delete section.ext;
+    expect(ensureVideoDDExtension(section, sdp, 0)).toBe(12);
+    expect(ddOf(sdp.media, '1')).toBe(12);
   });
 });

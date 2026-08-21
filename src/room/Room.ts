@@ -1913,7 +1913,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
-        this.handleParticipantDisconnected(info.identity, remoteParticipant);
+        this.handleParticipantDisconnected(
+          info.identity,
+          remoteParticipant,
+          info.disconnectReason === DisconnectReason.UNKNOWN_REASON
+            ? undefined
+            : info.disconnectReason,
+        );
       } else {
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
@@ -1931,7 +1937,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
 
-  private handleParticipantDisconnected(identity: string, participant?: RemoteParticipant) {
+  private handleParticipantDisconnected(
+    identity: string,
+    participant?: RemoteParticipant,
+    disconnectReason?: DisconnectReason,
+  ) {
     // remove and send event
     this.remoteParticipants.delete(identity);
     if (!participant) {
@@ -1944,7 +1954,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emit(RoomEvent.ParticipantDisconnected, participant);
+    this.emit(RoomEvent.ParticipantDisconnected, participant, disconnectReason);
     participant.setDisconnected();
     this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
@@ -2948,7 +2958,10 @@ export type RoomEventCallbacks = {
   moved: (name: string) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
-  participantDisconnected: (participant: RemoteParticipant) => void;
+  participantDisconnected: (
+    participant: RemoteParticipant,
+    disconnectReason?: DisconnectReason,
+  ) => void;
   trackPublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void;
   trackSubscribed: (
     track: RemoteTrack,

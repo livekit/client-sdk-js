@@ -31,6 +31,33 @@ describe('isResponseTokenValid', () => {
     );
     expect(isValid).toBe(false);
   });
+  it('should treat a jwt without exp as expired', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: TOKENS.NO_EXP,
+      }),
+    );
+    expect(isValid).toBe(false);
+  });
+  it('should honor exp when nbf is absent', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: TOKENS.EXP_IN_PAST_NO_NBF,
+      }),
+    );
+    expect(isValid).toBe(false);
+  });
+  it('should accept a non-expired jwt that omits nbf', () => {
+    const isValid = isResponseTokenValid(
+      TokenSourceResponse.fromJson({
+        serverUrl: 'ws://localhost:7800',
+        participantToken: TOKENS.VALID_NO_NBF,
+      }),
+    );
+    expect(isValid).toBe(true);
+  });
 });
 
 describe('decodeTokenPayload', () => {

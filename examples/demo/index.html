@@ -193,6 +193,13 @@
               </button>
               <input id="file" type="file" />
               <button onclick="appActions.sendFile()">Send file</button>
+              <button
+                id="inspect-machines"
+                onclick="appActions.openMachineInspector()"
+                title="Open the connection state machines in a separate window"
+              >
+                State machines
+              </button>
               <select
                 id="simulate-scenario"
                 class="custom-select"

@@ -101,6 +101,7 @@ import {
   isVideoCodec,
   isVideoTrack,
   isWeb,
+  negotiateDependencyDescriptor,
   sleep,
   supportsAddTrack,
   supportsTransceiver,
@@ -431,7 +432,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  async close() {
+  /**
+   * @param reason why the session is ending, recorded by the signal lifecycle. Worth passing
+   * wherever the caller knows more than "someone called close" — the server's leave reason, or
+   * having given up on reconnecting.
+   */
+  async close(reason?: string) {
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -447,7 +453,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.clearLostQualityTimeout();
       this.cleanupLossyDataStats();
       await this.cleanupPeerConnections();
-      await this.cleanupClient();
+      await this.cleanupClient(reason);
     } finally {
       unlock();
     }
@@ -468,8 +474,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyChannel.stopThresholdTuning();
   }
 
-  async cleanupClient() {
-    await this.client.close();
+  async cleanupClient(reason?: string) {
+    await this.client.close(true, reason);
     this.client.resetCallbacks();
     // Any in-flight addTrack requests are orphaned by the signal reconnect — the new session
     // won't deliver `trackPublishedResponse` for them, so reject the pending resolvers and
@@ -750,7 +756,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       switch (leave.action) {
         case LeaveRequest_Action.DISCONNECT:
           this.emit(EngineEvent.Disconnected, leave?.reason);
-          this.close();
+          this.close(`server leave: ${DisconnectReason[leave.reason] ?? leave.reason}`);
           break;
         case LeaveRequest_Action.RECONNECT:
           this.fullReconnectOnNext = true;
@@ -844,8 +850,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     for (let i: number = 0; i < numAudios; i++) {
       this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
     }
+    // media only arrives on these sections when there is no subscriber connection to arrive on
+    const receivesMedia = this.pcManager?.mode === 'publisher-only';
     for (let i: number = 0; i < numVideos; i++) {
-      this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      const transceiver = this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      if (receivesMedia && transceiver) {
+        const negotiated = negotiateDependencyDescriptor(transceiver);
+
+        this.log.debug('dependency descriptor negotiated for received video', { negotiated });
+      }
     }
   }
 
@@ -1153,7 +1166,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
       );
       this.emit(EngineEvent.Disconnected);
-      this.close();
+      this.close(`gave up reconnecting after ${this.reconnectAttempts} attempts, ${duration}ms`);
     };
 
     const duration = Date.now() - this.reconnectStart;
@@ -1315,7 +1328,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }ms. giving up`,
         );
         this.emit(EngineEvent.Disconnected);
-        await this.close();
+        await this.close(
+          `gave up reconnecting after ${this.reconnectAttempts} attempts, ${
+            Date.now() - this.reconnectStart
+          }ms`,
+        );
       }
     } finally {
       this.attemptingReconnect = false;

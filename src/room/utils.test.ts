@@ -1,6 +1,14 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
-import { extractMaxAgeFromRequestHeaders, getClientInfo, splitUtf8, toWebsocketUrl } from './utils';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  ddExtensionURI,
+  extractMaxAgeFromRequestHeaders,
+  getClientInfo,
+  negotiateDependencyDescriptor,
+  splitUtf8,
+  supportsAdaptiveStream,
+  toWebsocketUrl,
+} from './utils';
 
 describe('toWebsocketUrl', () => {
   it('leaves wss urls alone', () => {
@@ -186,5 +194,89 @@ describe('extractMaxAgeFromRequestHeaders', () => {
     const headers = new Headers();
     headers.set('Cache-Control', 'custom-max-age=7200,max-age=3600');
     expect(extractMaxAgeFromRequestHeaders(headers)).toBe(3600);
+  });
+});
+
+describe('negotiateDependencyDescriptor', () => {
+  /** A transceiver whose header extension control offers `extensions`, or none at all. */
+  const transceiverWith = (extensions?: RTCRtpHeaderExtensionCapability[], throws = false) => {
+    const set = vi.fn((updated: RTCRtpHeaderExtensionCapability[]) => {
+      if (throws) {
+        throw new Error('InvalidModificationError');
+      }
+      extensions = updated;
+    });
+    return {
+      transceiver: (extensions
+        ? {
+            getHeaderExtensionsToNegotiate: () => extensions!,
+            setHeaderExtensionsToNegotiate: set,
+          }
+        : {}) as unknown as RTCRtpTransceiver,
+      set,
+      current: () => extensions,
+    };
+  };
+
+  it('turns the extension on for a transceiver that has it stopped', () => {
+    const { transceiver, set, current } = transceiverWith([
+      { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', direction: 'sendrecv' },
+      { uri: ddExtensionURI, direction: 'stopped' },
+    ]);
+
+    expect(negotiateDependencyDescriptor(transceiver)).toBe(true);
+    expect(set).toHaveBeenCalledOnce();
+    // sendrecv keeps it a plain a=extmap line, with no direction suffix for the server to parse
+    expect(current()?.find((ext) => ext.uri === ddExtensionURI)?.direction).toBe('sendrecv');
+  });
+
+  it('leaves an extension the browser already negotiates alone', () => {
+    const { transceiver, set } = transceiverWith([{ uri: ddExtensionURI, direction: 'recvonly' }]);
+
+    expect(negotiateDependencyDescriptor(transceiver)).toBe(true);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('reports no negotiation where the browser does not know the extension', () => {
+    const { transceiver, set } = transceiverWith([
+      { uri: 'urn:ietf:params:rtp-hdrext:sdes:mid', direction: 'sendrecv' },
+    ]);
+
+    expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('reports no negotiation where the browser has no such control', () => {
+    const { transceiver } = transceiverWith();
+
+    expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+  });
+
+  it('swallows a rejected direction rather than failing the connection', () => {
+    const { transceiver } = transceiverWith([{ uri: ddExtensionURI, direction: 'stopped' }], true);
+
+    expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+  });
+});
+
+describe('supportsAdaptiveStream', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reports support where both observers exist', () => {
+    expect(supportsAdaptiveStream()).toBe(true);
+  });
+
+  it('reports no support where ResizeObserver is missing', () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+
+    expect(supportsAdaptiveStream()).toBe(false);
+  });
+
+  it('reports no support where IntersectionObserver is missing', () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+
+    expect(supportsAdaptiveStream()).toBe(false);
   });
 });
