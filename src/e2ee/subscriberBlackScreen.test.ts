@@ -10,6 +10,7 @@ import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG, KEY_PROVIDER_DEFAULTS } from './constants';
+import { CryptorEvent } from './events';
 import { createKeyMaterialFromString } from './utils';
 import { FrameCryptor, encryptionEnabledMap } from './worker/FrameCryptor';
 import { ParticipantKeyHandler } from './worker/ParticipantKeyHandler';
@@ -346,7 +347,7 @@ describe('subscriber black screen', () => {
       });
 
       const errors: Error[] = [];
-      cryptor.on('cryptorError', (e) => errors.push(e));
+      cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
 
       const frames: RTCEncodedVideoFrame[] = [];
       let push!: (f: RTCEncodedVideoFrame) => void;
@@ -439,7 +440,7 @@ describe('subscriber black screen', () => {
         });
 
         const errors: Error[] = [];
-        cryptor.on('cryptorError', (e) => errors.push(e));
+        cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
 
         // pipeline dies on its own while the track stays subscribed & encrypted
         cryptor.setupTransform(
@@ -477,7 +478,7 @@ describe('subscriber black screen', () => {
         });
 
         const errors: Error[] = [];
-        cryptor.on('cryptorError', (e) => errors.push(e));
+        cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
 
         // unpublishing closes the sender's encoded streams, and there is no
         // 'removeTransform' for local senders to unset the participant
@@ -515,7 +516,7 @@ describe('subscriber black screen', () => {
         });
 
         const errors: Error[] = [];
-        cryptor.on('cryptorError', (e) => errors.push(e));
+        cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
 
         cryptor.setupTransform(
           'decode',
