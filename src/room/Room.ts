@@ -271,7 +271,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.maybeCreateEngine();
 
-    this.incomingDataStreamManager = new IncomingDataStreamManager();
+    this.incomingDataStreamManager = new IncomingDataStreamManager(
+      this.options.dataStream?.maxPayloadByteLength,
+    );
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(
       this.engine,
       this.log,
