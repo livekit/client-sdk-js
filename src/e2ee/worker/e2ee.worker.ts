@@ -71,7 +71,6 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
-          data.isReuse,
           data.codec,
         );
         break;
@@ -83,7 +82,6 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
-          data.isReuse,
           data.codec,
           data.packetTrailer, // wire format still uses 'packetTrailer' field name
         );
@@ -386,7 +384,6 @@ if (self.RTCTransformEvent) {
         transformer.readable,
         transformer.writable,
         trackId,
-        false,
         codec,
         kind === 'encode' ? options.packetTrailer : undefined,
       );

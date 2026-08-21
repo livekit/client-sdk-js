@@ -283,7 +283,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const { readable, writable, operation } = this.retainedStreams;
     workerLogger.info('re-establishing transform', { ...this.logContext, operation });
-    return this.setupTransform(operation, readable, writable, this.trackId, false);
+    return this.setupTransform(operation, readable, writable, this.trackId);
   }
 
   /**
@@ -321,7 +321,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     trackId: string,
-    isReuse: boolean,
     codec?: VideoCodec,
     frameMetadata?: FrameMetadataPublishOptions,
   ) {
@@ -337,31 +336,15 @@ export class FrameCryptor extends BaseFrameCryptor {
       operation,
       passedTrackId: trackId,
       codec,
-      isReuse,
       hasCurrentTransform: !!this.currentTransform,
       ...this.logContext,
     });
 
-    // Always update trackId, even on reuse
     this.trackId = trackId;
 
     // Retain the streams so we can rebuild the pipe later even if this cryptor
     // gets detached from its participant in between (see `ensureTransform`).
     this.retainedStreams = { readable, writable, operation };
-
-    // If we're reusing and have an active transform skip setup
-    if (
-      isReuse &&
-      this.currentTransform &&
-      readable === this.currentTransform.readable &&
-      writable === this.currentTransform.writable
-    ) {
-      workerLogger.debug('reusing existing transform', {
-        ...this.logContext,
-        trackId,
-      });
-      return true;
-    }
 
     clearTimeout(this.undecryptedTrackTimeout);
 

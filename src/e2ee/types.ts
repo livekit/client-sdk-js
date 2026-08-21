@@ -53,7 +53,6 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
-    isReuse: boolean;
     /**
      * Whether the published track advertises packet trailer features.
      * When false, the cryptor skips the per-frame trailer extraction path

@@ -258,7 +258,7 @@ describe('subscriber black screen', () => {
           controller.close();
         },
       });
-      cryptor.setupTransform('decode', readable, new WritableStream(), 'TR_old', false, 'vp8');
+      cryptor.setupTransform('decode', readable, new WritableStream(), 'TR_old', 'vp8');
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(cryptor.hasActiveTransform()).toBe(false);
 
@@ -303,7 +303,7 @@ describe('subscriber black screen', () => {
         },
       });
 
-      cryptor.setupTransform('decode', readable, writable, 'TR_video', false, 'vp8');
+      cryptor.setupTransform('decode', readable, writable, 'TR_video', 'vp8');
 
       // what RoomEvent.TrackUnsubscribed does via the worker's 'removeTransform':
       // clears participantIdentity but does NOT cancel the pipe
@@ -361,7 +361,7 @@ describe('subscriber black screen', () => {
         },
       });
 
-      cryptor.setupTransform('decode', readable, writable, 'TR_video', false, 'vp8');
+      cryptor.setupTransform('decode', readable, writable, 'TR_video', 'vp8');
 
       // participant leaves -> removeTransform. The pipe is deliberately left
       // running (a reused transceiver has to be re-pointable), so frames already
@@ -407,7 +407,7 @@ describe('subscriber black screen', () => {
         },
       });
 
-      cryptor.setupTransform('decode', readable, writable, 'TR_plain', false, 'vp8');
+      cryptor.setupTransform('decode', readable, writable, 'TR_plain', 'vp8');
       push({
         data: new Uint8Array([1, 2, 3, 4]).buffer,
         timestamp: 0,
@@ -451,7 +451,6 @@ describe('subscriber black screen', () => {
           }),
           new WritableStream(),
           'TR_video',
-          false,
           'vp8',
         );
 
@@ -491,7 +490,6 @@ describe('subscriber black screen', () => {
           }),
           new WritableStream(),
           'TR_local',
-          false,
           'vp8',
         );
 
@@ -528,7 +526,6 @@ describe('subscriber black screen', () => {
           }),
           new WritableStream(),
           'TR_video',
-          false,
           'vp8',
         );
         // the streams closing before 'removeTransform' arrives is the normal

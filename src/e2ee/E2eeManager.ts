@@ -609,7 +609,6 @@ export class E2EEManager
           trackId: trackId,
           codec,
           participantIdentity: participantIdentity,
-          isReuse: E2EE_FLAG in receiver,
           hasPacketTrailer,
         },
       };
@@ -665,7 +664,6 @@ export class E2EEManager
           codec,
           trackId,
           participantIdentity: this.room.localParticipant.identity,
-          isReuse: false,
           hasPacketTrailer: hasFrameMetadataPublishOptions(frameMetadata),
           packetTrailer: frameMetadata,
         },
