@@ -668,11 +668,18 @@ export class FrameCryptor extends BaseFrameCryptor {
     const encryptionEnabled = this.isEnabled();
 
     if (encryptionEnabled === undefined) {
-      // We don't know whether this track is encrypted: either no participant is
-      // assigned (the pipe outlived its subscription) or we haven't been told the
-      // participant's encryption state yet. Forwarding would hand ciphertext
-      // straight to the decoder, which renders as a black frame and logs nothing,
-      // so fail closed and make some noise instead.
+      // Either way we drop: forwarding would hand ciphertext straight to the
+      // decoder, which renders as a black frame and logs nothing.
+      if (this.participantIdentity === undefined) {
+        // The pipe outlived its subscription. Expected on unsubscribe/disconnect:
+        // we deliberately leave the pipe running so a reused transceiver can be
+        // re-pointed at a new track, so in-flight frames still arrive here for a
+        // moment. Not worth reporting -- the watchdog covers a track that stays
+        // subscribed without a transform.
+        workerLogger.debug('dropping frame for unassigned cryptor', this.logContext);
+        return;
+      }
+      // A live subscription whose encryption state we were never told about.
       this.emitThrottledError(
         new CryptorError(
           `encryption state unknown for track ${this.trackId}, dropping frame`,

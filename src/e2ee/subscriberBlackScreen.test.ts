@@ -333,6 +333,54 @@ describe('subscriber black screen', () => {
       expect(frames).toHaveLength(0);
     });
 
+    it('drops silently rather than reporting an error on a normal disconnect', async () => {
+      const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
+      await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
+      encryptionEnabledMap.set('jake', true);
+
+      const cryptor = new FrameCryptor({
+        participantIdentity: 'jake',
+        keys,
+        keyProviderOptions: KEY_PROVIDER_DEFAULTS,
+        sifTrailer: new Uint8Array(),
+      });
+
+      const errors: Error[] = [];
+      cryptor.on('cryptorError', (e) => errors.push(e));
+
+      const frames: RTCEncodedVideoFrame[] = [];
+      let push!: (f: RTCEncodedVideoFrame) => void;
+      const readable = new ReadableStream<RTCEncodedVideoFrame>({
+        start(controller) {
+          push = (f) => controller.enqueue(f);
+        },
+      });
+      const writable = new WritableStream<RTCEncodedVideoFrame>({
+        write(chunk) {
+          frames.push(chunk);
+        },
+      });
+
+      cryptor.setupTransform('decode', readable, writable, 'TR_video', false, 'vp8');
+
+      // participant leaves -> removeTransform. The pipe is deliberately left
+      // running (a reused transceiver has to be re-pointable), so frames already
+      // in flight still reach decodeFunction for a moment.
+      cryptor.unsetParticipant();
+
+      push({
+        data: new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 200, 201, 202, 12, 0]).buffer,
+        timestamp: 0,
+        type: 'key',
+        getMetadata: () => ({}),
+      } as RTCEncodedVideoFrame);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // dropped, but a routine teardown must not surface as an encryptionError
+      expect(frames).toHaveLength(0);
+      expect(errors).toHaveLength(0);
+    });
+
     it('still forwards plaintext for a participant known to publish unencrypted', async () => {
       const keys = new ParticipantKeyHandler('bob', KEY_PROVIDER_DEFAULTS);
       await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
