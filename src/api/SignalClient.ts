@@ -917,7 +917,9 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
-    if (canQueue && this.lifecycleState === 'reconnecting') {
+    const isHoldingRequests =
+      this.lifecycleState === 'reconnecting' || this.queuedRequests.length > 0;
+    if (canQueue && isHoldingRequests) {
       this.queuedRequests.push(async () => {
         await this.sendRequest(message, true);
       });

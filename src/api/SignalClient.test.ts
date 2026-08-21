@@ -619,6 +619,72 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Held requests during a resume', () => {
+    /**
+     * Records the tracks whose mute requests reach the wire, in order. `mute` is session-scoped —
+     * it is absent from the pass-through list — so it is the class of request a resume holds.
+     * Filtered rather than counted, because keepalive traffic shares the transport.
+     */
+    function captureMutedTracks() {
+      const muted: Array<string> = [];
+      const writable = new WritableStream<ArrayBuffer | string>({
+        write(chunk) {
+          const request = SignalRequest.fromBinary(new Uint8Array(chunk as ArrayBuffer));
+          if (request.message?.case === 'mute') {
+            muted.push(request.message.value.sid);
+          }
+        },
+      });
+      return { muted, writable };
+    }
+
+    it('releases held requests before ones issued while the engine is still catching up', async () => {
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+      });
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      const { muted, writable } = captureMutedTracks();
+      mockWebSocketStream({
+        connection: {
+          ...createMockConnection(
+            createMockReadableStream([
+              createSignalResponse('reconnect', new ReconnectResponse({ iceServers: [] })),
+            ]),
+          ),
+          writable,
+        },
+      });
+
+      const resuming = signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
+      expect(signalClient.currentState).toBe(SignalConnectionState.RECONNECTING);
+
+      // issued while the resume is in flight, so it waits rather than racing it
+      await signalClient.sendMuteTrack('held-during-resume', true);
+      expect(muted).toEqual([]);
+
+      await resuming;
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+
+      // The transport is back, but the engine has not called setReconnected yet — a resume is only
+      // complete once the media path is back too, which in a real session is seconds later. A
+      // request issued in that window must not overtake the one that has been waiting.
+      await signalClient.sendMuteTrack('issued-while-catching-up', true);
+      expect(muted).toEqual([]);
+
+      signalClient.setReconnected();
+      await signalClient.sendMuteTrack('issued-after-reconnected', true);
+
+      expect(muted).toEqual([
+        'held-during-resume',
+        'issued-while-catching-up',
+        'issued-after-reconnected',
+      ]);
+    });
+  });
+
   describe('Failure Case - Closed After Upgrade', () => {
     it('fails fast rather than waiting out the first-message timeout', async () => {
       // The upgrade succeeds and the server then closes without sending a join response. Nothing
