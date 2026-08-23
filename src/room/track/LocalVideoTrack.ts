@@ -301,15 +301,15 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
 
     const mediaTrackConstraints = screenCaptureToDisplayMediaStreamOptions(constraints);
-    if (typeof mediaTrackConstraints.video === 'boolean') {
-      return;
+
+    if (videoEncoding && this.publishOptions) {
+      this.publishOptions.screenShareEncoding = videoEncoding;
     }
 
     const unlock = await this.trackChangeLock.lock();
     try {
-      await this.mediaStreamTrack.applyConstraints(mediaTrackConstraints.video);
-      if (videoEncoding && this.publishOptions) {
-        this.publishOptions.screenShareEncoding = videoEncoding;
+      if (typeof mediaTrackConstraints.video === 'object') {
+        await this.mediaStreamTrack.applyConstraints(mediaTrackConstraints.video);
       }
       if (constraints.contentHint) this.mediaStreamTrack.contentHint = constraints.contentHint;
     } finally {
