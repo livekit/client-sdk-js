@@ -318,11 +318,11 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
     // Since resolution or encoding might be different, recompute the sender's encoding
     // parameters.
-    await this.onSenderTrackSwapped();
+    await this.onSenderTrackSwapped(true);
   }
 
-  protected override async onSenderTrackSwapped(): Promise<void> {
-    await this.refreshSenderEncodings();
+  protected override async onSenderTrackSwapped(ignoreDims = false): Promise<void> {
+    await this.refreshSenderEncodings(ignoreDims);
   }
 
   /**
@@ -331,7 +331,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * if the track hasn't been published yet or if the track is in performance-optimized
    * mode (which manages its own encodings).
    */
-  private async refreshSenderEncodings() {
+  private async refreshSenderEncodings(ignoreDims = false) {
     if (!this.sender || !this.publishOptions || this.optimizeForPerformance) {
       return;
     }
@@ -349,6 +349,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       }
 
       if (
+        !ignoreDims &&
         this.lastEncodedDimensions &&
         this.lastEncodedDimensions.width === dims.width &&
         this.lastEncodedDimensions.height === dims.height
