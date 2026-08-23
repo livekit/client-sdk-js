@@ -19,10 +19,16 @@ import type { LoggerOptions } from '../types';
 import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
-import type { TrackPublishOptions, VideoCaptureOptions, VideoCodec } from './options';
+import type {
+  ScreenShareCaptureOptions,
+  TrackPublishOptions,
+  VideoCaptureOptions,
+  VideoCodec,
+  VideoEncoding,
+} from './options';
 import { isBackupVideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
-import { constraintsForOptions } from './utils';
+import { constraintsForOptions, screenCaptureToDisplayMediaStreamOptions } from './utils';
 
 export class SimulcastTrackInfo {
   codec: VideoCodec;
@@ -282,6 +288,36 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     // leave the sender's encoding parameters (scaleResolutionDownBy, maxBitrate, etc.)
     // based on the old dimensions. Recompute them so the encoded output matches the
     // new source.
+    await this.onSenderTrackSwapped();
+  }
+
+  async applyScreenShareConstraints(
+    constraints: Pick<ScreenShareCaptureOptions, 'resolution' | 'contentHint'>,
+    videoEncoding?: VideoEncoding,
+  ): Promise<void> {
+    // Only valid for screen shares
+    if (this.source !== Track.Source.ScreenShare) {
+      return;
+    }
+
+    const mediaTrackConstraints = screenCaptureToDisplayMediaStreamOptions(constraints);
+    if (typeof mediaTrackConstraints.video === 'boolean') {
+      return;
+    }
+
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      await this.mediaStreamTrack.applyConstraints(mediaTrackConstraints.video);
+      if (videoEncoding && this.publishOptions) {
+        this.publishOptions.screenShareEncoding = videoEncoding;
+      }
+      if (constraints.contentHint) this.mediaStreamTrack.contentHint = constraints.contentHint;
+    } finally {
+      unlock();
+    }
+
+    // Since resolution or encoding might be different, recompute the sender's encoding
+    // parameters.
     await this.onSenderTrackSwapped();
   }
 
