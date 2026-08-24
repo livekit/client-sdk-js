@@ -11,7 +11,7 @@ import type { SignalClient } from '../../api/SignalClient';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { TrackEvent } from '../events';
-import type { StatsReport, TrackStatsWindow } from '../statsReport';
+import { summarizeStatsReport } from '../statsSummary';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
 import type { TrackProcessor } from './processor/types';
@@ -86,11 +86,7 @@ export abstract class Track<
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
 
-  /**
-   * Set by the track types that collect stats in their monitor loop, so reports
-   * can be pulled from here for the room-wide stats dump.
-   */
-  protected statsWindow?: TrackStatsWindow;
+  private finalStatsLogged = false;
 
   protected log: StructuredLogger = log;
 
@@ -278,6 +274,11 @@ export abstract class Track<
   /* @internal */
   abstract startMonitor(signalClient?: SignalClient): void;
 
+  /**
+   * Raw stats of the sender or receiver this track is attached to.
+   */
+  abstract getRTCStatsReport(): Promise<RTCStatsReport | undefined>;
+
   /* @internal */
   stopMonitor() {
     if (this.monitorInterval) {
@@ -287,57 +288,25 @@ export abstract class Track<
       cancelAnimationFrame(this.timeSyncHandle);
       this.timeSyncHandle = undefined;
     }
-    this.reportFinalStats();
+    this.logFinalStats();
   }
 
   /**
-   * Takes the stats accumulated since the previous call, along with the current
-   * playback state, for the room-wide stats dump.
-   *
-   * @internal
+   * Dumps the raw stats of the track as it ends, once: a track that stops
+   * between two of the room's stats dumps is gone by the time the next one runs.
    */
-  takeStatsReport(): { stats?: StatsReport; playback: StatsReport } {
-    return { stats: this.statsWindow?.take(), playback: this.playbackContext };
-  }
-
-  /**
-   * Logs the closing stats report of the track, covering its whole lifetime.
-   * Emitted at most once, whichever way the track ended, since a track that
-   * ends between two dumps is gone by the time the next one is written.
-   *
-   * @internal
-   */
-  protected reportFinalStats() {
-    const stats = this.statsWindow?.end();
-    if (stats) {
-      this.log.info('final track stats', { stats, playback: this.playbackContext });
+  private logFinalStats() {
+    if (this.finalStatsLogged) {
+      return;
     }
-  }
-
-  /**
-   * State of the underlying MediaStreamTrack and of the elements it is attached
-   * to, to tell "no media arrived" apart from "media arrived but never got
-   * rendered".
-   */
-  private get playbackContext(): StatsReport {
-    return {
-      readyState: this._mediaStreamTrack.readyState,
-      // unlike `Track.isMuted`, `MediaStreamTrack.muted` reports whether media
-      // is currently flowing, which is what a black video element looks like
-      mediaStreamTrackMuted: this._mediaStreamTrack.muted,
-      streamState: this.streamState,
-      elements: this.attachedElements.map((element) => ({
-        paused: element.paused,
-        readyState: element.readyState,
-        currentTime: Math.round(element.currentTime * 100) / 100,
-        ...('videoWidth' in element
-          ? {
-              videoWidth: (element as HTMLVideoElement).videoWidth,
-              videoHeight: (element as HTMLVideoElement).videoHeight,
-            }
-          : {}),
-      })),
-    };
+    this.finalStatsLogged = true;
+    this.getRTCStatsReport()
+      .then((report) => {
+        if (report) {
+          this.log.info('final track stats', summarizeStatsReport(report));
+        }
+      })
+      .catch((error) => this.log.debug('could not collect final track stats', { error }));
   }
 
   /** @internal */

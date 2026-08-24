@@ -2,7 +2,6 @@ import { AudioTrackFeature } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
-import { StatsReportWindow, summarizeAudioSenderStats } from '../statsReport';
 import type { LoggerOptions } from '../types';
 import { isReactNative, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
@@ -16,8 +15,6 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   stopOnMute: boolean = false;
 
   private prevStats?: AudioSenderStats;
-
-  protected statsWindow = new StatsReportWindow(summarizeAudioSenderStats);
 
   private isKrispNoiseFilterEnabled = false;
 
@@ -162,10 +159,6 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 
-    if (stats) {
-      this.statsWindow.record(stats);
-    }
-
     this.prevStats = stats;
   };
 
@@ -254,25 +247,15 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
           packetsSent: v.packetsSent,
           bytesSent: v.bytesSent,
           timestamp: v.timestamp,
-          totalPacketSendDelay: v.totalPacketSendDelay,
         };
 
-        // loss, jitter and RTT are only known from what the remote reports back
+        // loss, jitter and RTT are only known from what the remote reports back,
+        // the same way the video sender picks them up
         const remote = stats.get(v.remoteId);
         if (remote) {
           audioStats.packetsLost = remote.packetsLost;
-          audioStats.fractionLost = remote.fractionLost;
           audioStats.jitter = remote.jitter;
           audioStats.roundTripTime = remote.roundTripTime;
-        }
-
-        // what the capture source hands to the encoder, to tell a dead mic
-        // apart from a dropped upstream
-        const source = stats.get(v.mediaSourceId);
-        if (source) {
-          audioStats.audioLevel = source.audioLevel;
-          audioStats.totalAudioEnergy = source.totalAudioEnergy;
-          audioStats.totalSamplesDuration = source.totalSamplesDuration;
         }
       }
     });

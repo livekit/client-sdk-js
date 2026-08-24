@@ -49,9 +49,6 @@ export default abstract class RemoteTrack<
         }
         this.receiver = undefined;
         this._currentBitrate = 0;
-        // the monitor loop isn't necessarily stopped in this path, so close out
-        // the stats window here as well
-        this.reportFinalStats();
         this.emit(TrackEvent.Ended, this);
       }
     };
