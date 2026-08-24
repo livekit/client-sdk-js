@@ -15,6 +15,11 @@ function resolution(width?: number, height?: number): string | undefined {
   return width && height ? `${width}x${height}` : undefined;
 }
 
+/** keeps the derived durations readable; reported values are logged as they are */
+function round(seconds: number): number {
+  return Math.round(seconds * 10_000) / 10_000;
+}
+
 /**
  * Average time media spent in the jitter buffer, in s. Both counters are
  * cumulative, so this is the average over the lifetime of the stream.
@@ -22,7 +27,21 @@ function resolution(width?: number, height?: number): string | undefined {
 function jitterBuffer(stat: Summary): number | undefined {
   const delay = stat.jitterBufferDelay as number | undefined;
   const emitted = stat.jitterBufferEmittedCount as number | undefined;
-  return delay !== undefined && emitted ? delay / emitted : undefined;
+  return delay !== undefined && emitted ? round(delay / emitted) : undefined;
+}
+
+/**
+ * Playout delay in s. Video receive reports it directly, the audio path keeps it
+ * in the linked `media-playout` stats summed over the samples played out. Pairs
+ * with `RemoteTrack.setPlayoutDelay`.
+ */
+function playoutDelay(stat: Summary, playout?: Summary): number | undefined {
+  if (stat.playoutDelay !== undefined) {
+    return round(stat.playoutDelay as number);
+  }
+  const total = playout?.totalPlayoutDelay as number | undefined;
+  const samples = playout?.totalSamplesCount as number | undefined;
+  return total !== undefined && samples ? round(total / samples) : undefined;
 }
 
 /**
@@ -40,12 +59,13 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
 
   const codecOf = (stat: Summary) =>
     stat.codecId ? byId.get(stat.codecId as string)?.mimeType : undefined;
-  const relatedOf = (stat: Summary, key: 'remoteId' | 'mediaSourceId') =>
+  const relatedOf = (stat: Summary, key: 'remoteId' | 'mediaSourceId' | 'playoutId') =>
     stat[key] ? byId.get(stat[key] as string) : undefined;
 
   report.forEach((stat) => {
     switch (stat.type) {
-      case 'inbound-rtp':
+      case 'inbound-rtp': {
+        const playout = relatedOf(stat, 'playoutId');
         inbound.push(
           compact({
             kind: stat.kind,
@@ -74,12 +94,14 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
             firCount: stat.firCount,
             jitter: stat.jitter,
             jitterBuffer: jitterBuffer(stat),
+            playoutDelay: playoutDelay(stat, playout),
             audioLevel: stat.audioLevel,
             totalSamplesReceived: stat.totalSamplesReceived,
             concealedSamples: stat.concealedSamples,
           }),
         );
         break;
+      }
       case 'outbound-rtp': {
         const remote = relatedOf(stat, 'remoteId');
         const source = relatedOf(stat, 'mediaSourceId');
@@ -117,7 +139,7 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
             remotePacketsLost: remote?.packetsLost,
             remoteFractionLost: remote?.fractionLost,
             remoteJitter: remote?.jitter,
-            remoteRttMs: remote?.roundTripTime,
+            remoteRoundTripTime: remote?.roundTripTime,
           }),
         );
         break;
