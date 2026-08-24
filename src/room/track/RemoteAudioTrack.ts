@@ -1,6 +1,7 @@
 import { TrackEvent } from '../events';
 import type { AudioReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
+import { StatsReportWindow, summarizeAudioReceiverStats } from '../statsReport';
 import type { LoggerOptions } from '../types';
 import { isReactNative, supportsSetSinkId } from '../utils';
 import RemoteTrack from './RemoteTrack';
@@ -9,6 +10,8 @@ import type { AudioOutputOptions } from './options';
 
 export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   private prevStats?: AudioReceiverStats;
+
+  protected statsWindow = new StatsReportWindow(summarizeAudioReceiverStats);
 
   private elementVolume: number | undefined;
 
@@ -231,6 +234,10 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 
+    if (stats) {
+      this.statsWindow.record(stats);
+    }
+
     this.prevStats = stats;
   };
 
@@ -248,7 +255,22 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
           streamId: v.id,
           timestamp: v.timestamp,
           jitter: v.jitter,
+          jitterBufferDelay: v.jitterBufferDelay,
+          jitterBufferEmittedCount: v.jitterBufferEmittedCount,
+          jitterBufferTargetDelay: v.jitterBufferTargetDelay,
+          jitterBufferMinimumDelay: v.jitterBufferMinimumDelay,
+          packetsReceived: v.packetsReceived,
+          packetsLost: v.packetsLost,
+          packetsDiscarded: v.packetsDiscarded,
+          retransmittedPacketsReceived: v.retransmittedPacketsReceived,
+          fecPacketsReceived: v.fecPacketsReceived,
+          fecPacketsDiscarded: v.fecPacketsDiscarded,
+          nackCount: v.nackCount,
           bytesReceived: v.bytesReceived,
+          audioLevel: v.audioLevel,
+          totalSamplesReceived: v.totalSamplesReceived,
+          insertedSamplesForDeceleration: v.insertedSamplesForDeceleration,
+          removedSamplesForAcceleration: v.removedSamplesForAcceleration,
           concealedSamples: v.concealedSamples,
           concealmentEvents: v.concealmentEvents,
           silentConcealedSamples: v.silentConcealedSamples,

@@ -11,6 +11,7 @@ import type { SignalClient } from '../../api/SignalClient';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { TrackEvent } from '../events';
+import type { StatsReport, TrackStatsWindow } from '../statsReport';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
 import type { TrackProcessor } from './processor/types';
@@ -84,6 +85,12 @@ export abstract class Track<
   protected _currentBitrate: number = 0;
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
+
+  /**
+   * Set by the track types that collect stats in their monitor loop, so reports
+   * can be pulled from here for the room-wide stats dump.
+   */
+  protected statsWindow?: TrackStatsWindow;
 
   protected log: StructuredLogger = log;
 
@@ -280,6 +287,57 @@ export abstract class Track<
       cancelAnimationFrame(this.timeSyncHandle);
       this.timeSyncHandle = undefined;
     }
+    this.reportFinalStats();
+  }
+
+  /**
+   * Takes the stats accumulated since the previous call, along with the current
+   * playback state, for the room-wide stats dump.
+   *
+   * @internal
+   */
+  takeStatsReport(): { stats?: StatsReport; playback: StatsReport } {
+    return { stats: this.statsWindow?.take(), playback: this.playbackContext };
+  }
+
+  /**
+   * Logs the closing stats report of the track, covering its whole lifetime.
+   * Emitted at most once, whichever way the track ended, since a track that
+   * ends between two dumps is gone by the time the next one is written.
+   *
+   * @internal
+   */
+  protected reportFinalStats() {
+    const stats = this.statsWindow?.end();
+    if (stats) {
+      this.log.info('final track stats', { stats, playback: this.playbackContext });
+    }
+  }
+
+  /**
+   * State of the underlying MediaStreamTrack and of the elements it is attached
+   * to, to tell "no media arrived" apart from "media arrived but never got
+   * rendered".
+   */
+  private get playbackContext(): StatsReport {
+    return {
+      readyState: this._mediaStreamTrack.readyState,
+      // unlike `Track.isMuted`, `MediaStreamTrack.muted` reports whether media
+      // is currently flowing, which is what a black video element looks like
+      mediaStreamTrackMuted: this._mediaStreamTrack.muted,
+      streamState: this.streamState,
+      elements: this.attachedElements.map((element) => ({
+        paused: element.paused,
+        readyState: element.readyState,
+        currentTime: Math.round(element.currentTime * 100) / 100,
+        ...('videoWidth' in element
+          ? {
+              videoWidth: (element as HTMLVideoElement).videoWidth,
+              videoHeight: (element as HTMLVideoElement).videoHeight,
+            }
+          : {}),
+      })),
+    };
   }
 
   /** @internal */

@@ -15,6 +15,7 @@ import {
 } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
+import { StatsReportWindow, summarizeVideoSenderStats } from '../statsReport';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
@@ -46,6 +47,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   signalClient?: SignalClient;
 
   private prevStats?: Map<string, VideoSenderStats>;
+
+  protected statsWindow = new StatsReportWindow(summarizeVideoSenderStats);
 
   private encodings?: RTCRtpEncodingParameters[];
 
@@ -224,6 +227,16 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           targetBitrate: v.targetBitrate,
           timestamp: v.timestamp,
+          totalPacketSendDelay: v.totalPacketSendDelay,
+          framesEncoded: v.framesEncoded,
+          keyFramesEncoded: v.keyFramesEncoded,
+          totalEncodeTime: v.totalEncodeTime,
+          qpSum: v.qpSum,
+          hugeFramesSent: v.hugeFramesSent,
+          encoderImplementation: v.encoderImplementation,
+          powerEfficientEncoder: v.powerEfficientEncoder,
+          scalabilityMode: v.scalabilityMode,
+          active: v.active,
         };
 
         // locate the appropriate remote-inbound-rtp item
@@ -231,7 +244,17 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         if (r) {
           vs.jitter = r.jitter;
           vs.packetsLost = r.packetsLost;
+          vs.fractionLost = r.fractionLost;
           vs.roundTripTime = r.roundTripTime;
+        }
+
+        // what the capture source hands to the encoder, to tell a stalled
+        // camera apart from a stalled encoder
+        const source = stats.get(v.mediaSourceId);
+        if (source) {
+          vs.captureFramesPerSecond = source.framesPerSecond;
+          vs.captureWidth = source.width;
+          vs.captureHeight = source.height;
         }
 
         items.push(vs);
@@ -633,6 +656,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         totalBitrate += computeBitrate(s, prev);
       });
       this._currentBitrate = totalBitrate;
+    }
+
+    if (statsMap.size > 0) {
+      this.statsWindow.record(statsMap);
     }
 
     this.prevStats = statsMap;

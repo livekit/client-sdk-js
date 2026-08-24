@@ -3,6 +3,7 @@ import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
+import { StatsReportWindow, summarizeVideoReceiverStats } from '../statsReport';
 import CriticalTimers from '../timers';
 import type { LoggerOptions } from '../types';
 import type { ObservableMediaElement } from '../utils';
@@ -16,6 +17,8 @@ const REACTION_DELAY = 100;
 
 export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private prevStats?: VideoReceiverStats;
+
+  protected statsWindow = new StatsReportWindow(summarizeVideoReceiverStats);
 
   private elementInfos: ElementInfo[] = [];
 
@@ -187,6 +190,10 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 
+    if (stats) {
+      this.statsWindow.record(stats);
+    }
+
     this.prevStats = stats;
   };
 
@@ -208,17 +215,38 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
           framesDecoded: v.framesDecoded,
           framesDropped: v.framesDropped,
           framesReceived: v.framesReceived,
+          framesPerSecond: v.framesPerSecond,
+          keyFramesDecoded: v.keyFramesDecoded,
+          freezeCount: v.freezeCount,
+          totalFreezesDuration: v.totalFreezesDuration,
+          pauseCount: v.pauseCount,
+          totalPausesDuration: v.totalPausesDuration,
+          totalDecodeTime: v.totalDecodeTime,
+          totalInterFrameDelay: v.totalInterFrameDelay,
+          totalSquaredInterFrameDelay: v.totalSquaredInterFrameDelay,
+          framesAssembledFromMultiplePackets: v.framesAssembledFromMultiplePackets,
+          totalAssemblyTime: v.totalAssemblyTime,
+          qpSum: v.qpSum,
           packetsReceived: v.packetsReceived,
           packetsLost: v.packetsLost,
+          packetsDiscarded: v.packetsDiscarded,
           frameWidth: v.frameWidth,
           frameHeight: v.frameHeight,
           pliCount: v.pliCount,
           firCount: v.firCount,
           nackCount: v.nackCount,
           jitter: v.jitter,
+          jitterBufferDelay: v.jitterBufferDelay,
+          jitterBufferEmittedCount: v.jitterBufferEmittedCount,
+          jitterBufferTargetDelay: v.jitterBufferTargetDelay,
+          jitterBufferMinimumDelay: v.jitterBufferMinimumDelay,
+          retransmittedPacketsReceived: v.retransmittedPacketsReceived,
+          fecPacketsReceived: v.fecPacketsReceived,
+          fecPacketsDiscarded: v.fecPacketsDiscarded,
           timestamp: v.timestamp,
           bytesReceived: v.bytesReceived,
           decoderImplementation: v.decoderImplementation,
+          powerEfficientDecoder: v.powerEfficientDecoder,
         };
       } else if (v.type === 'codec') {
         codecs.set(v.id, v);

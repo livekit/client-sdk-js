@@ -24,6 +24,7 @@ export enum LoggerNames {
   DataTracks = 'livekit-data-tracks',
   Region = 'livekit-region',
   ICE = 'livekit-ice',
+  Stats = 'livekit-stats',
 }
 
 type LogLevelString = keyof typeof LogLevel;

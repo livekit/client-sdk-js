@@ -52,6 +52,11 @@ import { getBrowser } from '../utils/browserParser';
 import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
+import {
+  type ConnectionStatsSource,
+  MediaStatsReporter,
+  type TrackStatsSource,
+} from './MediaStatsReporter';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
@@ -207,6 +212,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
+  private mediaStatsReporter: MediaStatsReporter;
+
   private regionUrlProvider?: RegionUrlProvider;
 
   private regionUrl?: string;
@@ -254,6 +261,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room, () => this.logContext);
+    // its own logger name, so the periodic dumps can be silenced or routed
+    // separately from the rest of the room's logs
+    this.mediaStatsReporter = new MediaStatsReporter(
+      { tracks: this.collectTrackStats, connections: this.collectConnectionStats },
+      getLogger(LoggerNames.Stats, () => this.logContext),
+    );
     this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
@@ -2592,6 +2605,66 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   }
 
+  /**
+   * Every track of the room that currently has media attached, for the periodic
+   * stats dump.
+   */
+  private collectTrackStats = (): TrackStatsSource[] => {
+    const sources: TrackStatsSource[] = [];
+    const collect = (
+      participant: Participant,
+      publications: Map<string, TrackPublication>,
+      direction: 'send' | 'receive',
+    ) => {
+      publications.forEach((publication) => {
+        const track = publication.track;
+        if (!track) {
+          return;
+        }
+        sources.push({
+          context: {
+            trackSid: publication.trackSid,
+            direction,
+            kind: publication.kind,
+            source: publication.source,
+            participant: participant.identity,
+            muted: publication.isMuted,
+          },
+          track,
+        });
+      });
+    };
+
+    collect(this.localParticipant, this.localParticipant.trackPublications, 'send');
+    this.remoteParticipants.forEach((participant) => {
+      collect(participant, participant.trackPublications, 'receive');
+    });
+    return sources;
+  };
+
+  /**
+   * Stats of the peer connections themselves, for the transport level part of
+   * the stats dump: bandwidth estimates, RTT and how the media is routed are
+   * per connection and appear in no RTP stream.
+   */
+  private collectConnectionStats = async (): Promise<ConnectionStatsSource[]> => {
+    const pcManager = this.engine?.pcManager;
+    if (!pcManager) {
+      return [];
+    }
+    const transports = [
+      { name: 'publisher', transport: pcManager.publisher },
+      { name: 'subscriber', transport: pcManager.subscriber },
+    ];
+    const sources = await Promise.all(
+      transports.map(async ({ name, transport }) => {
+        const report = await transport?.getStats();
+        return report ? { name, report } : undefined;
+      }),
+    );
+    return sources.filter((source): source is ConnectionStatsSource => source !== undefined);
+  };
+
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
     let consecutiveFailures = 0;
@@ -2650,6 +2723,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log.info(`connection state changed: ${this.state} -> ${state}`);
     this.state = state;
     this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
+    this.mediaStatsReporter.setConnected(state === ConnectionState.Connected);
 
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
 
