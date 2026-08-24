@@ -15,26 +15,19 @@ function resolution(width?: number, height?: number): string | undefined {
   return width && height ? `${width}x${height}` : undefined;
 }
 
-/** the stats report holds seconds, logs read better in ms */
-function ms(seconds?: number): number | undefined {
-  return seconds === undefined ? undefined : Math.round(seconds * 1000);
-}
-
 /**
- * Average time media spent in the jitter buffer, in ms. Both counters are
+ * Average time media spent in the jitter buffer, in s. Both counters are
  * cumulative, so this is the average over the lifetime of the stream.
  */
 function jitterBufferMs(stat: Summary): number | undefined {
   const delay = stat.jitterBufferDelay as number | undefined;
   const emitted = stat.jitterBufferEmittedCount as number | undefined;
-  return delay !== undefined && emitted ? Math.round((delay / emitted) * 1000) : undefined;
+  return delay !== undefined && emitted ? Math.round(delay / emitted) : undefined;
 }
 
 /**
  * Picks the interesting fields out of a `getStats()` report and groups them by
  * RTP stream, so a stats dump can be read without unfolding the raw report.
- * Values are logged as reported — the only maths here is unit conversion and
- * the jitter buffer average.
  */
 export function summarizeStatsReport(report: RTCStatsReport): Summary {
   const byId = new Map<string, Summary>();
@@ -74,12 +67,12 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
             framesDropped: stat.framesDropped,
             keyFramesDecoded: stat.keyFramesDecoded,
             freezeCount: stat.freezeCount,
-            freezeMs: ms(stat.totalFreezesDuration),
+            totalFreezesDuration: stat.totalFreezesDuration,
             pauseCount: stat.pauseCount,
             nackCount: stat.nackCount,
             pliCount: stat.pliCount,
             firCount: stat.firCount,
-            jitterMs: ms(stat.jitter),
+            jitter: stat.jitter,
             jitterBufferMs: jitterBufferMs(stat),
             audioLevel: stat.audioLevel,
             totalSamplesReceived: stat.totalSamplesReceived,
@@ -123,8 +116,8 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
             // loss, jitter and RTT are only known from what the remote reports
             remotePacketsLost: remote?.packetsLost,
             remoteFractionLost: remote?.fractionLost,
-            remoteJitterMs: ms(remote?.jitter as number | undefined),
-            remoteRttMs: ms(remote?.roundTripTime as number | undefined),
+            remoteJitter: remote?.jitter,
+            remoteRttMs: remote?.roundTripTime,
           }),
         );
         break;
@@ -155,7 +148,7 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
         ? `${local.candidateType}/${local.protocol} -> ${remote.candidateType}`
         : undefined,
     network: local?.networkType,
-    rttMs: ms(pair?.currentRoundTripTime as number | undefined),
+    currentRoundTripTime: pair?.currentRoundTripTime,
     // the send bandwidth estimate; no RTP stream reports it
     availableOutgoingBitrate: pair?.availableOutgoingBitrate,
     availableIncomingBitrate: pair?.availableIncomingBitrate,
