@@ -19,10 +19,10 @@ function resolution(width?: number, height?: number): string | undefined {
  * Average time media spent in the jitter buffer, in s. Both counters are
  * cumulative, so this is the average over the lifetime of the stream.
  */
-function jitterBufferMs(stat: Summary): number | undefined {
+function jitterBuffer(stat: Summary): number | undefined {
   const delay = stat.jitterBufferDelay as number | undefined;
   const emitted = stat.jitterBufferEmittedCount as number | undefined;
-  return delay !== undefined && emitted ? Math.round(delay / emitted) : undefined;
+  return delay !== undefined && emitted ? delay / emitted : undefined;
 }
 
 /**
@@ -73,7 +73,7 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
             pliCount: stat.pliCount,
             firCount: stat.firCount,
             jitter: stat.jitter,
-            jitterBufferMs: jitterBufferMs(stat),
+            jitterBuffer: jitterBuffer(stat),
             audioLevel: stat.audioLevel,
             totalSamplesReceived: stat.totalSamplesReceived,
             concealedSamples: stat.concealedSamples,
