@@ -680,7 +680,7 @@ export class SignalClient {
         this.handleSignalResponse(resp);
       } catch (e) {
         this.log.error(`error reading from signal stream`, { error: e });
-        await this.close(true, 'error in reading loop');
+        await this.close(false, 'error in reading loop');
         break;
       }
     }
