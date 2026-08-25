@@ -144,7 +144,7 @@ export enum ConnectionState {
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
-const STATS_LOG_FREQUENCY_MS = 30 * 1000;
+const STATS_LOG_FREQUENCY_MS = 5 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -2616,8 +2616,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   /**
-   * Dumps the raw stats of both peer connections. They cover every track of the
-   * room as well as the transports, so nothing is collected per track.
+   * Dumps stats of both peer connections.
    */
   private logWebRTCStats = async () => {
     const pcManager = this.engine?.pcManager;
@@ -2629,9 +2628,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         pcManager.publisher.getStats(),
         pcManager.subscriber?.getStats(),
       ]);
-      this.statsLog.info('webrtc stats', {
-        publisher: publisher && summarizeStatsReport(publisher),
-        subscriber: subscriber && summarizeStatsReport(subscriber),
+      const publisherStats = publisher && summarizeStatsReport(publisher);
+      const subscriberStats = subscriber && summarizeStatsReport(subscriber);
+      this.statsLog.info(`webrtc stats`, {
+        publisher: publisherStats?.connection,
+        subscriber: subscriberStats?.connection,
+        inbound: [...(publisherStats?.inbound ?? []), ...(subscriberStats?.inbound ?? [])],
+        outbound: publisherStats?.outbound,
       });
     } catch (error) {
       this.statsLog.debug('could not collect webrtc stats', { error });

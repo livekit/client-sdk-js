@@ -1,7 +1,7 @@
 /** one summarised stats entry; keys without a value are dropped */
 type Summary = Record<string, unknown>;
 
-function compact(summary: Summary): Summary {
+function compact<T extends Summary>(summary: T): Summary {
   const compacted: Summary = {};
   for (const [key, value] of Object.entries(summary)) {
     if (value !== undefined) {
@@ -48,7 +48,7 @@ function playoutDelay(stat: Summary, playout?: Summary): number | undefined {
  * Picks the interesting fields out of a `getStats()` report and groups them by
  * RTP stream, so a stats dump can be read without unfolding the raw report.
  */
-export function summarizeStatsReport(report: RTCStatsReport): Summary {
+export function summarizeStatsReport(report: RTCStatsReport) {
   const byId = new Map<string, Summary>();
   const candidatePairs: Summary[] = [];
   const inbound: Summary[] = [];
@@ -179,9 +179,9 @@ export function summarizeStatsReport(report: RTCStatsReport): Summary {
     candidatePairChanges: transport?.selectedCandidatePairChanges,
   });
 
-  return compact({
+  return {
     connection: Object.keys(connection).length > 0 ? connection : undefined,
     outbound: outbound.length > 0 ? outbound : undefined,
     inbound: inbound.length > 0 ? inbound : undefined,
-  });
+  };
 }
