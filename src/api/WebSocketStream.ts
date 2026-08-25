@@ -67,7 +67,15 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           readable: new ReadableStream<T>({
             start(controller) {
               ws.onmessage = ({ data }) => controller.enqueue(data);
-              ws.onerror = (e) => controller.error(e);
+              ws.onerror = (e) =>
+                controller.error(
+                  ConnectionError.websocket(
+                    e instanceof Error
+                      ? `${e.name}: ${e.message}`
+                      : `Encountered unknown websocket error: ${String(e)}`,
+                  ),
+                );
+              ws.onclose = () => controller.close();
             },
             cancel: closeWithInfo,
           }),
