@@ -91,6 +91,7 @@ import {
   type RpcInvocationData,
   RpcServerManager,
 } from './rpc';
+import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -143,6 +144,7 @@ export enum ConnectionState {
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
+const STATS_LOG_FREQUENCY_MS = 30 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -207,6 +209,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
+  private statsLogInterval?: ReturnType<typeof setInterval>;
+
   private regionUrlProvider?: RegionUrlProvider;
 
   private regionUrl?: string;
@@ -214,6 +218,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private isVideoPlaybackBlocked: boolean = false;
 
   private log = log;
+
+  private statsLog = log;
 
   private bufferedEvents: Array<any> = [];
 
@@ -254,6 +260,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room, () => this.logContext);
+    // its own logger name, so the stats dumps can be silenced or routed
+    // separately from the rest of the room's logs
+    this.statsLog = getLogger(LoggerNames.Stats, () => this.logContext);
     this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
@@ -2594,6 +2603,46 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   }
 
+  private setStatsLogging(enabled: boolean) {
+    if (enabled) {
+      if (!this.statsLogInterval) {
+        this.statsLogInterval = CriticalTimers.setInterval(() => {
+          // logWebRTCStats handles its own errors, nothing to await here
+          this.logWebRTCStats();
+        }, STATS_LOG_FREQUENCY_MS);
+      }
+    } else if (this.statsLogInterval) {
+      CriticalTimers.clearInterval(this.statsLogInterval);
+      this.statsLogInterval = undefined;
+    }
+  }
+
+  /**
+   * Dumps stats of both peer connections.
+   */
+  private logWebRTCStats = async () => {
+    const pcManager = this.engine?.pcManager;
+    if (!pcManager) {
+      return;
+    }
+    try {
+      const [publisher, subscriber] = await Promise.all([
+        pcManager.publisher.getStats(),
+        pcManager.subscriber?.getStats(),
+      ]);
+      const publisherStats = publisher && summarizeStatsReport(publisher);
+      const subscriberStats = subscriber && summarizeStatsReport(subscriber);
+      this.statsLog.info(`webrtc stats`, {
+        publisher: publisherStats?.connection,
+        subscriber: subscriberStats?.connection,
+        inbound: [...(publisherStats?.inbound ?? []), ...(subscriberStats?.inbound ?? [])],
+        outbound: publisherStats?.outbound,
+      });
+    } catch (error) {
+      this.statsLog.debug('could not collect webrtc stats', { error });
+    }
+  };
+
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
     let consecutiveFailures = 0;
@@ -2652,6 +2701,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log.info(`connection state changed: ${this.state} -> ${state}`);
     this.state = state;
     this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
+    this.setStatsLogging(state === ConnectionState.Connected);
 
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
 

@@ -11,6 +11,7 @@ import type { SignalClient } from '../../api/SignalClient';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { TrackEvent } from '../events';
+import { summarizeStatsReport } from '../statsSummary';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
 import type { TrackProcessor } from './processor/types';
@@ -84,6 +85,8 @@ export abstract class Track<
   protected _currentBitrate: number = 0;
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
+
+  private finalStatsLogged = false;
 
   protected log: StructuredLogger = log;
 
@@ -271,6 +274,11 @@ export abstract class Track<
   /* @internal */
   abstract startMonitor(signalClient?: SignalClient): void;
 
+  /**
+   * Raw stats of the sender or receiver this track is attached to.
+   */
+  abstract getRTCStatsReport(): Promise<RTCStatsReport | undefined>;
+
   /* @internal */
   stopMonitor() {
     if (this.monitorInterval) {
@@ -280,6 +288,25 @@ export abstract class Track<
       cancelAnimationFrame(this.timeSyncHandle);
       this.timeSyncHandle = undefined;
     }
+    this.logFinalStats();
+  }
+
+  /**
+   * Dumps the raw stats of the track as it ends, once: a track that stops
+   * between two of the room's stats dumps is gone by the time the next one runs.
+   */
+  private logFinalStats() {
+    if (this.finalStatsLogged) {
+      return;
+    }
+    this.finalStatsLogged = true;
+    this.getRTCStatsReport()
+      .then((report) => {
+        if (report) {
+          this.log.info('final track stats', summarizeStatsReport(report));
+        }
+      })
+      .catch((error) => this.log.debug('could not collect final track stats', { error }));
   }
 
   /** @internal */

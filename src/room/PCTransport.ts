@@ -597,8 +597,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return this.pc?.remoteDescription;
   }
 
+  /** stats of the underlying connection, `undefined` when there is none */
   getStats() {
-    return this.pc.getStats();
+    return this._pc?.getStats();
   }
 
   getMaxMessageSize() {
