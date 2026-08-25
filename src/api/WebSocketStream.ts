@@ -75,7 +75,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
                       : `Encountered unknown websocket error: ${String(e)}`,
                   ),
                 );
-              ws.onclose = () => controller.close();
+              ws.onclose = (ev) =>
+                ev.wasClean
+                  ? controller.close()
+                  : controller.error(`WS closed unexpectedly with code ${ev.code}`);
             },
             cancel: closeWithInfo,
           }),
