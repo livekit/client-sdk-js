@@ -144,7 +144,7 @@ export enum ConnectionState {
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
-const STATS_LOG_FREQUENCY_MS = 5 * 1000;
+const STATS_LOG_FREQUENCY_MS = 30 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
