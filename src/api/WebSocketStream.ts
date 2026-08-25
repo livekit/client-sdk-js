@@ -78,7 +78,9 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
               ws.onclose = (ev) =>
                 ev.wasClean
                   ? controller.close()
-                  : controller.error(`WS closed unexpectedly with code ${ev.code}`);
+                  : controller.error(
+                      ConnectionError.websocket(`WS closed unexpectedly with code ${ev.code}`),
+                    );
             },
             cancel: closeWithInfo,
           }),
