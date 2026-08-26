@@ -671,12 +671,18 @@ export class SignalClient {
       if (this.signalLatency) {
         await sleep(this.signalLatency);
       }
-      const { done, value } = await signalReader.read();
-      if (done) {
+      try {
+        const { done, value } = await signalReader.read();
+        if (done) {
+          break;
+        }
+        const resp = parseSignalResponse(value);
+        this.handleSignalResponse(resp);
+      } catch (e) {
+        this.log.error(`error reading from signal stream`, { error: e });
+        await this.close(false, 'error in reading loop');
         break;
       }
-      const resp = parseSignalResponse(value);
-      this.handleSignalResponse(resp);
     }
   }
 
