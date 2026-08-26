@@ -53,7 +53,6 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
-    isReuse: boolean;
     /**
      * Whether the published track advertises packet trailer features.
      * When false, the cryptor skips the per-frame trailer extraction path
@@ -80,7 +79,15 @@ export interface UpdateCodecMessage extends BaseMessage {
   data: {
     participantIdentity: string;
     trackId: string;
-    codec: VideoCodec;
+    /** undefined for audio tracks */
+    codec?: VideoCodec;
+    /**
+     * trackId this receiver's pipeline was previously set up for, set when a
+     * transceiver gets reused for a new track. Lets the worker find the cryptor
+     * that still owns the (already transferred) encoded streams and re-point it,
+     * rather than creating a fresh cryptor with no pipeline at all.
+     */
+    previousTrackId?: string;
     hasPacketTrailer: boolean;
   };
 }
