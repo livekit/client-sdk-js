@@ -1,5 +1,5 @@
 catalog:
-  typescript: 5.9.3
+  typescript: 7.0.2
 
 # downlevel-dts depends on `typescript@next`, which now resolves to the TS 7 native
 # preview (no `.` export -> ERR_PACKAGE_PATH_NOT_EXPORTED). Pin it to our canonical TS.
