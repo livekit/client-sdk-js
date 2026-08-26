@@ -5,6 +5,7 @@ import FrameMetadataWorker from '../../src/frameMetadata/worker/frameMetadata.wo
 import type {
   BackupVideoCodec,
   ChatMessage,
+  DataTrackFrame,
   LocalDataTrack,
   RemoteDataTrack,
   RoomConnectOptions,
@@ -33,6 +34,7 @@ import {
   RpcError,
   ScreenSharePresets,
   Track,
+  TrackEvent,
   TrackPublication,
   VideoPresets,
   VideoQuality,
@@ -42,14 +44,14 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isSVCCodec,
   isVideoTrack,
   setLogLevel,
   supportsAV1,
+  supportsH265,
   supportsVP9,
 } from '../../src/index';
-import type { DataTrackFrame } from '../../src/room/data-track/frame';
-import { TrackEvent } from '../../src/room/events';
-import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
+import { sleep } from '../../src/room/utils';
 import { enableMachineInspector } from '../../src/utils/machineInspector';
 import { machinePanelSawRoom, openMachinePanel } from './machinePanel';
 

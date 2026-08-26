@@ -671,12 +671,18 @@ export class SignalClient {
       if (this.signalLatency) {
         await sleep(this.signalLatency);
       }
-      const { done, value } = await signalReader.read();
-      if (done) {
+      try {
+        const { done, value } = await signalReader.read();
+        if (done) {
+          break;
+        }
+        const resp = parseSignalResponse(value);
+        this.handleSignalResponse(resp);
+      } catch (e) {
+        this.log.error(`error reading from signal stream`, { error: e });
+        await this.close(false, 'error in reading loop');
         break;
       }
-      const resp = parseSignalResponse(value);
-      this.handleSignalResponse(resp);
     }
   }
 
@@ -917,7 +923,9 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
-    if (canQueue && this.lifecycleState === 'reconnecting') {
+    const isHoldingRequests =
+      this.lifecycleState === 'reconnecting' || this.queuedRequests.length > 0;
+    if (canQueue && isHoldingRequests) {
       this.queuedRequests.push(async () => {
         await this.sendRequest(message, true);
       });

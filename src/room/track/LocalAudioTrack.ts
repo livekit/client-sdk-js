@@ -245,12 +245,18 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
           type: 'audio',
           streamId: v.id,
           packetsSent: v.packetsSent,
-          packetsLost: v.packetsLost,
           bytesSent: v.bytesSent,
           timestamp: v.timestamp,
-          roundTripTime: v.roundTripTime,
-          jitter: v.jitter,
         };
+
+        // loss, jitter and RTT are only known from what the remote reports back,
+        // the same way the video sender picks them up
+        const remote = stats.get(v.remoteId);
+        if (remote) {
+          audioStats.packetsLost = remote.packetsLost;
+          audioStats.jitter = remote.jitter;
+          audioStats.roundTripTime = remote.roundTripTime;
+        }
       }
     });
 
