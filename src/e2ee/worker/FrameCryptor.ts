@@ -194,6 +194,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     // resubscribe skip setup while frames kept flowing through a cryptor with no
     // participant assigned.
     clearTimeout(this.undecryptedTrackTimeout);
+    this.undecryptedTrackTimeout = undefined;
     this.participantIdentity = undefined;
     this.lastErrorTimestamp = new Map();
     this.errorCounts = new Map();
@@ -248,6 +249,7 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private scheduleUndecryptedTrackWatchdog(operation: 'encode' | 'decode') {
     clearTimeout(this.undecryptedTrackTimeout);
+    this.undecryptedTrackTimeout = undefined;
     if (operation !== 'decode') {
       return;
     }
