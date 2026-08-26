@@ -75,7 +75,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
                       : `Encountered unknown websocket error: ${String(e)}`,
                   ),
                 );
-              ws.addEventListener('close', (ev) => {
+              ws.onclose = (ev) => {
                 if (ev.wasClean) {
                   controller.close();
                 } else {
@@ -83,7 +83,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
                     ConnectionError.websocket(`WS closed unexpectedly with code ${ev.code}`),
                   );
                 }
-              });
+              };
             },
             cancel: closeWithInfo,
           }),
@@ -130,10 +130,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           resolve(reason);
         }
       };
-      ws.onclose = ({ code, reason }) => {
+      ws.addEventListener('close', ({ code, reason }) => {
         resolve({ closeCode: code, reason });
         ws.removeEventListener('error', rejectHandler);
-      };
+      });
 
       ws.addEventListener('error', rejectHandler);
     });
