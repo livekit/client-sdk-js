@@ -111,7 +111,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/browser": "^4.1.10",
     "@vitest/browser-playwright": "^4.1.10",
-    "downlevel-dts": "^0.11.0",
+    "@nbilyk/downlevel-dts": "^0.15.2",
     "eslint": "10.7.0",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "10.1.8",
