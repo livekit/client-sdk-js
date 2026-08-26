@@ -559,10 +559,9 @@ export class E2EEManager
         codec,
         hasPacketTrailer,
       };
-      // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      if (E2EE_FLAG in receiver) {
+      if (E2EE_FLAG in receiver && E2EE_TRACK_ID in receiver) {
         // The transceiver is being reused for a new track. We cannot set up a new
         // pipeline from here: this receiver's encoded streams were transferred to
         // the worker on first setup and a transferred stream can't be transferred
@@ -573,15 +572,13 @@ export class E2EEManager
           kind: 'updateCodec',
           data: {
             trackId,
-            // @ts-ignore
-            previousTrackId: receiver[E2EE_TRACK_ID],
+            previousTrackId: receiver[E2EE_TRACK_ID] as string,
             codec,
             participantIdentity,
             hasPacketTrailer,
           },
         };
         this.worker.postMessage(msg);
-        // @ts-ignore
         receiver[E2EE_TRACK_ID] = trackId;
         return;
       }
