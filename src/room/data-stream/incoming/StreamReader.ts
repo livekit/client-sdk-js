@@ -1,7 +1,6 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
   /** An AbortSignal can be used to terminate reads early. */
@@ -47,14 +46,11 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
     this.bytesReceived = 0;
   }
 
-  protected abstract handleChunkReceived(chunk: DataStream_Chunk): void;
-
-  onProgress?: (progress: number | undefined) => void;
-
-  abstract readAll(opts?: BaseStreamReaderReadAllOpts): Promise<string | Array<Uint8Array>>;
-}
-
-export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
+  /**
+   * Counts a chunk's bytes against `totalByteSize` and reports progress. Chunk ordering and
+   * de-duplication happen upstream in the manager's `ensureOrderedChunks`, so every chunk reaching
+   * here is new and in order.
+   */
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
     this.validateBytesReceived();
@@ -65,8 +61,15 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
     this.onProgress?.(currentProgress);
   }
 
+  /**
+   * @param progress - progress of the stream between 0 and 1. Undefined for streams of unknown size
+   */
   onProgress?: (progress: number | undefined) => void;
 
+  abstract readAll(opts?: BaseStreamReaderReadAllOpts): Promise<string | Array<Uint8Array>>;
+}
+
+export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   signal?: AbortSignal;
 
   [Symbol.asyncIterator]() {
@@ -151,53 +154,20 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
 }
 
 /**
- * A class to read chunks from a ReadableStream and provide them in a structured format.
+ * A class to read chunks from a ReadableStream and decode them as UTF-8 text.
+ *
+ * NOTE: chunk-level `version` (resending a chunk at an already-received `chunkIndex` to supersede
+ * it) is not supported. The reader used to rebuild the whole string from a per-index chunk map and
+ * yield it as `TextStreamChunk.collected`, which made superseding work; 5d4a6346 (#1410, text auto
+ * chunking) changed the iterator to yield each chunk's text as it arrives, and a streaming reader
+ * cannot retract text it has already handed to the consumer. No sender emits a versioned chunk.
  */
 export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
-  private receivedChunks: Map<number /* chunk index */, DataStream_Chunk>;
-
   signal?: AbortSignal;
 
   /**
-   * A TextStreamReader instance can be used as an AsyncIterator that returns the entire string
-   * that has been received up to the current point in time.
-   */
-  constructor(
-    info: TextStreamInfo,
-    stream: ReadableStream<DataStream_Chunk>,
-    totalChunkCount?: number,
-  ) {
-    super(info, stream, totalChunkCount);
-    this.receivedChunks = new Map();
-  }
-
-  protected handleChunkReceived(chunk: DataStream_Chunk) {
-    const index = bigIntToNumber(chunk.chunkIndex);
-    const previousChunkAtIndex = this.receivedChunks.get(index);
-    if (previousChunkAtIndex && previousChunkAtIndex.version > chunk.version) {
-      // we have a newer version already, dropping the old one
-      return;
-    }
-    this.receivedChunks.set(index, chunk);
-
-    this.bytesReceived += chunk.content.byteLength;
-    this.validateBytesReceived();
-
-    const currentProgress = this.totalByteSize
-      ? this.bytesReceived / this.totalByteSize
-      : undefined;
-    this.onProgress?.(currentProgress);
-  }
-
-  /**
-   * @param progress - progress of the stream between 0 and 1. Undefined for streams of unknown size
-   */
-  onProgress?: (progress: number | undefined) => void;
-
-  /**
    * Async iterator implementation to allow usage of `for await...of` syntax.
-   * Yields structured chunks from the stream.
-   *
+   * Yields each chunk's decoded text as it arrives - a delta, not the string accumulated so far.
    */
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
