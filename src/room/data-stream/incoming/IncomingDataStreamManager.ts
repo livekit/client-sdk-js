@@ -241,7 +241,7 @@ export default class IncomingDataStreamManager {
             info,
             compressed
               ? inflateRawByteChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
-              : stream,
+              : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
             // `totalLength` is the pre-compression size, and the reader counts decompressed bytes,
             // so it applies to both paths (mirrors text).
             bigIntToNumber(streamHeader.totalLength),
@@ -489,9 +489,11 @@ function ensureOrderedChunks(
         return;
       }
       if (index > lastChunkIndex + 1) {
-        throw new DataStreamError(
-          `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
-          DataStreamErrorReason.Incomplete,
+        controller.error(
+          new DataStreamError(
+            `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
+            DataStreamErrorReason.Incomplete,
+          ),
         );
       }
       lastChunkIndex = index;
