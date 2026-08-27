@@ -325,10 +325,13 @@ export default class IncomingDataStreamManager {
             streamController = controller;
 
             if (this.textStreamControllers.has(streamHeader.streamId)) {
-              throw new DataStreamError(
-                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-                DataStreamErrorReason.AlreadyOpened,
+              controller.error(
+                new DataStreamError(
+                  `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+                  DataStreamErrorReason.AlreadyOpened,
+                ),
               );
+              return;
             }
 
             this.textStreamControllers.set(streamHeader.streamId, {
@@ -495,6 +498,7 @@ function ensureOrderedChunks(
             DataStreamErrorReason.Incomplete,
           ),
         );
+        return;
       }
       lastChunkIndex = index;
       controller.enqueue(value);
