@@ -480,7 +480,7 @@ function ensureOrderedChunks(
       const index = bigIntToNumber(value.chunkIndex);
       if (index <= lastChunkIndex) {
         log.warn(
-          `ignoring duplicate chunk ${index} (version ${value.version}) for data stream ${streamId} (last processed: ${lastChunkIndex})`,
+          `ignoring duplicate chunk ${index} ${value.version > 0 ? `(version ${value.version})` : ''} for data stream ${streamId} (last processed: ${lastChunkIndex})`,
         );
         return;
       }
