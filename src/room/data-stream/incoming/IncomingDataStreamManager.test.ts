@@ -1371,6 +1371,37 @@ describe('IncomingDataStreamManager', () => {
       expect(concatChunks(await reader.readAll())).toStrictEqual(bytes);
     });
 
+    it('should drop a higher-version chunk resent at an already-received index', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+      const textBytes = new TextEncoder().encode(text);
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { totalLength: BigInt(textBytes.length) }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(chunkPacket(streamId, 0, textBytes, 0), Encryption_Type.NONE);
+      // Chunk-level `version` retcon is not supported: a reader that has already yielded chunk 0 to
+      // its consumer cannot retract it, so a resend at the same index is dropped like any other
+      // duplicate rather than superseding the original. See the note on
+      // `TextStreamReader.handleChunkReceived`.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('goodbye world'), 1),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual(text);
+    });
+
     it('should reframe multibyte UTF-8 on chunk boundaries when decompressing a text stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
