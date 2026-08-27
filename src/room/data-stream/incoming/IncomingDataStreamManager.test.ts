@@ -1237,6 +1237,140 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
     });
 
+    it('should error on a gap in chunk indices on an uncompressed text stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = randomText(3_000);
+      const textBytes = new TextEncoder().encode(text);
+      const split = Math.floor(textBytes.length / 3);
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', {
+          totalLength: BigInt(textBytes.length),
+          compression: DataStream_CompressionType.NONE,
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, textBytes.slice(0, split)),
+        Encryption_Type.NONE,
+      );
+      // Skip chunk index 1 entirely — a gap means the payload cannot be reassembled in order.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 2, textBytes.slice(split)),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+    });
+
+    it('should error on a gap in chunk indices on an uncompressed byte stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const bytes = randomBytes(3_000);
+      const split = Math.floor(bytes.length / 3);
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'byteHeader', {
+          totalLength: BigInt(bytes.length),
+          compression: DataStream_CompressionType.NONE,
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, bytes.slice(0, split)),
+        Encryption_Type.NONE,
+      );
+      // Skip chunk index 1 entirely.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 2, bytes.slice(split)),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+    });
+
+    it('should drop a duplicate chunk index on an uncompressed text stream and still decode', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = randomText(3_000);
+      const textBytes = new TextEncoder().encode(text);
+      const split = Math.floor(textBytes.length / 2);
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', {
+          totalLength: BigInt(textBytes.length),
+          compression: DataStream_CompressionType.NONE,
+        }),
+        Encryption_Type.NONE,
+      );
+      const chunk0 = chunkPacket(streamId, 0, textBytes.slice(0, split));
+      manager.handleDataStreamPacket(chunk0, Encryption_Type.NONE);
+      // A replayed chunk (e.g. reconnect logic) must be dropped with a warning, not appended a
+      // second time — otherwise the payload is corrupted and exceeds `totalLength`.
+      manager.handleDataStreamPacket(chunk0, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 1, textBytes.slice(split)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      const reader = await readerPromise;
+      expect(await reader.readAll()).toStrictEqual(text);
+    });
+
+    it('should drop a duplicate chunk index on an uncompressed byte stream and still decode', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const bytes = randomBytes(3_000);
+      const split = Math.floor(bytes.length / 2);
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'byteHeader', {
+          totalLength: BigInt(bytes.length),
+          compression: DataStream_CompressionType.NONE,
+        }),
+        Encryption_Type.NONE,
+      );
+      const chunk0 = chunkPacket(streamId, 0, bytes.slice(0, split));
+      manager.handleDataStreamPacket(chunk0, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(chunk0, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 1, bytes.slice(split)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      const reader = await readerPromise;
+      expect(concatChunks(await reader.readAll())).toStrictEqual(bytes);
+    });
+
     it('should reframe multibyte UTF-8 on chunk boundaries when decompressing a text stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
