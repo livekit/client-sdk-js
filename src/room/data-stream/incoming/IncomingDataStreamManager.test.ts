@@ -1371,7 +1371,7 @@ describe('IncomingDataStreamManager', () => {
       expect(concatChunks(await reader.readAll())).toStrictEqual(bytes);
     });
 
-    it('should drop a higher-version chunk resent at an already-received index', async () => {
+    it('should drop chunks resent at an already-received index', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
 
@@ -1387,13 +1387,19 @@ describe('IncomingDataStreamManager', () => {
         headerPacket(streamId, 'textHeader', { totalLength: BigInt(textBytes.length) }),
         Encryption_Type.NONE,
       );
-      manager.handleDataStreamPacket(chunkPacket(streamId, 0, textBytes, 0), Encryption_Type.NONE);
+      // first assuring a version going from 1 -> 2 works as expected
+      manager.handleDataStreamPacket(chunkPacket(streamId, 0, textBytes, 1), Encryption_Type.NONE);
       // Chunk-level `version` retcon is not supported: a reader that has already yielded chunk 0 to
       // its consumer cannot retract it, so a resend at the same index is dropped like any other
       // duplicate rather than superseding the original. See the note on
       // `TextStreamReader.handleChunkReceived`.
       manager.handleDataStreamPacket(
-        chunkPacket(streamId, 0, new TextEncoder().encode('goodbye world'), 1),
+        chunkPacket(streamId, 0, new TextEncoder().encode('goodbye world'), 2),
+        Encryption_Type.NONE,
+      );
+      // sending a lower version number again to ensure this one also gets dropped
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('goodbye world'), 0),
         Encryption_Type.NONE,
       );
       manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
