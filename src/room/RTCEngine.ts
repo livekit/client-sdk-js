@@ -1535,7 +1535,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private replayReliableMessages(res: ReconnectResponse | undefined) {
-    if (!res?.lastMessageSeq) {
+    if (res?.lastMessageSeq === undefined) {
       return;
     }
     this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) =>
