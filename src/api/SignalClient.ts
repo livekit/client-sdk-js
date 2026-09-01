@@ -241,6 +241,8 @@ export class SignalClient {
 
   onJoined?: (event: JoinResponse) => void;
 
+  onLateReconnectResponse?: (msg: ReconnectResponse) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocketStream;
@@ -1076,6 +1078,10 @@ export class SignalClient {
     } else if (msg.case === 'dataTrackSubscriberHandles') {
       if (this.onDataTrackSubscriberHandles) {
         this.onDataTrackSubscriberHandles(msg.value);
+      }
+    } else if (msg.case === 'reconnect') {
+      if (this.onLateReconnectResponse) {
+        this.onLateReconnectResponse(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { msgCase: msg.case });

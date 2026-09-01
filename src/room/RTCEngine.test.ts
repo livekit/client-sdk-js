@@ -1,10 +1,14 @@
 import {
   DataPacket,
   DataPacket_Kind,
+  ICEServer,
   ConnectionQuality as ProtoConnectionQuality,
+  ReconnectResponse,
+  ServerInfo,
   UserPacket,
 } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SignalConnectionState } from '../api/SignalClient';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
@@ -917,6 +921,106 @@ describe('RTCEngine', () => {
       expect(internals.lostQualityTimeout).toBeUndefined();
       vi.advanceTimersByTime(LOST_TIMEOUT_MS);
       expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('late ReconnectResponse', () => {
+    // A ReconnectResponse that isn't the first message of a resume (the server can emit it behind
+    // another message on a cross-node migration) used to be dropped as "unsupported", leaving the
+    // client on the previous node's ICE servers with an unflushed reliable buffer.
+    interface LateInternals {
+      _isClosed: boolean;
+      attemptingReconnect: boolean;
+      url: string;
+      token: string;
+      latestJoinResponse: { serverInfo?: ServerInfo };
+      lateReconnectResponse?: ReconnectResponse;
+      client: Record<string, any>;
+      pcManager: unknown;
+      waitForPCReconnected: () => Promise<void>;
+      dataChannelForKind: (kind: DataChannelKind) => RTCDataChannel | undefined;
+      resendReliableMessagesForResume: (seq: number) => Promise<void>;
+      resumeConnection: (reason?: number) => Promise<void>;
+      setupSignalClientCallbacks: () => void;
+    }
+
+    const makeResponse = (lastMessageSeq: number) =>
+      new ReconnectResponse({
+        lastMessageSeq,
+        iceServers: [new ICEServer({ urls: ['turn:new-node'], username: 'u', credential: 'c' })],
+        serverInfo: new ServerInfo({ nodeId: 'new-node', region: 'new-region' }),
+      });
+
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const internals = engine as unknown as LateInternals;
+      internals._isClosed = false;
+      internals.attemptingReconnect = false;
+      internals.url = 'ws://localhost:7880';
+      internals.token = 'token';
+      internals.latestJoinResponse = { serverInfo: new ServerInfo({ nodeId: 'old-node' }) };
+      const updateConfiguration = vi.fn();
+      internals.pcManager = {
+        currentState: PCTransportState.CONNECTED,
+        updateConfiguration,
+        triggerIceRestart: vi.fn(async () => {}),
+      };
+      internals.waitForPCReconnected = vi.fn(async () => {});
+      internals.dataChannelForKind = vi.fn(() => undefined);
+      const resend = vi.fn(async () => {});
+      internals.resendReliableMessagesForResume = resend;
+      internals.client = {
+        currentState: SignalConnectionState.CONNECTED,
+        setReconnected: vi.fn(),
+        reconnect: vi.fn(async () => undefined),
+      };
+      return { engine, internals, updateConfiguration, resend };
+    }
+
+    it('applies ICE servers, serverInfo and the replay when it arrives outside a resume', () => {
+      const { engine, internals, updateConfiguration, resend } = primeEngine();
+      internals.setupSignalClientCallbacks();
+
+      internals.client.onLateReconnectResponse(makeResponse(7));
+
+      expect(updateConfiguration).toHaveBeenCalledTimes(1);
+      expect(updateConfiguration.mock.calls[0][0].iceServers).toEqual([
+        { urls: ['turn:new-node'], username: 'u', credential: 'c' },
+      ]);
+      expect(internals.latestJoinResponse.serverInfo?.nodeId).toBe('new-node');
+      expect(resend).toHaveBeenCalledWith(7);
+      expect(engine).toBeDefined();
+    });
+
+    it('defers the replay to the in-flight resume, which runs it once the transport is back', async () => {
+      const { internals, updateConfiguration, resend } = primeEngine();
+      // no ReconnectResponse as the first message; it lands while the resume is still running
+      internals.client.reconnect = vi.fn(async () => {
+        internals.client.onLateReconnectResponse(makeResponse(11));
+        return undefined;
+      });
+      internals.attemptingReconnect = true;
+
+      await internals.resumeConnection();
+
+      // the node-describing parts are applied immediately, ahead of the ICE restart
+      expect(updateConfiguration).toHaveBeenCalledTimes(1);
+      expect(internals.latestJoinResponse.serverInfo?.nodeId).toBe('new-node');
+      // ...while the replay waits for the resume to reach its usual replay point, and runs once
+      expect(resend).toHaveBeenCalledTimes(1);
+      expect(resend).toHaveBeenCalledWith(11);
+      expect(internals.lateReconnectResponse).toBeUndefined();
+    });
+
+    it('does not replay a response stashed during an earlier attempt', async () => {
+      const { internals, resend } = primeEngine();
+      // left over from an attempt that never reached its replay point
+      internals.lateReconnectResponse = makeResponse(3);
+
+      await internals.resumeConnection();
+
+      expect(resend).not.toHaveBeenCalled();
+      expect(internals.lateReconnectResponse).toBeUndefined();
     });
   });
 });

@@ -219,6 +219,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
+  /**
+   * A `ReconnectResponse` that arrived *after* the resume had already been declared connected
+   * (see {@link SignalClient.onLateReconnectResponse}). The in-flight resume picks it up once the
+   * peer connection is back, so the reliable replay still lands on a usable transport.
+   */
+  private lateReconnectResponse?: ReconnectResponse;
+
   private reconnectPolicy: ReconnectPolicy;
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -739,6 +746,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onDataTrackSubscriberHandles = (event: DataTrackSubscriberHandles) => {
       this.emit(EngineEvent.DataTrackSubscriberHandles, event);
+    };
+
+    this.client.onLateReconnectResponse = (res: ReconnectResponse) => {
+      this.log.warn('received reconnect response out of order, applying it late', {
+        ...this.logContext,
+      });
+      // The new node's ICE servers can't wait for the resume to finish: without them we'd keep
+      // the previous node's TURN credentials, which can fail the ICE restart outright.
+      this.applyReconnectResponse(res);
+
+      if (this.attemptingReconnect) {
+        // A resume is still running — let it replay once the peer connection is back, rather than
+        // pushing the backlog into a data channel that is about to be torn down.
+        this.lateReconnectResponse = res;
+      } else {
+        this.replayReliableMessages(res);
+      }
     };
 
     this.client.onClose = () => {
@@ -1440,6 +1464,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     this.emit(EngineEvent.Resuming);
+    // Anything stashed by a previous attempt belongs to a session we've since left.
+    this.lateReconnectResponse = undefined;
     let res: ReconnectResponse | undefined;
     try {
       this.setupSignalClientCallbacks();
@@ -1461,12 +1487,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.SignalResumed);
 
     if (res) {
-      const rtcConfig = this.makeRTCConfiguration(res);
-      this.pcManager.updateConfiguration(rtcConfig);
-      if (this.latestJoinResponse) {
-        this.latestJoinResponse.serverInfo = res.serverInfo;
-      }
+      this.applyReconnectResponse(res);
     } else {
+      // Not necessarily fatal: the response may still be in flight behind another message, in
+      // which case `onLateReconnectResponse` applies it as soon as it lands.
       this.log.warn('Did not receive reconnect response');
     }
 
@@ -1493,17 +1517,38 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.createDataChannels();
     }
 
-    if (res?.lastMessageSeq) {
-      this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) => {
-        this.log.warn('failed to resend reliable messages after resume', {
-          ...this.logContext,
-          error,
-        });
-      });
-    }
+    // A response that arrived out of order gets replayed here too — now that the transport is
+    // back, this is the same point in the resume the in-order one would have been replayed at.
+    const reconnectResponse = res ?? this.lateReconnectResponse;
+    this.lateReconnectResponse = undefined;
+    this.replayReliableMessages(reconnectResponse);
 
     // resume success
     this.emit(EngineEvent.Resumed);
+  }
+
+  /**
+   * Applies the parts of a `ReconnectResponse` that describe the node we've resumed onto.
+   * Idempotent, so a duplicate or late response is
+   * harmless.
+   */
+  private applyReconnectResponse(res: ReconnectResponse) {
+    this.pcManager?.updateConfiguration(this.makeRTCConfiguration(res));
+    if (this.latestJoinResponse) {
+      this.latestJoinResponse.serverInfo = res.serverInfo;
+    }
+  }
+
+  private replayReliableMessages(res: ReconnectResponse | undefined) {
+    if (!res?.lastMessageSeq) {
+      return;
+    }
+    this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) => {
+      this.log.warn('failed to resend reliable messages after resume', {
+        ...this.logContext,
+        error,
+      });
+    });
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
