@@ -219,11 +219,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
-  /**
-   * A `ReconnectResponse` that arrived *after* the resume had already been declared connected
-   * (see {@link SignalClient.onLateReconnectResponse}). The in-flight resume picks it up once the
-   * peer connection is back, so the reliable replay still lands on a usable transport.
-   */
+  /** Late-arriving ReconnectResponse, replayed by the in-flight resume. */
   private lateReconnectResponse?: ReconnectResponse;
 
   private reconnectPolicy: ReconnectPolicy;
@@ -1527,11 +1523,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Resumed);
   }
 
-  /**
-   * Applies the parts of a `ReconnectResponse` that describe the node we've resumed onto.
-   * Idempotent, so a duplicate or late response is
-   * harmless.
-   */
+  /** Applies the node-describing half of a ReconnectResponse. Idempotent. */
   private applyReconnectResponse(res: ReconnectResponse) {
     this.pcManager?.updateConfiguration(this.makeRTCConfiguration(res));
     if (this.latestJoinResponse) {
@@ -1543,12 +1535,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!res?.lastMessageSeq) {
       return;
     }
-    this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) => {
+    this.resendReliableMessagesForResume(res.lastMessageSeq).catch((error) =>
       this.log.warn('failed to resend reliable messages after resume', {
         ...this.logContext,
         error,
-      });
-    });
+      }),
+    );
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
