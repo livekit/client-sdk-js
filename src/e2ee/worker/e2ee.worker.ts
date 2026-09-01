@@ -38,6 +38,17 @@ let rtpMap: Map<number, VideoCodec> = new Map();
 
 workerLogger.setDefaultLevel('info');
 
+// Forward worker log calls to the main thread so they reach any
+// setLogExtension consumer installed there. The main-thread workerLogger
+// re-emits them, which invokes both the console and the extension.
+workerLogger.methodFactory = (methodName) => (msg, context) => {
+  postMessage({
+    kind: 'log',
+    data: { level: methodName as 'trace' | 'debug' | 'info' | 'warn' | 'error', msg, context },
+  });
+};
+workerLogger.setLevel(workerLogger.getLevel());
+
 onmessage = (ev) => {
   messageQueue.run(async () => {
     const { kind, data }: E2EEWorkerMessage = ev.data;

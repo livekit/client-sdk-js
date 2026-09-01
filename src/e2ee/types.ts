@@ -176,6 +176,15 @@ export interface PTMetadataFromE2EEMessage extends BaseMessage {
   data: FrameMetadataPayload;
 }
 
+export interface LogMessage extends BaseMessage {
+  kind: 'log';
+  data: {
+    level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    msg: string;
+    context?: object;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -193,7 +202,8 @@ export type E2EEWorkerMessage =
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
   | EncryptDataResponseMessage
-  | PTMetadataFromE2EEMessage;
+  | PTMetadataFromE2EEMessage
+  | LogMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
