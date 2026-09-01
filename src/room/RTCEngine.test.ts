@@ -978,7 +978,7 @@ describe('RTCEngine', () => {
     }
 
     it('applies ICE servers, serverInfo and the replay when it arrives outside a resume', () => {
-      const { engine, internals, updateConfiguration, resend } = primeEngine();
+      const { internals, updateConfiguration, resend } = primeEngine();
       internals.setupSignalClientCallbacks();
 
       internals.client.onLateReconnectResponse(makeResponse(7));
@@ -989,7 +989,6 @@ describe('RTCEngine', () => {
       ]);
       expect(internals.latestJoinResponse.serverInfo?.nodeId).toBe('new-node');
       expect(resend).toHaveBeenCalledWith(7);
-      expect(engine).toBeDefined();
     });
 
     it('defers the replay to the in-flight resume, which runs it once the transport is back', async () => {
@@ -1021,6 +1020,53 @@ describe('RTCEngine', () => {
 
       expect(resend).not.toHaveBeenCalled();
       expect(internals.lateReconnectResponse).toBeUndefined();
+    });
+
+    // `setConfiguration` does not rebuild an offer that already went out, so a response landing
+    // once the restart offer is on the wire has to restart ICE again on the new configuration.
+    // Every arrival point qualifies: nothing between `client.reconnect()` resolving and
+    // `triggerIceRestart()` yields to the event loop, so no response can beat the offer.
+    describe('re-restarts ICE, whenever it lands', () => {
+      const arrivals: Array<[string, (i: LateInternals, fire: () => void) => void]> = [
+        [
+          'while triggerIceRestart runs',
+          (i, fire) => ((i.pcManager as any).triggerIceRestart = vi.fn(async () => fire())),
+        ],
+        [
+          'while waitForPCReconnected runs',
+          (i, fire) => (i.waitForPCReconnected = vi.fn(async () => fire())),
+        ],
+      ];
+
+      it.each(arrivals)('%s', async (_name, arrange) => {
+        const { internals, updateConfiguration } = primeEngine();
+        internals.setupSignalClientCallbacks();
+        internals.attemptingReconnect = true;
+        arrange(internals, () => internals.client.onLateReconnectResponse(makeResponse(5)));
+
+        await internals.resumeConnection();
+
+        expect(updateConfiguration).toHaveBeenCalledWith(expect.anything(), true);
+      });
+
+      it('after the resume has completed', async () => {
+        const { internals, updateConfiguration } = primeEngine();
+        internals.setupSignalClientCallbacks();
+
+        await internals.resumeConnection();
+        internals.client.onLateReconnectResponse(makeResponse(5));
+
+        expect(updateConfiguration).toHaveBeenCalledWith(expect.anything(), true);
+      });
+
+      it('but not for an in-order response, whose restart is still to come', async () => {
+        const { internals, updateConfiguration } = primeEngine();
+        internals.client.reconnect = vi.fn(async () => makeResponse(5));
+
+        await internals.resumeConnection();
+
+        expect(updateConfiguration).toHaveBeenCalledWith(expect.anything(), false);
+      });
     });
   });
 });

@@ -749,8 +749,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         ...this.logContext,
       });
       // The new node's ICE servers can't wait for the resume to finish: without them we'd keep
-      // the previous node's TURN credentials, which can fail the ICE restart outright.
-      this.applyReconnectResponse(res);
+      // the previous node's TURN credentials, which can fail the ICE restart outright. Nothing
+      // between `client.reconnect` resolving and `triggerIceRestart` yields to the event loop, so
+      // by the time a response can reach us the restart offer is already out — and
+      // `setConfiguration` alone does not rebuild it. Restart again on the new configuration.
+      this.applyReconnectResponse(res, true);
 
       if (this.attemptingReconnect) {
         // A resume is still running — let it replay once the peer connection is back, rather than
@@ -1524,8 +1527,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** Applies the node-describing half of a ReconnectResponse. Idempotent. */
-  private applyReconnectResponse(res: ReconnectResponse) {
-    this.pcManager?.updateConfiguration(this.makeRTCConfiguration(res));
+  private applyReconnectResponse(res: ReconnectResponse, iceRestart = false) {
+    this.pcManager?.updateConfiguration(this.makeRTCConfiguration(res), iceRestart);
     if (this.latestJoinResponse) {
       this.latestJoinResponse.serverInfo = res.serverInfo;
     }

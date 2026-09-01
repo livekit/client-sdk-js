@@ -216,7 +216,9 @@ export class PCTransportManager {
     this.publisher.setConfiguration(config);
     this.subscriber?.setConfiguration(config);
     if (iceRestart) {
-      this.triggerIceRestart();
+      this.triggerIceRestart().catch((error) =>
+        this.iceLog.error('failed to restart ICE', { ...this.logContext, error }),
+      );
     }
   }
 
