@@ -235,6 +235,9 @@ export class E2EEManager
       case 'packetTrailerMetadata':
         this.handleFrameMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
         break;
+      case 'log':
+        workerLogger[data.level](data.msg, data.context);
+        break;
       default:
         break;
     }
