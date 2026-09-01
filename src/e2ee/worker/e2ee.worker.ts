@@ -44,7 +44,7 @@ workerLogger.setDefaultLevel('info');
 workerLogger.methodFactory = (methodName) => (msg, context) => {
   postMessage({
     kind: 'log',
-    data: { level: methodName as 'trace' | 'debug' | 'info' | 'warn' | 'error', msg, context },
+    data: { level: methodName, msg, context },
   });
 };
 workerLogger.setLevel(workerLogger.getLevel());
