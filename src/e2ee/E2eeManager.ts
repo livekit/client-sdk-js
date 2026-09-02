@@ -176,8 +176,6 @@ export class E2EEManager
           }
         }
 
-        // Unhandled: log once and emit the general error event.
-        log.error(data.error.message);
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
