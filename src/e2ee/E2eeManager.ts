@@ -581,7 +581,6 @@ export class E2EEManager
   ) {
     if (!pub.trackInfo) {
       this.log.warn('skipping e2ee enabled update for publication without trackInfo', {
-        participant: participantIdentity,
         trackSid: pub.trackSid,
       });
       return;
