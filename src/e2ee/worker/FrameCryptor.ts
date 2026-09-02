@@ -15,6 +15,7 @@ import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
+import { ErrorRateLimiter } from './ErrorRateLimiter';
 import type {
   DecodeRatchetOptions,
   KeyProviderOptions,
