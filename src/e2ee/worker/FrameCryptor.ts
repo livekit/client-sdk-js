@@ -587,7 +587,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
         // TODO: surface this to the app.
-        workerLogger.error(e);
+        workerLogger.error(`error while encrypting`, { ...this.logContext, error: e });
       }
     } else {
       workerLogger.debug('failed to encrypt, emitting error', this.logContext);

@@ -185,6 +185,13 @@ export interface LogMessage extends BaseMessage {
   };
 }
 
+export interface SetLogLevelMessage extends BaseMessage {
+  kind: 'setLogLevel';
+  data: {
+    level: LogLevel;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -203,7 +210,8 @@ export type E2EEWorkerMessage =
   | EncryptDataRequestMessage
   | EncryptDataResponseMessage
   | PTMetadataFromE2EEMessage
-  | LogMessage;
+  | LogMessage
+  | SetLogLevelMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
