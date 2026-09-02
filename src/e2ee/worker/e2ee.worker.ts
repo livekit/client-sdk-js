@@ -66,6 +66,9 @@ onmessage = (ev) => {
         };
         postMessage(ackMsg);
         break;
+      case 'setLogLevel':
+        workerLogger.setLevel(data.level);
+        break;
       case 'enable':
         setEncryptionEnabled(data.enabled, data.participantIdentity);
         workerLogger.info(

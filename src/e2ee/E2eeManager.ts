@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
-import log, { LogLevel, workerLogger } from '../logger';
+import log, { LogLevel, onWorkerLogLevelChanged, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -129,6 +129,9 @@ export class E2EEManager
         this.worker.onmessage = this.onWorkerMessage;
         this.worker.onerror = this.onWorkerError;
         this.worker.postMessage(msg);
+        onWorkerLogLevelChanged((level) => {
+          this.worker?.postMessage({ kind: 'setLogLevel', data: { level } });
+        });
       }
     }
   }
