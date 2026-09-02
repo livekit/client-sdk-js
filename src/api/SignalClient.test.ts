@@ -236,7 +236,7 @@ describe('SignalClient.connect', () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
-    it('should handle reconnect with non-reconnect message (edge case)', async () => {
+    it('drops stray messages during reconnect and waits for the reconnect response', async () => {
       // First, initial connection
       const joinResponse = createJoinResponse();
       const joinSignalResponse = createSignalResponse('join', joinResponse);
@@ -247,19 +247,24 @@ describe('SignalClient.connect', () => {
 
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
 
-      // Setup reconnect with non-reconnect message (e.g., participant update)
+      // Server sends a stray update first, then the actual reconnect response.
+      // The stray should be dropped with a warning; the reconnect response should resolve.
       const updateSignalResponse = createSignalResponse('update', { participants: [] });
-      const reconnectMockReadable = createMockReadableStream([updateSignalResponse]);
+      const reconnectResponse = new ReconnectResponse({ iceServers: [] });
+      const reconnectSignalResponse = createSignalResponse('reconnect', reconnectResponse);
+      const reconnectMockReadable = createMockReadableStream([
+        updateSignalResponse,
+        reconnectSignalResponse,
+      ]);
       const reconnectMockConnection = createMockConnection(reconnectMockReadable);
 
       mockWebSocketStream({ connection: reconnectMockConnection });
 
       const result = await signalClient.reconnect('wss://test.livekit.io', 'test-token', 'sid-123');
 
-      // This is an edge case: reconnect resolves with undefined when non-reconnect message is received
-      expect(result).toBeUndefined();
+      expect(result).toEqual(reconnectResponse);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
-    }, 1000);
+    });
   });
 
   describe('Failure Case - Timeout', () => {
@@ -1026,7 +1031,7 @@ describe('SignalClient.validateFirstMessage', () => {
     }
   });
 
-  it('should accept non-reconnect message during reconnecting state', async () => {
+  it('should reject non-reconnect message during reconnecting state', async () => {
     // First establish a connection
     const joinResponse = createJoinResponse();
     const joinSignalResponse = createSignalResponse('join', joinResponse);
@@ -1044,9 +1049,8 @@ describe('SignalClient.validateFirstMessage', () => {
     const validateMethod = (signalClient as any).validateFirstMessage;
     if (validateMethod) {
       const result = validateMethod.call(signalClient, updateSignalResponse, true);
-      expect(result.isValid).toBe(true);
-      expect(result.response).toBeUndefined();
-      expect(result.shouldProcessFirstMessage).toBe(true);
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBeInstanceOf(ConnectionError);
     }
   });
 
