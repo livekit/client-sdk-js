@@ -918,12 +918,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.log.error('Received encrypted packet but E2EE not set up');
           return;
         }
-        const decryptedData = await this.e2eeManager?.handleEncryptedData(
-          dp.value.value.encryptedValue as NonSharedUint8Array,
-          dp.value.value.iv as NonSharedUint8Array,
-          dp.participantIdentity,
-          dp.value.value.keyIndex,
-        );
+        let decryptedData;
+        try {
+          decryptedData = await this.e2eeManager.handleEncryptedData(
+            dp.value.value.encryptedValue as NonSharedUint8Array,
+            dp.value.value.iv as NonSharedUint8Array,
+            dp.participantIdentity,
+            dp.value.value.keyIndex,
+          );
+        } catch (err) {
+          this.log.debug('failed to decrypt data packet', {
+            error: err,
+            participantIdentity: dp.participantIdentity,
+          });
+          return;
+        }
         const decryptedPacket = EncryptedPacketPayload.fromBinary(decryptedData.payload);
         const newDp = new DataPacket({
           value: decryptedPacket.value,

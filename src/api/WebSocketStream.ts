@@ -2,6 +2,7 @@
 import { ConnectionError } from '../room/errors';
 import { sleep } from '../room/utils';
 import TypedPromise from '../utils/TypedPromise';
+import { getErrorDescription } from './utils';
 
 export interface WebSocketConnection<T extends ArrayBuffer | string = ArrayBuffer | string> {
   readable: ReadableStream<T>;
@@ -68,13 +69,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
             start(controller) {
               ws.onmessage = ({ data }) => controller.enqueue(data);
               ws.onerror = (e) =>
-                controller.error(
-                  ConnectionError.websocket(
-                    e instanceof Error
-                      ? `${e.name}: ${e.message}`
-                      : `Encountered unknown websocket error: ${String(e)}`,
-                  ),
-                );
+                controller.error(ConnectionError.websocket(getErrorDescription(e, 'websocket')));
               ws.onclose = (ev) => {
                 if (ev.wasClean) {
                   controller.close();
