@@ -19,6 +19,7 @@ import {
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
+  VideoLayer_Mode,
   protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
@@ -101,6 +102,7 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isSVCCodec,
+  isSVCSimulcast,
   isSafari17Based,
   isVideoCodec,
   isVideoTrack,
@@ -1135,7 +1137,11 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (isLocalVideoTrack(track)) {
-        if (isSVCCodec(videoCodec)) {
+        // when the caller asked for VP9/AV1 as rid based simulcast (simulcast + an L1Tx
+        // scalability mode) the SVC defaults below must not apply: they would replace the
+        // requested mode and force a contentHint that only makes sense for SVC screenshare.
+        const svcSimulcast = isSVCSimulcast(videoCodec, opts);
+        if (isSVCCodec(videoCodec) && !svcSimulcast) {
           if (track.source === Track.Source.ScreenShare) {
             // vp9 svc with screenshare cannot encode multiple spatial layers
             // doing so reduces publish resolution to minimal resolution
@@ -1157,12 +1163,16 @@ export default class LocalParticipant extends Participant {
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
-        req.simulcastCodecs = [
-          new SimulcastCodec({
-            codec: videoCodec,
-            cid: track.mediaStreamTrack.id,
-          }),
-        ];
+        const primaryCodec = new SimulcastCodec({
+          codec: videoCodec,
+          cid: track.mediaStreamTrack.id,
+        });
+        if (svcSimulcast) {
+          // without an explicit mode the SFU defaults SVC capable codecs to
+          // MULTIPLE_SPATIAL_LAYERS_PER_STREAM and would treat the rids as one SVC stream
+          primaryCodec.videoLayerMode = VideoLayer_Mode.ONE_SPATIAL_LAYER_PER_STREAM;
+        }
+        req.simulcastCodecs = [primaryCodec];
 
         // set up backup
         if (opts.backupCodec === true) {
@@ -1197,7 +1207,7 @@ export default class LocalParticipant extends Participant {
         req.width,
         req.height,
         encodings,
-        isSVCCodec(opts.videoCodec),
+        isSVCCodec(opts.videoCodec) && !isSVCSimulcast(opts.videoCodec, opts),
       );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [

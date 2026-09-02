@@ -17,6 +17,7 @@ import {
   getReactNativeOs,
   isReactNative,
   isSVCCodec,
+  isSVCSimulcast,
   isSafariBased,
   isSafariSvcApi,
 } from '../utils';
@@ -111,6 +112,8 @@ export function computeVideoEncodings(
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
   const videoCodec = options?.videoCodec;
+  // VP9/AV1 published as rid based simulcast rather than SVC, see isSVCSimulcast
+  const useSVCSimulcast = isSVCSimulcast(videoCodec, options);
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
@@ -134,7 +137,7 @@ export function computeVideoEncodings(
     videoEncoding.priority,
   );
 
-  if (scalabilityMode && isSVCCodec(videoCodec)) {
+  if (scalabilityMode && isSVCCodec(videoCodec) && !useSVCSimulcast) {
     const sm = new ScalabilityMode(scalabilityMode);
 
     const encodings: RTCRtpEncodingParameters[] = [];
@@ -193,6 +196,19 @@ export function computeVideoEncodings(
     return [videoEncoding];
   }
 
+  // Chrome M113+ only treats multiple encodings on an SVC capable codec as real
+  // simulcast when every encoding carries an explicit scalabilityMode next to its
+  // scaleResolutionDownBy. Without it the encodings are interpreted as legacy SVC.
+  const applySVCSimulcastMode = (encodings: RTCRtpEncodingParameters[]) => {
+    if (useSVCSimulcast) {
+      encodings.forEach((encoding) => {
+        /* @ts-ignore */
+        encoding.scalabilityMode = scalabilityMode;
+      });
+    }
+    return encodings;
+  };
+
   let presets: Array<VideoPreset>;
   if (isScreenShare) {
     presets =
@@ -220,13 +236,17 @@ export function computeVideoEncodings(
     //      based on other conditions.
     const size = Math.max(width, height);
     if (size >= 960 && midPreset) {
-      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate);
+      return applySVCSimulcastMode(
+        encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate),
+      );
     }
     if (size >= 480) {
-      return encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate);
+      return applySVCSimulcastMode(
+        encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate),
+      );
     }
   }
-  return encodingsFromPresets(width, height, [original]);
+  return applySVCSimulcastMode(encodingsFromPresets(width, height, [original]));
 }
 
 export function computeTrackBackupEncodings(

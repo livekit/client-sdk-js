@@ -185,6 +185,23 @@ export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): b
   }
 }
 
+/**
+ * VP9 and AV1 are published as SVC (a single RTP stream carrying every spatial layer)
+ * by default. They can instead be published as real, rid based simulcast — one
+ * independent stream per rid, each carrying a single spatial layer — when the caller
+ * opts in with `simulcast: true` and a single spatial layer scalability mode (`L1Tx`).
+ *
+ * The SFU has to be told about this: without an explicit
+ * `SimulcastCodec.videoLayerMode` it assumes `MULTIPLE_SPATIAL_LAYERS_PER_STREAM` for
+ * any SVC capable codec.
+ */
+export function isSVCSimulcast(
+  codec?: string,
+  options?: { simulcast?: boolean; scalabilityMode?: string },
+): boolean {
+  return isSVCCodec(codec) && !!options?.simulcast && !!options.scalabilityMode?.startsWith('L1T');
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;

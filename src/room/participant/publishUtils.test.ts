@@ -116,6 +116,78 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
 
+  // svc carries the scalabilityMode on the first encoding only (whether it emits a
+  // single encoding or the legacy multi-encoding shape), simulcast carries it on all
+  const countScalabilityModes = (encodings?: RTCRtpEncodingParameters[]) =>
+    /* @ts-ignore */
+    encodings!.filter((encoding) => encoding.scalabilityMode !== undefined).length;
+
+  it('keeps svc for an svc codec without simulcast', () => {
+    const encodings = computeVideoEncodings(false, 960, 540, {
+      simulcast: false,
+      videoCodec: 'vp9',
+      scalabilityMode: 'L3T3_KEY',
+    });
+    /* @ts-ignore */
+    expect(encodings![0].scalabilityMode).toBe('L3T3_KEY');
+    expect(countScalabilityModes(encodings)).toBe(1);
+  });
+
+  it('keeps svc for an svc codec with a multi spatial layer mode even if simulcast is set', () => {
+    const encodings = computeVideoEncodings(false, 960, 540, {
+      simulcast: true,
+      videoCodec: 'vp9',
+      scalabilityMode: 'L3T3_KEY',
+    });
+    /* @ts-ignore */
+    expect(encodings![0].scalabilityMode).toBe('L3T3_KEY');
+    expect(countScalabilityModes(encodings)).toBe(1);
+  });
+
+  it('returns a simulcast ladder for an svc codec with simulcast and an L1Tx mode', () => {
+    for (const videoCodec of ['vp9', 'av1'] as const) {
+      const encodings = computeVideoEncodings(false, 960, 540, {
+        simulcast: true,
+        videoCodec,
+        scalabilityMode: 'L1T2',
+      });
+      expect(encodings).toHaveLength(3);
+      expect(encodings!.map((e) => e.rid)).toEqual(['q', 'h', 'f']);
+      // every encoding needs both scalabilityMode and scaleResolutionDownBy for chrome
+      // M113+ to treat them as real simulcast rather than legacy svc
+      encodings!.forEach((encoding) => {
+        /* @ts-ignore */
+        expect(encoding.scalabilityMode).toBe('L1T2');
+        expect(encoding.scaleResolutionDownBy).toBeGreaterThanOrEqual(1);
+      });
+    }
+  });
+
+  it('sets the scalability mode on a single encoding svc simulcast ladder', () => {
+    const encodings = computeVideoEncodings(false, 100, 120, {
+      simulcast: true,
+      videoCodec: 'vp9',
+      scalabilityMode: 'L1T3',
+    });
+    expect(encodings).toHaveLength(1);
+    expect(encodings![0].rid).toBe('q');
+    /* @ts-ignore */
+    expect(encodings![0].scalabilityMode).toBe('L1T3');
+  });
+
+  it('does not set a scalability mode for non-svc simulcast', () => {
+    const encodings = computeVideoEncodings(false, 960, 540, {
+      simulcast: true,
+      videoCodec: 'vp8',
+      scalabilityMode: 'L1T2',
+    });
+    expect(encodings).toHaveLength(3);
+    encodings!.forEach((encoding) => {
+      /* @ts-ignore */
+      expect(encoding.scalabilityMode).toBeUndefined();
+    });
+  });
+
   //   it('respects default backup codec encoding', () => {
   //     const vp8Encodings = computeTrackBackupEncodings(false, 100, 120, { simulcast: true });
   //     const h264Encodings = computeVideoEncodings(false, 100, 120, {

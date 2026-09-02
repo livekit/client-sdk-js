@@ -4,6 +4,7 @@ import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
+  isSVCSimulcast,
   negotiateDependencyDescriptor,
   splitUtf8,
   supportsAdaptiveStream,
@@ -278,5 +279,26 @@ describe('supportsAdaptiveStream', () => {
     vi.stubGlobal('IntersectionObserver', undefined);
 
     expect(supportsAdaptiveStream()).toBe(false);
+  });
+});
+
+describe('isSVCSimulcast', () => {
+  it('requires an svc capable codec, simulcast and a single spatial layer mode', () => {
+    expect(isSVCSimulcast('vp9', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(true);
+    expect(isSVCSimulcast('av1', { simulcast: true, scalabilityMode: 'L1T3' })).toBe(true);
+  });
+
+  it('stays on svc without the opt in', () => {
+    expect(isSVCSimulcast('vp9', { simulcast: false, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast('vp9', { simulcast: true })).toBe(false);
+    // a multi spatial layer mode is svc by definition
+    expect(isSVCSimulcast('vp9', { simulcast: true, scalabilityMode: 'L3T3_KEY' })).toBe(false);
+    expect(isSVCSimulcast('vp9', undefined)).toBe(false);
+  });
+
+  it('does not apply to non svc codecs', () => {
+    expect(isSVCSimulcast('vp8', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast('h264', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast(undefined, { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
   });
 });
