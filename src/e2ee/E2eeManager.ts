@@ -175,7 +175,7 @@ export class E2EEManager
             break;
           }
         }
-
+        log.error(data.error.message);
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
