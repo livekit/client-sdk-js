@@ -10,6 +10,7 @@ import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
+import { EngineEvent } from './events';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -917,6 +918,89 @@ describe('RTCEngine', () => {
       expect(internals.lostQualityTimeout).toBeUndefined();
       vi.advanceTimersByTime(LOST_TIMEOUT_MS);
       expect(handleDisconnect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('negotiate', () => {
+    /**
+     * An engine whose `pcManager` parks in `negotiate()` until its abort controller fires, so
+     * several negotiations can be held in flight at once. The controllers are captured so tests
+     * can check the abort actually reached each in-flight call.
+     */
+    function stubNegotiableEngine(engine: RTCEngine) {
+      const controllers: AbortController[] = [];
+      const negotiate = vi.fn((abortController: AbortController) => {
+        controllers.push(abortController);
+        return new Promise<void>((_resolve, reject) => {
+          abortController.signal.addEventListener(
+            'abort',
+            () => reject(new Error('negotiation aborted')),
+            { once: true },
+          );
+        });
+      });
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        _isClosed: false,
+        pcManager: {
+          requirePublisher: vi.fn(),
+          // a non-empty transceiver list keeps negotiate() off the createDataChannels path
+          publisher: { getTransceivers: () => [{}], off: vi.fn(), once: vi.fn() },
+          negotiate,
+        },
+        handleDisconnect: vi.fn(),
+      });
+      return { negotiate, controllers };
+    }
+
+    const pendingAborts = (engine: RTCEngine) =>
+      (engine as unknown as { pendingNegotiationAborts: Set<() => void> }).pendingNegotiationAborts;
+
+    it('does not add a Closing/Restarting listener per in-flight negotiate call', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const { negotiate, controllers } = stubNegotiableEngine(engine);
+
+      // A burst of server-initiated renegotiations used to stack a listener pair per call, which
+      // trips the emitter's max-listener warning at 11.
+      const closingBaseline = engine.listenerCount(EngineEvent.Closing);
+      const restartingBaseline = engine.listenerCount(EngineEvent.Restarting);
+
+      const pending = Array.from({ length: 20 }, () => engine.negotiate());
+      await tick();
+
+      expect(negotiate).toHaveBeenCalledTimes(20);
+      expect(engine.listenerCount(EngineEvent.Closing)).toBe(closingBaseline);
+      expect(engine.listenerCount(EngineEvent.Restarting)).toBe(restartingBaseline);
+
+      // The single central listener still has to reach every one of them.
+      engine.emit(EngineEvent.Closing);
+      await expect(Promise.all(pending)).resolves.toHaveLength(20);
+      expect(controllers).toHaveLength(20);
+      expect(controllers.every((c) => c.signal.aborted)).toBe(true);
+      expect(pendingAborts(engine).size).toBe(0);
+    });
+
+    it('aborts in-flight negotiations on restart without disarming later ones', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const { controllers } = stubNegotiableEngine(engine);
+
+      const firstBatch = [engine.negotiate(), engine.negotiate()];
+      await tick();
+      engine.emit(EngineEvent.Restarting);
+      await expect(Promise.all(firstBatch)).resolves.toHaveLength(2);
+      expect(controllers.every((c) => c.signal.aborted)).toBe(true);
+
+      // Restarting fires on every reconnect attempt, so the fan-out point has to re-arm: a
+      // negotiation started after a restart must not be aborted on arrival.
+      const afterRestart = engine.negotiate();
+      await tick();
+      expect(controllers).toHaveLength(3);
+      expect(controllers[2].signal.aborted).toBe(false);
+      expect(pendingAborts(engine).size).toBe(1);
+
+      engine.emit(EngineEvent.Restarting);
+      await expect(afterRestart).resolves.toBeUndefined();
+      expect(controllers[2].signal.aborted).toBe(true);
+      expect(pendingAborts(engine).size).toBe(0);
     });
   });
 });
