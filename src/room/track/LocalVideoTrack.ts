@@ -19,10 +19,16 @@ import type { LoggerOptions } from '../types';
 import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
-import type { TrackPublishOptions, VideoCaptureOptions, VideoCodec } from './options';
+import type {
+  ScreenShareCaptureOptions,
+  TrackPublishOptions,
+  VideoCaptureOptions,
+  VideoCodec,
+  VideoEncoding,
+} from './options';
 import { isBackupVideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
-import { constraintsForOptions } from './utils';
+import { constraintsForOptions, screenCaptureToDisplayMediaStreamOptions } from './utils';
 
 export class SimulcastTrackInfo {
   codec: VideoCodec;
@@ -285,8 +291,38 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await this.onSenderTrackSwapped();
   }
 
-  protected override async onSenderTrackSwapped(): Promise<void> {
-    await this.refreshSenderEncodings();
+  async applyScreenShareConstraints(
+    constraints: Pick<ScreenShareCaptureOptions, 'resolution' | 'contentHint'>,
+    videoEncoding?: VideoEncoding,
+  ): Promise<void> {
+    // Only valid for screen shares
+    if (this.source !== Track.Source.ScreenShare) {
+      return;
+    }
+
+    const mediaTrackConstraints = screenCaptureToDisplayMediaStreamOptions(constraints);
+
+    if (videoEncoding && this.publishOptions) {
+      this.publishOptions.screenShareEncoding = videoEncoding;
+    }
+
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      if (typeof mediaTrackConstraints.video === 'object') {
+        await this.mediaStreamTrack.applyConstraints(mediaTrackConstraints.video);
+      }
+      if (constraints.contentHint) this.mediaStreamTrack.contentHint = constraints.contentHint;
+    } finally {
+      unlock();
+    }
+
+    // Since resolution or encoding might be different, recompute the sender's encoding
+    // parameters.
+    await this.onSenderTrackSwapped(true);
+  }
+
+  protected override async onSenderTrackSwapped(ignoreDims = false): Promise<void> {
+    await this.refreshSenderEncodings(ignoreDims);
   }
 
   /**
@@ -295,7 +331,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * if the track hasn't been published yet or if the track is in performance-optimized
    * mode (which manages its own encodings).
    */
-  private async refreshSenderEncodings() {
+  private async refreshSenderEncodings(ignoreDims = false) {
     if (!this.sender || !this.publishOptions || this.optimizeForPerformance) {
       return;
     }
@@ -313,6 +349,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       }
 
       if (
+        !ignoreDims &&
         this.lastEncodedDimensions &&
         this.lastEncodedDimensions.width === dims.width &&
         this.lastEncodedDimensions.height === dims.height
