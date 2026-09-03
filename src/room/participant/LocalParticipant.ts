@@ -111,6 +111,7 @@ import {
   sleep,
   supportsAV1,
   supportsVP9,
+  usesLegacySVCEncodings,
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
@@ -1145,7 +1146,7 @@ export default class LocalParticipant extends Participant {
       if (isLocalVideoTrack(track)) {
         if (
           isSVCSimulcast(videoCodec, opts) &&
-          !isSVCSimulcastSupportedByServer(this.getServerVersion())
+          (usesLegacySVCEncodings() || !isSVCSimulcastSupportedByServer(this.getServerVersion()))
         ) {
           opts.simulcast = false;
         }

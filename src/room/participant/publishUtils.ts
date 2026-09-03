@@ -13,13 +13,12 @@ import type {
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import type { LoggerOptions } from '../types';
 import {
-  compareVersions,
   getReactNativeOs,
   isReactNative,
   isSVCCodec,
   isSVCSimulcast,
-  isSafariBased,
   isSafariSvcApi,
+  usesLegacySVCEncodings,
 } from '../utils';
 
 /** @internal */
@@ -145,20 +144,10 @@ export function computeVideoEncodings(
     if (sm.spatial > 3) {
       throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
-    // Before M113 in Chrome, defining multiple encodings with an SVC codec indicated
-    // that SVC mode should be used. Safari still works this way.
-    // This is a bit confusing but is due to how libwebrtc interpreted the encodings field
-    // before M113.
-    // Announced here: https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw?pli=1
+    // Browsers that read multiple encodings on an SVC codec as SVC rather than as
+    // simulcast, see usesLegacySVCEncodings
     const browser = getBrowser();
-    if (
-      isSafariBased() ||
-      // Even tho RN runs M114, it does not produce SVC layers when a single encoding
-      // is provided. So we'll use the legacy SVC specification for now.
-      // TODO: when we upstream libwebrtc, this will need additional verification
-      isReactNative() ||
-      (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
-    ) {
+    if (usesLegacySVCEncodings()) {
       const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
       // safari 18.4 uses a different svc API that requires scaleResolutionDownBy to be set.
       const requireScale = isSafariSvcApi(browser);

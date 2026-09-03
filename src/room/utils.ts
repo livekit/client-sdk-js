@@ -203,6 +203,31 @@ export function isSVCSimulcast(
 }
 
 /**
+ * Whether the browser reads multiple encodings on an SVC capable codec as *legacy SVC*
+ * rather than as real simulcast.
+ *
+ * Before Chrome M113, supplying more than one encoding for VP9/AV1 selected SVC mode;
+ * only from M113 does libwebrtc treat such encodings as simulcast, and only when each
+ * one carries its own scalabilityMode. Safari (and anything WebKit based, i. e. every
+ * browser on iOS) still uses the old interpretation, as does React Native's libwebrtc.
+ * Announced at https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw
+ *
+ * Where this is true the rids would not exist on the wire, so VP9/AV1 must be published
+ * as SVC no matter what the caller asked for.
+ */
+export function usesLegacySVCEncodings(): boolean {
+  const browser = getBrowser();
+  return (
+    isSafariBased() ||
+    // Even tho RN runs M114, it does not produce SVC layers when a single encoding
+    // is provided. So we'll use the legacy SVC specification for now.
+    // TODO: when we upstream libwebrtc, this will need additional verification
+    isReactNative() ||
+    (browser?.name === 'Chrome' && compareVersions(browser.version, '113') < 0)
+  );
+}
+
+/**
  * Last server version that doesn't support vp9/av1 simulcast.
  */
 const svcSimulcastMinServerVersion = '1.13.6';

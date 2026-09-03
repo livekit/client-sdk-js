@@ -10,6 +10,7 @@ import {
   splitUtf8,
   supportsAdaptiveStream,
   toWebsocketUrl,
+  usesLegacySVCEncodings,
 } from './utils';
 
 describe('toWebsocketUrl', () => {
@@ -321,5 +322,48 @@ describe('isSVCSimulcastSupportedByServer', () => {
   it('treats an unknown version as unsupported', () => {
     expect(isSVCSimulcastSupportedByServer(undefined)).toBe(false);
     expect(isSVCSimulcastSupportedByServer('')).toBe(false);
+  });
+});
+
+describe('usesLegacySVCEncodings', () => {
+  const stubUserAgent = (userAgent: string) =>
+    vi.stubGlobal('navigator', { userAgent, product: 'Gecko' });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const chrome = (v: string) =>
+    `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v} Safari/537.36`;
+
+  it('is legacy on chrome before M113', () => {
+    stubUserAgent(chrome('112.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is not legacy from chrome M113 onwards', () => {
+    stubUserAgent(chrome('113.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(false);
+    stubUserAgent(chrome('120.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(false);
+  });
+
+  it('is legacy on safari, which has no rid based svc simulcast', () => {
+    stubUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    );
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is legacy on iOS, where every browser is webkit', () => {
+    stubUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1',
+    );
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is legacy on react native regardless of chrome version', () => {
+    vi.stubGlobal('navigator', { userAgent: chrome('120.0.0.0'), product: 'ReactNative' });
+    expect(usesLegacySVCEncodings()).toBe(true);
   });
 });
