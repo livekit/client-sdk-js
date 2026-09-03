@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-<<<<<<< HEAD
 import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
-=======
-import { LogLevel, _getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
 import Room from '../room/Room';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
@@ -48,11 +44,7 @@ function makeManager() {
 
 describe('E2EEManager log-level listener lifecycle', () => {
   const startingLevel = workerLogger.getLevel();
-<<<<<<< HEAD
   const startingCount = getWorkerLogLevelListenerCount();
-=======
-  const startingCount = _getWorkerLogLevelListenerCount();
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
 
   afterEach(() => {
     setLogLevel(startingLevel);
@@ -78,11 +70,7 @@ describe('E2EEManager log-level listener lifecycle', () => {
     setLogLevel(LogLevel.warn);
 
     expect(worker.postMessage).not.toHaveBeenCalled();
-<<<<<<< HEAD
     expect(getWorkerLogLevelListenerCount()).toBe(startingCount);
-=======
-    expect(_getWorkerLogLevelListenerCount()).toBe(startingCount);
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
   });
 
   it('re-setup with a new room does not stack listeners', () => {
@@ -90,15 +78,9 @@ describe('E2EEManager log-level listener lifecycle', () => {
     const roomA = new Room();
     const roomB = new Room();
     manager.setup(roomA);
-<<<<<<< HEAD
     const countAfterFirst = getWorkerLogLevelListenerCount();
     manager.setup(roomB);
     expect(getWorkerLogLevelListenerCount()).toBe(countAfterFirst);
-=======
-    const countAfterFirst = _getWorkerLogLevelListenerCount();
-    manager.setup(roomB);
-    expect(_getWorkerLogLevelListenerCount()).toBe(countAfterFirst);
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
 
     worker.postMessage.mockClear();
     setLogLevel(LogLevel.debug);
@@ -112,11 +94,7 @@ describe('E2EEManager log-level listener lifecycle', () => {
     manager.setup(room);
     manager.dispose();
     manager.dispose();
-<<<<<<< HEAD
     expect(getWorkerLogLevelListenerCount()).toBe(startingCount);
-=======
-    expect(_getWorkerLogLevelListenerCount()).toBe(startingCount);
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
   });
 
   it('dispose() rejects pending encrypt/decrypt futures and clears both maps', async () => {
@@ -176,11 +154,7 @@ describe('E2EEManager GC cleanup', () => {
   it.skipIf(!(globalThis as any).gc)(
     'releases the log-level listener when the manager is garbage collected',
     async () => {
-<<<<<<< HEAD
       const before = getWorkerLogLevelListenerCount();
-=======
-      const before = _getWorkerLogLevelListenerCount();
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
 
       // Construct + subscribe in an IIFE so nothing lives on the test's stack.
       // Direct call to the private subscription — no Room, no leaky graph.
@@ -194,11 +168,7 @@ describe('E2EEManager GC cleanup', () => {
           false,
         );
         (manager as unknown as { subscribeToLogLevelChanges(): void }).subscribeToLogLevelChanges();
-<<<<<<< HEAD
         expect(getWorkerLogLevelListenerCount()).toBe(before + 1);
-=======
-        expect(_getWorkerLogLevelListenerCount()).toBe(before + 1);
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
         return new WeakRef(manager);
       })();
 
@@ -211,27 +181,16 @@ describe('E2EEManager GC cleanup', () => {
       // Read the listener count (which does not touch the referent) instead.
       const gc = (globalThis as any).gc as (opts?: { type?: 'major'; execution?: 'sync' }) => void;
       for (let i = 0; i < 50; i++) {
-<<<<<<< HEAD
         // eslint-disable-next-line no-void
         void new Array(100_000).fill({ i });
         gc({ type: 'major', execution: 'sync' });
         await new Promise((r) => setImmediate(r));
         if (getWorkerLogLevelListenerCount() === before) break;
-=======
-        void new Array(100_000).fill({ i });
-        gc({ type: 'major', execution: 'sync' });
-        await new Promise((r) => setImmediate(r));
-        if (_getWorkerLogLevelListenerCount() === before) break;
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
       }
 
       // Diagnostic: separate "manager wasn't collected" from "FR didn't fire".
       expect(managerRef.deref(), 'manager was not collected — strong ref leaked').toBeUndefined();
-<<<<<<< HEAD
       expect(getWorkerLogLevelListenerCount()).toBe(before);
-=======
-      expect(_getWorkerLogLevelListenerCount()).toBe(before);
->>>>>>> 6c108c99 (add tests and reject pending futures on dispose)
     },
   );
 });
