@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
-import log, { LogLevel, onWorkerLogLevelChanged, workerLogger } from '../logger';
+import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -90,6 +90,15 @@ export class E2EEManager
 
   private unsubscribeLogLevel?: () => void;
 
+  private log = getLogger(LoggerNames.E2EE, () => this.logContext);
+
+  get logContext() {
+    return {
+      room: this.room?.name,
+      participant: this.room?.localParticipant.identity,
+    };
+  }
+
   /**
    * Runs a cleanup callback once this manager is garbage collected. Lets the
    * log-level listener (held in a module-global Set on the main-thread logger)
@@ -127,7 +136,7 @@ export class E2EEManager
         'tried to setup end-to-end encryption on an unsupported browser',
       );
     }
-    log.info('setting up e2ee');
+    this.log.info('setting up e2ee');
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
@@ -140,7 +149,7 @@ export class E2EEManager
         },
       };
       if (this.worker) {
-        log.info(`initializing worker`, { worker: this.worker });
+        this.log.info(`initializing worker`, { worker: this.worker });
         this.worker.onmessage = this.onWorkerMessage;
         this.worker.onerror = this.onWorkerError;
         this.worker.postMessage(msg);
@@ -219,7 +228,7 @@ export class E2EEManager
    * @internal
    */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string) {
-    log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
+    this.log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
     this.postEnable(enabled, participantIdentity);
   }
 
@@ -228,7 +237,7 @@ export class E2EEManager
    */
   setSifTrailer(trailer: NonSharedUint8Array) {
     if (!trailer || trailer.length === 0) {
-      log.warn("ignoring server sent trailer as it's empty");
+      this.log.warn("ignoring server sent trailer as it's empty");
     } else {
       this.postSifTrailer(trailer);
     }
@@ -254,7 +263,7 @@ export class E2EEManager
             break;
           }
         }
-        log.error(data.error.message);
+        this.log.error(data.error.message);
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
@@ -324,7 +333,7 @@ export class E2EEManager
   };
 
   private onWorkerError = (ev: ErrorEvent) => {
-    log.error('e2ee worker encountered an error:', { error: ev.error });
+    this.log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
@@ -571,8 +580,7 @@ export class E2EEManager
     participantIdentity: string,
   ) {
     if (!pub.trackInfo) {
-      log.warn('skipping e2ee enabled update for publication without trackInfo', {
-        participant: participantIdentity,
+      this.log.warn('skipping e2ee enabled update for publication without trackInfo', {
         trackSid: pub.trackSid,
       });
       return;
@@ -605,7 +613,7 @@ export class E2EEManager
 
   private setupE2EESender(track: Track, sender: RTCRtpSender) {
     if (!isLocalTrack(track) || !sender) {
-      if (!sender) log.warn('early return because sender is not ready');
+      if (!sender) this.log.warn('early return because sender is not ready');
       return;
     }
     this.handleSender(
@@ -721,7 +729,7 @@ export class E2EEManager
     }
 
     if (isScriptTransformSupportedForWorker()) {
-      log.info('initialize script transform');
+      this.log.info('initialize script transform');
       const options: ScriptTransformOptions = {
         kind: 'encode',
         participantIdentity: this.room.localParticipant.identity,
@@ -733,7 +741,7 @@ export class E2EEManager
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      log.info('initialize encoded streams');
+      this.log.info('initialize encoded streams');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {
