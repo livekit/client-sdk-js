@@ -166,6 +166,12 @@ export interface InternalRoomConnectOptions {
    */
   rtcConfig?: RTCConfiguration;
 
+  /**
+   * when the server runs ICE lite, asks it to use a full ICE agent for this participant.
+   * this is a server-side setting that the server may ignore, defaults to false
+   */
+  disableIceLite?: boolean;
+
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
 

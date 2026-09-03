@@ -206,6 +206,74 @@ describe('SignalClient.connect', () => {
         ClientInfo_Capability.CAP_PACKET_TRAILER,
       ]);
     });
+
+    it('does not request full ICE by default', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joinRequest.connectionSettings?.disableIceLite).toBe(false);
+    });
+
+    it('requests full ICE in the join request when disableIceLite is set', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', {
+        ...defaultOptions,
+        disableIceLite: true,
+      });
+
+      const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joinRequest.connectionSettings?.disableIceLite).toBe(true);
+    });
+
+    it('requests full ICE on the v0 path when disableIceLite is set', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        { ...defaultOptions, disableIceLite: true },
+        undefined,
+        true,
+      );
+
+      expect(new URL(capturedUrl).searchParams.get('disable_ice_lite')).toBe('1');
+    });
   });
 
   describe('Happy Path - Reconnect', () => {
