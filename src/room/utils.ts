@@ -202,6 +202,23 @@ export function isSVCSimulcast(
   return isSVCCodec(codec) && !!options?.simulcast && !!options.scalabilityMode?.startsWith('L1T');
 }
 
+/**
+ * Last server version that doesn't support vp9/av1 simulcast.
+ */
+const svcSimulcastMinServerVersion = '1.13.6';
+
+/**
+ * Whether the connected server honours `SimulcastCodec.videoLayerMode`, i. e. whether
+ * VP9/AV1 can be published as rid based simulcast. An unknown version is treated as
+ * unsupported so the publish falls back to SVC.
+ */
+export function isSVCSimulcastSupportedByServer(serverVersion?: string): boolean {
+  if (!serverVersion) {
+    return false;
+  }
+  return compareVersions(serverVersion, svcSimulcastMinServerVersion) > 0;
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;

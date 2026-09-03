@@ -103,6 +103,7 @@ import {
   isLocalVideoTrack,
   isSVCCodec,
   isSVCSimulcast,
+  isSVCSimulcastSupportedByServer,
   isSafari17Based,
   isVideoCodec,
   isVideoTrack,
@@ -240,6 +241,11 @@ export default class LocalParticipant extends Participant {
     if (track) {
       return track as LocalTrackPublication;
     }
+  }
+
+  private getServerVersion(): string | undefined {
+    const joinResponse = this.engine?.latestJoinResponse;
+    return joinResponse?.serverInfo?.version || joinResponse?.serverVersion || undefined;
   }
 
   /**
@@ -1137,6 +1143,13 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (isLocalVideoTrack(track)) {
+        if (
+          isSVCSimulcast(videoCodec, opts) &&
+          !isSVCSimulcastSupportedByServer(this.getServerVersion())
+        ) {
+          opts.simulcast = false;
+        }
+
         // when the caller asked for VP9/AV1 as rid based simulcast (simulcast + an L1Tx
         // scalability mode) the SVC defaults below must not apply: they would replace the
         // requested mode and force a contentHint that only makes sense for SVC screenshare.

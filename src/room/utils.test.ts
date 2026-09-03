@@ -5,6 +5,7 @@ import {
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isSVCSimulcast,
+  isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
   splitUtf8,
   supportsAdaptiveStream,
@@ -300,5 +301,25 @@ describe('isSVCSimulcast', () => {
     expect(isSVCSimulcast('vp8', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
     expect(isSVCSimulcast('h264', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
     expect(isSVCSimulcast(undefined, { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+  });
+});
+
+describe('isSVCSimulcastSupportedByServer', () => {
+  it('requires a server newer than 1.13.6', () => {
+    expect(isSVCSimulcastSupportedByServer('1.13.7')).toBe(true);
+    expect(isSVCSimulcastSupportedByServer('1.14.0')).toBe(true);
+    expect(isSVCSimulcastSupportedByServer('2.0.0')).toBe(true);
+  });
+
+  it('rejects 1.13.6 and older', () => {
+    expect(isSVCSimulcastSupportedByServer('1.13.6')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('1.13.5')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('1.9.0')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('0.15.1')).toBe(false);
+  });
+
+  it('treats an unknown version as unsupported', () => {
+    expect(isSVCSimulcastSupportedByServer(undefined)).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('')).toBe(false);
   });
 });
