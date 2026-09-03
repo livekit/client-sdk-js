@@ -184,8 +184,10 @@ export class E2EEManager
   }
 
   /**
-   * Release the log-level subscription and detach the worker message handlers.
-   * The worker itself is caller-owned and is not terminated. Idempotent.
+   * @internal
+   * Release the log-level subscription, reject any pending encrypt/decrypt
+   * futures, and detach the worker message handlers. The worker itself is
+   * caller-owned and is not terminated. Idempotent.
    */
   dispose() {
     this.unsubscribeLogLevel?.();
@@ -193,6 +195,19 @@ export class E2EEManager
     if (E2EEManager.disposeRegistry) {
       E2EEManager.disposeRegistry.unregister(this);
     }
+
+    // Reject pending futures BEFORE detaching worker handlers, so any late
+    // response can't resolve one after we've cut the pipe. Each future's
+    // `onFinally` deletes its own map entry, so both maps drain themselves.
+    // Snapshot before iterating in case a rejection handler mutates the map.
+    const disposalError = new Error('E2EEManager disposed');
+    for (const future of [...this.encryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+    for (const future of [...this.decryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+
     if (this.worker) {
       this.worker.onmessage = null;
       this.worker.onerror = null;
