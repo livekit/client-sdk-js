@@ -1,6 +1,7 @@
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import { getErrorDescription } from '../../api/utils';
 import {
   appendPacketTrailerToEncodedFrame,
   processPacketTrailer,
@@ -22,6 +23,7 @@ import type {
   RatchetResult,
 } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
+import { ErrorRateLimiter } from './ErrorRateLimiter';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
 import { identifySifPayload } from './sifPayload';
@@ -111,18 +113,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private frameMetadataFrameId = 0;
 
-  /**
-   * Throttling mechanism for decryption errors to prevent memory leaks
-   */
-  private lastErrorTimestamp: Map<string, number> = new Map();
-
-  private errorCounts: Map<string, number> = new Map();
-
-  private readonly ERROR_THROTTLE_MS = 1000; // Emit error at most once per second
-
-  private readonly MAX_ERRORS_PER_MINUTE = 5; // Maximum errors to emit per minute per key
-
-  private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
+  private errorLimiter = new ErrorRateLimiter();
 
   private undecryptedTrackTimeout?: ReturnType<typeof setTimeout>;
 
@@ -196,8 +187,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     clearTimeout(this.undecryptedTrackTimeout);
     this.undecryptedTrackTimeout = undefined;
     this.participantIdentity = undefined;
-    this.lastErrorTimestamp = new Map();
-    this.errorCounts = new Map();
+    this.errorLimiter.reset();
   }
 
   isEnabled() {
@@ -421,64 +411,24 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.sifTrailer = trailer;
   }
 
-  /**
-   * Checks if we should emit an error based on throttling rules to prevent memory leaks
-   * @param errorKey - unique key identifying the error context
-   * @returns true if the error should be emitted, false otherwise
-   */
-  private shouldEmitError(errorKey: string): boolean {
-    const now = Date.now();
-    const lastErrorTime = this.lastErrorTimestamp.get(errorKey) ?? 0;
-    const errorCount = this.errorCounts.get(errorKey) ?? 0;
-
-    // Reset count if we're in a new time window
-    if (now - lastErrorTime > this.ERROR_WINDOW_MS) {
-      this.errorCounts.set(errorKey, 0);
-      this.lastErrorTimestamp.set(errorKey, now);
-      return true;
-    }
-
-    // Check if we've exceeded the throttle time
-    if (now - lastErrorTime < this.ERROR_THROTTLE_MS) {
-      return false;
-    }
-
-    // Check if we've exceeded the max errors per window
-    if (errorCount >= this.MAX_ERRORS_PER_MINUTE) {
-      // Only log a warning once when hitting the limit
-      if (errorCount === this.MAX_ERRORS_PER_MINUTE) {
-        workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
-          ...this.logContext,
-          errorKey,
-        });
-        this.errorCounts.set(errorKey, errorCount + 1);
-      }
-      return false;
-    }
-
-    // Update tracking
-    this.lastErrorTimestamp.set(errorKey, now);
-    this.errorCounts.set(errorKey, errorCount + 1);
-    return true;
-  }
-
-  /**
-   * Emits a throttled error to prevent memory leaks from repeated decryption failures
-   * @param error - the CryptorError to emit
-   */
   private emitThrottledError(error: CryptorError) {
     const errorKey = `${this.participantIdentity}-${error.reason}-decrypt`;
+    const emit = this.errorLimiter.shouldEmit(errorKey, () => {
+      workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
+        ...this.logContext,
+        errorKey,
+      });
+    });
+    if (!emit) return;
 
-    if (this.shouldEmitError(errorKey)) {
-      const errorCount = this.errorCounts.get(errorKey) ?? 0;
-      if (errorCount > 1) {
-        workerLogger.debug(`Decryption error (${errorCount} occurrences in window)`, {
-          ...this.logContext,
-          reason: CryptorErrorReason[error.reason],
-        });
-      }
-      this.emit(CryptorEvent.Error, error);
+    const count = this.errorLimiter.countFor(errorKey);
+    if (count > 1) {
+      workerLogger.debug(`Decryption error (${count} occurrences in window)`, {
+        ...this.logContext,
+        reason: CryptorErrorReason[error.reason],
+      });
     }
+    this.emit(CryptorEvent.Error, error);
   }
 
   /**
@@ -587,7 +537,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
         // TODO: surface this to the app.
-        workerLogger.error(e);
+        workerLogger.error(`error while encrypting`, { ...this.logContext, error: e });
       }
     } else {
       workerLogger.debug('failed to encrypt, emitting error', this.logContext);
@@ -858,7 +808,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         }
       } else {
         throw new CryptorError(
-          `Decryption failed: ${error.message}`,
+          `Decryption failed: ${getErrorDescription(error, 'decryption')}`,
           CryptorErrorReason.InvalidKey,
           this.participantIdentity,
         );

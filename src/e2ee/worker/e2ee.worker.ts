@@ -18,6 +18,7 @@ import type {
   ScriptTransformOptions,
 } from '../types';
 import { DataCryptor } from './DataCryptor';
+import { ErrorRateLimiter } from './ErrorRateLimiter';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -36,7 +37,20 @@ let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 let rtpMap: Map<number, VideoCodec> = new Map();
 
+const dataDecryptErrorLimiter = new ErrorRateLimiter();
+
 workerLogger.setDefaultLevel('info');
+
+// Forward worker log calls to the main thread so they reach any
+// setLogExtension consumer installed there. The main-thread workerLogger
+// re-emits them, which invokes both the console and the extension.
+workerLogger.methodFactory = (methodName) => (msg, context) => {
+  postMessage({
+    kind: 'log',
+    data: { level: methodName, msg, context },
+  });
+};
+workerLogger.setLevel(workerLogger.getLevel());
 
 onmessage = (ev) => {
   messageQueue.run(async () => {
@@ -45,7 +59,7 @@ onmessage = (ev) => {
     switch (kind) {
       case 'init':
         workerLogger.setLevel(data.loglevel);
-        workerLogger.info('worker initialized');
+        workerLogger.info('e2ee worker initialized');
         keyProviderOptions = data.keyProviderOptions;
         useSharedKey = !!data.keyProviderOptions.sharedKey;
         // acknowledge init successful
@@ -54,6 +68,9 @@ onmessage = (ev) => {
           data: { enabled: isEncryptionEnabled },
         };
         postMessage(ackMsg);
+        break;
+      case 'setLogLevel':
+        workerLogger.setLevel(data.level);
         break;
       case 'enable':
         setEncryptionEnabled(data.enabled, data.participantIdentity);
@@ -96,11 +113,6 @@ onmessage = (ev) => {
           data.payload,
           getParticipantKeyHandler(data.participantIdentity),
         );
-        console.log('encrypted payload', {
-          original: data.payload,
-          encrypted: encryptedPayload,
-          iv,
-        });
         postMessage({
           kind: 'encryptDataResponse',
           data: {
@@ -125,12 +137,23 @@ onmessage = (ev) => {
             data: { payload: decryptedPayload, uuid: data.uuid },
           } satisfies DecryptDataResponseMessage);
         } catch (error) {
-          // Send error back to main thread with uuid so it can reject the corresponding promise
-          workerLogger.error('DataCryptor decryption failed', {
-            error,
-            participantIdentity: data.participantIdentity,
-            uuid: data.uuid,
+          // Send error back to main thread with uuid so it can reject the corresponding promise.
+          // The error response must always be posted so the awaiting future resolves; only the
+          // log is throttled to avoid flooding when a broken key keeps producing failures.
+          const errorKey = `${data.participantIdentity}-datadecrypt`;
+          const shouldLog = dataDecryptErrorLimiter.shouldEmit(errorKey, () => {
+            workerLogger.warn(
+              `Suppressing further data decryption errors for ${data.participantIdentity}`,
+              { errorKey },
+            );
           });
+          if (shouldLog) {
+            workerLogger.error('DataCryptor decryption failed', {
+              error,
+              participantIdentity: data.participantIdentity,
+              uuid: data.uuid,
+            });
+          }
           postMessage({
             kind: 'error',
             data: {
