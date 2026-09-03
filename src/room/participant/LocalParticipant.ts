@@ -1150,9 +1150,6 @@ export default class LocalParticipant extends Participant {
           opts.simulcast = false;
         }
 
-        // when the caller asked for VP9/AV1 as rid based simulcast (simulcast + an L1Tx
-        // scalability mode) the SVC defaults below must not apply: they would replace the
-        // requested mode and force a contentHint that only makes sense for SVC screenshare.
         const svcSimulcast = isSVCSimulcast(videoCodec, opts);
         if (isSVCCodec(videoCodec) && !svcSimulcast) {
           if (track.source === Track.Source.ScreenShare) {
@@ -1181,8 +1178,6 @@ export default class LocalParticipant extends Participant {
           cid: track.mediaStreamTrack.id,
         });
         if (svcSimulcast) {
-          // without an explicit mode the SFU defaults SVC capable codecs to
-          // MULTIPLE_SPATIAL_LAYERS_PER_STREAM and would treat the rids as one SVC stream
           primaryCodec.videoLayerMode = VideoLayer_Mode.ONE_SPATIAL_LAYER_PER_STREAM;
         }
         req.simulcastCodecs = [primaryCodec];
