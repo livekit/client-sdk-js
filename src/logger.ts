@@ -150,6 +150,6 @@ export function onWorkerLogLevelChanged(cb: (level: LogLevel) => void): () => vo
 }
 
 /** @internal Test-only accessor: current number of workerLogger level listeners. */
-export function _getWorkerLogLevelListenerCount(): number {
+export function getWorkerLogLevelListenerCount(): number {
   return workerLogLevelListeners.size;
 }
