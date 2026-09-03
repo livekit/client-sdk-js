@@ -118,6 +118,7 @@ import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type RemoteParticipant from './RemoteParticipant';
 import {
+  computeStartTargetBitrate,
   computeTrackBackupEncodings,
   computeVideoEncodings,
   getDefaultDegradationPreference,
@@ -1272,12 +1273,9 @@ export default class LocalParticipant extends Participant {
             });
           }
         } else if (track.codec && isVideoCodec(track.codec)) {
-          // Apply start bitrate for all video codecs to prevent initial blurriness.
-          // - SVC codecs: use first encoding's bitrate (single stream with built-in layers)
-          // - Simulcast: sum all encoding bitrates (independent streams, BWE needs total)
-          const targetBitrate = isSVCCodec(track.codec)
-            ? (encodings[0]?.maxBitrate ?? 0)
-            : encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
+          // Apply start bitrate for all video codecs to prevent initial blurriness,
+          // see computeStartTargetBitrate
+          const targetBitrate = computeStartTargetBitrate(track.codec, opts, encodings);
           if (targetBitrate > 0) {
             this.engine.pcManager.publisher.setTrackCodecBitrate({
               cid: req.cid,

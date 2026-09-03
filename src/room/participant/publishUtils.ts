@@ -238,6 +238,32 @@ export function computeVideoEncodings(
   return applySVCSimulcastMode(encodingsFromPresets(width, height, [original]));
 }
 
+/**
+ * Bitrate to hint to the bandwidth estimator through `x-google-start-bitrate`, so that
+ * a publish does not spend its first seconds ramping up from a very low rate.
+ *
+ * It has to be the total the encoder will put on the wire, which means picking the
+ * encoding that carries the inclusive bitrate:
+ *  - SVC publishes a single stream with the layers built in. `encodings[0]` holds the
+ *    full bitrate — the legacy SVC shape orders its encodings `f`..`q`, so that holds
+ *    for both SVC shapes.
+ *  - Simulcast publishes independent streams ordered `q`..`f`, so the total is the sum.
+ *    This includes VP9/AV1 published as rid based simulcast, where `encodings[0]` is
+ *    the *smallest* layer even though the codec is SVC capable.
+ *
+ * @internal
+ */
+export function computeStartTargetBitrate(
+  codec: string,
+  options: TrackPublishOptions | undefined,
+  encodings: RTCRtpEncodingParameters[],
+): number {
+  if (isSVCCodec(codec) && !isSVCSimulcast(codec, options)) {
+    return encodings[0]?.maxBitrate ?? 0;
+  }
+  return encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
+}
+
 export function computeTrackBackupEncodings(
   track: LocalVideoTrack,
   videoCodec: BackupVideoCodec,

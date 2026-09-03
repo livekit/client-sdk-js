@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeDefaultScreenShareSimulcastPresets,
+  computeStartTargetBitrate,
   computeVideoEncodings,
   determineAppropriateEncoding,
   presets43,
@@ -263,5 +264,65 @@ describe('screenShareSimulcastDefaults', () => {
     expect(defaultSimulcastLayers[0].height).toBe(360);
     expect(defaultSimulcastLayers[0].encoding.maxFramerate).toBe(15);
     expect(defaultSimulcastLayers[0].encoding.maxBitrate).toBe(375000);
+  });
+});
+
+describe('computeStartTargetBitrate', () => {
+  // ordered q..f, as encodingsFromPresets builds them
+  const simulcastLadder: RTCRtpEncodingParameters[] = [
+    { rid: 'q', maxBitrate: 160_000 },
+    { rid: 'h', maxBitrate: 450_000 },
+    { rid: 'f', maxBitrate: 680_000 },
+  ];
+
+  it('sums the ladder for plain simulcast', () => {
+    expect(computeStartTargetBitrate('vp8', { simulcast: true }, simulcastLadder)).toBe(1_290_000);
+  });
+
+  it('sums the ladder for vp9/av1 published as rid simulcast', () => {
+    // encodings[0] is the *smallest* layer here, so taking it would under-hint BWE
+    for (const codec of ['vp9', 'av1'] as const) {
+      expect(
+        computeStartTargetBitrate(
+          codec,
+          { simulcast: true, videoCodec: codec, scalabilityMode: 'L1T2' },
+          simulcastLadder,
+        ),
+      ).toBe(1_290_000);
+    }
+  });
+
+  it('uses the single encoding for vp9/av1 svc', () => {
+    for (const codec of ['vp9', 'av1'] as const) {
+      expect(
+        computeStartTargetBitrate(
+          codec,
+          { simulcast: false, videoCodec: codec, scalabilityMode: 'L3T3_KEY' },
+          [{ maxBitrate: 680_000 }],
+        ),
+      ).toBe(680_000);
+    }
+  });
+
+  it('uses the first encoding for the legacy svc shape, which is ordered f..q', () => {
+    // legacy SVC pushes videoRids[2 - i], so encodings[0] carries the full bitrate
+    const legacySvc: RTCRtpEncodingParameters[] = [
+      { rid: 'f', maxBitrate: 680_000 },
+      { rid: 'h', maxBitrate: 226_667 },
+      { rid: 'q', maxBitrate: 75_556 },
+    ];
+    expect(
+      computeStartTargetBitrate(
+        'vp9',
+        { simulcast: false, videoCodec: 'vp9', scalabilityMode: 'L3T3_KEY' },
+        legacySvc,
+      ),
+    ).toBe(680_000);
+  });
+
+  it('handles missing bitrates and empty encodings', () => {
+    expect(computeStartTargetBitrate('vp8', { simulcast: true }, [])).toBe(0);
+    expect(computeStartTargetBitrate('vp9', undefined, [])).toBe(0);
+    expect(computeStartTargetBitrate('vp8', { simulcast: true }, [{ rid: 'q' }])).toBe(0);
   });
 });
