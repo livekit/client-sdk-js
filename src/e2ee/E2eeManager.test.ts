@@ -181,6 +181,7 @@ describe('E2EEManager GC cleanup', () => {
       // Read the listener count (which does not touch the referent) instead.
       const gc = (globalThis as any).gc as (opts?: { type?: 'major'; execution?: 'sync' }) => void;
       for (let i = 0; i < 50; i++) {
+        // eslint-disable-next-line no-void
         void new Array(100_000).fill({ i });
         gc({ type: 'major', execution: 'sync' });
         await new Promise((r) => setImmediate(r));
