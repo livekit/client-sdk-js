@@ -185,6 +185,65 @@ export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): b
   }
 }
 
+/**
+ * VP9 and AV1 are published as SVC (a single RTP stream carrying every spatial layer)
+ * by default. They can instead be published as real, rid based simulcast — one
+ * independent stream per rid, each carrying a single spatial layer — when the caller
+ * opts in with `simulcast: true` and a single spatial layer scalability mode (`L1Tx`).
+ *
+ * The SFU has to be told about this: without an explicit
+ * `SimulcastCodec.videoLayerMode` it assumes `MULTIPLE_SPATIAL_LAYERS_PER_STREAM` for
+ * any SVC capable codec.
+ */
+export function isSVCSimulcast(
+  codec?: string,
+  options?: { simulcast?: boolean; scalabilityMode?: string },
+): boolean {
+  return isSVCCodec(codec) && !!options?.simulcast && !!options.scalabilityMode?.startsWith('L1T');
+}
+
+/**
+ * Whether the browser reads multiple encodings on an SVC capable codec as *legacy SVC*
+ * rather than as real simulcast.
+ *
+ * Before Chrome M113, supplying more than one encoding for VP9/AV1 selected SVC mode;
+ * only from M113 does libwebrtc treat such encodings as simulcast, and only when each
+ * one carries its own scalabilityMode. Safari (and anything WebKit based, i. e. every
+ * browser on iOS) still uses the old interpretation, as does React Native's libwebrtc.
+ * Announced at https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw
+ *
+ * Where this is true the rids would not exist on the wire, so VP9/AV1 must be published
+ * as SVC no matter what the caller asked for.
+ */
+export function usesLegacySVCEncodings(): boolean {
+  const browser = getBrowser();
+  return (
+    isSafariBased() ||
+    // Even tho RN runs M114, it does not produce SVC layers when a single encoding
+    // is provided. So we'll use the legacy SVC specification for now.
+    // TODO: when we upstream libwebrtc, this will need additional verification
+    isReactNative() ||
+    (browser?.name === 'Chrome' && compareVersions(browser.version, '113') < 0)
+  );
+}
+
+/**
+ * Last server version that doesn't support vp9/av1 simulcast.
+ */
+const svcSimulcastMinServerVersion = '1.13.6';
+
+/**
+ * Whether the connected server honours `SimulcastCodec.videoLayerMode`, i. e. whether
+ * VP9/AV1 can be published as rid based simulcast. An unknown version is treated as
+ * unsupported so the publish falls back to SVC.
+ */
+export function isSVCSimulcastSupportedByServer(serverVersion?: string): boolean {
+  if (!serverVersion) {
+    return false;
+  }
+  return compareVersions(serverVersion, svcSimulcastMinServerVersion) > 0;
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;

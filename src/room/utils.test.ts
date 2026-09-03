@@ -4,10 +4,13 @@ import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
+  isSVCSimulcast,
+  isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
   splitUtf8,
   supportsAdaptiveStream,
   toWebsocketUrl,
+  usesLegacySVCEncodings,
 } from './utils';
 
 describe('toWebsocketUrl', () => {
@@ -278,5 +281,89 @@ describe('supportsAdaptiveStream', () => {
     vi.stubGlobal('IntersectionObserver', undefined);
 
     expect(supportsAdaptiveStream()).toBe(false);
+  });
+});
+
+describe('isSVCSimulcast', () => {
+  it('requires an svc capable codec, simulcast and a single spatial layer mode', () => {
+    expect(isSVCSimulcast('vp9', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(true);
+    expect(isSVCSimulcast('av1', { simulcast: true, scalabilityMode: 'L1T3' })).toBe(true);
+  });
+
+  it('stays on svc without the opt in', () => {
+    expect(isSVCSimulcast('vp9', { simulcast: false, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast('vp9', { simulcast: true })).toBe(false);
+    // a multi spatial layer mode is svc by definition
+    expect(isSVCSimulcast('vp9', { simulcast: true, scalabilityMode: 'L3T3_KEY' })).toBe(false);
+    expect(isSVCSimulcast('vp9', undefined)).toBe(false);
+  });
+
+  it('does not apply to non svc codecs', () => {
+    expect(isSVCSimulcast('vp8', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast('h264', { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+    expect(isSVCSimulcast(undefined, { simulcast: true, scalabilityMode: 'L1T2' })).toBe(false);
+  });
+});
+
+describe('isSVCSimulcastSupportedByServer', () => {
+  it('requires a server newer than 1.13.6', () => {
+    expect(isSVCSimulcastSupportedByServer('1.13.7')).toBe(true);
+    expect(isSVCSimulcastSupportedByServer('1.14.0')).toBe(true);
+    expect(isSVCSimulcastSupportedByServer('2.0.0')).toBe(true);
+  });
+
+  it('rejects 1.13.6 and older', () => {
+    expect(isSVCSimulcastSupportedByServer('1.13.6')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('1.13.5')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('1.9.0')).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('0.15.1')).toBe(false);
+  });
+
+  it('treats an unknown version as unsupported', () => {
+    expect(isSVCSimulcastSupportedByServer(undefined)).toBe(false);
+    expect(isSVCSimulcastSupportedByServer('')).toBe(false);
+  });
+});
+
+describe('usesLegacySVCEncodings', () => {
+  const stubUserAgent = (userAgent: string) =>
+    vi.stubGlobal('navigator', { userAgent, product: 'Gecko' });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const chrome = (v: string) =>
+    `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v} Safari/537.36`;
+
+  it('is legacy on chrome before M113', () => {
+    stubUserAgent(chrome('112.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is not legacy from chrome M113 onwards', () => {
+    stubUserAgent(chrome('113.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(false);
+    stubUserAgent(chrome('120.0.0.0'));
+    expect(usesLegacySVCEncodings()).toBe(false);
+  });
+
+  it('is legacy on safari, which has no rid based svc simulcast', () => {
+    stubUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    );
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is legacy on iOS, where every browser is webkit', () => {
+    stubUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1',
+    );
+    expect(usesLegacySVCEncodings()).toBe(true);
+  });
+
+  it('is legacy on react native regardless of chrome version', () => {
+    vi.stubGlobal('navigator', { userAgent: chrome('120.0.0.0'), product: 'ReactNative' });
+    expect(usesLegacySVCEncodings()).toBe(true);
   });
 });
