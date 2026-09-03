@@ -260,6 +260,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** timestamp (ms) the primary transport entered `CONNECTING`, used to bound how long we tolerate it */
   private transportConnectingSince?: number;
 
+  /**
+   * Abort handlers for the in-flight `negotiate()` calls, which a single central
+   * Closing/Restarting listener pair fans out to. Registering a listener pair per call instead
+   * accumulates them on the engine emitter and trips its max-listener warning under
+   * renegotiation bursts.
+   */
+  private pendingNegotiationAborts = new Set<() => void>();
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine, () => this.logContext);
@@ -300,6 +308,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
+
+    const abortPendingNegotiations = () => {
+      // Iterate a copy: each handler removes itself from the set as its negotiation settles.
+      for (const abort of Array.from(this.pendingNegotiationAborts)) {
+        abort();
+      }
+    };
+    this.on(EngineEvent.Closing, abortPendingNegotiations);
+    this.on(EngineEvent.Restarting, abortPendingNegotiations);
   }
 
   /** @internal */
@@ -1786,8 +1803,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.isClosed) {
         reject(new NegotiationError('cannot negotiate on closed engine'));
       }
-      this.on(EngineEvent.Closing, handleClosed);
-      this.on(EngineEvent.Restarting, handleClosed);
+      this.pendingNegotiationAborts.add(handleClosed);
       this.pcManager.publisher.off(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
       this.pcManager.publisher.once(PCEvents.RTPVideoPayloadTypes, this.onRtpMapAvailable);
 
@@ -1811,8 +1827,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reject(new Error(String(e)));
         }
       } finally {
-        this.off(EngineEvent.Closing, handleClosed);
-        this.off(EngineEvent.Restarting, handleClosed);
+        this.pendingNegotiationAborts.delete(handleClosed);
       }
     });
   }
