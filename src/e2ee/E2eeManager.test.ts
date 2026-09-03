@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LogLevel, _getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
+import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
 import Room from '../room/Room';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
@@ -44,7 +44,7 @@ function makeManager() {
 
 describe('E2EEManager log-level listener lifecycle', () => {
   const startingLevel = workerLogger.getLevel();
-  const startingCount = _getWorkerLogLevelListenerCount();
+  const startingCount = getWorkerLogLevelListenerCount();
 
   afterEach(() => {
     setLogLevel(startingLevel);
@@ -70,7 +70,7 @@ describe('E2EEManager log-level listener lifecycle', () => {
     setLogLevel(LogLevel.warn);
 
     expect(worker.postMessage).not.toHaveBeenCalled();
-    expect(_getWorkerLogLevelListenerCount()).toBe(startingCount);
+    expect(getWorkerLogLevelListenerCount()).toBe(startingCount);
   });
 
   it('re-setup with a new room does not stack listeners', () => {
@@ -78,9 +78,9 @@ describe('E2EEManager log-level listener lifecycle', () => {
     const roomA = new Room();
     const roomB = new Room();
     manager.setup(roomA);
-    const countAfterFirst = _getWorkerLogLevelListenerCount();
+    const countAfterFirst = getWorkerLogLevelListenerCount();
     manager.setup(roomB);
-    expect(_getWorkerLogLevelListenerCount()).toBe(countAfterFirst);
+    expect(getWorkerLogLevelListenerCount()).toBe(countAfterFirst);
 
     worker.postMessage.mockClear();
     setLogLevel(LogLevel.debug);
@@ -94,7 +94,7 @@ describe('E2EEManager log-level listener lifecycle', () => {
     manager.setup(room);
     manager.dispose();
     manager.dispose();
-    expect(_getWorkerLogLevelListenerCount()).toBe(startingCount);
+    expect(getWorkerLogLevelListenerCount()).toBe(startingCount);
   });
 
   it('dispose() rejects pending encrypt/decrypt futures and clears both maps', async () => {
@@ -154,7 +154,7 @@ describe('E2EEManager GC cleanup', () => {
   it.skipIf(!(globalThis as any).gc)(
     'releases the log-level listener when the manager is garbage collected',
     async () => {
-      const before = _getWorkerLogLevelListenerCount();
+      const before = getWorkerLogLevelListenerCount();
 
       // Construct + subscribe in an IIFE so nothing lives on the test's stack.
       // Direct call to the private subscription — no Room, no leaky graph.
@@ -168,7 +168,7 @@ describe('E2EEManager GC cleanup', () => {
           false,
         );
         (manager as unknown as { subscribeToLogLevelChanges(): void }).subscribeToLogLevelChanges();
-        expect(_getWorkerLogLevelListenerCount()).toBe(before + 1);
+        expect(getWorkerLogLevelListenerCount()).toBe(before + 1);
         return new WeakRef(manager);
       })();
 
@@ -185,12 +185,12 @@ describe('E2EEManager GC cleanup', () => {
         void new Array(100_000).fill({ i });
         gc({ type: 'major', execution: 'sync' });
         await new Promise((r) => setImmediate(r));
-        if (_getWorkerLogLevelListenerCount() === before) break;
+        if (getWorkerLogLevelListenerCount() === before) break;
       }
 
       // Diagnostic: separate "manager wasn't collected" from "FR didn't fire".
       expect(managerRef.deref(), 'manager was not collected — strong ref leaked').toBeUndefined();
-      expect(_getWorkerLogLevelListenerCount()).toBe(before);
+      expect(getWorkerLogLevelListenerCount()).toBe(before);
     },
   );
 });
