@@ -62,6 +62,7 @@ export interface BaseE2EEManager {
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+  dispose?(): void;
 }
 
 /**
@@ -86,6 +87,20 @@ export class E2EEManager
     new Map();
 
   private dataChannelEncryptionEnabled: boolean;
+
+  private unsubscribeLogLevel?: () => void;
+
+  /**
+   * Runs a cleanup callback once this manager is garbage collected. Lets the
+   * log-level listener (held in a module-global Set on the main-thread logger)
+   * fall out of scope even when the consumer forgets to call `dispose()`.
+   */
+  private static disposeRegistry =
+    typeof FinalizationRegistry !== 'undefined' &&
+    typeof WeakRef !== 'undefined' &&
+    new FinalizationRegistry((cleanup: () => void) => {
+      cleanup();
+    });
 
   constructor(options: E2EEManagerOptions, dcEncryptionEnabled: boolean) {
     super();
@@ -129,11 +144,75 @@ export class E2EEManager
         this.worker.onmessage = this.onWorkerMessage;
         this.worker.onerror = this.onWorkerError;
         this.worker.postMessage(msg);
-        onWorkerLogLevelChanged((level) => {
-          this.worker?.postMessage({ kind: 'setLogLevel', data: { level } });
-        });
+        this.subscribeToLogLevelChanges();
       }
     }
+  }
+
+  /**
+   * Subscribe the current worker to main-thread `workerLogger` level changes,
+   * without strongly retaining `this` or `this.worker` from the module-global
+   * listener Set on the logger. See {@link disposeRegistry}.
+   */
+  private subscribeToLogLevelChanges() {
+    // Guard against duplicate registration on re-setup.
+    this.unsubscribeLogLevel?.();
+
+    let unsub: (() => void) | undefined;
+    if (E2EEManager.disposeRegistry) {
+      // Modern engines: hold the worker weakly so the module-global listener Set
+      // on the logger can't retain this manager, and clean up the entry on GC.
+      const workerRef = new WeakRef(this.worker);
+      unsub = onWorkerLogLevelChanged((level) => {
+        const worker = workerRef.deref();
+        if (!worker) {
+          unsub?.();
+          return;
+        }
+        worker.postMessage({ kind: 'setLogLevel', data: { level } });
+      });
+      E2EEManager.disposeRegistry.register(this, unsub, this);
+    } else {
+      // Safari <14.1 and similar: no WeakRef. Fall back to a strong reference;
+      // the leak lives until the consumer calls `dispose()`.
+      const worker = this.worker;
+      unsub = onWorkerLogLevelChanged((level) => {
+        worker.postMessage({ kind: 'setLogLevel', data: { level } });
+      });
+    }
+    this.unsubscribeLogLevel = unsub;
+  }
+
+  /**
+   * @internal
+   * Release the log-level subscription, reject any pending encrypt/decrypt
+   * futures, and detach the worker message handlers. The worker itself is
+   * caller-owned and is not terminated. Idempotent.
+   */
+  dispose() {
+    this.unsubscribeLogLevel?.();
+    this.unsubscribeLogLevel = undefined;
+    if (E2EEManager.disposeRegistry) {
+      E2EEManager.disposeRegistry.unregister(this);
+    }
+
+    // Reject pending futures BEFORE detaching worker handlers, so any late
+    // response can't resolve one after we've cut the pipe. Each future's
+    // `onFinally` deletes its own map entry, so both maps drain themselves.
+    // Snapshot before iterating in case a rejection handler mutates the map.
+    const disposalError = new Error('E2EEManager disposed');
+    for (const future of [...this.encryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+    for (const future of [...this.decryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+
+    if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.onerror = null;
+    }
+    this.removeAllListeners();
   }
 
   /**
@@ -175,7 +254,7 @@ export class E2EEManager
             break;
           }
         }
-
+        log.error(data.error.message);
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
