@@ -581,38 +581,61 @@ export class SignalClient {
           this.streamWriter = connection.writable.getWriter();
 
           // wsTimeout only guarded the upgrade; guard the first-message read with
-          // its own timeout so a silent server can't hang join() forever.
-          let firstMessage: ReadableStreamReadResult<string | ArrayBuffer>;
-          let firstMessageTimeout: ReturnType<typeof setTimeout> | undefined;
+          // its own deadline so a silent server can't hang join() forever.
+          // During reconnect, drop any stray messages that arrive before the
+          // ReconnectResponse so we do not declare the channel reconnected on the
+          // wrong signal.
+          let firstSignalResponse: SignalResponse;
           try {
-            firstMessage = await Promise.race([
-              signalReader.read(),
-              new Promise<never>((_, rejectRead) => {
-                firstMessageTimeout = setTimeout(() => {
-                  rejectRead(
-                    ConnectionError.timeout(
-                      'signal connection timed out while waiting for the first message',
-                    ),
-                  );
-                }, JOIN_RESPONSE_TIMEOUT);
-              }),
-            ]);
+            const deadline = Date.now() + JOIN_RESPONSE_TIMEOUT;
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+              const remaining = deadline - Date.now();
+              if (remaining <= 0) {
+                throw ConnectionError.timeout(
+                  'signal connection timed out while waiting for the first message',
+                );
+              }
+              let readTimeout: ReturnType<typeof setTimeout> | undefined;
+              const readResult = await Promise.race([
+                signalReader.read(),
+                new Promise<never>((_, rejectRead) => {
+                  readTimeout = setTimeout(() => {
+                    rejectRead(
+                      ConnectionError.timeout(
+                        'signal connection timed out while waiting for the first message',
+                      ),
+                    );
+                  }, remaining);
+                }),
+              ]);
+              clearTimeout(readTimeout);
+              if (!readResult.value) {
+                throw ConnectionError.internal('no message received as first message');
+              }
+              const parsed = parseSignalResponse(readResult.value);
+              if (
+                this.lifecycleState === 'reconnecting' &&
+                parsed.message?.case !== 'reconnect' &&
+                parsed.message?.case !== 'leave'
+              ) {
+                this.log.warn('dropping signal message while awaiting reconnect response', {
+                  messageCase: parsed.message?.case,
+                });
+                continue;
+              }
+              firstSignalResponse = parsed;
+              break;
+            }
           } catch (e) {
-            // No first message in time: release the reader and tear down the ws
+            // No usable first message in time: release the reader and tear down the ws
             // so we surface the timeout instead of leaking an open connection.
             signalReader.releaseLock();
             reject(e);
             this.close();
             return;
-          } finally {
-            clearTimeout(firstMessageTimeout);
           }
           signalReader.releaseLock();
-          if (!firstMessage.value) {
-            throw ConnectionError.internal('no message received as first message');
-          }
-
-          const firstSignalResponse = parseSignalResponse(firstMessage.value);
 
           // Validate the first message
           const validation = this.validateFirstMessage(
@@ -643,11 +666,7 @@ export class SignalClient {
             }
           }
 
-          // Handle successful connection
-          const firstMessageToProcess = validation.shouldProcessFirstMessage
-            ? firstSignalResponse
-            : undefined;
-          this.handleSignalConnected(connection, wsTimeout, attemptId, firstMessageToProcess);
+          this.handleSignalConnected(connection, wsTimeout, attemptId);
           resolve(validation.response);
         } catch (e) {
           reject(e);
@@ -660,13 +679,7 @@ export class SignalClient {
     });
   }
 
-  async startReadingLoop(
-    signalReader: ReadableStreamDefaultReader<string | ArrayBuffer>,
-    firstMessage?: SignalResponse,
-  ) {
-    if (firstMessage) {
-      this.handleSignalResponse(firstMessage);
-    }
+  async startReadingLoop(signalReader: ReadableStreamDefaultReader<string | ArrayBuffer>) {
     const attemptId = this.attemptId;
     while (true) {
       if (this.signalLatency) {
@@ -1184,7 +1197,6 @@ export class SignalClient {
     connection: WebSocketConnection,
     timeoutHandle: ReturnType<typeof setTimeout>,
     attemptId: number,
-    firstMessage?: SignalResponse,
   ) {
     clearTimeout(timeoutHandle);
     const established = this.sendLifecycleInput(
@@ -1205,7 +1217,7 @@ export class SignalClient {
     }
     this.log.info('signal connected');
     this.startPingInterval();
-    this.startReadingLoop(connection.readable.getReader(), firstMessage);
+    this.startReadingLoop(connection.readable.getReader());
   }
 
   /**
@@ -1222,7 +1234,6 @@ export class SignalClient {
     isValid: boolean;
     response?: JoinResponse | ReconnectResponse;
     error?: ConnectionError;
-    shouldProcessFirstMessage?: boolean;
   } {
     if (firstSignalResponse.message?.case === 'join') {
       return {
@@ -1231,22 +1242,12 @@ export class SignalClient {
       };
     } else if (
       this.lifecycleState === 'reconnecting' &&
-      firstSignalResponse.message?.case !== 'leave'
+      firstSignalResponse.message?.case === 'reconnect'
     ) {
-      if (firstSignalResponse.message?.case === 'reconnect') {
-        return {
-          isValid: true,
-          response: firstSignalResponse.message.value,
-        };
-      } else {
-        // in reconnecting, any message received means signal reconnected and we still need to process it
-        this.log.debug('declaring signal reconnected without reconnect response received');
-        return {
-          isValid: true,
-          response: undefined,
-          shouldProcessFirstMessage: true,
-        };
-      }
+      return {
+        isValid: true,
+        response: firstSignalResponse.message.value,
+      };
     } else if (this.isEstablishingConnection && firstSignalResponse.message?.case === 'leave') {
       return {
         isValid: false,

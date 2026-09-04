@@ -174,9 +174,7 @@ describe.skipIf(!!unavailable)('SignalClient e2e', () => {
 
     it('rejects a reconnect when a leave arrives as the first message', async () => {
       // Reconnecting into a room that sends leave-first exercises the client's
-      // first-message validation while in RECONNECTING (path-independent: it
-      // doesn't rely on the mock detecting reconnect, which v1 hides inside the
-      // gzipped join_request the mock ignores).
+      // first-message validation while in RECONNECTING.
       await join('happy');
       const token = await createToken({ signal: 'leave_first_message' });
       const err = await client.reconnect(serverUrl, token, 'RM_session').then(
