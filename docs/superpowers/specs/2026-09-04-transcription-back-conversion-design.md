@@ -176,23 +176,36 @@ Populate the timings only when `json_format` is detected.
 
 ### Plumbing: stream fan-out
 
-`src/room/data-stream/incoming/IncomingDataStreamManager.ts` gains an **internal text-stream
-observer** registry that runs alongside the public `textStreamHandlers` map (`:40`). In the text path
-of `handleStreamHeader`, build an **independent** `TextStreamReader` per applicable consumer;
-generalize `textStreamControllers` (`:36`) from one controller per stream id to a list, and push to
-all of them in `handleStreamChunk` / `handleStreamTrailer`.
+`src/room/data-stream/incoming/IncomingDataStreamManager.ts` becomes a typed event emitter
+(`TypedEmitter<IncomingDataStreamManagerCallbacks>`, with the callbacks declared in a sibling
+`events.ts` per the manager pattern) and taps the reserved transcription topic with a
+**`transcriptionStreamArrived`** event carrying `{ reader, participantIdentity }`. `Room` subscribes
+to it rather than registering a handler for the topic, so the topic itself stays available to
+applications.
 
-This preserves today's "no handler, ignore the stream" behavior when neither consumer exists, and it
-keeps `room.registerTextStreamHandler('lk.transcription', ...)` working — which is what allows
-components-js to remain untouched.
+The event is named for the *stream* arriving, not a transcription: it fires when the stream opens,
+before any text has been read, and deliberately avoids the legacy `transcriptionReceived` name.
+
+Internally that means the text path delivers to N consumers instead of one. In `handleStreamHeader`,
+build an **independent** `TextStreamReader` per consumer — the application handler for the topic,
+plus a synthetic consumer that emits the event when the topic matches and something is listening;
+generalize `textStreamControllers` (`:36`) from one controller per stream id to a list, and push to
+all of them in `handleStreamChunk` / `handleStreamTrailer`. All consumers of a stream share one
+`info` object, so a trailer's attribute merge (how `lk.transcription_final` arrives) reaches every
+reader.
+
+Gating the synthetic consumer on `listenerCount('transcriptionStreamArrived') > 0` preserves today's
+"no consumer, ignore the stream" behavior, and the application handler path is untouched — which is
+what allows components-js to remain untouched.
 
 This is the bulk of the implementation work.
 
 ### Wire-up and lifecycle
 
-- Instantiate the converter in `Room` and register it as the internal observer for
-  `lk.transcription` near the existing internal handler registrations (`Room.ts:2590`).
-- Add `TRANSCRIPTION_TOPIC = 'lk.transcription'` to `src/room/data-stream/constants.ts`.
+- Instantiate the converter in `Room` alongside `incomingDataStreamManager` and subscribe it to the
+  manager's `transcriptionStreamArrived` event.
+- Add `TRANSCRIPTION_TOPIC = 'lk.transcription'` to `src/room/data-stream/constants.ts`, read by the
+  manager when deciding whether to tap a stream.
 - Reuse the existing `TranscriptionAttributes` keys from `src/room/attribute-typings.ts`.
 - Clear converter state on disconnect alongside `transcriptionReceivedTimes.clear()` and
   `incomingDataStreamManager.clearControllers()` (`Room.ts:1835-1836`).
@@ -226,9 +239,9 @@ absent with only a `lk.publish_on_behalf` worker mic track; nothing resolvable.
 **Legacy packets ignored:** an incoming `Transcription` data packet emits no transcription events
 from any of the three emitters.
 
-**Fan-out:** an `lk.transcription` stream reaches both the internal converter and an
-application-registered handler; other topics unaffected; the no-consumer case still ignores the
-stream.
+**Fan-out:** an `lk.transcription` stream reaches both a `transcriptionStreamArrived` subscriber and
+an application-registered handler, each through its own reader; trailer attributes surface on both;
+the event does not fire for other topics; the no-consumer case still ignores the stream.
 
 **Whole-suite:** `npx tsc --noEmit` and `npx vitest run`.
 
