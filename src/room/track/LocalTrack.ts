@@ -194,6 +194,9 @@ export default abstract class LocalTrack<
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
+        // audio processors need the context they were initialised with in order to rebuild
+        // their graph, omitting it here would leave them without one
+        audioContext: this.audioContext,
         localTrack: this,
       });
       processedTrack = this.processor.processedTrack;
@@ -464,7 +467,11 @@ export default abstract class LocalTrack<
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
     this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-    this.processor?.destroy();
+    // `stop` is synchronous, so we can't await the teardown of the processor here.
+    // make sure a failing teardown doesn't surface as an unhandled rejection.
+    this.processor?.destroy().catch((error) => {
+      this.log.error('failed to destroy processor', { ...this.logContext, error });
+    });
     this.processor = undefined;
   }
 
