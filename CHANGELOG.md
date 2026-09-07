@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.22.3
+
+### Patch Changes
+
+- fix: add code 1000 to onclose handler in WebSocketStream - [#2086](https://github.com/livekit/client-sdk-js/pull/2086) ([@phaitonican](https://github.com/phaitonican))
+
+- forward worker logs to main thread - [#2078](https://github.com/livekit/client-sdk-js/pull/2078) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: don't reset mid track map on publisher answers with empty map - [#2089](https://github.com/livekit/client-sdk-js/pull/2089) ([@lukasIO](https://github.com/lukasIO))
+
+- Support simulcast for svc codecs (vp9/av1) - [#2083](https://github.com/livekit/client-sdk-js/pull/2083) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.22.2
 
 ### Patch Changes
