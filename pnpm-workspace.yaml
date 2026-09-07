@@ -1,15 +1,6 @@
 catalog:
   typescript: 7.0.2
 
-# downlevel-dts depends on `typescript@next`, which now resolves to the TS 7 native
-# preview (no `.` export -> ERR_PACKAGE_PATH_NOT_EXPORTED). Pin it to our canonical TS.
-overrides:
-  downlevel-dts>typescript: 'catalog:'
-
 minimumReleaseAge: 2880
 minimumReleaseAgeExclude:
   - '@livekit/*'
-  # allow webrtc-adapter 9.0.5, see https://github.com/livekit/client-sdk-js/issues/1806
-  - webrtc-adapter@9.0.5
-  # Renovate security update: vitest@4.1.0
-  - vitest@4.1.0
