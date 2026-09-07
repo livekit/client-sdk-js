@@ -667,6 +667,7 @@ export class SignalClient {
     if (firstMessage) {
       this.handleSignalResponse(firstMessage);
     }
+    const attemptId = this.attemptId;
     while (true) {
       if (this.signalLatency) {
         await sleep(this.signalLatency);
@@ -680,7 +681,7 @@ export class SignalClient {
         this.handleSignalResponse(resp);
       } catch (e) {
         this.log.error(`error reading from signal stream`, { error: e });
-        await this.close(false, 'error in reading loop');
+        await this.handleOnClose('error in reading loop', attemptId);
         break;
       }
     }

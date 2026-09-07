@@ -79,7 +79,7 @@ export interface TrackPublishDefaults {
 
   /**
    * scalability mode for svc codecs, defaults to 'L3T3_KEY'.
-   * for svc codecs, simulcast is disabled.
+   * for svc codecs, simulcast is disabled if more than one spatial layer is used ('L2Tx' or 'L3Tx').
    */
   scalabilityMode?: ScalabilityMode;
 

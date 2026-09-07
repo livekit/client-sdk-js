@@ -241,7 +241,7 @@ export default class IncomingDataStreamManager {
             info,
             compressed
               ? inflateRawByteChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
-              : stream,
+              : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
             // `totalLength` is the pre-compression size, and the reader counts decompressed bytes,
             // so it applies to both paths (mirrors text).
             bigIntToNumber(streamHeader.totalLength),
@@ -344,7 +344,7 @@ export default class IncomingDataStreamManager {
             info,
             compressed
               ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
-              : stream,
+              : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
             // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
             // it applies to both paths.
             bigIntToNumber(streamHeader.totalLength),
@@ -367,7 +367,7 @@ export default class IncomingDataStreamManager {
           ),
         );
         this.byteStreamControllers.delete(chunk.streamId);
-      } else if (chunk.content.length > 0) {
+      } else {
         fileBuffer.controller.enqueue(chunk);
       }
     }
@@ -381,7 +381,7 @@ export default class IncomingDataStreamManager {
           ),
         );
         this.textStreamControllers.delete(chunk.streamId);
-      } else if (chunk.content.length > 0) {
+      } else {
         textBuffer.controller.enqueue(chunk);
       }
     }
@@ -455,15 +455,9 @@ function createInlineStream(
 ): ReadableStream<DataStream_Chunk> {
   return new ReadableStream<DataStream_Chunk>({
     start: async (controller) => {
-      try {
-        const bytes = await content;
-        controller.enqueue(
-          new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content: bytes }),
-        );
-        controller.close();
-      } catch (err) {
-        controller.error(err);
-      }
+      const bytes = await content;
+      controller.enqueue(new DataStream_Chunk({ streamId, chunkIndex: BigInt(0), content: bytes }));
+      controller.close();
     },
   });
 }
@@ -471,9 +465,11 @@ function createInlineStream(
 /**
  * Validates that chunks are received in order, dropping duplicates and throwing if gaps are found.
  *
- * A stateful decompressor silently corrupts on duplicated or out-of-order input, so duplicates are
- * dropped (with a warning - in-order delivery is expected on the reliable channel, but reconnect
- * handling may replay) and a gap is a hard error. Shared by the text and byte deflate-raw decoders.
+ * Reassembly (and, for compressed streams, a stateful decompressor) silently corrupts on duplicated
+ * or out-of-order input, so duplicates are dropped (with a warning - in-order delivery is expected
+ * on the reliable channel, but reconnect handling may replay) and a gap is a hard error. Empty
+ * chunks consume their index and are then dropped, so they never reach the reader. Applied to every
+ * chunked stream, compressed or not.
  */
 function ensureOrderedChunks(
   streamId: string,
@@ -484,17 +480,20 @@ function ensureOrderedChunks(
       const index = bigIntToNumber(value.chunkIndex);
       if (index <= lastChunkIndex) {
         log.warn(
-          `ignoring duplicate chunk ${index} for compressed data stream ${streamId} (last processed: ${lastChunkIndex})`,
+          `ignoring duplicate chunk ${index} ${value.version > 0 ? `(version ${value.version})` : ''} for data stream ${streamId} (last processed: ${lastChunkIndex})`,
         );
         return;
       }
       if (index > lastChunkIndex + 1) {
         throw new DataStreamError(
-          `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for compressed data stream ${streamId} - cannot continue decompressing`,
+          `Missing chunk(s) ${lastChunkIndex + 1}..${index - 1} for data stream ${streamId} - cannot reassemble payload`,
           DataStreamErrorReason.Incomplete,
         );
       }
       lastChunkIndex = index;
+      if (value.content.length === 0) {
+        return;
+      }
       controller.enqueue(value);
     },
   });

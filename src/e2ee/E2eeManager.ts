@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
-import log, { LogLevel, workerLogger } from '../logger';
+import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -25,6 +25,7 @@ import {
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG, E2EE_TRACK_ID } from './constants';
+import { CryptorError, CryptorErrorReason } from './errors';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
   DecryptDataRequestMessage,
@@ -62,6 +63,7 @@ export interface BaseE2EEManager {
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+  dispose?(): void;
 }
 
 /**
@@ -86,6 +88,29 @@ export class E2EEManager
     new Map();
 
   private dataChannelEncryptionEnabled: boolean;
+
+  private unsubscribeLogLevel?: () => void;
+
+  private log = getLogger(LoggerNames.E2EE, () => this.logContext);
+
+  get logContext() {
+    return {
+      room: this.room?.name,
+      participant: this.room?.localParticipant.identity,
+    };
+  }
+
+  /**
+   * Runs a cleanup callback once this manager is garbage collected. Lets the
+   * log-level listener (held in a module-global Set on the main-thread logger)
+   * fall out of scope even when the consumer forgets to call `dispose()`.
+   */
+  private static disposeRegistry =
+    typeof FinalizationRegistry !== 'undefined' &&
+    typeof WeakRef !== 'undefined' &&
+    new FinalizationRegistry((cleanup: () => void) => {
+      cleanup();
+    });
 
   constructor(options: E2EEManagerOptions, dcEncryptionEnabled: boolean) {
     super();
@@ -112,7 +137,7 @@ export class E2EEManager
         'tried to setup end-to-end encryption on an unsupported browser',
       );
     }
-    log.info('setting up e2ee');
+    this.log.info('setting up e2ee');
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
@@ -125,19 +150,89 @@ export class E2EEManager
         },
       };
       if (this.worker) {
-        log.info(`initializing worker`, { worker: this.worker });
+        this.log.info(`initializing worker`, { worker: this.worker });
         this.worker.onmessage = this.onWorkerMessage;
         this.worker.onerror = this.onWorkerError;
         this.worker.postMessage(msg);
+        this.subscribeToLogLevelChanges();
       }
     }
+  }
+
+  /**
+   * Subscribe the current worker to main-thread `workerLogger` level changes,
+   * without strongly retaining `this` or `this.worker` from the module-global
+   * listener Set on the logger. See {@link disposeRegistry}.
+   */
+  private subscribeToLogLevelChanges() {
+    // Guard against duplicate registration on re-setup.
+    this.unsubscribeLogLevel?.();
+
+    let unsub: (() => void) | undefined;
+    if (E2EEManager.disposeRegistry) {
+      // Modern engines: hold the worker weakly so the module-global listener Set
+      // on the logger can't retain this manager, and clean up the entry on GC.
+      const workerRef = new WeakRef(this.worker);
+      unsub = onWorkerLogLevelChanged((level) => {
+        const worker = workerRef.deref();
+        if (!worker) {
+          unsub?.();
+          return;
+        }
+        worker.postMessage({ kind: 'setLogLevel', data: { level } });
+      });
+      E2EEManager.disposeRegistry.register(this, unsub, this);
+    } else {
+      // Safari <14.1 and similar: no WeakRef. Fall back to a strong reference;
+      // the leak lives until the consumer calls `dispose()`.
+      const worker = this.worker;
+      unsub = onWorkerLogLevelChanged((level) => {
+        worker.postMessage({ kind: 'setLogLevel', data: { level } });
+      });
+    }
+    this.unsubscribeLogLevel = unsub;
+  }
+
+  /**
+   * @internal
+   * Release the log-level subscription, reject any pending encrypt/decrypt
+   * futures, and detach the worker message handlers. The worker itself is
+   * caller-owned and is not terminated. Idempotent.
+   */
+  dispose() {
+    this.unsubscribeLogLevel?.();
+    this.unsubscribeLogLevel = undefined;
+    if (E2EEManager.disposeRegistry) {
+      E2EEManager.disposeRegistry.unregister(this);
+    }
+
+    // Reject pending futures BEFORE detaching worker handlers, so any late
+    // response can't resolve one after we've cut the pipe. Each future's
+    // `onFinally` deletes its own map entry, so both maps drain themselves.
+    // Snapshot before iterating in case a rejection handler mutates the map.
+    const disposalError = new CryptorError(
+      'E2EEManager disposed',
+      CryptorErrorReason.InternalError,
+    );
+    for (const future of [...this.encryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+    for (const future of [...this.decryptDataRequests.values()]) {
+      future.reject?.(disposalError);
+    }
+
+    if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.onerror = null;
+    }
+    this.removeAllListeners();
   }
 
   /**
    * @internal
    */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string) {
-    log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
+    this.log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
     this.postEnable(enabled, participantIdentity);
   }
 
@@ -146,7 +241,7 @@ export class E2EEManager
    */
   setSifTrailer(trailer: NonSharedUint8Array) {
     if (!trailer || trailer.length === 0) {
-      log.warn("ignoring server sent trailer as it's empty");
+      this.log.warn("ignoring server sent trailer as it's empty");
     } else {
       this.postSifTrailer(trailer);
     }
@@ -156,25 +251,23 @@ export class E2EEManager
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        log.error(data.error.message);
-
-        // If error has uuid, it's from an async operation (encrypt/decrypt)
-        // Reject the corresponding future
+        // If error has uuid, it's from an async operation (encrypt/decrypt).
+        // Reject the corresponding future and let the caller decide how to log/handle;
+        // logging here would duplicate whatever the caller does.
         if (data.uuid) {
           const decryptFuture = this.decryptDataRequests.get(data.uuid);
           if (decryptFuture?.reject) {
             decryptFuture.reject(data.error);
-            break; // Don't emit general error if it's handled by future
+            break;
           }
 
           const encryptFuture = this.encryptDataRequests.get(data.uuid);
           if (encryptFuture?.reject) {
             encryptFuture.reject(data.error);
-            break; // Don't emit general error if it's handled by future
+            break;
           }
         }
-
-        // Emit general error event for unhandled errors
+        this.log.error(data.error.message);
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
@@ -235,13 +328,16 @@ export class E2EEManager
       case 'packetTrailerMetadata':
         this.handleFrameMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
         break;
+      case 'log':
+        workerLogger[data.level](data.msg, data.context);
+        break;
       default:
         break;
     }
   };
 
   private onWorkerError = (ev: ErrorEvent) => {
-    log.error('e2ee worker encountered an error:', { error: ev.error });
+    this.log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error, undefined);
   };
 
@@ -488,8 +584,7 @@ export class E2EEManager
     participantIdentity: string,
   ) {
     if (!pub.trackInfo) {
-      log.warn('skipping e2ee enabled update for publication without trackInfo', {
-        participant: participantIdentity,
+      this.log.warn('skipping e2ee enabled update for publication without trackInfo', {
         trackSid: pub.trackSid,
       });
       return;
@@ -522,7 +617,7 @@ export class E2EEManager
 
   private setupE2EESender(track: Track, sender: RTCRtpSender) {
     if (!isLocalTrack(track) || !sender) {
-      if (!sender) log.warn('early return because sender is not ready');
+      if (!sender) this.log.warn('early return because sender is not ready');
       return;
     }
     this.handleSender(
@@ -638,7 +733,7 @@ export class E2EEManager
     }
 
     if (isScriptTransformSupportedForWorker()) {
-      log.info('initialize script transform');
+      this.log.info('initialize script transform');
       const options: ScriptTransformOptions = {
         kind: 'encode',
         participantIdentity: this.room.localParticipant.identity,
@@ -650,7 +745,7 @@ export class E2EEManager
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      log.info('initialize encoded streams');
+      this.log.info('initialize encoded streams');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {

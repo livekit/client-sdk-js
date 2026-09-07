@@ -63,3 +63,13 @@ export function getAbortReasonAsString(
       return 'toString' in reason ? reason.toString() : defaultMessage;
   }
 }
+
+export function getErrorDescription(error: unknown, errorCategory: string): string {
+  if (error instanceof Error) {
+    if (error.name && error.message) {
+      return `${error.name}: ${error.message}`;
+    }
+    return error.name;
+  }
+  return `Encountered unknown ${errorCategory} error: ${String(error)}`;
+}

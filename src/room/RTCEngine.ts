@@ -173,6 +173,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return !!this.reconnectTimeout;
   }
 
+  get serverVersion(): string | undefined {
+    return (
+      this.latestJoinResponse?.serverInfo?.version ||
+      this.latestJoinResponse?.serverVersion ||
+      undefined
+    );
+  }
+
   /**
    * Owns the data channels: the three flow-controlled publisher wrappers (engine-lifetime; the
    * RTCDataChannel handles underneath are attached/detached as peer connections come and go, with
@@ -655,7 +663,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         sdp: sd.sdp,
         midToTrackId,
       });
-      this.midToTrackId = midToTrackId;
+      // in dual PC mode the publisher answer carries no mapping (the server's publisher
+      // transport has no sending tracks) and must not clobber the subscriber offer mapping
+      if (Object.keys(midToTrackId).length > 0) {
+        this.midToTrackId = midToTrackId;
+      }
       await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
@@ -918,12 +930,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.log.error('Received encrypted packet but E2EE not set up');
           return;
         }
-        const decryptedData = await this.e2eeManager?.handleEncryptedData(
-          dp.value.value.encryptedValue as NonSharedUint8Array,
-          dp.value.value.iv as NonSharedUint8Array,
-          dp.participantIdentity,
-          dp.value.value.keyIndex,
-        );
+        let decryptedData;
+        try {
+          decryptedData = await this.e2eeManager.handleEncryptedData(
+            dp.value.value.encryptedValue as NonSharedUint8Array,
+            dp.value.value.iv as NonSharedUint8Array,
+            dp.participantIdentity,
+            dp.value.value.keyIndex,
+          );
+        } catch (err) {
+          this.log.debug('failed to decrypt data packet', {
+            error: err,
+            participantIdentity: dp.participantIdentity,
+          });
+          return;
+        }
         const decryptedPacket = EncryptedPacketPayload.fromBinary(decryptedData.payload);
         const newDp = new DataPacket({
           value: decryptedPacket.value,

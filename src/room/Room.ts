@@ -339,7 +339,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.log,
       this.outgoingDataStreamManager,
       this.getRemoteParticipantClientProtocol,
-      () => this.engine.latestJoinResponse?.serverInfo?.version,
+      () => this.engine?.serverVersion,
     );
     this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
       this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);

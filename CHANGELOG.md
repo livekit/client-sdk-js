@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.22.2
+
+### Patch Changes
+
+- Fix the subscriber silently buffering remote ICE candidates after a reconnect - [#2054](https://github.com/livekit/client-sdk-js/pull/2054) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+  `triggerIceRestart` put the subscriber into `restartingIce` on every reconnect, but only
+  `setRemoteDescription` clears that — and the server re-offers the subscriber only when the
+  reconnect moved the participant to a different node. After an ordinary signal-only resume no
+  offer arrives, so the flag stayed set for the lifetime of the transport and every subsequent
+  remote candidate was queued instead of applied, leaving the subscriber unable to adopt any new
+  network path the server proposed. The subscriber no longer enters that state: the server does
+  not send candidates ahead of the offer that introduces them, so queueing them gains nothing.
+
+- fix: track ws close with attemptId - [#2069](https://github.com/livekit/client-sdk-js/pull/2069) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure buffered events are flushed on signal reconnection - [#2044](https://github.com/livekit/client-sdk-js/pull/2044) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: error on datastreams when chunks are missing - [#2073](https://github.com/livekit/client-sdk-js/pull/2073) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.22.1
 
 ### Patch Changes
