@@ -131,3 +131,20 @@ export function setLogExtension(extension: LogExtension, logger?: StructuredLogg
 }
 
 export const workerLogger = log.getLogger(LoggerNames.E2EE) as StructuredLogger;
+
+const workerLogLevelListeners = new Set<(level: LogLevel) => void>();
+
+const originalWorkerSetLevel = workerLogger.setLevel.bind(workerLogger);
+workerLogger.setLevel = ((level: log.LogLevelDesc, persist?: boolean) => {
+  originalWorkerSetLevel(level, persist);
+  const numeric = workerLogger.getLevel() as LogLevel;
+  workerLogLevelListeners.forEach((cb) => cb(numeric));
+}) as typeof workerLogger.setLevel;
+
+/** @internal Subscribe to workerLogger level changes (so E2EE workers can be kept in sync). */
+export function onWorkerLogLevelChanged(cb: (level: LogLevel) => void): () => void {
+  workerLogLevelListeners.add(cb);
+  return () => {
+    workerLogLevelListeners.delete(cb);
+  };
+}

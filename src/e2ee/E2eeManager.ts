@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
-import log, { LogLevel, workerLogger } from '../logger';
+import log, { LogLevel, onWorkerLogLevelChanged, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -129,6 +129,9 @@ export class E2EEManager
         this.worker.onmessage = this.onWorkerMessage;
         this.worker.onerror = this.onWorkerError;
         this.worker.postMessage(msg);
+        onWorkerLogLevelChanged((level) => {
+          this.worker?.postMessage({ kind: 'setLogLevel', data: { level } });
+        });
       }
     }
   }
@@ -156,25 +159,23 @@ export class E2EEManager
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        log.error(data.error.message);
-
-        // If error has uuid, it's from an async operation (encrypt/decrypt)
-        // Reject the corresponding future
+        // If error has uuid, it's from an async operation (encrypt/decrypt).
+        // Reject the corresponding future and let the caller decide how to log/handle;
+        // logging here would duplicate whatever the caller does.
         if (data.uuid) {
           const decryptFuture = this.decryptDataRequests.get(data.uuid);
           if (decryptFuture?.reject) {
             decryptFuture.reject(data.error);
-            break; // Don't emit general error if it's handled by future
+            break;
           }
 
           const encryptFuture = this.encryptDataRequests.get(data.uuid);
           if (encryptFuture?.reject) {
             encryptFuture.reject(data.error);
-            break; // Don't emit general error if it's handled by future
+            break;
           }
         }
 
-        // Emit general error event for unhandled errors
         this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
         break;
       case 'initAck':
@@ -234,6 +235,9 @@ export class E2EEManager
         break;
       case 'packetTrailerMetadata':
         this.handleFrameMetadata(data.trackId, data.rtpTimestamp, data.ssrc, data.metadata);
+        break;
+      case 'log':
+        workerLogger[data.level](data.msg, data.context);
         break;
       default:
         break;
