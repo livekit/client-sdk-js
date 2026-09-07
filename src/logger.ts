@@ -148,3 +148,8 @@ export function onWorkerLogLevelChanged(cb: (level: LogLevel) => void): () => vo
     workerLogLevelListeners.delete(cb);
   };
 }
+
+/** @internal Test-only accessor: current number of workerLogger level listeners. */
+export function getWorkerLogLevelListenerCount(): number {
+  return workerLogLevelListeners.size;
+}
