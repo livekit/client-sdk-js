@@ -76,7 +76,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
                   ),
                 );
               ws.onclose = (ev) => {
-                if (ev.wasClean) {
+                if (ev.wasClean || ev.code === 1000) {
                   controller.close();
                 } else {
                   controller.error(
