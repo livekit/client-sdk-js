@@ -245,11 +245,6 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private getServerVersion(): string | undefined {
-    const joinResponse = this.engine?.latestJoinResponse;
-    return joinResponse?.serverInfo?.version || joinResponse?.serverVersion || undefined;
-  }
-
   /**
    * @internal
    */
@@ -1147,9 +1142,13 @@ export default class LocalParticipant extends Participant {
       if (isLocalVideoTrack(track)) {
         if (
           isSVCSimulcast(videoCodec, opts) &&
-          (usesLegacySVCEncodings() || !isSVCSimulcastSupportedByServer(this.getServerVersion()))
+          (usesLegacySVCEncodings() || !isSVCSimulcastSupportedByServer(this.engine?.serverVersion))
         ) {
           opts.simulcast = false;
+          this.log.info(
+            'SVC simulcast is not supported, disabling simulcast.',
+            getLogContextFromTrack(track),
+          );
         }
 
         const svcSimulcast = isSVCSimulcast(videoCodec, opts);
