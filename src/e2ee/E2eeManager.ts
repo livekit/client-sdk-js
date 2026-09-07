@@ -25,6 +25,7 @@ import {
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG, E2EE_TRACK_ID } from './constants';
+import { CryptorError, CryptorErrorReason } from './errors';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
   DecryptDataRequestMessage,
@@ -200,7 +201,10 @@ export class E2EEManager
     // response can't resolve one after we've cut the pipe. Each future's
     // `onFinally` deletes its own map entry, so both maps drain themselves.
     // Snapshot before iterating in case a rejection handler mutates the map.
-    const disposalError = new Error('E2EEManager disposed');
+    const disposalError = new CryptorError(
+      'E2EEManager disposed',
+      CryptorErrorReason.InternalError,
+    );
     for (const future of [...this.encryptDataRequests.values()]) {
       future.reject?.(disposalError);
     }
