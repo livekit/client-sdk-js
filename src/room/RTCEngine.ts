@@ -173,6 +173,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return !!this.reconnectTimeout;
   }
 
+  get serverVersion(): string | undefined {
+    return (
+      this.latestJoinResponse?.serverInfo?.version ||
+      this.latestJoinResponse?.serverVersion ||
+      undefined
+    );
+  }
+
   /**
    * Owns the data channels: the three flow-controlled publisher wrappers (engine-lifetime; the
    * RTCDataChannel handles underneath are attached/detached as peer connections come and go, with
