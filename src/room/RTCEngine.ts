@@ -665,7 +665,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
       // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      if (Object.keys(midToTrackId).length > 0) {
+      if (this.options.singlePeerConnection) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
