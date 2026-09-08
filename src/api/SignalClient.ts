@@ -92,6 +92,7 @@ interface ConnectOpts extends SignalOptions {
 export interface SignalOptions {
   autoSubscribe: boolean;
   adaptiveStream?: boolean;
+  disableIceLite?: boolean;
   clientInfoCapabilities?: ClientInfo_Capability[];
   maxRetries: number;
   e2eeEnabled: boolean;
@@ -1394,6 +1395,10 @@ function createConnectionParams(
     params.set('adaptive_stream', '1');
   }
 
+  if (opts.disableIceLite) {
+    params.set('disable_ice_lite', '1');
+  }
+
   if (opts.reconnectReason) {
     params.set('reconnect_reason', opts.reconnectReason.toString());
   }
@@ -1421,6 +1426,7 @@ async function createJoinRequestConnectionParams(
     connectionSettings: new ConnectionSettings({
       autoSubscribe: !!opts.autoSubscribe,
       adaptiveStream: !!opts.adaptiveStream,
+      disableIceLite: !!opts.disableIceLite,
     }),
     reconnect: !!opts.reconnect,
     participantSid: opts.sid ? opts.sid : undefined,
