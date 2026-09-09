@@ -2098,7 +2098,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // find the participant
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
-      this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
+      this.handleUserPacket(
+        participant,
+        packet.value.value,
+        packet.kind,
+        encryptionType,
+        packet.participantIdentity,
+      );
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
@@ -2148,6 +2154,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     userPacket: UserPacket,
     kind: DataPacket_Kind,
     encryptionType: Encryption_Type,
+    participantIdentity: string,
   ) => {
     this.emit(
       RoomEvent.DataReceived,
@@ -2156,6 +2163,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       kind,
       userPacket.topic,
       encryptionType,
+      participantIdentity,
     );
 
     // also emit on the participant
@@ -3061,6 +3069,7 @@ export type RoomEventCallbacks = {
     kind?: DataPacket_Kind,
     topic?: string,
     encryptionType?: Encryption_Type,
+    participantIdentity?: string,
   ) => void;
   sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
   transcriptionReceived: (
