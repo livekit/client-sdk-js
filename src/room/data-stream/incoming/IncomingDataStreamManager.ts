@@ -28,6 +28,28 @@ import {
 } from './StreamReader';
 import type { IncomingDataStreamManagerCallbacks } from './events';
 
+/**
+ * The receive state for one in-flight text stream. A text stream can have several consumers (an
+ * application handler for its topic, plus the SDK's own transcription tap), each reading through
+ * its own `ReadableStream`. Everything that describes the *stream* - its info, when it started, who
+ * sent it - is held once here rather than copied per consumer, so consumers cannot disagree about
+ * it and a trailer's attribute merge is visible to all of them by construction.
+ */
+interface TextStreamControllerGroup extends Omit<
+  StreamController<DataStream_Chunk>,
+  'info' | 'controller'
+> {
+  info: TextStreamInfo;
+  controllers: Array<ReadableStreamDefaultController<DataStream_Chunk>>;
+}
+
+/** An open stream: one controller for a byte stream, a group of them for a text stream. */
+type OpenStream = StreamController<DataStream_Chunk> | TextStreamControllerGroup;
+
+function controllersOf(stream: OpenStream) {
+  return 'controllers' in stream ? stream.controllers : [stream.controller];
+}
+
 export default class IncomingDataStreamManager extends (EventEmitter as new () => TypedEmitter<IncomingDataStreamManagerCallbacks>) {
   private log = log;
 
@@ -59,7 +81,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+  private textStreamControllers = new Map<string, TextStreamControllerGroup>();
 
   /**
    * Number of open byte and text streams per sender, kept alongside the controller maps so the
@@ -132,8 +154,10 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
     for (const { controller } of this.byteStreamControllers.values()) {
       controller.error(abnormalEndError);
     }
-    for (const { controller } of this.textStreamControllers.values()) {
-      controller.error(abnormalEndError);
+    for (const { controllers } of this.textStreamControllers.values()) {
+      for (const controller of controllers) {
+        controller.error(abnormalEndError);
+      }
     }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
@@ -145,7 +169,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
     // Terminate any in flight data stream receives from the given participant
     // A stream is affected if it is attributed to the participant, or if the participant is
     // sending it on someone else's behalf.
-    const isAffected = ([, streamController]: [string, StreamController<DataStream_Chunk>]) =>
+    const isAffected = ([, streamController]: [string, OpenStream]) =>
       streamController.sendingParticipantIdentity === participantIdentity ||
       streamController.packetSenderIdentity === participantIdentity;
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
@@ -168,7 +192,9 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         this.removeStream(this.byteStreamControllers, id);
       }
       for (const [id, streamController] of textStreamsBeingSentByDisconnectingParticipant) {
-        streamController.controller.error(abnormalEndError);
+        for (const controller of streamController.controllers) {
+          controller.error(abnormalEndError);
+        }
         this.removeStream(this.textStreamControllers, id);
       }
     }
@@ -216,10 +242,10 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
    * Registers an open stream and counts it against its sender. Every insertion into a controller
    * map goes through here so {@link openStreamCounts} cannot drift.
    */
-  private addStream(
-    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+  private addStream<T extends OpenStream>(
+    streamControllers: Map<string, T>,
     streamId: string,
-    streamController: StreamController<DataStream_Chunk>,
+    streamController: T,
   ) {
     streamControllers.set(streamId, streamController);
     const { sendingParticipantIdentity } = streamController;
@@ -234,10 +260,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
    * through here so {@link openStreamCounts} cannot drift. The count is keyed by the identity the
    * stream was registered under, never by the identity on the packet that ends it.
    */
-  private removeStream(
-    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
-    streamId: string,
-  ) {
+  private removeStream(streamControllers: Map<string, OpenStream>, streamId: string) {
     const streamController = streamControllers.get(streamId);
     if (!streamController) {
       return;
@@ -472,12 +495,12 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
 
             this.addStream(this.textStreamControllers, streamHeader.streamId, {
               info,
-              controller: streamController,
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
               // A `generated` header was sent on this participant's behalf; its real sender claims
               // the stream with its first chunk or trailer.
               packetSenderIdentity: isOnBehalfOf ? undefined : participantIdentity,
+              controllers: [streamController],
             });
           },
           cancel: () => {
@@ -485,7 +508,8 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
             // was cancelled, which cancels this source stream. Unregister it so later chunks and the
             // trailer for this stream are dropped rather than hitting a closed controller.
             if (
-              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
+              this.textStreamControllers.get(streamHeader.streamId)?.controllers[0] ===
+              streamController
             ) {
               this.removeStream(this.textStreamControllers, streamHeader.streamId);
             }
@@ -535,7 +559,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
    */
   private validateStreamPacket(
     streamId: string,
-    streamController: StreamController<DataStream_Chunk>,
+    streamController: OpenStream,
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ): boolean {
@@ -570,13 +594,15 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
   private handleStreamPacketError(
     error: unknown,
     streamId: string,
-    streamController: StreamController<DataStream_Chunk>,
-    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    streamController: OpenStream,
+    streamControllers: Map<string, OpenStream>,
   ) {
     if (!(error instanceof DataStreamError)) {
       throw error;
     }
-    streamController.controller.error(error);
+    for (const controller of controllersOf(streamController)) {
+      controller.error(error);
+    }
     this.removeStream(streamControllers, streamId);
   }
 
@@ -613,7 +639,9 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         if (
           this.validateStreamPacket(chunk.streamId, textBuffer, participantIdentity, encryptionType)
         ) {
-          textBuffer.controller.enqueue(chunk);
+          for (const controller of textBuffer.controllers) {
+            controller.enqueue(chunk);
+          }
         }
       } catch (error) {
         this.handleStreamPacketError(error, chunk.streamId, textBuffer, this.textStreamControllers);
@@ -639,6 +667,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
             encryptionType,
           )
         ) {
+          // One `info` per stream, so this merge is visible to every consumer's reader.
           textBuffer.info.attributes = {
             ...textBuffer.info.attributes,
             ...trailer.attributes,
@@ -646,14 +675,17 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
           if (trailer.reason) {
             // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
             // surface it as an error rather than pretending the stream completed.
-            textBuffer.controller.error(
-              new DataStreamError(
-                `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-                DataStreamErrorReason.AbnormalEnd,
-              ),
+            const error = new DataStreamError(
+              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+              DataStreamErrorReason.AbnormalEnd,
             );
+            for (const controller of textBuffer.controllers) {
+              controller.error(error);
+            }
           } else {
-            textBuffer.controller.close();
+            for (const controller of textBuffer.controllers) {
+              controller.close();
+            }
           }
           this.removeStream(this.textStreamControllers, trailer.streamId);
         }
