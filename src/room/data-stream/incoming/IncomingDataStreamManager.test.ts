@@ -13,10 +13,12 @@ import {
   stubMissingCompressionStreams,
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
+import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import { deflateRawCompress } from '../compression';
-import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import { STREAM_CHUNK_SIZE_BYTES, TRANSCRIPTION_TOPIC } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
+import type { IncomingDataStreamManagerCallbacks } from './events';
 
 /** Builds a low quality random string of the given length. */
 function randomText(length: number): string {
@@ -1936,6 +1938,106 @@ describe('IncomingDataStreamManager', () => {
 
       expect(readers).toHaveLength(2);
       expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+  });
+
+  describe('Transcription stream events', () => {
+    it('should emit transcriptionStreamArrived alongside an application handler', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const appReaders: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader) => appReaders.push(reader));
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', {
+          topic: TRANSCRIPTION_TOPIC,
+          totalLength: BigInt(text.length),
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      expect(event.participantIdentity).toBe('alice');
+      await expect(event.reader.readAll()).resolves.toBe(text);
+
+      // The application handler for the same topic got its own independent reader.
+      expect(appReaders).toHaveLength(1);
+      await expect(appReaders[0].readAll()).resolves.toBe(text);
+    });
+
+    it('should emit transcriptionStreamArrived for an inline single-packet stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const appReaders: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader) => appReaders.push(reader));
+
+      const text = 'inline hello';
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader', {
+          topic: TRANSCRIPTION_TOPIC,
+          totalLength: BigInt(text.length),
+          inlineContent: new TextEncoder().encode(text),
+        }),
+        Encryption_Type.NONE,
+      );
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      await expect(event.reader.readAll()).resolves.toBe(text);
+      await expect(appReaders[0].readAll()).resolves.toBe(text);
+    });
+
+    it('should surface trailer attributes to every consumer', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const appReaders: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler(TRANSCRIPTION_TOPIC, (reader) => appReaders.push(reader));
+
+      const streamId = crypto.randomUUID();
+      const text = 'hi';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', {
+          topic: TRANSCRIPTION_TOPIC,
+          totalLength: BigInt(text.length),
+          attributes: { 'lk.transcription_final': 'false' },
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        trailerPacket(streamId, { 'lk.transcription_final': 'true' }),
+        Encryption_Type.NONE,
+      );
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      await event.reader.readAll();
+      await appReaders[0].readAll();
+      // Both readers share one `info`, so the trailer's finality flip reaches both.
+      expect(event.reader.info.attributes?.['lk.transcription_final']).toBe('true');
+      expect(appReaders[0].info.attributes?.['lk.transcription_final']).toBe('true');
     });
   });
 });
