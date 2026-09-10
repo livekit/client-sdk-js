@@ -6,6 +6,8 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log from '../../../logger';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
@@ -19,8 +21,9 @@ import {
   type TextStreamHandler,
   TextStreamReader,
 } from './StreamReader';
+import type { IncomingDataStreamManagerCallbacks } from './events';
 
-export default class IncomingDataStreamManager {
+export default class IncomingDataStreamManager extends (EventEmitter as new () => TypedEmitter<IncomingDataStreamManagerCallbacks>) {
   private log = log;
 
   /** Max number of decompressed bytes an incoming compressed stream may produce before it is
@@ -28,6 +31,7 @@ export default class IncomingDataStreamManager {
   private maxPayloadByteLength: number;
 
   constructor(maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH) {
+    super();
     this.maxPayloadByteLength = maxPayloadByteLength;
   }
 
