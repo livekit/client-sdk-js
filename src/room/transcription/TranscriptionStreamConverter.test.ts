@@ -130,4 +130,78 @@ describe('TranscriptionStreamConverter', () => {
 
     expect(emissions(emitted)).toEqual([['Hello', false]]);
   });
+
+  it('treats a close with no finality attribute as final', async () => {
+    const { converter, emitted } = setup();
+    const stream = transcriptionStream('ST_1', { 'lk.segment_id': 'SG_1' });
+
+    const done = converter.handleTextStream(stream.reader, 'agent-1');
+    stream.write('Hello');
+    await flush();
+    stream.close();
+    await done;
+
+    expect(emissions(emitted)).toEqual([
+      ['Hello', false],
+      ['Hello', true],
+    ]);
+  });
+
+  it('accepts every form of the finality attribute agents send', async () => {
+    for (const raw of ['true', '1']) {
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcription_final': raw,
+      });
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('Hello');
+      await flush();
+      stream.close();
+      await done;
+      expect(emissions(emitted)).toEqual([['Hello', true]]);
+    }
+  });
+
+  it('falls back to the stream id when lk.segment_id is absent', async () => {
+    const { converter, emitted } = setup();
+    const stream = transcriptionStream('ST_1');
+
+    const done = converter.handleTextStream(stream.reader, 'agent-1');
+    stream.write('Hello');
+    await flush();
+    stream.close();
+    await done;
+
+    expect(emitted[0].segments[0].id).toBe('ST_1');
+  });
+
+  it('keys partial state per sender so two speakers do not interleave', async () => {
+    const { converter, emitted } = setup();
+    const alice = transcriptionStream('ST_A', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'false',
+    });
+    const bob = transcriptionStream('ST_B', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'false',
+    });
+
+    const aliceDone = converter.handleTextStream(alice.reader, 'alice');
+    const bobDone = converter.handleTextStream(bob.reader, 'bob');
+    alice.write('from alice');
+    bob.write('from bob');
+    await flush();
+    alice.close({ 'lk.transcription_final': 'true' });
+    bob.close({ 'lk.transcription_final': 'true' });
+    await Promise.all([aliceDone, bobDone]);
+
+    const byIdentity = emitted.reduce<Record<string, Array<string>>>((acc, t) => {
+      const identity = t.transcribedParticipantIdentity;
+      acc[identity] = [...(acc[identity] ?? []), t.segments[0].text];
+      return acc;
+    }, {});
+    expect(byIdentity.alice).toEqual(['from alice', 'from alice']);
+    expect(byIdentity.bob).toEqual(['from bob', 'from bob']);
+  });
 });
