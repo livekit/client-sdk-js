@@ -2115,7 +2115,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
     } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(packet.value.value);
+      // Legacy `Transcription` packets are ignored: transcription events are rebuilt from the
+      // `lk.transcription` data stream channel instead, which this client advertises support for
+      // via client protocol 3. See
+      // docs/superpowers/specs/2026-09-04-transcription-back-conversion-design.md
+      this.log.debug('ignoring legacy transcription data packet', this.logContext);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
