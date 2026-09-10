@@ -292,6 +292,50 @@ describe('TranscriptionStreamConverter', () => {
     ]);
   });
 
+  describe('json_format payloads', () => {
+    it('unwraps JSON TimedString chunks into plain text', async () => {
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcription_final': 'false',
+      });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{"text": "Hello", "start_time": 1.5}\n');
+      await flush();
+      stream.write('{"text": " world", "start_time": 2.0}\n');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+
+      expect(emissions(emitted)).toEqual([
+        ['Hello', false],
+        ['Hello world', false],
+        ['Hello world', true],
+      ]);
+      // Timings stay zeroed, exactly as the legacy channel always reported them.
+      expect(emitted[0].segments[0].startTime).toBe(0n);
+      expect(emitted[0].segments[0].endTime).toBe(0n);
+    });
+
+    it('leaves plain text chunks untouched, including ones that look JSON-ish', async () => {
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', { 'lk.segment_id': 'SG_1' });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{not json at all');
+      await flush();
+      stream.write(' {"no_text_field": 1}');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+
+      expect(emitted[emitted.length - 1].segments[0].text).toBe(
+        '{not json at all {"no_text_field": 1}',
+      );
+    });
+  });
+
   describe('speaker and track resolution', () => {
     /** Drives one complete single-chunk segment and returns the last emission. */
     async function emitOne(
