@@ -27,6 +27,20 @@ import {
 } from './StreamReader';
 import type { IncomingDataStreamManagerCallbacks } from './events';
 
+/**
+ * The receive state for one in-flight text stream. A text stream can have several consumers (an
+ * application handler for its topic, plus the SDK's own transcription tap), each reading through
+ * its own `ReadableStream`. Everything that describes the *stream* - its info, when it started, who
+ * sent it - is held once here rather than copied per consumer, so consumers cannot disagree about
+ * it and a trailer's attribute merge is visible to all of them by construction.
+ */
+interface TextStreamControllerGroup {
+  info: TextStreamInfo;
+  startTime: number;
+  sendingParticipantIdentity: string;
+  controllers: Array<ReadableStreamDefaultController<DataStream_Chunk>>;
+}
+
 export default class IncomingDataStreamManager extends (EventEmitter as new () => TypedEmitter<IncomingDataStreamManagerCallbacks>) {
   private log = log;
 
@@ -48,7 +62,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+  private textStreamControllers = new Map<string, TextStreamControllerGroup>();
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
@@ -110,8 +124,10 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
     for (const { controller } of this.byteStreamControllers.values()) {
       controller.error(abnormalEndError);
     }
-    for (const { controller } of this.textStreamControllers.values()) {
-      controller.error(abnormalEndError);
+    for (const group of this.textStreamControllers.values()) {
+      for (const controller of group.controllers) {
+        controller.error(abnormalEndError);
+      }
     }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
@@ -122,7 +138,7 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
     // Terminate any in flight data stream receives from the given participant
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.textStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+    ).filter(([, group]) => group.sendingParticipantIdentity === participantIdentity);
     const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.byteStreamControllers.entries(),
     ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
@@ -139,8 +155,10 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         controller.controller.error(abnormalEndError);
         this.byteStreamControllers.delete(id);
       }
-      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
+      for (const [id, group] of textStreamsBeingSentByDisconnectingParticipant) {
+        for (const controller of group.controllers) {
+          controller.error(abnormalEndError);
+        }
         this.textStreamControllers.delete(id);
       }
     }
@@ -389,9 +407,9 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
 
             this.textStreamControllers.set(streamHeader.streamId, {
               info,
-              controller: streamController,
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
+              controllers: [streamController],
             });
           },
           cancel: () => {
@@ -399,7 +417,8 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
             // was cancelled, which cancels this source stream. Unregister it so later chunks and the
             // trailer for this stream are dropped rather than hitting a closed controller.
             if (
-              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
+              this.textStreamControllers.get(streamHeader.streamId)?.controllers[0] ===
+              streamController
             ) {
               this.textStreamControllers.delete(streamHeader.streamId);
             }
@@ -437,45 +456,53 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         fileBuffer.controller.enqueue(chunk);
       }
     }
-    const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
-        textBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
+    const textGroup = this.textStreamControllers.get(chunk.streamId);
+    if (textGroup) {
+      if (textGroup.info.encryptionType !== encryptionType) {
+        const error = new DataStreamError(
+          `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textGroup.info.encryptionType}`,
+          DataStreamErrorReason.EncryptionTypeMismatch,
         );
+        for (const controller of textGroup.controllers) {
+          controller.error(error);
+        }
         this.textStreamControllers.delete(chunk.streamId);
       } else {
-        textBuffer.controller.enqueue(chunk);
+        for (const controller of textGroup.controllers) {
+          controller.enqueue(chunk);
+        }
       }
     }
   }
 
   private handleStreamTrailer(trailer: DataStream_Trailer, encryptionType: Encryption_Type) {
-    const textBuffer = this.textStreamControllers.get(trailer.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
-        textBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
+    const textGroup = this.textStreamControllers.get(trailer.streamId);
+    if (textGroup) {
+      if (textGroup.info.encryptionType !== encryptionType) {
+        const error = new DataStreamError(
+          `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textGroup.info.encryptionType}`,
+          DataStreamErrorReason.EncryptionTypeMismatch,
         );
+        for (const controller of textGroup.controllers) {
+          controller.error(error);
+        }
       } else {
-        textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
+        // One `info` per stream, so this merge is visible to every consumer's reader.
+        textGroup.info.attributes = { ...textGroup.info.attributes, ...trailer.attributes };
         if (trailer.reason) {
           // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
           // surface it as an error rather than pretending the stream completed.
-          textBuffer.controller.error(
-            new DataStreamError(
-              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-              DataStreamErrorReason.AbnormalEnd,
-            ),
+          const error = new DataStreamError(
+            `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+            DataStreamErrorReason.AbnormalEnd,
           );
+          for (const controller of textGroup.controllers) {
+            controller.error(error);
+          }
         } else {
-          textBuffer.controller.close();
+          for (const controller of textGroup.controllers) {
+            controller.close();
+          }
         }
       }
       this.textStreamControllers.delete(trailer.streamId);
