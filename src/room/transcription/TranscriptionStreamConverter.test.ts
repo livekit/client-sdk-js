@@ -291,4 +291,93 @@ describe('TranscriptionStreamConverter', () => {
       ['Fresh', false],
     ]);
   });
+
+  describe('speaker and track resolution', () => {
+    /** Drives one complete single-chunk segment and returns the last emission. */
+    async function emitOne(
+      converter: TranscriptionStreamConverter,
+      emitted: Array<Transcription>,
+      senderIdentity: string,
+      attributes: Record<string, string>,
+    ) {
+      const stream = transcriptionStream('ST_1', attributes);
+      const done = converter.handleTextStream(stream.reader, senderIdentity);
+      stream.write('Hello');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+      return emitted[emitted.length - 1];
+    }
+
+    it('prefers the lk.transcribed_track_id attribute', async () => {
+      const { converter, emitted } = setup({
+        getMicrophoneTrackSid: () => 'TR_fallback',
+      });
+      const transcription = await emitOne(converter, emitted, 'agent-1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcribed_track_id': 'TR_attribute',
+      });
+      expect(transcription.trackId).toBe('TR_attribute');
+      expect(transcription.transcribedParticipantIdentity).toBe('agent-1');
+    });
+
+    it("falls back to the speaker's microphone track when the attribute is absent", async () => {
+      const { converter, emitted } = setup({
+        getMicrophoneTrackSid: (identity) => (identity === 'user-1' ? 'TR_mic' : undefined),
+      });
+      const transcription = await emitOne(converter, emitted, 'user-1', {
+        'lk.segment_id': 'SG_1',
+      });
+      expect(transcription.trackId).toBe('TR_mic');
+    });
+
+    it('attributes an avatar-delegated stream to the delegating publisher and its track', async () => {
+      const { converter, emitted } = setup({
+        getDelegatingPublisherIdentity: (identity) =>
+          identity === 'agent-1' ? 'avatar-worker' : undefined,
+        getMicrophoneTrackSid: (identity) =>
+          identity === 'avatar-worker' ? 'TR_avatar' : undefined,
+      });
+      const transcription = await emitOne(converter, emitted, 'agent-1', {
+        'lk.segment_id': 'SG_1',
+      });
+      // Legacy named the avatar worker, and it is the participant publishing the audio track.
+      expect(transcription.transcribedParticipantIdentity).toBe('avatar-worker');
+      expect(transcription.trackId).toBe('TR_avatar');
+    });
+
+    it("falls back to the sender's own microphone track when the delegate has none", async () => {
+      const { converter, emitted } = setup({
+        getDelegatingPublisherIdentity: () => 'avatar-worker',
+        getMicrophoneTrackSid: (identity) => (identity === 'agent-1' ? 'TR_agent' : undefined),
+      });
+      const transcription = await emitOne(converter, emitted, 'agent-1', {
+        'lk.segment_id': 'SG_1',
+      });
+      expect(transcription.trackId).toBe('TR_agent');
+    });
+
+    it('leaves trackId empty when nothing resolves', async () => {
+      const { converter, emitted } = setup();
+      const transcription = await emitOne(converter, emitted, 'agent-1', {
+        'lk.segment_id': 'SG_1',
+      });
+      expect(transcription.trackId).toBe('');
+    });
+
+    it('treats an empty string from a resolver as "not found"', async () => {
+      // A resolver reporting "nothing found" as '' rather than undefined must not pin the result:
+      // an empty identity resolves no participant and an empty sid resolves no publication, so
+      // either would silently stop transcription events reaching track-bound consumers.
+      const { converter, emitted } = setup({
+        getDelegatingPublisherIdentity: () => '',
+        getMicrophoneTrackSid: (identity) => (identity === 'agent-1' ? 'TR_agent' : ''),
+      });
+      const transcription = await emitOne(converter, emitted, 'agent-1', {
+        'lk.segment_id': 'SG_1',
+      });
+      expect(transcription.transcribedParticipantIdentity).toBe('agent-1');
+      expect(transcription.trackId).toBe('TR_agent');
+    });
+  });
 });
