@@ -468,4 +468,35 @@ describe('transcription back-conversion', () => {
     expect(trackEvents.length).toBeGreaterThan(0);
     expect(trackEvents[0][0].text).toBe('Hello world');
   });
+
+  it("resolves the publication from the speaker's mic track when the attribute is absent", async () => {
+    const { room, publication } = setupRoom();
+    const trackEvents: Array<Array<{ text: string }>> = [];
+    publication.on(TrackEvent.TranscriptionReceived, (segments) => trackEvents.push(segments));
+
+    pushTranscriptionStream(room, agentIdentity, 'No track attribute', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(trackEvents.length).toBeGreaterThan(0);
+    expect(trackEvents[0][0].text).toBe('No track attribute');
+  });
+
+  it('still delivers lk.transcription to an application text stream handler', async () => {
+    const { room } = setupRoom();
+    const appTexts: Array<string> = [];
+    room.registerTextStreamHandler('lk.transcription', async (reader) => {
+      appTexts.push(await reader.readAll());
+    });
+
+    pushTranscriptionStream(room, agentIdentity, 'Hello world', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(appTexts).toEqual(['Hello world']);
+  });
 });
