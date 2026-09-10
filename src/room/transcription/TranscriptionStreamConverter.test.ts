@@ -204,4 +204,84 @@ describe('TranscriptionStreamConverter', () => {
     expect(byIdentity.alice).toEqual(['from alice', 'from alice']);
     expect(byIdentity.bob).toEqual(['from bob', 'from bob']);
   });
+
+  it('emits nothing for a stream that closes without any content', async () => {
+    const { converter, emitted } = setup();
+    const stream = transcriptionStream('ST_1', { 'lk.segment_id': 'SG_1' });
+
+    const done = converter.handleTextStream(stream.reader, 'agent-1');
+    stream.close();
+    await done;
+
+    expect(emitted).toHaveLength(0);
+  });
+
+  it('closes a segment out as final when the stream errors mid-segment', async () => {
+    const { converter, emitted } = setup();
+    const info: TextStreamInfo = {
+      id: 'ST_1',
+      mimeType: 'text/plain',
+      topic: 'lk.transcription',
+      timestamp: 0,
+      attributes: { 'lk.segment_id': 'SG_1', 'lk.transcription_final': 'false' },
+      encryptionType: Encryption_Type.NONE,
+    };
+    let controller!: ReadableStreamDefaultController<DataStream_Chunk>;
+    const stream = new ReadableStream<DataStream_Chunk>({
+      start: (c) => {
+        controller = c;
+      },
+    });
+
+    const done = converter.handleTextStream(new TextStreamReader(info, stream), 'agent-1');
+    controller.enqueue(
+      new DataStream_Chunk({
+        streamId: 'ST_1',
+        chunkIndex: 0n,
+        content: new TextEncoder().encode('Hel'),
+      }),
+    );
+    await flush();
+    controller.error(new Error('sender disconnected'));
+    await done;
+
+    expect(emissions(emitted)).toEqual([
+      ['Hel', false],
+      ['Hel', true],
+    ]);
+  });
+
+  it('drops in-flight segment state on reset', async () => {
+    const { converter, emitted } = setup();
+    const first = transcriptionStream('ST_1', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'false',
+    });
+    const firstDone = converter.handleTextStream(first.reader, 'agent-1');
+    first.write('Hello');
+    await flush();
+    first.close();
+    await firstDone;
+
+    converter.reset();
+
+    // Same stream id as the first stream, deliberately: replace-on-new-stream-id would produce
+    // 'Fresh' on its own, so re-using 'ST_1' is what makes this assertion discriminate. Without
+    // reset() the partial for (agent-1, SG_1) is still open on stream 'ST_1', so the write would
+    // append and the text would be 'HelloFresh'.
+    const second = transcriptionStream('ST_1', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'false',
+    });
+    const secondDone = converter.handleTextStream(second.reader, 'agent-1');
+    second.write('Fresh');
+    await flush();
+    second.close();
+    await secondDone;
+
+    expect(emissions(emitted)).toEqual([
+      ['Hello', false],
+      ['Fresh', false],
+    ]);
+  });
 });
