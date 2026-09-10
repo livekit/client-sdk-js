@@ -78,7 +78,7 @@ export default class TranscriptionStreamConverter {
           // A newer stream for this segment took over while this one was still draining.
           return;
         }
-        partial.text += chunk;
+        partial.text += unwrapTimedString(chunk);
         this.emitSegment(partial, segmentId, senderIdentity, reader, this.isFinal(reader) ?? false);
       }
     } catch (err) {
@@ -185,4 +185,37 @@ export default class TranscriptionStreamConverter {
 
 function partialKey(senderIdentity: string, segmentId: string) {
   return `${senderIdentity}/${segmentId}`;
+}
+
+/**
+ * Unwraps a chunk published by an agent running with `json_format`, which wraps every write as a
+ * JSON `TimedString` (`{"text": "...", "start_time": 1.5}`) with a trailing newline.
+ *
+ * There is no wire marker for this mode - no attribute, no distinct mime type - so the payload has
+ * to be sniffed. A transcript whose literal text happens to be a JSON object with a string `text`
+ * field would be misread; that is accepted as vanishingly unlikely. The durable fix is a marker
+ * attribute on the agent side.
+ *
+ * Only the text is taken. `TimedString` also carries `start_time`/`end_time` as floating point
+ * values in an undocumented unit, while the proto segment fields are `uint64` - and the legacy
+ * channel always reported zero - so the timings are deliberately dropped rather than guessed at.
+ */
+function unwrapTimedString(chunk: string): string {
+  const trimmed = chunk.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    return chunk;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      typeof (parsed as { text?: unknown }).text === 'string'
+    ) {
+      return (parsed as { text: string }).text;
+    }
+  } catch {
+    // Not JSON after all - it is ordinary transcript text that happens to be brace-wrapped.
+  }
+  return chunk;
 }
