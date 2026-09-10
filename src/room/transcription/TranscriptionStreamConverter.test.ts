@@ -52,10 +52,17 @@ function emissions(emitted: Array<Transcription>) {
   return emitted.map((t) => [t.segments[0].text, t.segments[0].final]);
 }
 
-function setup() {
+function setup(
+  overrides: {
+    getMicrophoneTrackSid?: (identity: string) => string | undefined;
+    getDelegatingPublisherIdentity?: (identity: string) => string | undefined;
+  } = {},
+) {
   const emitted: Array<Transcription> = [];
   const converter = new TranscriptionStreamConverter({
     onTranscription: (transcription) => emitted.push(transcription),
+    getMicrophoneTrackSid: overrides.getMicrophoneTrackSid ?? (() => undefined),
+    getDelegatingPublisherIdentity: overrides.getDelegatingPublisherIdentity ?? (() => undefined),
   });
   return { converter, emitted };
 }

@@ -9,6 +9,13 @@ import { ParticipantAgentAttributes } from '../participant/attributes';
 export interface TranscriptionStreamConverterOptions {
   /** Invoked with a synthesized `Transcription` for every transcription update. */
   onTranscription: (transcription: Transcription) => void;
+  /** Resolves the sid of the microphone track published by `identity`, if it has one. */
+  getMicrophoneTrackSid: (identity: string) => string | undefined;
+  /**
+   * Resolves the identity of a participant whose `lk.publish_on_behalf` attribute names
+   * `identity` - an avatar worker speaking for an agent, if one is present.
+   */
+  getDelegatingPublisherIdentity: (identity: string) => string | undefined;
 }
 
 interface PartialTranscription {
@@ -102,6 +109,29 @@ export default class TranscriptionStreamConverter {
     }
   }
 
+  /**
+   * Works out which participant and track a transcription should be attributed to, matching what
+   * the legacy channel reported.
+   *
+   * In an avatar session the legacy channel named the *delegating publisher* (the avatar worker)
+   * rather than the agent it speaks for, and the stream's `lk.transcribed_track_id` is absent
+   * because the agent publishes no microphone track of its own. Preferring the worker keeps the
+   * identity stable across the cutover and lets `Room.handleTranscription` resolve a publication.
+   */
+  private resolveSpeaker(senderIdentity: string, reader: TextStreamReader) {
+    // `||` rather than `??` throughout: a resolver that reports "nothing found" as an empty string
+    // rather than undefined should fall through to the next candidate, not pin the result to ''.
+    // An empty identity resolves no participant, and an empty track sid resolves no publication,
+    // so treating either as a real answer silently stops the transcription events from firing.
+    const identity = this.options.getDelegatingPublisherIdentity(senderIdentity) || senderIdentity;
+    const trackId =
+      reader.info.attributes?.[ParticipantAgentAttributes.TranscribedTrackId] ||
+      this.options.getMicrophoneTrackSid(identity) ||
+      this.options.getMicrophoneTrackSid(senderIdentity) ||
+      '';
+    return { identity, trackId };
+  }
+
   private emitSegment(
     partial: PartialTranscription,
     segmentId: string,
@@ -121,10 +151,12 @@ export default class TranscriptionStreamConverter {
     partial.emittedText = partial.text;
     partial.emittedFinal = final;
 
+    const { identity, trackId } = this.resolveSpeaker(senderIdentity, reader);
+
     this.options.onTranscription(
       new Transcription({
-        transcribedParticipantIdentity: senderIdentity,
-        trackId: reader.info.attributes?.[ParticipantAgentAttributes.TranscribedTrackId] ?? '',
+        transcribedParticipantIdentity: identity,
+        trackId,
         segments: [
           new TranscriptionSegmentModel({
             id: segmentId,
