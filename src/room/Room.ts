@@ -2099,7 +2099,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
     } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(participant, packet.value.value);
+      this.handleTranscription(packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
@@ -2173,10 +2173,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
   };
 
-  private handleTranscription = (
-    _remoteParticipant: RemoteParticipant | undefined,
-    transcription: TranscriptionModel,
-  ) => {
+  private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
     const participant =
       transcription.transcribedParticipantIdentity === this.localParticipant.identity
