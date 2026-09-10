@@ -14,7 +14,7 @@ import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isDeflateRawCompressionSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
-import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
+import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH, TRANSCRIPTION_TOPIC } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -294,16 +294,30 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         return;
       }
       case 'textHeader': {
-        const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-        if (!streamHandlerCallback) {
+        // The transcription tap runs alongside the application handler, each with its own reader,
+        // so the SDK can rebuild transcription events without taking the reserved topic away from
+        // an application that reads it too. `listenerCount` keeps the "nobody wants this stream,
+        // drop it" behavior intact when no one has subscribed.
+        const streamHandlerCallbacks: Array<TextStreamHandler> = [];
+        if (
+          streamHeader.topic === TRANSCRIPTION_TOPIC &&
+          this.listenerCount('transcriptionStreamArrived') > 0
+        ) {
+          streamHandlerCallbacks.push((reader, { identity }) => {
+            this.emit('transcriptionStreamArrived', { reader, participantIdentity: identity });
+          });
+        }
+        const applicationCallback = this.textStreamHandlers.get(streamHeader.topic);
+        if (applicationCallback) {
+          streamHandlerCallbacks.push(applicationCallback);
+        }
+        if (streamHandlerCallbacks.length === 0) {
           this.log.debug(
             'ignoring incoming text stream due to no handler for topic',
             streamHeader.topic,
           );
           return;
         }
-
-        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
 
         const info: TextStreamInfo = {
           id: streamHeader.streamId,
@@ -346,62 +360,77 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
         const inlineContent = streamHeader.inlineContent as NonSharedUint8Array;
         if (typeof inlineContent !== 'undefined') {
-          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
+          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed. `content` is
+          // computed once and shared: when compressed it is a promise, so each inline stream awaits
+          // the same decompression rather than repeating it.
           const content = compressed
             ? deflateRawDecompress(inlineContent, this.maxPayloadByteLength)
             : inlineContent;
+          for (const streamHandlerCallback of streamHandlerCallbacks) {
+            streamHandlerCallback(
+              new TextStreamReader(
+                info,
+                createInlineStream(streamHeader.streamId, content),
+                bigIntToNumber(streamHeader.totalLength),
+              ),
+              { identity: participantIdentity },
+            );
+          }
+          return;
+        }
+
+        if (this.textStreamControllers.has(streamHeader.streamId)) {
+          throw new DataStreamError(
+            `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+            DataStreamErrorReason.AlreadyOpened,
+          );
+        }
+
+        const group: TextStreamControllerGroup = {
+          info,
+          startTime: Date.now(),
+          sendingParticipantIdentity: participantIdentity,
+          controllers: [],
+        };
+        this.textStreamControllers.set(streamHeader.streamId, group);
+
+        for (const streamHandlerCallback of streamHandlerCallbacks) {
+          let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+          const stream = new ReadableStream<DataStream_Chunk>({
+            start: (controller) => {
+              streamController = controller;
+              group.controllers.push(controller);
+            },
+            cancel: () => {
+              // This consumer's side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a
+              // gap) or was cancelled, which cancels this source stream. Drop its controller so later
+              // chunks and the trailer skip it rather than hitting a closed controller, and
+              // unregister the stream once no consumers remain.
+              const index = group.controllers.indexOf(streamController);
+              if (index !== -1) {
+                group.controllers.splice(index, 1);
+              }
+              if (
+                group.controllers.length === 0 &&
+                this.textStreamControllers.get(streamHeader.streamId) === group
+              ) {
+                this.textStreamControllers.delete(streamHeader.streamId);
+              }
+            },
+          });
           streamHandlerCallback(
             new TextStreamReader(
               info,
-              createInlineStream(streamHeader.streamId, content),
+              compressed
+                ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
+                : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
+              // `totalLength` is the pre-compression size, and the reader sees decompressed bytes,
+              // so it applies to both paths.
               bigIntToNumber(streamHeader.totalLength),
             ),
             { identity: participantIdentity },
           );
-          return;
         }
-
-        const stream = new ReadableStream<DataStream_Chunk>({
-          start: (controller) => {
-            streamController = controller;
-
-            if (this.textStreamControllers.has(streamHeader.streamId)) {
-              throw new DataStreamError(
-                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-                DataStreamErrorReason.AlreadyOpened,
-              );
-            }
-
-            this.textStreamControllers.set(streamHeader.streamId, {
-              info,
-              startTime: Date.now(),
-              sendingParticipantIdentity: participantIdentity,
-              controllers: [streamController],
-            });
-          },
-          cancel: () => {
-            // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
-            // was cancelled, which cancels this source stream. Unregister it so later chunks and the
-            // trailer for this stream are dropped rather than hitting a closed controller.
-            if (
-              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
-            ) {
-              this.textStreamControllers.delete(streamHeader.streamId);
-            }
-          },
-        });
-        streamHandlerCallback(
-          new TextStreamReader(
-            info,
-            compressed
-              ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
-              : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
-            // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
-            // it applies to both paths.
-            bigIntToNumber(streamHeader.totalLength),
-          ),
-          { identity: participantIdentity },
-        );
         return;
       }
     }
