@@ -2101,7 +2101,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         packet.participantIdentity,
       );
     } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(participant, packet.value.value);
+      this.handleTranscription(packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
@@ -2145,10 +2145,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
   };
 
-  private handleTranscription = (
-    _remoteParticipant: RemoteParticipant | undefined,
-    transcription: TranscriptionModel,
-  ) => {
+  private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
     const participant =
       transcription.transcribedParticipantIdentity === this.localParticipant.identity
