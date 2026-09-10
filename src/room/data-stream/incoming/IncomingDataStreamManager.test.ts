@@ -1808,6 +1808,33 @@ describe('IncomingDataStreamManager', () => {
       await expect(appReaders[0].readAll()).resolves.toBe(text);
     });
 
+    it('should emit transcriptionStreamArrived with no application handler registered', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', {
+          topic: TRANSCRIPTION_TOPIC,
+          totalLength: BigInt(text.length),
+        }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      await expect(event.reader.readAll()).resolves.toBe(text);
+    });
+
     it('should emit transcriptionStreamArrived for an inline single-packet stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
@@ -1869,6 +1896,48 @@ describe('IncomingDataStreamManager', () => {
       // Both readers share one `info`, so the trailer's finality flip reaches both.
       expect(event.reader.info.attributes?.['lk.transcription_final']).toBe('true');
       expect(appReaders[0].info.attributes?.['lk.transcription_final']).toBe('true');
+    });
+
+    it('should not emit transcriptionStreamArrived for any other topic', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const appReaders: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => appReaders.push(reader));
+
+      const streamId = crypto.randomUUID();
+      const text = 'hi';
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { totalLength: BigInt(text.length) }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      await expect(appReaders[0].readAll()).resolves.toBe(text);
+      expect(managerEvents.areThereBufferedEvents('transcriptionStreamArrived')).toBe(false);
+    });
+
+    it('should still ignore a transcription stream when nothing is listening', () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const streamId = crypto.randomUUID();
+      const header = headerPacket(streamId, 'textHeader', {
+        topic: TRANSCRIPTION_TOPIC,
+        totalLength: 2n,
+      });
+
+      expect(() => manager.handleDataStreamPacket(header, Encryption_Type.NONE)).not.toThrow();
+      // No controller was registered, so re-using the stream id is not an "already in progress"
+      // conflict - which proves the stream really was dropped rather than half-opened.
+      expect(() => manager.handleDataStreamPacket(header, Encryption_Type.NONE)).not.toThrow();
     });
   });
 });
