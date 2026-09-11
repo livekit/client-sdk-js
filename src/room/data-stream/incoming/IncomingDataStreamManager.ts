@@ -6,21 +6,38 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log from '../../../logger';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
-import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
+import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH, TRANSCRIPTION_TOPIC } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
   type TextStreamHandler,
   TextStreamReader,
 } from './StreamReader';
+import type { IncomingDataStreamManagerCallbacks } from './events';
 
-export default class IncomingDataStreamManager {
+/**
+ * The receive state for one in-flight text stream. A text stream can have several consumers (an
+ * application handler for its topic, plus the SDK's own transcription tap), each reading through
+ * its own `ReadableStream`. Everything that describes the *stream* - its info, when it started, who
+ * sent it - is held once here rather than copied per consumer, so consumers cannot disagree about
+ * it and a trailer's attribute merge is visible to all of them by construction.
+ */
+interface TextStreamControllerGroup {
+  info: TextStreamInfo;
+  startTime: number;
+  sendingParticipantIdentity: string;
+  controllers: Array<ReadableStreamDefaultController<DataStream_Chunk>>;
+}
+
+export default class IncomingDataStreamManager extends (EventEmitter as new () => TypedEmitter<IncomingDataStreamManagerCallbacks>) {
   private log = log;
 
   /** Max number of decompressed bytes an incoming compressed stream may produce before it is
@@ -28,12 +45,13 @@ export default class IncomingDataStreamManager {
   private maxPayloadByteLength: number;
 
   constructor(maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH) {
+    super();
     this.maxPayloadByteLength = maxPayloadByteLength;
   }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+  private textStreamControllers = new Map<string, TextStreamControllerGroup>();
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
@@ -96,7 +114,7 @@ export default class IncomingDataStreamManager {
     // Terminate any in flight data stream receives from the given participant
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.textStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+    ).filter(([, group]) => group.sendingParticipantIdentity === participantIdentity);
     const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.byteStreamControllers.entries(),
     ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
@@ -113,8 +131,10 @@ export default class IncomingDataStreamManager {
         controller.controller.error(abnormalEndError);
         this.byteStreamControllers.delete(id);
       }
-      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
+      for (const [id, group] of textStreamsBeingSentByDisconnectingParticipant) {
+        for (const controller of group.controllers) {
+          controller.error(abnormalEndError);
+        }
         this.textStreamControllers.delete(id);
       }
     }
@@ -253,16 +273,30 @@ export default class IncomingDataStreamManager {
         return;
       }
       case 'textHeader': {
-        const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-        if (!streamHandlerCallback) {
+        // The transcription tap runs alongside the application handler, each with its own reader,
+        // so the SDK can rebuild transcription events without taking the reserved topic away from
+        // an application that reads it too. `listenerCount` keeps the "nobody wants this stream,
+        // drop it" behavior intact when no one has subscribed.
+        const streamHandlerCallbacks: Array<TextStreamHandler> = [];
+        if (
+          streamHeader.topic === TRANSCRIPTION_TOPIC &&
+          this.listenerCount('transcriptionStreamArrived') > 0
+        ) {
+          streamHandlerCallbacks.push((reader, { identity }) => {
+            this.emit('transcriptionStreamArrived', { reader, participantIdentity: identity });
+          });
+        }
+        const applicationCallback = this.textStreamHandlers.get(streamHeader.topic);
+        if (applicationCallback) {
+          streamHandlerCallbacks.push(applicationCallback);
+        }
+        if (streamHandlerCallbacks.length === 0) {
           this.log.debug(
             'ignoring incoming text stream due to no handler for topic',
             streamHeader.topic,
           );
           return;
         }
-
-        let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
 
         const info: TextStreamInfo = {
           id: streamHeader.streamId,
@@ -305,52 +339,59 @@ export default class IncomingDataStreamManager {
         // Synthesize an already-complete stream and skip waiting for chunk/trailer packets.
         const inlineContent = streamHeader.inlineContent as NonSharedUint8Array;
         if (typeof inlineContent !== 'undefined') {
-          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed.
+          // Inline text is the raw UTF-8 payload, optionally deflate-raw compressed. `content` is
+          // computed once and shared: when compressed it is a promise, so each inline stream awaits
+          // the same decompression rather than repeating it.
           const content = compressed
             ? deflateRawDecompress(inlineContent, this.maxPayloadByteLength)
             : inlineContent;
+          for (const streamHandlerCallback of streamHandlerCallbacks) {
+            streamHandlerCallback(
+              new TextStreamReader(
+                info,
+                createInlineStream(streamHeader.streamId, content),
+                bigIntToNumber(streamHeader.totalLength),
+              ),
+              { identity: participantIdentity },
+            );
+          }
+          return;
+        }
+
+        if (this.textStreamControllers.has(streamHeader.streamId)) {
+          throw new DataStreamError(
+            `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+            DataStreamErrorReason.AlreadyOpened,
+          );
+        }
+
+        const group: TextStreamControllerGroup = {
+          info,
+          startTime: Date.now(),
+          sendingParticipantIdentity: participantIdentity,
+          controllers: [],
+        };
+        this.textStreamControllers.set(streamHeader.streamId, group);
+
+        for (const streamHandlerCallback of streamHandlerCallbacks) {
+          const stream = new ReadableStream<DataStream_Chunk>({
+            start: (controller) => {
+              group.controllers.push(controller);
+            },
+          });
           streamHandlerCallback(
             new TextStreamReader(
               info,
-              createInlineStream(streamHeader.streamId, content),
+              compressed
+                ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
+                : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
+              // `totalLength` is the pre-compression size, and the reader sees decompressed bytes,
+              // so it applies to both paths.
               bigIntToNumber(streamHeader.totalLength),
             ),
             { identity: participantIdentity },
           );
-          return;
         }
-
-        const stream = new ReadableStream<DataStream_Chunk>({
-          start: (controller) => {
-            streamController = controller;
-
-            if (this.textStreamControllers.has(streamHeader.streamId)) {
-              throw new DataStreamError(
-                `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
-                DataStreamErrorReason.AlreadyOpened,
-              );
-            }
-
-            this.textStreamControllers.set(streamHeader.streamId, {
-              info,
-              controller: streamController,
-              startTime: Date.now(),
-              sendingParticipantIdentity: participantIdentity,
-            });
-          },
-        });
-        streamHandlerCallback(
-          new TextStreamReader(
-            info,
-            compressed
-              ? inflateRawChunkStream(stream, streamHeader.streamId, this.maxPayloadByteLength)
-              : stream.pipeThrough(ensureOrderedChunks(streamHeader.streamId)),
-            // `totalLength` is the pre-compression size, and the reader sees decompressed bytes, so
-            // it applies to both paths.
-            bigIntToNumber(streamHeader.totalLength),
-          ),
-          { identity: participantIdentity },
-        );
         return;
       }
     }
@@ -371,45 +412,53 @@ export default class IncomingDataStreamManager {
         fileBuffer.controller.enqueue(chunk);
       }
     }
-    const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
-        textBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
+    const textGroup = this.textStreamControllers.get(chunk.streamId);
+    if (textGroup) {
+      if (textGroup.info.encryptionType !== encryptionType) {
+        const error = new DataStreamError(
+          `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textGroup.info.encryptionType}`,
+          DataStreamErrorReason.EncryptionTypeMismatch,
         );
+        for (const controller of textGroup.controllers) {
+          controller.error(error);
+        }
         this.textStreamControllers.delete(chunk.streamId);
       } else {
-        textBuffer.controller.enqueue(chunk);
+        for (const controller of textGroup.controllers) {
+          controller.enqueue(chunk);
+        }
       }
     }
   }
 
   private handleStreamTrailer(trailer: DataStream_Trailer, encryptionType: Encryption_Type) {
-    const textBuffer = this.textStreamControllers.get(trailer.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
-        textBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
+    const textGroup = this.textStreamControllers.get(trailer.streamId);
+    if (textGroup) {
+      if (textGroup.info.encryptionType !== encryptionType) {
+        const error = new DataStreamError(
+          `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textGroup.info.encryptionType}`,
+          DataStreamErrorReason.EncryptionTypeMismatch,
         );
+        for (const controller of textGroup.controllers) {
+          controller.error(error);
+        }
       } else {
-        textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
+        // One `info` per stream, so this merge is visible to every consumer's reader.
+        textGroup.info.attributes = { ...textGroup.info.attributes, ...trailer.attributes };
         if (trailer.reason) {
           // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
           // surface it as an error rather than pretending the stream completed.
-          textBuffer.controller.error(
-            new DataStreamError(
-              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-              DataStreamErrorReason.AbnormalEnd,
-            ),
+          const error = new DataStreamError(
+            `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+            DataStreamErrorReason.AbnormalEnd,
           );
+          for (const controller of textGroup.controllers) {
+            controller.error(error);
+          }
         } else {
-          textBuffer.controller.close();
+          for (const controller of textGroup.controllers) {
+            controller.close();
+          }
         }
       }
       this.textStreamControllers.delete(trailer.streamId);

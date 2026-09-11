@@ -83,6 +83,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { ParticipantAgentAttributes } from './participant/attributes';
 import {
   RPC_REQUEST_DATA_STREAM_TOPIC,
   RPC_RESPONSE_DATA_STREAM_TOPIC,
@@ -104,6 +105,7 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
+import TranscriptionStreamConverter from './transcription/TranscriptionStreamConverter';
 import {
   type ChatMessage,
   type SimulationOptions,
@@ -234,6 +236,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private incomingDataStreamManager: IncomingDataStreamManager;
 
+  private transcriptionStreamConverter: TranscriptionStreamConverter;
+
   private outgoingDataStreamManager: OutgoingDataStreamManager;
 
   private incomingDataTrackManager: IncomingDataTrackManager;
@@ -282,6 +286,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.incomingDataStreamManager = new IncomingDataStreamManager(
       this.options.dataStream?.maxPayloadByteLength,
+    );
+    this.transcriptionStreamConverter = new TranscriptionStreamConverter({
+      onTranscription: (transcription) => this.handleTranscription(transcription),
+      getMicrophoneTrackSid: this.getMicrophoneTrackSid,
+      getDelegatingPublisherIdentity: this.getDelegatingPublisherIdentity,
+    });
+    this.incomingDataStreamManager.on(
+      'transcriptionStreamArrived',
+      ({ reader, participantIdentity }) => {
+        this.transcriptionStreamConverter.handleTextStream(reader, participantIdentity);
+      },
     );
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(
       this.engine,
@@ -1834,6 +1849,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.isResuming = false;
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
+    this.transcriptionStreamConverter.reset();
     this.incomingDataStreamManager.clearControllers();
     this.incomingDataTrackManager.reset();
     this.outgoingDataTrackManager.reset();
@@ -2100,7 +2116,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
     } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(participant, packet.value.value);
+      // Legacy `Transcription` packets are ignored: transcription events are rebuilt from the
+      // `lk.transcription` data stream channel instead, which this client advertises support for
+      // via client protocol 3. See
+      // docs/superpowers/specs/2026-09-04-transcription-back-conversion-design.md
+      this.log.debug('ignoring legacy transcription data packet', this.logContext);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
@@ -2174,10 +2194,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
   };
 
-  private handleTranscription = (
-    _remoteParticipant: RemoteParticipant | undefined,
-    transcription: TranscriptionModel,
-  ) => {
+  private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
     const participant =
       transcription.transcribedParticipantIdentity === this.localParticipant.identity
@@ -2603,6 +2620,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
     );
   }
+
+  private getMicrophoneTrackSid = (identity: Participant['identity']): string | undefined => {
+    const participant = this.getParticipantByIdentity(identity);
+    for (const publication of participant?.trackPublications.values() ?? []) {
+      if (publication.source === Track.Source.Microphone) {
+        return publication.trackSid;
+      }
+    }
+    return undefined;
+  };
+
+  private getDelegatingPublisherIdentity = (
+    identity: Participant['identity'],
+  ): string | undefined => {
+    // An avatar worker carries `lk.publish_on_behalf` naming the agent it speaks for.
+    for (const participant of this.remoteParticipants.values()) {
+      if (participant.attributes[ParticipantAgentAttributes.PublishOnBehalf] === identity) {
+        return participant.identity;
+      }
+    }
+    return undefined;
+  };
 
   private setStatsLogging(enabled: boolean) {
     if (enabled) {
