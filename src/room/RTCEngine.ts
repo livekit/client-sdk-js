@@ -227,6 +227,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
+  private reconnectAbortController?: AbortController;
+
   private reconnectPolicy: ReconnectPolicy;
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -392,6 +394,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         useV0Path,
         offerProto,
       );
+      if (abortSignal?.aborted) {
+        throw ConnectionError.cancelled('Connection aborted');
+      }
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
       this.participantSid = joinResponse.participant?.sid;
@@ -405,6 +410,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // the server's ICE servers and topology, then negotiate separately rather than bundling
           // the offer with the join.
           await this.configure(joinResponse, !useV0Path);
+          if (abortSignal?.aborted) {
+            throw ConnectionError.cancelled('Connection aborted');
+          }
           if (!useV0Path) {
             // The V1 first offer must carry the media layout so Firefox binds receive decoders for
             // subscribed tracks — without it, subscribed audio/video arrive as RTP but
@@ -463,6 +471,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * having given up on reconnecting.
    */
   async close(reason?: string) {
+    this.reconnectAbortController?.abort();
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -1335,16 +1344,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.fullReconnectOnNext = false;
 
     let succeeded = false;
+    const abortController = new AbortController();
+    this.reconnectAbortController = abortController;
     try {
       this.attemptingReconnect = true;
       if (fullReconnect) {
-        await this.restartConnection();
+        await this.restartConnection(abortController.signal);
       } else {
         await this.resumeConnection(reason);
       }
+      if (abortController.signal.aborted) return;
       this.clearPendingReconnect();
       succeeded = true;
     } catch (e) {
+      if (abortController.signal.aborted) return;
       this.reconnectAttempts += 1;
       let recoverable = true;
       if (e instanceof UnexpectedConnectionState) {
@@ -1373,6 +1386,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         );
       }
     } finally {
+      this.reconnectAbortController = undefined;
       this.attemptingReconnect = false;
 
       // A full reconnect requested while this attempt was running (e.g. a `RECONNECT` leave
@@ -1396,8 +1410,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return null;
   }
 
-  private async restartConnection(regionUrl?: string) {
+  private async restartConnection(abortSignal: AbortSignal, regionUrl?: string) {
     try {
+      if (abortSignal.aborted) return;
       if (!this.url || !this.token) {
         // permanent failure, don't attempt reconnection
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -1411,6 +1426,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       await this.cleanupPeerConnections();
       await this.cleanupClient();
+      if (abortSignal.aborted) return;
 
       let joinResponse: JoinResponse;
       try {
@@ -1424,7 +1440,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             regionUrl ?? this.url,
             this.token,
             this.signalOpts,
-            undefined,
+            abortSignal,
             !this.options.singlePeerConnection,
           )
         ).joinResponse;
@@ -1434,6 +1450,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         throw new SignalReconnectError();
       }
+      if (abortSignal.aborted) return;
 
       if (this.shouldFailNext) {
         this.shouldFailNext = false;
@@ -1444,6 +1461,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
+      if (abortSignal.aborted) return;
 
       // re-check signal connection state before setting engine as resumed
       if (this.client.currentState !== SignalConnectionState.CONNECTED) {
@@ -1454,9 +1472,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // reconnect success
       this.emit(EngineEvent.Restarted);
     } catch (error) {
-      const nextRegionUrl = await this.regionStrategy?.getNextUrl();
+      if (abortSignal.aborted) return;
+      const nextRegionUrl = await this.regionStrategy?.getNextUrl(abortSignal);
+      if (abortSignal.aborted) return;
       if (nextRegionUrl) {
-        await this.restartConnection(nextRegionUrl);
+        await this.restartConnection(abortSignal, nextRegionUrl);
         return;
       } else {
         // no more regions to try (or we're not on cloud)
