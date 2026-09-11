@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.22.4
+
+### Patch Changes
+
+- Add `disableIceLite` connect option to request full ICE from a server running ICE lite. - [#2085](https://github.com/livekit/client-sdk-js/pull/2085) ([@subham2006](https://github.com/subham2006))
+
+- Avoid attaching a new Closing/Restarting event listener for each negotiate call - [#2084](https://github.com/livekit/client-sdk-js/pull/2084) ([@1egoman](https://github.com/1egoman))
+
+- Retry against other LiveKit Cloud regions when the initial connection is rejected with 403. Cloud signals project-level region pinning with a 403 on the RTC paths, which was previously treated as terminal, so a client that geo-routed to a disallowed region never reached `/settings/regions` and failed to connect. 401 and the 404 "room does not exist" case remain terminal. - [#2097](https://github.com/livekit/client-sdk-js/pull/2097) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
 ## 2.22.3
 
 ### Patch Changes
