@@ -77,6 +77,7 @@ import {
   ConnectionErrorReason,
   UnexpectedConnectionState,
   UnsupportedServer,
+  canFailOverToAnotherRegion,
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
@@ -908,8 +909,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (
           this.regionUrlProvider &&
           error instanceof ConnectionError &&
-          error.reason !== ConnectionErrorReason.Cancelled &&
-          error.reason !== ConnectionErrorReason.NotAllowed
+          canFailOverToAnotherRegion(error)
         ) {
           let nextUrl: string | null = null;
           try {
