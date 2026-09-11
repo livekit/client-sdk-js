@@ -11,6 +11,8 @@ export default abstract class RemoteTrack<
   /** @internal */
   receiver: RTCRtpReceiver | undefined;
 
+  private mediaStreamAbort?: AbortController;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -39,11 +41,16 @@ export default abstract class RemoteTrack<
 
   /** @internal */
   setMediaStream(stream: MediaStream) {
+    // Detach the listener bound to any previously set stream so the old
+    // MediaStream (and this track, captured by the handler closure) can be
+    // garbage collected when a new stream replaces it.
+    this.mediaStreamAbort?.abort();
+    this.mediaStreamAbort = new AbortController();
     // this is needed to determine when the track is finished
     this.mediaStream = stream;
     const onRemoveTrack = (event: MediaStreamTrackEvent) => {
       if (event.track === this._mediaStreamTrack) {
-        stream.removeEventListener('removetrack', onRemoveTrack);
+        this.mediaStreamAbort?.abort();
         if (this.receiver && 'playoutDelayHint' in this.receiver) {
           this.receiver.playoutDelayHint = undefined;
         }
@@ -52,7 +59,9 @@ export default abstract class RemoteTrack<
         this.emit(TrackEvent.Ended, this);
       }
     };
-    stream.addEventListener('removetrack', onRemoveTrack);
+    stream.addEventListener('removetrack', onRemoveTrack, {
+      signal: this.mediaStreamAbort.signal,
+    });
   }
 
   start() {
