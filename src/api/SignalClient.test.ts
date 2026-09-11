@@ -11,8 +11,10 @@ import {
   WrappedJoinRequest_Compression,
 } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mutex } from '@livekit/mutex';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
+import { Future } from '../room/utils';
 import { SignalClient, SignalConnectionState } from './SignalClient';
 import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
@@ -146,6 +148,86 @@ describe('SignalClient.connect', () => {
     }
     return JoinRequest.fromBinary(bytes);
   }
+
+  describe('Cancelled connection attempts', () => {
+    it.each(['before join', 'while waiting for the connection lock'])(
+      'does not open a transport when aborted %s',
+      async (when) => {
+        const abortController = new AbortController();
+        const internals = signalClient as unknown as { connectionLock: Mutex };
+        const unlock = await internals.connectionLock.lock();
+        mockWebSocketStream({
+          connection: createMockConnection(
+            createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+          ),
+        });
+        if (when === 'before join') abortController.abort();
+        const joining = signalClient.join(
+          'wss://test.livekit.io',
+          'test-token',
+          defaultOptions,
+          abortController.signal,
+        );
+        abortController.abort();
+        unlock();
+
+        try {
+          await expect(joining).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+          expect(WebSocketStream).not.toHaveBeenCalled();
+        } finally {
+          await signalClient.close();
+          vi.mocked(WebSocketStream).mockReset();
+        }
+      },
+    );
+
+    it('does not replace a transport when aborted during its teardown', async () => {
+      const abortController = new AbortController();
+      const internals = signalClient as unknown as {
+        connectionLock: Mutex;
+        teardownTransport: (reason: string) => Promise<void>;
+      };
+      const teardownStarted = new Future<void, Error>();
+      const finishTeardown = new Future<void, Error>();
+      vi.spyOn(internals, 'teardownTransport').mockImplementationOnce(async () => {
+        teardownStarted.resolve?.();
+        await finishTeardown.promise;
+      });
+      signalClient.ws = {
+        close: () => {},
+        closed: Promise.resolve({ closeCode: 1000, reason: '' }),
+      } as WebSocketStream;
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+      });
+
+      const joining = signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        abortController.signal,
+      );
+      const cancelled = expect(joining).rejects.toMatchObject({
+        reason: ConnectionErrorReason.Cancelled,
+      });
+      await teardownStarted.promise;
+      abortController.abort();
+      finishTeardown.resolve?.();
+      await cancelled;
+      // The rejection can settle before the transport replacement resumes.
+      const unlock = await internals.connectionLock.lock();
+      unlock();
+
+      try {
+        expect(WebSocketStream).not.toHaveBeenCalled();
+      } finally {
+        await signalClient.close();
+        vi.mocked(WebSocketStream).mockReset();
+      }
+    });
+  });
 
   describe('Happy Path - Initial Join', () => {
     it('should successfully connect and receive join response', async () => {

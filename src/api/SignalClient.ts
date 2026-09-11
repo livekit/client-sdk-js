@@ -453,6 +453,11 @@ export class SignalClient {
       throw e;
     }
 
+    if (abortSignal?.aborted) {
+      unlock();
+      throw ConnectionError.cancelled('Connection aborted');
+    }
+
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
         let alreadyAborted = false;
@@ -507,6 +512,7 @@ export class SignalClient {
           await this.teardownTransport('replaced by a new connection attempt');
           this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
         }
+        if (alreadyAborted) return;
 
         // the transport created below belongs to this attempt; events arriving from it after a
         // newer attempt has started are dropped by the machine
