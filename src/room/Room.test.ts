@@ -385,6 +385,16 @@ describe('participant roster reconciliation after resume', () => {
     expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
   });
 
+  it('keeps participants that joined during the resume', () => {
+    const room = setupConnectedRoom('alice');
+
+    room.engine.emit(EngineEvent.Resuming);
+    pushUpdate(room, info('alice'), info('dave'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'dave']);
+  });
+
   it('emits ParticipantDisconnected before Reconnected', () => {
     const room = setupConnectedRoom('alice', 'bob');
 
@@ -397,5 +407,30 @@ describe('participant roster reconciliation after resume', () => {
     room.engine.emit(EngineEvent.Resumed);
 
     expect(order).toEqual(['disconnected:bob', 'reconnected']);
+  });
+
+  it('does not reconcile against updates received outside of a resume', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    // a routine partial update (e.g. alice changed metadata) must not evict bob
+    pushUpdate(room, info('alice'));
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
+  });
+
+  it('does not evict participants when the resume escalates to a full reconnect', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    room.engine.emit(EngineEvent.Resuming);
+    pushUpdate(room, info('alice'));
+    // resume failed; the engine falls back to a full reconnect, which rebuilds from the
+    // JoinResponse instead — the abandoned resume's roster must not be applied later
+    room.engine.emit(EngineEvent.Restarting);
+    expect(room.remoteParticipants.size).toBe(0);
+
+    pushUpdate(room, info('alice'), info('bob'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
   });
 });
