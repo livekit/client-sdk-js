@@ -2139,12 +2139,8 @@ export default class LocalParticipant extends Participant {
             'track ended, attempting to use a different device',
             getLogContextFromTrack(track),
           );
-          if (isLocalAudioTrack(track)) {
-            // fall back to default device if available
-            await track.restartTrack({ deviceId: 'default' });
-          } else {
-            await track.restartTrack();
-          }
+          // fall back to default device if available
+          await track.restartTrack({ deviceId: 'default' });
         }
       } catch (e) {
         this.log.warn(`could not restart track, muting instead`, getLogContextFromTrack(track));
