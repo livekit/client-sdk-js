@@ -11,6 +11,7 @@ import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { LocalTrackRecorder, isRecordingSupported } from './record';
 import type { ReplaceTrackOptions } from './types';
+import { waitForFirstVideoFrame } from './utils';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
 const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
@@ -224,17 +225,23 @@ export default abstract class LocalTrack<
       throw new Error('cannot get dimensions for audio tracks');
     }
 
+    const started = Date.now();
+
     if (getBrowser()?.os === 'iOS') {
-      // browsers report wrong initial resolution on iOS.
-      // when slightly delaying the call to .getSettings(), the correct resolution is being reported
-      await sleep(10);
+      // iOS keeps reporting the camera's sensor frame from getSettings() until the camera has
+      // delivered its first picture, so a portrait capture initially reads as landscape.
+      // Wait for that first frame instead of guessing at a delay.
+      // https://github.com/livekit/client-sdk-js/issues/2099
+      await waitForFirstVideoFrame(this._mediaStreamTrack, timeout, this.attachedElements);
     }
 
-    const started = Date.now();
-    while (Date.now() - started < timeout) {
+    while (true) {
       const dims = this.dimensions;
       if (dims) {
         return dims;
+      }
+      if (Date.now() - started >= timeout) {
+        break;
       }
       await sleep(50);
     }

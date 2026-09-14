@@ -1,5 +1,6 @@
 import { TrackInfo, TrackPublishedResponse, TrackSource, VideoQuality } from '@livekit/protocol';
 import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
+import log from '../../logger';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
@@ -350,4 +351,91 @@ export function layerDimensionsFor(
   quality: VideoQuality,
 ): Track.Dimensions | undefined {
   return trackInfo.layers?.find((l) => l.quality === quality);
+}
+
+/**
+ * Waits until `track` has actually produced a video frame.
+ *
+ * iOS keeps reporting the camera's sensor frame from `getSettings()` until the camera has
+ * delivered its first picture, so a portrait capture initially reads as landscape. The arrival
+ * of that first frame is the only reliable signal that the reported settings describe reality.
+ *
+ * Best effort, never throws. Resolves `true` when a frame was observed, `false` when no frame
+ * can be observed (the track is already ended, muted or disabled) or `timeoutMs` elapsed first.
+ *
+ * @internal
+ */
+export async function waitForFirstVideoFrame(
+  track: MediaStreamTrack,
+  timeoutMs: number,
+  candidateElements: HTMLMediaElement[] = [],
+): Promise<boolean> {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  if (track.readyState === 'ended' || track.muted || !track.enabled) {
+    // no frame is ever going to arrive, don't hold the caller up for the full timeout
+    return false;
+  }
+
+  // requestVideoFrameCallback (Safari 15.4 and up) is a platform capability, so the answer is the
+  // same for every element
+  const supportsFrameCallback =
+    typeof HTMLVideoElement.prototype.requestVideoFrameCallback === 'function';
+
+  // prefer an element that is already rendering this track (a local preview, typically) over
+  // spinning up a second decode just to observe a frame
+  const existingElement = candidateElements.find(
+    (el): el is HTMLVideoElement =>
+      el instanceof HTMLVideoElement &&
+      el.srcObject instanceof MediaStream &&
+      el.srcObject.getVideoTracks().includes(track) &&
+      // without requestVideoFrameCallback we depend on `loadeddata`, which is one-shot: an element
+      // that already decoded a frame (readyState >= HAVE_CURRENT_DATA) never fires it again.
+      // Leave those alone and set up our own element, which starts out empty.
+      (supportsFrameCallback || el.readyState < 2),
+  );
+
+  const element = existingElement ?? document.createElement('video');
+  if (!existingElement) {
+    element.playsInline = true;
+    element.muted = true;
+    element.srcObject = new MediaStream([track]);
+    // the element is deliberately never added to the DOM, it only exists to pull frames.
+    // WebKit delivers frames to a paused element too, so a rejected play() (Safari's low power
+    // mode, for instance) is not a reason to stop waiting
+    element.play().catch((error) => {
+      log.debug('could not play element while waiting for the first video frame', { error });
+    });
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let frameHandle: number | undefined;
+  let onLoadedData: (() => void) | undefined;
+
+  try {
+    return await new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+      if (supportsFrameCallback) {
+        frameHandle = element.requestVideoFrameCallback(() => resolve(true));
+      } else {
+        // Safari below 15.4 has no requestVideoFrameCallback. `loadeddata` fires once the first
+        // frame has been decoded, which is the same signal a few milliseconds earlier.
+        onLoadedData = () => resolve(true);
+        element.addEventListener('loadeddata', onLoadedData);
+      }
+    });
+  } finally {
+    clearTimeout(timer);
+    if (frameHandle !== undefined) {
+      element.cancelVideoFrameCallback?.(frameHandle);
+    }
+    if (onLoadedData) {
+      element.removeEventListener('loadeddata', onLoadedData);
+    }
+    if (!existingElement) {
+      element.pause();
+      element.srcObject = null;
+    }
+  }
 }
