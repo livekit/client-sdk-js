@@ -36,13 +36,11 @@ import type { IncomingDataStreamManagerCallbacks } from './events';
  * sent it - is held once here rather than copied per consumer, so consumers cannot disagree about
  * it and a trailer's attribute merge is visible to all of them by construction.
  */
-interface TextStreamControllerGroup extends Omit<
-  StreamController<DataStream_Chunk>,
-  'info' | 'controller'
-> {
+type TextStreamControllerGroup = Omit<StreamController<DataStream_Chunk>, 'info' | 'controller'> & {
   info: TextStreamInfo;
+  /** The controller of each underlying {@link ReadableStream} which is currently being fed by this text stream. */
   controllers: Array<ReadableStreamDefaultController<DataStream_Chunk>>;
-}
+};
 
 /** An open stream: one controller for a byte stream, a group of them for a text stream. */
 type OpenStream = StreamController<DataStream_Chunk> | TextStreamControllerGroup;
