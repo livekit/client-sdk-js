@@ -30,12 +30,12 @@ import type { IncomingDataStreamManagerCallbacks } from './events';
  * sent it - is held once here rather than copied per consumer, so consumers cannot disagree about
  * it and a trailer's attribute merge is visible to all of them by construction.
  */
-interface TextStreamControllerGroup {
+type TextStreamControllerGroup = {
   info: TextStreamInfo;
-  startTime: number;
   sendingParticipantIdentity: string;
+  /** The controller of each underlying {@link ReadableStream} which is currently being fed by this text stream. */
   controllers: Array<ReadableStreamDefaultController<DataStream_Chunk>>;
-}
+};
 
 export default class IncomingDataStreamManager extends (EventEmitter as new () => TypedEmitter<IncomingDataStreamManagerCallbacks>) {
   private log = log;
@@ -367,7 +367,6 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
 
         const group: TextStreamControllerGroup = {
           info,
-          startTime: Date.now(),
           sendingParticipantIdentity: participantIdentity,
           controllers: [],
         };
