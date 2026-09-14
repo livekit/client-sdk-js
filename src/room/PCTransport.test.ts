@@ -2,10 +2,13 @@ import { type MediaDescription, parse } from 'sdp-transform';
 import { describe, expect, it } from 'vitest';
 import {
   applyVideoStartBitrate,
+  computeConnectionStartBitrate,
+  computeTrackStartBitrate,
   conformBundledCodecFmtp,
   ensureAudioNackAndStereo,
   ensureVideoDDExtension,
   extractStereoAndNackAudioFromOffer,
+  findTrackCodecPayload,
   fmtpConfigHasParam,
   placeholderMidsFromTransceivers,
 } from './PCTransport';
@@ -61,9 +64,7 @@ a=recvonly
 a=rtpmap:49 H265/90000
 a=fmtp:49 level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST`;
 
-describe('video start bitrate', () => {
-  it('applies the bitrate only to the section whose msid track ID matches the cid', () => {
-    const { media } = parse(`v=0
+const TWO_VIDEO_SECTIONS = `v=0
 o=- 0 0 IN IP4 127.0.0.1
 s=-
 t=0 0
@@ -79,14 +80,67 @@ c=IN IP4 0.0.0.0
 a=mid:1
 a=sendonly
 a=msid:PA_remote|camera camera-cid
-a=rtpmap:96 VP8/90000`);
+a=rtpmap:96 VP8/90000`;
 
-    for (const section of media) {
-      applyVideoStartBitrate(section, 'camera-cid', 'VP8', 1_000);
-    }
+describe('video start bitrate', () => {
+  it('matches only the section whose msid track ID matches the cid', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+
+    expect(findTrackCodecPayload(media[0], 'camera-cid', 'VP8')).toBeUndefined();
+    expect(findTrackCodecPayload(media[1], 'camera-cid', 'VP8')).toBe(96);
+    // Section belongs to the track but does not offer the codec.
+    expect(findTrackCodecPayload(media[1], 'camera-cid', 'AV1')).toBe(0);
+  });
+
+  it('applies the bitrate only to the section it is given', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+
+    applyVideoStartBitrate(media[1], 96, 900);
 
     expect(fmtpOf(media, '0', 96)).toBeUndefined();
     expect(paramSet(fmtpOf(media, '1', 96)!)).toContain('x-google-start-bitrate=900');
+  });
+
+  it('caps camera at 1 Mbps but leaves screen share uncapped', () => {
+    const camera = { cid: 'c', codec: 'VP8', maxbr: 3_000 };
+    const screenShare = { ...camera, isScreenShare: true };
+
+    expect(computeTrackStartBitrate(camera)).toBe(1_000);
+    expect(computeTrackStartBitrate(screenShare)).toBe(2_700);
+  });
+
+  it('gives no hint below the 300 kbps target floor', () => {
+    expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 299 })).toBeUndefined();
+    expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 300 })).toBe(270);
+  });
+
+  it('uses one connection-level value: the largest hint across video sections', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+
+    const startBitrate = computeConnectionStartBitrate(media, [
+      { cid: 'camera-cid', codec: 'VP8', maxbr: 1_000 },
+      { cid: 'other-track', codec: 'VP8', maxbr: 3_000, isScreenShare: true },
+    ]);
+
+    expect(startBitrate).toBe(2_700);
+  });
+
+  it('ignores registered tracks with no section in the current SDP', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+
+    const startBitrate = computeConnectionStartBitrate(media, [
+      { cid: 'camera-cid', codec: 'VP8', maxbr: 1_000 },
+      // Stale entry: trackBitrates is append-only and outlives an unpublish.
+      { cid: 'unpublished-cid', codec: 'VP8', maxbr: 8_000, isScreenShare: true },
+    ]);
+
+    expect(startBitrate).toBe(900);
+  });
+
+  it('gives no connection value when no section maps to a published track', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+
+    expect(computeConnectionStartBitrate(media, [])).toBeUndefined();
   });
 });
 
