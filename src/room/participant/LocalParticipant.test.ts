@@ -105,7 +105,7 @@ function createLocalParticipant(): TrackEndedTestParticipant {
   return participant as unknown as TrackEndedTestParticipant;
 }
 
-function makeEndedTrack(kind: Track.Kind) {
+function makeEndedTrack(kind: Track.Kind, constraints: MediaTrackConstraints = {}) {
   return {
     kind,
     isLocal: true,
@@ -118,18 +118,29 @@ function makeEndedTrack(kind: Track.Kind) {
       enabled: true,
       id: 'media-track-id',
     },
+    constraints,
     restartTrack: vi.fn().mockResolvedValue(undefined),
   } as unknown as LocalTrack;
 }
 
 describe('LocalParticipant track-ended device fallback', () => {
-  it('falls back to the default device for a video track, matching audio behavior', async () => {
+  it('falls back to the default device for a video track, preserving its other constraints', async () => {
     const participant = createLocalParticipant();
-    const videoTrack = makeEndedTrack(Track.Kind.Video);
+    const videoTrack = makeEndedTrack(Track.Kind.Video, {
+      deviceId: 'the-camera-that-just-got-unplugged',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: 30 },
+    });
 
     await participant.handleTrackEnded(videoTrack);
 
-    expect(videoTrack.restartTrack).toHaveBeenCalledWith({ deviceId: 'default' });
+    expect(videoTrack.restartTrack).toHaveBeenCalledWith({
+      deviceId: 'default',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: 30 },
+    });
   });
 
   it('falls back to the default device for an audio track', async () => {
