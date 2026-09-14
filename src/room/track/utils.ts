@@ -378,13 +378,22 @@ export async function waitForFirstVideoFrame(
     return false;
   }
 
+  // requestVideoFrameCallback (Safari 15.4 and up) is a platform capability, so the answer is the
+  // same for every element
+  const supportsFrameCallback =
+    typeof HTMLVideoElement.prototype.requestVideoFrameCallback === 'function';
+
   // prefer an element that is already rendering this track (a local preview, typically) over
   // spinning up a second decode just to observe a frame
   const existingElement = candidateElements.find(
     (el): el is HTMLVideoElement =>
       el instanceof HTMLVideoElement &&
       el.srcObject instanceof MediaStream &&
-      el.srcObject.getVideoTracks().includes(track),
+      el.srcObject.getVideoTracks().includes(track) &&
+      // without requestVideoFrameCallback we depend on `loadeddata`, which is one-shot: an element
+      // that already decoded a frame (readyState >= HAVE_CURRENT_DATA) never fires it again.
+      // Leave those alone and set up our own element, which starts out empty.
+      (supportsFrameCallback || el.readyState < 2),
   );
 
   const element = existingElement ?? document.createElement('video');
@@ -407,7 +416,7 @@ export async function waitForFirstVideoFrame(
   try {
     return await new Promise<boolean>((resolve) => {
       timer = setTimeout(() => resolve(false), timeoutMs);
-      if (typeof element.requestVideoFrameCallback === 'function') {
+      if (supportsFrameCallback) {
         frameHandle = element.requestVideoFrameCallback(() => resolve(true));
       } else {
         // Safari below 15.4 has no requestVideoFrameCallback. `loadeddata` fires once the first

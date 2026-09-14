@@ -291,6 +291,36 @@ describe('waitForFirstVideoFrame', () => {
     expect(attached.srcObject).not.toBeNull();
   });
 
+  it('reuses an element that has not decoded a frame yet without requestVideoFrameCallback', async () => {
+    const track = new FakeVideoTrack();
+    const attached = document.createElement('video');
+    attached.srcObject = new MediaStream([asMediaStreamTrack(track)]);
+    Object.defineProperty(attached, 'readyState', { value: 1, configurable: true });
+    createdVideoElements.length = 0;
+
+    const pending = waitForFirstVideoFrame(asMediaStreamTrack(track), 1000, [attached]);
+    expect(createdVideoElements).toHaveLength(0);
+    // `loadeddata` has not fired on that element yet, so listening for it still works
+    attached.dispatchEvent(new Event('loadeddata'));
+
+    await expect(pending).resolves.toBe(true);
+  });
+
+  it('declines an already loaded element without requestVideoFrameCallback', async () => {
+    const track = new FakeVideoTrack();
+    const attached = document.createElement('video');
+    attached.srcObject = new MediaStream([asMediaStreamTrack(track)]);
+    Object.defineProperty(attached, 'readyState', { value: 2, configurable: true });
+    createdVideoElements.length = 0;
+
+    const pending = waitForFirstVideoFrame(asMediaStreamTrack(track), 1000, [attached]);
+    // `loadeddata` already fired on that element and is never replayed, so we need our own
+    expect(createdVideoElements).toHaveLength(1);
+    createdVideoElements[0].dispatchEvent(new Event('loadeddata'));
+
+    await expect(pending).resolves.toBe(true);
+  });
+
   it('tears down the element it created', async () => {
     enableFrameCallbacks();
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
