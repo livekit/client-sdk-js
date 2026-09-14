@@ -22,8 +22,9 @@ working.
 
 ## Scope
 
-This spec covers **client-sdk-js only**. The corresponding agents-framework change is out of scope
-and tracked separately. No components-js change is required (see "components-js impact").
+This spec covers **client-sdk-js only**. The corresponding agents-framework change (skip the legacy
+publish when every recipient advertises protocol 3) is out of scope and tracked separately. No
+components-js change is required (see "components-js impact").
 
 ## Decisions
 
@@ -39,71 +40,72 @@ export const CLIENT_PROTOCOL_TRANSCRIPTION_STREAMS = 3;
 export const clientProtocol = CLIENT_PROTOCOL_TRANSCRIPTION_STREAMS;
 ```
 
-The contract has two halves:
+The contract is **bidirectional**, and both halves must be documented because the SDK reads the
+value off remote participants as well as advertising its own:
 
-- **Client side (this spec):** advertise protocol 3, meaning "I reconstruct transcription events
-  from the `lk.transcription` stream channel — you need not publish the legacy `Transcription`
-  packet to me."
-- **Agent side (out of scope, stated here for the record):** inspect the client participants; if
-  every one of them advertises `clientProtocol >= 3`, publish **modern only**, otherwise publish
-  **modern + legacy**.
+- **As a client:** "I back-convert `lk.transcription` streams into transcription events. You may
+  stop publishing legacy `Transcription` packets to me."
+- **As an agent:** "I publish every transcription on the `lk.transcription` stream channel."
 
-### No gate: always back-convert, never read legacy
+### Gate: `some(agent >= 3)` plus legacy suppression
 
-The client behavior is unconditional:
+```
+backConvert = remoteAgents.some(a => a.clientProtocol >= CLIENT_PROTOCOL_TRANSCRIPTION_STREAMS)
+```
 
-1. `lk.transcription` streams are **always** back-converted into `RoomEvent.TranscriptionReceived`
-   (plus the matching `ParticipantEvent` and `TrackEvent`).
-2. Incoming legacy `Transcription` data packets are **always** ignored. The
-   `packet.value.case === 'transcription'` branch in `Room.handleDataPacket` (`Room.ts:2101`) becomes
-   an explicit ignore with a debug log, rather than dispatching to `handleTranscription`.
+where `remoteAgents` is the remote participants for which `Participant.isAgent`
+(`src/room/participant/Participant.ts:115`) holds. The predicate is cheap, so it is evaluated
+lazily at each decision point rather than cached and invalidated. While `backConvert` is true:
 
-`handleTranscription` (`Room.ts:2176`) survives as the emit path, now driven solely by the converter.
+1. `lk.transcription` streams are converted into transcription events, and
+2. legacy `Transcription` packets **whose sender is an agent-kind participant** are dropped.
 
-**This rests on one assumption, confirmed as acceptable:** every agents SDK release publishes at
-least the modern channel. Modern transcriptions landed in the 1.0 development cycle on 2025-02-21
-(`Add text stream sink and multi text sink`, `#1497`), so this excludes only pre-1.0 frameworks,
-which are explicitly not supported.
+Legacy packets from non-agent senders (an application calling `publishTranscription`, egress STT)
+are never suppressed.
 
-Why unconditional rather than gated:
+Rationale for each half:
 
-- **A per-agent gate is unimplementable.** `lk.transcription` streams are published on behalf of the
-  transcribed participant: the outgoing packet sets `participant_identity` to the sender-identity
-  override (`rust-sdks/livekit/src/room/participant/local_participant.rs:624`), and `DataPacket`
-  carries no second "true sender" field. A receiver can tell *which participant was transcribed*,
-  never *which agent produced the stream*. So the client cannot make per-agent decisions about
-  stream-sourced transcriptions at all.
-- **A room-wide gate cannot be made correct either.** A protocol-3 agent drops the legacy publish
-  *per recipient*, so "this agent advertises 3" does not imply "no legacy packet will reach me", and
-  a mixed-version room admits no gate setting that is simultaneously duplicate-free and lossless.
-  Ignoring legacy outright sidesteps the entire question.
-- **There is no version signal that would make a gate better-informed.** See the evidence appendix:
-  `clientProtocol` did not exist before 2026-05-20, 14 months after modern transcriptions shipped,
-  and no agents-framework version is observable to other participants.
+- **Suppression is required for correctness, not just tidiness.** An agent at protocol 3 drops the
+  legacy publish *per recipient*: if an older client shares the room, it must keep publishing legacy
+  for that client. Gating on "the agent advertises 3" therefore does **not** imply "no legacy packet
+  will reach me". Suppressing legacy from agent senders while converting removes the assumption
+  entirely — and it is always possible, because legacy packets carry their true sender
+  (`DataPacket.participant_identity`), unlike stream packets.
+- **`some`, not `every`, resolves mixed-version rooms.** With agent A at protocol 3 (modern only)
+  and agent B at protocol 2 (both channels), `every` would leave conversion off, and A's
+  transcripts would never reach any transcription event because A published no legacy copy. With
+  `some` plus suppression, A's streams are converted, B's streams are converted, and B's legacy
+  packets are discarded — every transcript is emitted exactly once.
+- **Today's behavior is unchanged.** No released agent advertises protocol 3, so the gate is false
+  and every existing code path is untouched.
 
-**This takes effect immediately, not once agents ship protocol 3.** Today's agents advertise
-protocol 2 and publish both channels; from this change on, the SDK ignores their legacy packets and
-sources transcription events from their streams instead. So `RoomEvent.TranscriptionReceived`
-becomes stream-derived for the entire current fleet on upgrade. The bandwidth win arrives later,
-when agents act on protocol 3 — but the behavior change lands now, which is what raises the stakes
-on the fidelity rules below. The changeset must call this out as a behavior change.
+Accepted limitation: a **pre-1.0** agents framework (legacy transcriptions only, i.e. before
+2025-02-21) sharing a room with a protocol-3 agent would have its transcripts suppressed. Every
+release from 1.0 onward publishes the stream channel, so this requires pairing a pre-Feb-2025
+framework with a 2026-era protocol-3 agent in one room. Documented, not solved.
 
-Accepted consequence: any non-agent publisher of legacy `Transcription` packets — a bespoke service
-calling `publish_transcription` directly, or a pre-1.0 agents framework — no longer surfaces at all.
-There is no client-to-client case to break: this SDK exposes no `publishTranscription` API, so it can
-only ever receive legacy transcriptions.
+### Why not attribute streams to agents
+
+`lk.transcription` streams are published on behalf of the transcribed participant. The outgoing
+packet sets `participant_identity` **to the sender-identity override**
+(`rust-sdks/livekit/src/room/participant/local_participant.rs:624`), and `DataPacket` carries no
+second "true sender" field. A receiver therefore cannot tell which agent produced a given stream —
+only which participant was transcribed. Every per-agent scheme on the *stream* side is unimplementable
+for this reason; the decision above only ever makes per-agent judgments on the *legacy* side, where
+attribution exists.
 
 ### Why no new room event
 
 An earlier iteration added a room event carrying stream-sourced transcriptions alongside the legacy
-one. It was dropped: every transcript now reaches `RoomEvent.TranscriptionReceived` exactly once, so
-a second event would only duplicate it. Applications that want stream-only metadata
-(`lk.expression`, custom attributes, `json_format` timings) continue to read the raw stream via
-`registerTextStreamHandler('lk.transcription', ...)`, which keeps working (see "Plumbing").
+one. It was dropped: with `some(>= 3)` plus suppression, every transcript already reaches
+`RoomEvent.TranscriptionReceived` exactly once, so a second event would only duplicate it.
+Applications that want stream-only metadata (`lk.expression`, custom attributes, `json_format`
+timings) continue to read the raw stream via `registerTextStreamHandler('lk.transcription', ...)`,
+which keeps working (see "Plumbing").
 
 `RoomEvent.TranscriptionReceived` keeps its exact signature — `(segments, participant?,
-publication?)` with `TranscriptionSegment[]` — and simply changes source. Same for the matching
-`ParticipantEvent` and `TrackEvent`.
+publication?)` with `TranscriptionSegment[]` — and simply gains stream-sourced segments. Same for
+the matching `ParticipantEvent` and `TrackEvent`.
 
 ## Design
 
@@ -127,16 +129,15 @@ Partial state keyed by `(segmentId, senderIdentity)`, where
   attribute only on its closing header, so stream close is the primary signal.
 - Drop the partial entry once a segment is final.
 
-Each update produces a synthetic `Transcription` message fed into `Room.handleTranscription`
-(`Room.ts:2176`), so participant/publication resolution and `firstReceivedTime`/`lastReceivedTime`
-bookkeeping come free from `extractTranscriptionSegments` (`src/room/utils.ts:682`) and the
-`transcriptionReceivedTimes` map.
+Each update produces a synthetic `Transcription` message fed into the **existing**
+`Room.handleTranscription` (`src/room/Room.ts:2176`), so participant/publication resolution and
+`firstReceivedTime`/`lastReceivedTime` bookkeeping come free from `extractTranscriptionSegments`
+(`src/room/utils.ts:682`) and the `transcriptionReceivedTimes` map.
 
 ### Fidelity rules
 
 These are the places where a naively synthesized event differs from what the legacy channel
-produced. Each is required for the "existing applications keep working" claim, and each applies to
-today's agents immediately.
+produced. Each is required for the "existing applications keep working" claim.
 
 **Track sid.** Resolve in order:
 
@@ -194,8 +195,13 @@ This is the bulk of the implementation work.
   `lk.transcription` near the existing internal handler registrations (`Room.ts:2590`).
 - Add `TRANSCRIPTION_TOPIC = 'lk.transcription'` to `src/room/data-stream/constants.ts`.
 - Reuse the existing `TranscriptionAttributes` keys from `src/room/attribute-typings.ts`.
+- Evaluate the gate at each incoming `lk.transcription` header, and in `handleDataPacket`
+  (`Room.ts:2102`) for the suppression check.
 - Clear converter state on disconnect alongside `transcriptionReceivedTimes.clear()` and
   `incomingDataStreamManager.clearControllers()` (`Room.ts:1835-1836`).
+- When the last protocol-3 agent disconnects and the gate turns false, **emit a final update for
+  every outstanding partial** before discarding the converter state. Silently dropping them would
+  leave consumers holding segments that are never finalized.
 
 ## components-js impact
 
@@ -204,7 +210,7 @@ None required.
 - `useTranscriptions` and `useAgentExpression` keep reading raw `lk.transcription` streams through
   the fan-out, so Expressive Mode (`lk.expression`) is unaffected.
 - `useTrackTranscription` and `useVoiceAssistant` read `TrackEvent.TranscriptionReceived` and
-  therefore keep working, now sourced from streams instead of legacy packets — no code change.
+  therefore begin working against protocol-3 agents automatically, with no code change.
 
 Consolidating the two pipelines becomes optional cleanup rather than a prerequisite.
 
@@ -223,8 +229,9 @@ Consolidating the two pipelines becomes optional cleanup rather than a prerequis
 **Track sid resolution:** attribute present; attribute absent with a sender mic track; attribute
 absent with only a `lk.publish_on_behalf` worker mic track; nothing resolvable.
 
-**Legacy packets ignored:** an incoming `Transcription` data packet emits no transcription events
-from any of the three emitters.
+**Gate:** off with no agents; off with a single protocol-2 agent; on with one protocol-3 agent; on in
+a mixed protocol-3 + protocol-2 room; legacy packets from agent senders suppressed while on; legacy
+packets from non-agent senders never suppressed.
 
 **Fan-out:** an `lk.transcription` stream reaches both the internal converter and an
 application-registered handler; other topics unaffected; the no-consumer case still ignores the
@@ -232,10 +239,10 @@ stream.
 
 **Whole-suite:** `npx tsc --noEmit` and `npx vitest run`.
 
-**End-to-end:** simulate an agent publishing `lk.transcription` streams with the transcription
-attributes (extend `examples/data-stream-transcription-benchmark/`), then `pnpm link` the built SDK
-into components-js and confirm `useTrackTranscription` / `useVoiceAssistant` render those
-transcriptions through the unmodified legacy events.
+**End-to-end:** simulate a `clientProtocol = 3` agent publishing `lk.transcription` streams with the
+transcription attributes (extend `examples/data-stream-transcription-benchmark/`), then `pnpm link`
+the built SDK into components-js and confirm `useTrackTranscription` / `useVoiceAssistant` render
+those transcriptions through the unmodified legacy events.
 
 ## Evidence appendix
 
@@ -246,21 +253,20 @@ Findings from the investigation that the decisions above rest on.
 sinks, `_ParticipantLegacyTranscriptionOutput` and `_ParticipantStreamTranscriptionOutput`, each
 generating its own `utils.shortuuid("SG_")` in `_reset_state()`. agents-js does the same
 (`ParticipantLegacyTranscriptionOutput` / `ParticipantTranscriptionOutput`, both `shortuuid('SG_')`).
-No cross-channel deduplication key exists — which is why the design ignores one channel outright
-rather than attempting to merge them.
+This is why no cross-channel deduplication key exists, and why the design avoids needing one.
 
 **Legacy carries nothing the stream channel lacks.** Agents hardcode `start_time=0`, `end_time=0`,
-`language=""` in the legacy proto (`_output.py:376-383`), so back-conversion is lossless in
-practice. The reverse is not: `lk.expression` is stripped and discarded on the legacy path
-(`strip_all_markup`, with the comment at `_output.py:341` noting the legacy API has no attribute
-channel), and custom attributes and `json_format` timings have no legacy representation. Preferring
-the stream channel is therefore the strictly richer choice.
+`language=""` in the legacy proto (`_output.py:376-383`), so the back-conversion direction is
+lossless in practice. The reverse is not: `lk.expression` is stripped and discarded on the legacy
+path (`strip_all_markup`, with the comment at `_output.py:341` noting the legacy API has no
+attribute channel), and custom attributes and `json_format` timings have no legacy representation.
 
-**Timeline.** Modern transcriptions landed 2025-02-21 (`#1497`), followed by RoomIO on 2025-02-24
-(`#1548`). The rust SDK did not advertise `client_protocol` at all until 2026-05-20 (`#1013`, value
-1), bumping to 2 on 2026-07-28 (`#1192`). So `clientProtocol >= 1` is not a usable proxy for
-"publishes modern transcriptions": every release in the 14-month window between those dates
-publishes the stream channel while advertising 0.
+**Timeline.** Modern transcriptions landed 2025-02-21 (`Add text stream sink and multi text sink`,
+`#1497`), followed by RoomIO on 2025-02-24 (`#1548`). The rust SDK did not advertise
+`client_protocol` at all until 2026-05-20 (`#1013`, value 1), bumping to 2 on 2026-07-28 (`#1192`).
+Consequently `clientProtocol >= 1` is *not* a usable proxy for "publishes modern transcriptions":
+every release in the 14-month window between those dates publishes the stream channel while
+advertising 0.
 
 **No agents-framework version signal is observable.** `ParticipantInfo` exposes `attributes`,
 `kind`, `kind_details`, `client_protocol` and `capabilities`, but no SDK version — `ClientInfo`
