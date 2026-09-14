@@ -107,22 +107,44 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
  */
 export async function detectSilence(track: AudioTrack, timeOffset = 200): Promise<boolean> {
   const ctx = getNewAudioContext();
-  if (ctx) {
-    const analyser = ctx.createAnalyser();
+  if (!ctx) {
+    return false;
+  }
+  let source: MediaStreamAudioSourceNode | undefined;
+  let analyser: AnalyserNode | undefined;
+  try {
+    analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+    source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
 
     source.connect(analyser);
+    // read through a function so that `state` isn't narrowed to its value from before `resume`
+    const isRunning = () => ctx.state === 'running';
+    if (!isRunning()) {
+      try {
+        await ctx.resume();
+      } catch {
+        // autoplay policies can keep us from resuming the context
+      }
+      if (!isRunning()) {
+        // a context that isn't running doesn't process any audio, so the analyser would only ever
+        // read silence. Report the track as not silent rather than raising a false positive.
+        return false;
+      }
+    }
     await sleep(timeOffset);
     analyser.getByteTimeDomainData(dataArray);
     const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
-    ctx.close();
     return !someNoise;
+  } finally {
+    source?.disconnect();
+    analyser?.disconnect();
+    // don't let a failing teardown mask the detection result
+    await ctx.close().catch(() => {});
   }
-  return false;
 }
 
 /**
