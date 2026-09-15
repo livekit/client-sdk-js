@@ -105,6 +105,21 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
   }
 
   clearControllers() {
+    // Settle every open stream before dropping it. A controller discarded without being errored
+    // leaves its consumer suspended on `read()` forever, which retains the reader and everything
+    // the consumer's closure holds - for the SDK's own transcription tap, that is the Room.
+    const disconnectedError = new DataStreamError(
+      'Data stream terminated because the room disconnected',
+      DataStreamErrorReason.AbnormalEnd,
+    );
+    for (const { controller } of this.byteStreamControllers.values()) {
+      controller.error(disconnectedError);
+    }
+    for (const group of this.textStreamControllers.values()) {
+      for (const controller of group.controllers) {
+        controller.error(disconnectedError);
+      }
+    }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
     this.bufferedPackets = [];
