@@ -1907,6 +1907,38 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('Encryption type mismatch');
     });
 
+    it('should error open readers when the controllers are cleared', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const textReaderPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      const byteReaderPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'byteHeader'),
+        Encryption_Type.NONE,
+      );
+
+      // Both reads are parked waiting for a chunk that never arrives.
+      const textRead = (await textReaderPromise).readAll();
+      const byteRead = (await byteReaderPromise).readAll();
+
+      manager.clearControllers();
+
+      // Without settling the controllers these two promises would stay pending forever, holding
+      // the readers and everything their consumers close over.
+      await expect(textRead).rejects.toThrow('Room disconnected');
+      await expect(byteRead).rejects.toThrow('Room disconnected');
+    });
+
     it('should treat packets for a stream that errored on a chunk index gap as an unknown stream (#2166)', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
@@ -2235,6 +2267,33 @@ describe('IncomingDataStreamManager', () => {
       // No controller was registered, so re-using the stream id is not an "already in progress"
       // conflict - which proves the stream really was dropped rather than half-opened.
       expect(() => manager.handleDataStreamPacket(header, Encryption_Type.NONE)).not.toThrow();
+    });
+
+    it('should settle the transcription tap reader when the controllers are cleared', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { topic: TRANSCRIPTION_TOPIC }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('partial')),
+        Encryption_Type.NONE,
+      );
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      const read = event.reader.readAll();
+
+      // A room disconnect mid-transcription. The tap's reader must settle, or it retains the Room
+      // through the converter callbacks.
+      manager.clearControllers();
+
+      await expect(read).rejects.toThrow('Room disconnected');
     });
   });
 });
