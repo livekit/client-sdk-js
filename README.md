@@ -14,6 +14,41 @@
 Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
+<!--BEGIN_AGENTS_INFO-->
+> [!IMPORTANT]
+> If you're building Voice AI, [LiveKit Agents](https://github.com/livekit/agents) is the SDK for code-first realtime voice agents. STT, LLM, TTS, turn detection, [expressive speech](https://docs.livekit.io/agents/models/tts/expressive/), [keyterm accuracy](https://docs.livekit.io/agents/models/stt/keyterms/), tool usage, and telephony all come bundled in the framework. It's available in both [Python](https://github.com/livekit/agents) and [Node.js](https://github.com/livekit/agents-js).
+>
+> ```python
+> # agent.py
+> from livekit import agents
+> from livekit.agents import Agent, AgentServer, AgentSession, STTContextOptions, TurnHandlingOptions, inference
+>
+> server = AgentServer()
+>
+>
+> @server.rtc_session(agent_name="my-agent")
+> async def my_agent(ctx: agents.JobContext):
+>     session = AgentSession(
+>         stt=inference.STT(model="deepgram/nova-3", language="multi"),
+>         llm=inference.LLM(model="google/gemma-4-31b-it"),
+>         tts=inference.TTS(model="inworld/inworld-tts-2", voice="Ashley"),
+>         turn_handling=TurnHandlingOptions(turn_detection=inference.TurnDetector()),
+>         stt_context_options=STTContextOptions(keyterms=["LiveKit", "Acme Corp"]),
+>         expressive=True,
+>     )
+>     await session.start(room=ctx.room, agent=Agent(instructions="You are a helpful voice AI assistant."))
+>     await session.generate_reply(instructions="Greet the user and offer your assistance.")
+>
+>
+> if __name__ == "__main__":
+>     agents.cli.run_app(server)
+> ```
+>
+> Models come from [LiveKit Inference](https://docs.livekit.io/agents/models/) with no per-provider API keys, and LiveKit Cloud handles [deployment](https://docs.livekit.io/deploy/agents/) and [observability](https://docs.livekit.io/deploy/observability/). Visit the docs for more info at [docs.livekit.io/agents](https://docs.livekit.io/agents/).
+>
+> Using a coding agent? Install the LiveKit skill with `npx skills add livekit/agent-skills` and add the docs MCP at `https://docs.livekit.io/mcp/` (see [coding agent support](https://docs.livekit.io/intro/coding-agents/)).
+<!--END_AGENTS_INFO-->
+
 ## Docs
 
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
