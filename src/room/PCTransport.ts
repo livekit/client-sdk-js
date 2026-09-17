@@ -34,51 +34,118 @@ const startBitrateMultiplier = 0.9;
 /** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
 const maxStartBitrateKbps = 1000;
 
+/**
+ * Minimum target bitrate in kbps for the start bitrate hint. Below this, seeding above the
+ * real capacity costs more than the ramp it saves, so libwebrtc's default is left in place.
+ */
+const minTargetBitrateKbps = 300;
+
 const debounceInterval = 20;
 
 /**
- * Applies the configured start bitrate when this media section belongs to `cid`.
- * This SDP munging is used for a bitrate setting that cannot be applied through
- * `RTCRtpEncodingParameters`.
+ * Codec payload for `codec` in this media section, when the section carries `cid`.
  *
- * Returns `undefined` when the section does not belong to the track, `0` when
- * it does but does not offer the requested codec, and the codec payload when the
- * requested codec is present (whether the bitrate was added or already set).
+ * Returns `undefined` when the section does not belong to the track, `0` when it does but
+ * does not offer the requested codec, and the codec payload otherwise.
+ *
+ * @internal
+ */
+export function findTrackCodecPayload(
+  media: MediaDescription,
+  cid: string,
+  codec: string,
+): number | undefined {
+  if (!media.msid?.includes(cid)) {
+    return undefined;
+  }
+  return media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
+}
+
+/**
+ * Start bitrate hinted for a single track, or `undefined` when its target is too low to
+ * be worth seeding.
+ *
+ * 90% of the target leaves ~10% headroom for the estimator to settle. The same multiplier
+ * is used for every codec because the target already reflects the codec's efficiency.
+ * Camera is capped at 1 Mbps so the estimator does not open too aggressively on a
+ * high-bitrate track; screen share is exempt, because its content needs the bitrate
+ * immediately to stay legible.
+ *
+ * TODO: adjust dynamically from network conditions (e.g. a previous BWE estimate) rather
+ * than a fixed cap.
+ *
+ * @internal
+ */
+export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | undefined {
+  if (trackbr.maxbr < minTargetBitrateKbps) {
+    return undefined;
+  }
+  const calculated = Math.round(trackbr.maxbr * startBitrateMultiplier);
+  return trackbr.isScreenShare ? calculated : Math.min(calculated, maxStartBitrateKbps);
+}
+
+/**
+ * The single start bitrate for this peer connection: the largest hint among the video
+ * m-sections of `media` that map to a published track.
+ *
+ * libwebrtc reads `x-google-start-bitrate` per m-section but applies it to the shared
+ * `Call` (`WebRtcVideoSendChannel::ApplyChangedParams` -> `SetSdpBitrateParameters`), where
+ * `RtpBitrateConfigurator` holds one config for the whole connection. Differing per-section
+ * values are therefore last-writer-wins, decided by m-section order, so every video section
+ * gets the same number instead.
+ *
+ * Only sections present in the current SDP are considered: `trackBitrates` is append-only
+ * and can hold entries for tracks that are no longer published.
+ *
+ * @internal
+ */
+export function computeConnectionStartBitrate(
+  media: MediaDescription[],
+  trackBitrates: TrackBitrateInfo[],
+): number | undefined {
+  let connectionStartBitrate: number | undefined;
+  for (const m of media) {
+    if (m.type !== 'video') {
+      continue;
+    }
+    for (const trackbr of trackBitrates) {
+      if (!trackbr.cid) {
+        continue;
+      }
+      const codecPayload = findTrackCodecPayload(m, trackbr.cid, trackbr.codec);
+      if (codecPayload === undefined) {
+        continue;
+      }
+      const startBitrate = codecPayload > 0 ? computeTrackStartBitrate(trackbr) : undefined;
+      if (
+        startBitrate !== undefined &&
+        (connectionStartBitrate === undefined || startBitrate > connectionStartBitrate)
+      ) {
+        connectionStartBitrate = startBitrate;
+      }
+      break;
+    }
+  }
+  return connectionStartBitrate;
+}
+
+/**
+ * Declares `x-google-start-bitrate` on `codecPayload`'s fmtp. This SDP munging is used for
+ * a bitrate setting that cannot be applied through `RTCRtpEncodingParameters`.
+ *
+ * Returns whether the section now carries the hint.
  *
  * @internal
  */
 export function applyVideoStartBitrate(
   media: MediaDescription,
-  cid: string,
-  codec: string,
-  maxbr: number,
-  isScreenShare = false,
-): number | undefined {
-  if (!media.msid?.includes(cid)) {
-    return undefined;
-  }
-
-  const codecPayload =
-    media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
-  if (codecPayload === 0) {
-    return 0;
-  }
-
-  // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE
-  // from starting too aggressively. Screen share is not capped since text/UI
-  // clarity requires high bitrate from the start.
-  // TODO: dynamically adjust start bitrate based on network conditions (e.g., previous BWE estimate)
-  const calculatedStartBitrate = Math.round(maxbr * startBitrateMultiplier);
-  const startBitrate = isScreenShare
-    ? calculatedStartBitrate
-    : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-
+  codecPayload: number,
+  startBitrate: number,
+): boolean {
   const fmtp = media.fmtp.find((entry) => entry.payload === codecPayload);
   if (fmtp) {
-    // If another track's fmtp already has a start bitrate, it cannot be
-    // overridden here because the payload type is shared across the bundle.
-    // This forces every track sharing that payload to use the initial track's
-    // start bitrate.
+    // A payload type is shared across the bundle, so a value written for one section is
+    // already the connection-level one; leave it rather than rewrite it.
     if (!fmtp.config.includes('x-google-start-bitrate')) {
       fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
     }
@@ -90,7 +157,7 @@ export function applyVideoStartBitrate(
     });
   }
 
-  return codecPayload;
+  return true;
 }
 
 export const PCEvents = {
@@ -140,6 +207,15 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   renegotiate: boolean = false;
 
   trackBitrates: TrackBitrateInfo[] = [];
+
+  /**
+   * Whether an offer carrying the connection-level `x-google-start-bitrate` has been
+   * accepted locally. The hint is written once per peer connection: libwebrtc retains
+   * `start_bitrate_bps` in `RtpBitrateConfigurator` and re-applies it on network route
+   * changes, so a later rewrite is at best a no-op and at worst restarts a converged
+   * bandwidth estimator. A new peer connection (full reconnect) seeds a new estimator.
+   */
+  private hasAppliedVideoStartBitrate = false;
 
   remoteStereoMids: string[] = [];
 
@@ -453,6 +529,14 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
+      // One value for every video m-section, written only on the first offer that carries
+      // local video: the hint is connection-level in libwebrtc, so differing per-section
+      // values would be last-writer-wins on m-section order. Offers before any video is
+      // published (data channel or audio only) find no target and leave the latch unset.
+      const connectionStartBitrate = this.hasAppliedVideoStartBitrate
+        ? undefined
+        : computeConnectionStartBitrate(sdpParsed.media, this.trackBitrates);
+      let appliedVideoStartBitrate = false;
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
@@ -463,19 +547,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
               return false;
             }
 
-            const codecPayload = applyVideoStartBitrate(
-              media,
-              trackbr.cid,
-              trackbr.codec,
-              trackbr.maxbr,
-              trackbr.isScreenShare,
-            );
+            const codecPayload = findTrackCodecPayload(media, trackbr.cid, trackbr.codec);
             if (codecPayload === undefined) {
               return false;
             }
 
-            if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
-              this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+            if (codecPayload > 0) {
+              if (connectionStartBitrate !== undefined) {
+                appliedVideoStartBitrate =
+                  applyVideoStartBitrate(media, codecPayload, connectionStartBitrate) ||
+                  appliedVideoStartBitrate;
+              }
+
+              if (isSVCCodec(trackbr.codec) && !isSafari()) {
+                this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+              }
             }
 
             return true;
@@ -500,7 +586,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         });
         return;
       }
-      await this.setMungedSDP(offer, write(sdpParsed));
+      const mungedSdp = write(sdpParsed);
+      await this.setMungedSDP(offer, mungedSdp);
+      // setMungedSDP falls back to the unmunged SDP on rejection. Only consume the
+      // one-shot hint once the SDP carrying it has been accepted locally.
+      if (appliedVideoStartBitrate && offer.sdp === mungedSdp) {
+        this.hasAppliedVideoStartBitrate = true;
+      }
       this.onOffer(offer, this.latestOfferId);
     } finally {
       unlock();
