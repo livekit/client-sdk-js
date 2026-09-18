@@ -121,6 +121,9 @@ export class Pipeline {
 
   private disabled = false;
 
+  /** Set by whoever says telemetry is wanted, which is not the same as knowing where to send it. */
+  private collecting = false;
+
   resource: Resource = { attributes: {} };
 
   private baseFlushInterval = FLUSH_INTERVAL;
@@ -151,13 +154,19 @@ export class Pipeline {
     }
   }
 
-  /** Collection runs as soon as anything configured a destination — never before. */
+  /**
+   * Collection starts as soon as anything asked for telemetry — `configure` in an app that sets its
+   * own resource or collector, `setServer` at the first Cloud connect. Records made before the
+   * destination is known wait in the queue rather than being thrown away (SPEC: the pipeline may
+   * start without a destination). An SDK nobody asked stays inert and costs nothing.
+   */
   get enabled(): boolean {
-    return !this.disabled && this.destination !== undefined;
+    return !this.disabled && this.collecting;
   }
 
   configure(options: TelemetryOptions) {
     this.disabled = false;
+    this.collecting = true;
     this.encoding = options.encoding ?? this.encoding;
     this.baseFlushInterval = options.flushInterval ?? this.baseFlushInterval;
     this.baseStatsWindow = options.statsWindow ?? this.baseStatsWindow;
@@ -187,6 +196,7 @@ export class Pipeline {
 
   /** The first connect names the destination: the server's host, the connect token (SPEC). */
   setServer(serverUrl: string, token: string) {
+    this.collecting = true;
     if (this.destination) return; // an explicit endpoint wins
     const { logs, traces } = cloudEndpoints(serverUrl);
     this.destination = { logs, traces, headers: { Authorization: `Bearer ${token}` } };
@@ -265,7 +275,7 @@ export class Pipeline {
   }
 
   async flush(force = false): Promise<void> {
-    if (!this.enabled || this.inFlight) return;
+    if (!this.enabled || !this.destination || this.inFlight) return;
     if (!force && (this.held() || Date.now() < this.throttledUntil)) return;
     if (this.reportDue) this.appendReport();
     if (this.logs.length === 0 && this.spans.length === 0) return;

@@ -141,13 +141,30 @@ describe('telemetry pipeline', () => {
     expect(attributesOf(spans[0])['lk.outcome']).toBe('ok');
   });
 
-  test('nothing is collected before a destination exists', async () => {
+  test('an SDK nobody asked for telemetry collects nothing', async () => {
     const idle = new Pipeline();
     const scope = new TelemetryScope(idle);
     scope.emit('lk.test.void');
     await idle.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(idle.diagnostics()).toContain('no destination');
+  });
+
+  test('records made before the destination is known are kept, not dropped', async () => {
+    // `registerGlobals` configures the resource long before a connect names the collector.
+    const early = new Pipeline();
+    early.configure({ encoding: 'json', flushInterval: 3600 });
+    const scope = new TelemetryScope(early);
+    scope.emit('lk.test.early');
+    await early.flush(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    early.setServer('wss://project.livekit.cloud', 'token');
+    await early.flush(true);
+    const call = fetchMock.mock.calls[0];
+    expect(String(call[0])).toBe('https://project.livekit.cloud/observability/client/logs/otlp/v0');
+    expect(recordsOf(call)[0].eventName).toBe('lk.test.early');
+    early.stop();
   });
 });
 

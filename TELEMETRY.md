@@ -148,9 +148,15 @@ this package is in RN with no second implementation. The rules that keep it that
 - The seam: `pagehide` / `visibilitychange` in a page, `AppState` in an app; `navigator.connection`
   in Chromium, nothing (or `@react-native-community/netinfo`, an app-owned dependency) in RN.
 
-Done, and verified on the simulator: `@livekit/react-native`'s `src/telemetry.ts` sets
-`service.name`, `service.version`, `os.name` and `os.version`, registers the `AppState` flush, and
-is called from `registerGlobals`. The telemetry module itself needed no React Native branch.
+Done: `@livekit/react-native`'s `src/telemetry.ts` sets `service.name`, `service.version`,
+`os.name` and `os.version`, reports `app_state` and flushes on `AppState`, and subscribes to a
+`LK_DEVICE_STATE` event from the native module, which reports thermal state, low power mode and
+memory pressure — `LKDeviceState.swift` (`ProcessInfo.thermalStateDidChangeNotification`,
+`NSProcessInfoPowerStateDidChange`, `DispatchSource.makeMemoryPressureSource`) and
+`DeviceStateMonitor.kt` (`PowerManager.addThermalStatusListener`,
+`ACTION_POWER_SAVE_MODE_CHANGED`, `onTrimMemory`), each mapping the platform's levels onto SPEC's
+names so a record from iOS and one from Android say the same thing. `registerGlobals` calls it.
+The telemetry module in this package needed no React Native branch at all.
 
 One thing the PoC found, which is about this package rather than telemetry: `livekit-client`
 evaluates `class … extends DOMException` and `new TextDecoder()` at **module scope**, and Hermes has
