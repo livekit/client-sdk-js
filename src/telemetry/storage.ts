@@ -8,6 +8,8 @@
  * into a state machine. A platform with a filesystem implements this; the default keeps batches in
  * memory, which is all a browser tab needs (TELEMETRY.md §3).
  */
+import type { Encoding } from './otlp';
+
 export interface TelemetryStorage {
   /** Store a batch. Returns the ids evicted to stay inside the store's own bounds. */
   put(id: string, body: Uint8Array): string[];
@@ -18,14 +20,29 @@ export interface TelemetryStorage {
   clear(): void;
 }
 
-/** Ids sort oldest-first as plain strings, so a store never has to parse or stat anything. */
-export function batchId(kind: 'logs' | 'traces', sequence: number, records: number): string {
+/**
+ * Ids sort oldest-first as plain strings, so a store never has to parse or stat anything — and
+ * they carry everything needed to send a batch that was written by an earlier run of the app:
+ * which route it belongs to, how it was encoded, and how many records it cost.
+ */
+export function batchId(
+  kind: 'logs' | 'traces',
+  sequence: number,
+  records: number,
+  encoding: Encoding,
+): string {
   const now = String(Date.now()).padStart(15, '0');
-  return `${now}-${String(sequence).padStart(6, '0')}-${records}-${kind === 'logs' ? 'l' : 't'}`;
+  const suffix = `${kind === 'logs' ? 'l' : 't'}${encoding === 'json' ? 'j' : 'p'}`;
+  return `${now}-${String(sequence).padStart(6, '0')}-${records}-${suffix}`;
 }
 
 export function batchKind(id: string): 'logs' | 'traces' {
-  return id.endsWith('-l') ? 'logs' : 'traces';
+  return id.split('-').pop()?.startsWith('t') === true ? 'traces' : 'logs';
+}
+
+/** A cached batch keeps the encoding it was written with: the collector is told the truth. */
+export function batchEncoding(id: string): Encoding {
+  return id.endsWith('j') ? 'json' : 'protobuf';
 }
 
 /** How many records a batch holds, so an eviction costs a known number and not a guess. */

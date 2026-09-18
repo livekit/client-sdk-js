@@ -100,7 +100,13 @@ process that dies costs nothing. Where it is stored is `TelemetryStorage` — fi
 operations, the same five the core's `BatchCache` has — and the default keeps batches in memory,
 bounded by 4 MiB and 512 batches, oldest evicted first and counted.
 
-That default is right for a tab, and nobody in this ecosystem persists there either.
+A batch id carries everything needed to send a batch an earlier run of the app wrote — its route,
+its record count, and the encoding it was written with. That last one is not hypothetical: the
+first React Native replay lost 40 records because cached JSON batches were re-sent with the
+protobuf content type, and the only reason anyone noticed is that `lk.telemetry.report` said
+`dropped.rejected: 40` instead of quietly succeeding.
+
+The in-memory default is right for a tab, and nobody in this ecosystem persists there either.
 
 - **OpenTelemetry JS** caches nothing: `BatchLogRecordProcessor` is a bounded in-memory queue and
   the spec puts retry on the exporter, explicitly not on the processor.

@@ -202,4 +202,13 @@ export {
   serializers,
 } from './utils/serializer';
 
-export { Telemetry, type TelemetryOptions } from './telemetry';
+export {
+  Telemetry,
+  type TelemetryOptions,
+  // The seams a platform SDK implements: where batches wait, and what carries them.
+  type TelemetryStorage,
+  type Backend as TelemetryBackend,
+  type Scope as TelemetryScope,
+  type Span as TelemetrySpan,
+  type DeviceState as TelemetryDeviceState,
+} from './telemetry';

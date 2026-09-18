@@ -21,7 +21,14 @@ import {
   serializeSpans,
 } from './otlp';
 import { PipelineScope } from './scope';
-import { MemoryStorage, type TelemetryStorage, batchId, batchKind, batchRecords } from './storage';
+import {
+  MemoryStorage,
+  type TelemetryStorage,
+  batchEncoding,
+  batchId,
+  batchKind,
+  batchRecords,
+} from './storage';
 
 export interface TelemetryOptions {
   /** OTLP logs route. Cloud derives it from the server URL instead; see `setServer`. */
@@ -367,7 +374,7 @@ export class Pipeline implements Backend {
           continue;
         }
         const url = batchKind(id) === 'logs' ? destination.logs : destination.traces;
-        const verdict = await this.send(url, body, batchRecords(id));
+        const verdict = await this.send(url, body, batchRecords(id), batchEncoding(id));
         // Throttled or offline: this batch keeps its place and so does everything behind it.
         if (verdict === 'keep') break;
         this.storage.remove(id);
@@ -380,13 +387,13 @@ export class Pipeline implements Backend {
   private persist() {
     if (this.logs.length > 0) {
       const batch = this.logs.splice(0, MAX_BATCH);
-      this.store(batchId('logs', (this.sequence += 1), batch.length), () =>
+      this.store(batchId('logs', (this.sequence += 1), batch.length, this.encoding), () =>
         serializeLogs(batch, this.encoding),
       );
     }
     if (this.spans.length > 0) {
       const batch = this.spans.splice(0, MAX_BATCH);
-      this.store(batchId('traces', (this.sequence += 1), batch.length), () =>
+      this.store(batchId('traces', (this.sequence += 1), batch.length, this.encoding), () =>
         serializeSpans(batch, this.encoding),
       );
     }
@@ -411,13 +418,14 @@ export class Pipeline implements Backend {
     url: string,
     body: Uint8Array,
     records: number,
+    encoding: Encoding,
   ): Promise<'sent' | 'drop' | 'keep'> {
     const destination = this.destination!;
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': contentType(this.encoding),
+          'Content-Type': contentType(encoding),
           // RFC 9218 lowest urgency: telemetry never wins over media on a shared uplink.
           Priority: 'u=7',
           ...destination.headers,

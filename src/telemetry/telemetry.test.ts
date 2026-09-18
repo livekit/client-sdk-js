@@ -339,7 +339,7 @@ describe('the write-ahead cache', () => {
     // What the store looks like after a crash: batches nobody has sent yet.
     const storage = new MemoryStorage(4 * 1024 * 1024, 512);
     for (let i = 0; i < 6; i += 1) {
-      storage.put(batchId('logs', i, 10), new Uint8Array([1, 2, 3]));
+      storage.put(batchId('logs', i, 10, 'protobuf'), new Uint8Array([1, 2, 3]));
     }
     const pipeline = new Pipeline();
     pipeline.configure({ endpoint: 'http://collector.test/v1/logs', flushInterval: 3600, storage });
@@ -368,6 +368,22 @@ describe('the write-ahead cache', () => {
     expect(storage.pending()).toHaveLength(1);
     // The evicted batch held one record, and the report says so — not "one batch".
     expect(pipeline.diagnostics()).toContain('lost 1');
+    pipeline.stop();
+  });
+
+  test('a cached batch keeps the encoding it was written with', async () => {
+    const storage = new MemoryStorage(4 * 1024 * 1024, 512);
+    const pipeline = new Pipeline();
+    pipeline.configure({ encoding: 'json', flushInterval: 3600, storage });
+    new PipelineScope(pipeline).emit('lk.test.written_as_json');
+    await pipeline.flush(true); // no destination yet: the batch is cached as JSON
+
+    // The app upgrades, or simply flips the switch, before the batch ever left.
+    pipeline.configure({ endpoint: 'http://collector.test/v1/logs', encoding: 'protobuf' });
+    await pipeline.flush(true);
+
+    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
     pipeline.stop();
   });
 });
