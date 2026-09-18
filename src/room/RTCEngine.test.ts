@@ -1,16 +1,19 @@
 import {
   DataPacket,
   DataPacket_Kind,
+  JoinResponse,
   ConnectionQuality as ProtoConnectionQuality,
   UserPacket,
 } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import { roomOptionDefaults } from './defaults';
-import { PublishDataError, UnexpectedConnectionState } from './errors';
+import { ConnectionError, PublishDataError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
+import { Future } from './utils';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -701,6 +704,117 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('closing during a full reconnect', () => {
+    interface ReconnectInternals {
+      _isClosed: boolean;
+      url: string;
+      token: string;
+      signalOpts: SignalOptions;
+      attemptReconnect: () => Promise<void>;
+      configure: () => Promise<void>;
+      waitForPCReconnected: () => Promise<void>;
+    }
+
+    function primeEngine() {
+      const engine = new RTCEngine({ ...roomOptionDefaults, singlePeerConnection: false });
+      const internals = engine as unknown as ReconnectInternals;
+      internals._isClosed = false;
+      internals.url = 'wss://test.livekit.io';
+      internals.token = 'test-token';
+      internals.signalOpts = { autoSubscribe: true, maxRetries: 1, websocketTimeout: 15_000 };
+      engine.fullReconnectOnNext = true;
+      const configure = vi.spyOn(internals, 'configure').mockResolvedValue();
+      vi.spyOn(internals, 'waitForPCReconnected').mockResolvedValue();
+      const join = vi
+        .spyOn(engine.client, 'join')
+        .mockResolvedValue(new JoinResponse({ subscriberPrimary: true }));
+      return { engine, internals, configure, join };
+    }
+
+    it('does not join after close completes while reconnect cleanup is pending', async () => {
+      const { engine, internals, join } = primeEngine();
+      const cleanupStarted = new Future<void, Error>();
+      const finishCleanup = new Future<void, Error>();
+      vi.spyOn(engine, 'cleanupPeerConnections').mockImplementationOnce(async () => {
+        cleanupStarted.resolve?.();
+        await finishCleanup.promise;
+      });
+
+      const reconnect = internals.attemptReconnect();
+      await cleanupStarted.promise;
+      await engine.close();
+      finishCleanup.resolve?.();
+      await reconnect;
+
+      expect(join).not.toHaveBeenCalled();
+      expect(engine.isClosed).toBe(true);
+    });
+
+    it('does not join another region after close completes during region selection', async () => {
+      const { engine, internals, join } = primeEngine();
+      join.mockRejectedValue(ConnectionError.internal('signal connection failed'));
+      const selectingRegion = new Future<void, Error>();
+      const nextRegion = new Future<string | null, Error>();
+      const getNextUrl = vi.fn(async () => {
+        selectingRegion.resolve?.();
+        return nextRegion.promise;
+      });
+      engine.setRegionStrategy({ getNextUrl, resetAttempts: () => {} });
+
+      const reconnect = internals.attemptReconnect();
+      await selectingRegion.promise;
+      await engine.close();
+      nextRegion.resolve?.('wss://another-region.livekit.io');
+      // A second selection must terminate even on the unfixed implementation.
+      getNextUrl.mockResolvedValue(null);
+      await reconnect;
+
+      expect(join).toHaveBeenCalledTimes(1);
+      expect(getNextUrl).toHaveBeenCalledTimes(1);
+      expect(engine.isClosed).toBe(true);
+    });
+
+    it('does not reopen the engine when a signal join resolves after close', async () => {
+      const { engine, internals, configure, join } = primeEngine();
+      const joining = new Future<void, Error>();
+      const joinResponse = new Future<JoinResponse, Error>();
+      join.mockImplementationOnce(async () => {
+        joining.resolve?.();
+        return joinResponse.promise;
+      });
+
+      const reconnect = internals.attemptReconnect();
+      await joining.promise;
+      await engine.close();
+      joinResponse.resolve?.(new JoinResponse({ subscriberPrimary: true }));
+      await reconnect;
+
+      expect(engine.isClosed).toBe(true);
+      expect(configure).not.toHaveBeenCalled();
+      expect(join.mock.calls[0][3]?.aborted).toBe(true);
+    });
+
+    it('still completes a full reconnect while the engine is active', async () => {
+      const { engine, internals, join } = primeEngine();
+      vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+      vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(
+        SignalConnectionState.CONNECTED,
+      );
+      const restarted = vi.fn();
+      engine.on(EngineEvent.Restarted, restarted);
+
+      try {
+        await internals.attemptReconnect();
+
+        expect(join).toHaveBeenCalledTimes(1);
+        expect(restarted).toHaveBeenCalledTimes(1);
+        expect(engine.isClosed).toBe(false);
+      } finally {
+        await engine.close();
+      }
+    });
+  });
+
   describe('reconnect requested mid-attempt', () => {
     // A full reconnect requested while a resume is already in flight (e.g. a server
     // RECONNECT leave racing the resume) sets `fullReconnectOnNext` mid-attempt. A
@@ -711,7 +825,7 @@ describe('RTCEngine', () => {
       clientConfiguration: unknown;
       pcManager: unknown;
       resumeConnection: (reason?: number) => Promise<void>;
-      restartConnection: (regionUrl?: string) => Promise<void>;
+      restartConnection: (abortSignal: AbortSignal, regionUrl?: string) => Promise<void>;
       clearPendingReconnect: () => void;
       handleDisconnect: (connection: string, reason?: number) => void;
       attemptReconnect: (reason?: number) => Promise<void>;
