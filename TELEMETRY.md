@@ -169,25 +169,35 @@ reimplement the instrumentation: when a connect span starts, which checkpoints i
 subscribe ends at first media, which `getStats` fields become a window — all of that stays here and
 is reused.
 
-That is what `backend.ts` is for. It is the same set of operations SPEC calls the typed surface —
-the boundary Swift, Kotlin and Dart already cross into the core — expressed in terms this package
-owns: rooms, spans, tracks, outcomes. `Telemetry.setBackend` installs one, and `Room` does not know
-which is in place.
+**React Native reuses all of it and replaces one thing: where batches wait.** The caching
+semantics of the native SDKs — a batch on disk that survives the process and replays at next launch
+— do not need the Rust core, only a directory of files. `@livekit/react-native` supplies a
+`TelemetryStorage` backed by `LKBatchStore.swift` and `BatchStore.kt`, a native store mirroring
+the core's `FileCache`, and this package learns nothing about it beyond five synchronous calls.
 
 ```
 Room, LocalParticipant, the four track monitors     ← the instrumentation, one copy
                      │
-              Backend / Scope / Span                ← backend.ts, platform-neutral by construction
+                 Pipeline                           ← the policy, one copy
+                     │
+             TelemetryStorage                       ← the one seam with two implementations
                 ╱                ╲
-    Pipeline (this package)     RustBackend (@livekit/react-native)
-    fetch, in-memory queue      UniFFI → livekit-telemetry → FileCache, NetTransport
+    MemoryStorage (a tab)     a directory of files (@livekit/react-native)
 ```
 
-**Nothing mobile appears on this side of the seam.** `DeviceState` carries only what a page can
+An earlier round put a whole `Backend` interface here so React Native could bind the Rust core for
+the entire pipeline. It is gone: it had one implementation and one hypothetical one, which is the
+definition of an abstraction to write later. If that question ever resolves the other way, the git
+history has the shape and `Pipeline` is small enough to sit behind an interface again in an hour.
+
+**Nothing mobile appears on this side either.** `DeviceState` carries only what a page can
 answer — visibility and, on Chromium, the connection. Thermal state, low power mode and memory
 pressure are not absent because they are unimportant; they are absent because this package cannot
 observe them and must not pretend to. React Native's native monitors (`LKDeviceState.swift`,
-`DeviceStateMonitor.kt`) report those to the core natively, never through JavaScript.
+`DeviceStateMonitor.kt`) map them onto SPEC's event names and onto a cadence factor *in that
+package*, and hand the result over through two verbs that name no platform: `Telemetry.emit`, which
+takes a record this package never interprets, and `Telemetry.setCadenceFactor`, which takes a
+number without a reason attached.
 
 One thing the PoC found, which is about this package rather than telemetry: `livekit-client`
 evaluates `class … extends DOMException` and `new TextDecoder()` at **module scope**, and Hermes has
@@ -201,7 +211,7 @@ src/telemetry/
   index.ts     the Telemetry facade: configure/setServer, the scope factory, the track registry
   pipeline.ts  queue, flush timer, holds, 429/5xx, one request in flight, the self-report
   scope.ts     one per Room connection: trace id, attributes, spans, stats windows
-  backend.ts   the seam: what a platform must implement to carry the records (see §5)
+  storage.ts   the seam: where batches wait between being made and being accepted (see §3)
   otlp.ts      the records and their wire form (the only OpenTelemetry import lives here)
   webrtc.ts    the SDK's typed sender/receiver stats → one SPEC reading
 ```

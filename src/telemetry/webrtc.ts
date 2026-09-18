@@ -9,7 +9,7 @@ import type {
   VideoReceiverStats,
   VideoSenderStats,
 } from '../room/stats';
-import type { StatsSample } from './backend';
+import type { StatsSample } from './scope';
 
 const seconds = (value: number | undefined): number | undefined =>
   value === undefined ? undefined : value * 1000;

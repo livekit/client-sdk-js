@@ -205,10 +205,9 @@ export {
 export {
   Telemetry,
   type TelemetryOptions,
-  // The seams a platform SDK implements: where batches wait, and what carries them.
+  // The one seam a platform SDK implements: where batches wait between being made and accepted.
   type TelemetryStorage,
-  type Backend as TelemetryBackend,
-  type Scope as TelemetryScope,
-  type Span as TelemetrySpan,
+  type TelemetryScope,
+  type TelemetrySpan,
   type DeviceState as TelemetryDeviceState,
 } from './telemetry';

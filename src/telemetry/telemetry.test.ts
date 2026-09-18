@@ -3,7 +3,7 @@ import { Telemetry } from '.';
 import type { Backend, Scope, Span } from './backend';
 import { cadenceFactor, changes, networkType } from './device';
 import { Pipeline } from './pipeline';
-import { PipelineScope } from './scope';
+import { TelemetryScope } from './scope';
 import { MemoryStorage, batchId } from './storage';
 
 /** The JSON encoding is the readable one: every assertion here reads the body the collector gets. */
@@ -44,7 +44,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('one window of readings becomes one record, counters last and gauges summarised', async () => {
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     scope.setRoom({ sid: 'RM_1', name: 'harness', participantIdentity: 'publisher' });
     scope.recordStats('TR_1', 'video', 'outbound', {
       bytes: 1000,
@@ -77,7 +77,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('a hold stops uploads, never collection', async () => {
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     pipeline.hold(true);
     scope.emit('lk.test.one');
     await pipeline.flush();
@@ -95,7 +95,7 @@ describe('telemetry pipeline', () => {
 
   test('a 429 holds the pipeline and keeps the batch', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     scope.emit('lk.test.throttled');
     await pipeline.flush(true);
     expect(pipeline.diagnostics()).toContain('throttled');
@@ -112,7 +112,7 @@ describe('telemetry pipeline', () => {
 
   test('the queue evicts the oldest and says how many', async () => {
     pipeline.maxQueueSize = 3;
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     for (let i = 0; i < 5; i += 1) {
       scope.emit(`lk.test.${i}`);
     }
@@ -126,7 +126,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('a span carries its checkpoints and its outcome', async () => {
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     const span = scope.start('lk.connect', { attributes: { 'lk.connect.attempt': 1 } });
     span.step('ws_open');
     span.step('join_recv');
@@ -146,7 +146,7 @@ describe('telemetry pipeline', () => {
 
   test('an SDK nobody asked for telemetry collects nothing', async () => {
     const idle = new Pipeline();
-    const scope = new PipelineScope(idle);
+    const scope = new TelemetryScope(idle);
     scope.emit('lk.test.void');
     await idle.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -157,7 +157,7 @@ describe('telemetry pipeline', () => {
     // `registerGlobals` configures the resource long before a connect names the collector.
     const early = new Pipeline();
     early.configure({ encoding: 'json', flushInterval: 3600 });
-    const scope = new PipelineScope(early);
+    const scope = new TelemetryScope(early);
     scope.emit('lk.test.early');
     await early.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -221,83 +221,30 @@ describe('device state', () => {
   });
 });
 
-describe('the backend seam', () => {
-  test('a platform backend gets the instrumentation, not the records', () => {
-    // React Native binds the Rust core through exactly this shape; nothing about a platform
-    // appears in it, and the Room instrumentation is reused unchanged (TELEMETRY.md §5).
-    const calls: string[] = [];
-    const span: Span = {
-      step: (name) => calls.push(`step ${name}`),
-      setAttribute: (key, value) => calls.push(`attribute ${key}=${String(value)}`),
-      end: (outcome) => calls.push(`end ${outcome}`),
-      fail: () => calls.push('fail'),
-      cancel: () => calls.push('cancel'),
-      context: () => ({ traceId: 'trace', spanId: 'span', traceFlags: 1 }),
-    };
-    const scope: Scope = {
-      traceId: 'trace',
-      setRoom: (identity) => calls.push(`room ${identity.name}`),
-      start: (name) => {
-        calls.push(`start ${name}`);
-        return span;
-      },
-      emit: (event) => calls.push(`emit ${event}`),
-      recordStats: (sid, _kind, direction) => calls.push(`stats ${sid} ${direction}`),
-      subscribeStarted: (sid) => calls.push(`subscribe ${sid}`),
-      subscribeEnded: (sid, outcome) => calls.push(`subscribed ${sid} ${outcome}`),
-      disconnected: (reason) => calls.push(`disconnected ${reason}`),
-      close: () => calls.push('close'),
-    };
-    const platform: Backend = {
-      enabled: true,
-      setServer: () => calls.push('setServer'),
-      scope: () => scope,
-      hold: (up) => calls.push(`hold ${up}`),
-      deviceState: (state) => calls.push(`device ${state.appState}`),
-      emit: (event) => calls.push(`emit ${event}`),
-      setCadenceFactor: (factor) => calls.push(`cadence ${factor}`),
-      flush: async () => {},
-      diagnostics: () => 'platform backend',
-      shutdown: async () => {},
-    };
+describe('what a platform reports', () => {
+  test('an event it names and a factor it chose both land', async () => {
+    // React Native sees heat and power; this package has no vocabulary for either, so the platform
+    // names the record and sets the number. Nothing mobile appears on this side.
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const pipeline = new Pipeline();
+    pipeline.configure({
+      endpoint: 'http://collector.test/v1/logs',
+      encoding: 'json',
+      flushInterval: 15,
+      statsWindow: 15,
+    });
 
-    const previous = Telemetry.setBackend(platform);
-    try {
-      Telemetry.setServer('wss://project.livekit.cloud', 'token');
-      const session = Telemetry.scope();
-      session.setRoom({ name: 'harness' });
-      Telemetry.registerTrack('TR_1', session, 'video', 'outbound');
-      Telemetry.hold(true);
-      const connect = session.start('lk.connect');
-      connect.step('ws_open');
-      connect.end('ok');
-      Telemetry.hold(false);
-      Telemetry.trackStats('TR_1', 'outbound', { bytes: 1 });
-      // What a platform sees and this package cannot: it names the event and the factor itself.
-      Telemetry.emit('lk.device.thermal.changed', { 'lk.device.thermal.state': 'serious' });
-      Telemetry.setCadenceFactor(2);
-      session.disconnected('client_initiated');
+    pipeline.emit('lk.device.thermal.changed', { 'lk.device.thermal.state': 'serious' });
+    pipeline.setCadenceFactor(2);
+    await pipeline.flush(true);
 
-      expect(calls).toEqual([
-        'setServer',
-        // The page observes itself and reports to whatever backend is installed. On React Native
-        // there is no `document`, so nothing is observed here and the native side reports instead.
-        'device foreground',
-        'room harness',
-        'hold true',
-        'start lk.connect',
-        'step ws_open',
-        'end ok',
-        'hold false',
-        'stats TR_1 outbound',
-        'emit lk.device.thermal.changed',
-        'cadence 2',
-        'disconnected client_initiated',
-      ]);
-      expect(Telemetry.diagnostics()).toBe('platform backend');
-    } finally {
-      Telemetry.setBackend(previous);
-    }
+    const record = recordsOf(fetchMock.mock.calls[0])[0];
+    expect(record.eventName).toBe('lk.device.thermal.changed');
+    expect(attributesOf(record)['lk.device.thermal.state']).toBe('serious');
+    expect(pipeline.statsWindow).toBe(30);
+    pipeline.stop();
+    vi.unstubAllGlobals();
   });
 });
 
@@ -320,7 +267,7 @@ describe('the write-ahead cache', () => {
       flushInterval: 3600,
       storage,
     });
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     scope.emit('lk.test.offline');
 
     fetchMock.mockRejectedValueOnce(new TypeError('offline'));
@@ -359,7 +306,7 @@ describe('the write-ahead cache', () => {
     const pipeline = new Pipeline();
     // No destination: batches pile up in the cache, which is where eviction happens.
     pipeline.configure({ encoding: 'json', flushInterval: 3600, storage });
-    const scope = new PipelineScope(pipeline);
+    const scope = new TelemetryScope(pipeline);
     scope.emit('lk.test.one');
     await pipeline.flush(true);
     scope.emit('lk.test.two');
@@ -375,7 +322,7 @@ describe('the write-ahead cache', () => {
     const storage = new MemoryStorage(4 * 1024 * 1024, 512);
     const pipeline = new Pipeline();
     pipeline.configure({ encoding: 'json', flushInterval: 3600, storage });
-    new PipelineScope(pipeline).emit('lk.test.written_as_json');
+    new TelemetryScope(pipeline).emit('lk.test.written_as_json');
     await pipeline.flush(true); // no destination yet: the batch is cached as JSON
 
     // The app upgrades, or simply flips the switch, before the batch ever left.

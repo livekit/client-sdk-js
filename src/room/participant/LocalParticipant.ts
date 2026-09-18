@@ -30,7 +30,7 @@ import {
   isFrameMetadataSupported,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
-import type { Scope } from '../../telemetry';
+import type { TelemetryScope } from '../../telemetry';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
@@ -140,7 +140,7 @@ export default class LocalParticipant extends Participant {
   activeDeviceMap: Map<MediaDeviceKind, string>;
 
   /** @internal — the Room's telemetry scope, set at connect; publishing is a span on it. */
-  telemetry?: Scope;
+  telemetry?: TelemetryScope;
 
   private pendingPublishing = new Set<Track.Source>();
 

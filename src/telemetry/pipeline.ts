@@ -4,7 +4,6 @@
  * (TELEMETRY.md §3), so the queue is the only bound and every eviction is counted.
  */
 import { version } from '../version';
-import type { Backend, Scope } from './backend';
 import { type DeviceState, cadenceFactor, changes } from './device';
 import {
   type AttributeValue,
@@ -20,7 +19,7 @@ import {
   serializeLogs,
   serializeSpans,
 } from './otlp';
-import { PipelineScope } from './scope';
+import { TelemetryScope } from './scope';
 import {
   MemoryStorage,
   type TelemetryStorage,
@@ -117,7 +116,7 @@ export function tracesEndpointFor(logs: string): string {
   return logs;
 }
 
-export class Pipeline implements Backend {
+export class Pipeline {
   private logs: LogRecord[] = [];
 
   private spans: SpanRecord[] = [];
@@ -150,7 +149,7 @@ export class Pipeline implements Backend {
   private collecting = false;
 
   /** Device state belongs to no call: it is filed under the pipeline's own scope (SPEC). */
-  private processScope?: PipelineScope;
+  private processScope?: TelemetryScope;
 
   private device: DeviceState = {};
 
@@ -183,8 +182,8 @@ export class Pipeline implements Backend {
     return this.baseStatsWindow * this.cadence;
   }
 
-  scope(): Scope {
-    return new PipelineScope(this);
+  scope(): TelemetryScope {
+    return new TelemetryScope(this);
   }
 
   /**
@@ -197,7 +196,7 @@ export class Pipeline implements Backend {
     const records = changes(this.device, next);
     this.device = next;
     if (this.enabled) {
-      this.processScope ??= new PipelineScope(this);
+      this.processScope ??= new TelemetryScope(this);
       for (const record of records) {
         this.processScope.emit(record.event, record.attributes);
       }
@@ -323,7 +322,7 @@ export class Pipeline implements Backend {
   /** A record that belongs to the pipeline rather than to a call — what a platform reports. */
   emit(event: string, attributes: Attributes = {}, severity: 'info' | 'warn' | 'error' = 'info') {
     if (!this.enabled) return;
-    this.processScope ??= new PipelineScope(this);
+    this.processScope ??= new TelemetryScope(this);
     this.processScope.emit(event, attributes, severity);
   }
 

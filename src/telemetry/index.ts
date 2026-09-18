@@ -6,40 +6,36 @@
  * Nothing is collected until a destination exists: `Telemetry.configure({ endpoint })` for your own
  * collector, or the first connect to LiveKit Cloud, which derives the route and the token itself.
  *
- * What carries the records is replaceable (`setBackend`) — the Room instrumentation in this package
- * is worth having once, while a platform may know a better way to batch, cache and upload. The
- * default is the browser pipeline in `pipeline.ts`.
+ * Where batches wait between being made and being accepted is the one replaceable part
+ * (`TelemetryOptions.storage`): a browser keeps them in memory, a platform with a filesystem
+ * keeps them on disk. Everything else is this package's.
  */
-import type { Backend, Scope, StatsSample, TrackDirection } from './backend';
 import { type DeviceState, observeBrowser } from './device';
 import { type Attributes, Severity, hrTime, randomHex } from './otlp';
 import { Pipeline, type TelemetryOptions } from './pipeline';
+import type { StatsSample, TelemetryScope, TrackDirection } from './scope';
 import { receiverSample, senderSample } from './webrtc';
 
 export type { TelemetryOptions } from './pipeline';
 export type { DeviceState, AppStateName, NetworkType } from './device';
 export type {
-  Backend,
-  Scope,
-  Span,
   Outcome,
   RoomIdentity,
-  Severity as SeverityName,
+  SeverityName,
   StatsSample,
   TrackDirection,
   TraceContext,
-} from './backend';
+} from './scope';
+export type { TelemetryScope, TelemetrySpan } from './scope';
 export { SpanKind } from './otlp';
 export type { Attributes } from './otlp';
 export type { TelemetryStorage } from './storage';
 
 const pipeline = new Pipeline();
 
-let backend: Backend = pipeline;
-
 /** Which scope a track's stats belong to — the monitors know a sid, not a Room. */
 interface TrackRegistration {
-  scope: Scope;
+  scope: TelemetryScope;
   kind: 'audio' | 'video';
   direction: TrackDirection;
 }
@@ -54,7 +50,7 @@ function attachLifecycle() {
   // The page's last chance: `pagehide` and a hidden tab, never `unload` — by then a request has
   // no chance of leaving. `fetch(keepalive)` makes it best effort, not durable (TELEMETRY.md §3).
   const flush = () => {
-    backend.flush().catch(() => {});
+    pipeline.flush().catch(() => {});
   };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flush();
@@ -70,39 +66,28 @@ export const Telemetry = {
     attachLifecycle();
   },
 
-  /**
-   * Replace what carries the records — a platform SDK that binds a different implementation of
-   * `Backend` installs it here, before any Room is created. The instrumentation does not change.
-   * Returns the backend that was in place, so it can be put back.
-   */
-  setBackend(replacement: Backend): Backend {
-    const previous = backend;
-    backend = replacement;
-    return previous;
-  },
-
   /** LiveKit Cloud: the server URL and the connect token are the destination (SPEC). */
   setServer(serverUrl: string, token: string) {
-    backend.setServer(serverUrl, token);
+    pipeline.setServer(serverUrl, token);
     attachLifecycle();
   },
 
   get enabled(): boolean {
-    return backend.enabled;
+    return pipeline.enabled;
   },
 
-  scope(): Scope {
-    return backend.scope();
+  scope(): TelemetryScope {
+    return pipeline.scope();
   },
 
   /** Uploads stop, collection does not — spans that own the uplink raise a hold (SPEC). */
   hold(up: boolean) {
-    backend.hold(up);
+    pipeline.hold(up);
   },
 
   /** What the platform can say about the device it runs on; see `DeviceState` for the limits. */
   deviceState(state: DeviceState) {
-    backend.deviceState(state);
+    pipeline.deviceState(state);
   },
 
   /**
@@ -110,7 +95,7 @@ export const Telemetry = {
    * something this package has no vocabulary for — a phone's thermal state — names it here.
    */
   emit(event: string, attributes?: Attributes, severity?: 'info' | 'warn' | 'error') {
-    backend.emit(event, attributes, severity);
+    pipeline.emit(event, attributes, severity);
   },
 
   /**
@@ -118,12 +103,17 @@ export const Telemetry = {
    * pressure this package cannot reports the number, not the reason.
    */
   setCadenceFactor(factor: number) {
-    backend.setCadenceFactor(factor);
+    pipeline.setCadenceFactor(factor);
   },
 
-  registerTrack(sid: string, scope: Scope, kind: 'audio' | 'video', direction: TrackDirection) {
+  registerTrack(
+    sid: string,
+    scope: TelemetryScope,
+    kind: 'audio' | 'video',
+    direction: TrackDirection,
+  ) {
     // Nothing to route when nobody is listening: an SDK without a collector keeps no map.
-    if (!backend.enabled) return;
+    if (!pipeline.enabled) return;
     tracks.set(`${sid}:${direction}`, { scope, kind, direction });
   },
 
@@ -143,18 +133,18 @@ export const Telemetry = {
 
   /** Called from the SDK's existing per-track monitors: no extra `getStats()` anywhere. */
   trackStats(sid: string, direction: TrackDirection, sample: StatsSample) {
-    if (!backend.enabled) return;
+    if (!pipeline.enabled) return;
     const registration = tracks.get(`${sid}:${direction}`);
     if (!registration) return;
     registration.scope.recordStats(sid, registration.kind, direction, sample);
   },
 
   flush(): Promise<void> {
-    return backend.flush();
+    return pipeline.flush();
   },
 
   diagnostics(): string {
-    return backend.diagnostics();
+    return pipeline.diagnostics();
   },
 
   /** A pipeline smoke test: one record, one request, whatever the collector answers. */
@@ -178,6 +168,6 @@ export const Telemetry = {
 
   async shutdown() {
     tracks.clear();
-    await backend.shutdown();
+    await pipeline.shutdown();
   },
 };

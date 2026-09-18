@@ -47,7 +47,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
-import { type Scope, type Span, SpanKind, Telemetry } from '../telemetry';
+import { SpanKind, Telemetry, type TelemetryScope, type TelemetrySpan } from '../telemetry';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
@@ -203,11 +203,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private connectFuture?: Future<void, Error>;
 
   /** One telemetry scope per connect: a trace id and the attributes every record of it carries. */
-  private telemetry?: Scope;
+  private telemetry?: TelemetryScope;
 
-  private connectSpan?: Span;
+  private connectSpan?: TelemetrySpan;
 
-  private reconnectSpan?: Span;
+  private reconnectSpan?: TelemetrySpan;
 
   /** Attempts inside the *current* reconnect; the engine's own counter spans several. */
   private reconnectAttempts = 0;
