@@ -123,11 +123,33 @@ export class Pipeline {
 
   resource: Resource = { attributes: {} };
 
-  flushInterval = FLUSH_INTERVAL;
+  private baseFlushInterval = FLUSH_INTERVAL;
 
-  statsWindow = STATS_WINDOW;
+  private baseStatsWindow = STATS_WINDOW;
+
+  /** SPEC's cadence policy: device pressure stretches both periods, never past 4×. */
+  private cadence = 1;
 
   maxQueueSize = MAX_QUEUE;
+
+  get flushInterval(): number {
+    return this.baseFlushInterval * this.cadence;
+  }
+
+  get statsWindow(): number {
+    return this.baseStatsWindow * this.cadence;
+  }
+
+  setCadenceFactor(factor: number) {
+    if (factor === this.cadence) return;
+    this.cadence = factor;
+    // Restarting the timer is what makes a *shorter* period apply at once — pressure relieved
+    // should not mean waiting out a stretched interval.
+    if (this.timer) {
+      this.stop();
+      this.start();
+    }
+  }
 
   /** Collection runs as soon as anything configured a destination — never before. */
   get enabled(): boolean {
@@ -137,8 +159,8 @@ export class Pipeline {
   configure(options: TelemetryOptions) {
     this.disabled = false;
     this.encoding = options.encoding ?? this.encoding;
-    this.flushInterval = options.flushInterval ?? this.flushInterval;
-    this.statsWindow = options.statsWindow ?? this.statsWindow;
+    this.baseFlushInterval = options.flushInterval ?? this.baseFlushInterval;
+    this.baseStatsWindow = options.statsWindow ?? this.baseStatsWindow;
     this.maxQueueSize = options.maxQueueSize ?? this.maxQueueSize;
     this.resource = {
       attributes: {

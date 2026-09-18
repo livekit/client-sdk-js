@@ -62,10 +62,27 @@ Yes — roughly half of the core does not exist here.
 | Dropped | Why |
 |---|---|
 | Write-ahead file cache, gzip-on-disk, 24 h age prune, next-launch replay | no disk (§3) |
-| `lk.device.thermal.changed`, `.low_power.changed`, `.battery.changed`, `.memory.changed`, `.audio_route.changed`, `.audio.interruption` | no web or RN API for any of them |
-| The cadence factors those signals drive | only `background` (`visibilitychange` / `AppState`) and `constrained` (`navigator.connection.saveData`, Chromium) survive |
 | The FFI layer — UniFFI types, callback interfaces, the transport trait | the pipeline is in the same language as the SDK |
 | `record_stats_report` raw-entry parsing | `RTCStatsReport` is already the SDK's own shape (`src/room/stats.ts`, `monitorFrequency = 2000`) |
+
+Device state is not dropped, but it is not uniform either — the pipeline never measures anything
+itself, so an `lk.device.*` record exists only where the platform will say so:
+
+| SPEC event | Browser | React Native |
+|---|---|---|
+| `app_state.changed` | **yes**, `document.visibilityState` | **yes**, `AppState` |
+| `network.changed` | **Chromium**, `navigator.connection` — and `type` is populated on Android only, so a desktop page reports `unknown` | via `@react-native-community/netinfo`, an app-owned dependency — not wired |
+| `capture.failed` | the `getUserMedia` DOMException names, per SPEC | the same errors through `react-native-webrtc` — not wired |
+| `thermal.changed` | `PressureObserver` is Chromium **desktop** only — not wired | **yes**, native |
+| `low_power.changed` | no web API | **yes**, native |
+| `memory.changed` | no web API (`deviceMemory` is a static figure) | **yes**, native |
+| `battery.changed` | Chromium only; Firefox removed it, Safari never shipped it — not wired | native, not wired |
+| `audio_route.changed`, `audio.interruption` | `devicechange` says the set changed, not that it went speaker → bluetooth | the package already owns the audio session — not wired |
+
+React Native can reach parity with the Swift and Kotlin SDKs because `@livekit/react-native` already
+ships a native module; a page structurally cannot. The cadence factors those signals drive are
+implemented (`device.ts`, capped at 4× as SPEC says), so a page stretches on background and Data
+Saver, and an app stretches on everything.
 
 | Kept | Why |
 |---|---|

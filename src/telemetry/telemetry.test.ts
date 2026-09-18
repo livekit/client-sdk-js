@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { cadenceFactor, changes, networkType } from './device';
 import { Pipeline } from './pipeline';
 import { TelemetryScope } from './scope';
 
@@ -147,5 +148,56 @@ describe('telemetry pipeline', () => {
     await idle.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(idle.diagnostics()).toContain('no destination');
+  });
+});
+
+describe('device state', () => {
+  test('only a change is a record, and the connection is one record', () => {
+    expect(changes({}, { appState: 'foreground' }).map((c) => c.event)).toEqual([
+      'lk.device.app_state.changed',
+    ]);
+    expect(changes({ appState: 'foreground' }, { appState: 'foreground' })).toEqual([]);
+
+    // type, expensive and constrained are one event, not three.
+    const network = changes(
+      { networkType: 'wifi', networkExpensive: false, networkConstrained: false },
+      { networkType: 'cell', networkExpensive: true, networkConstrained: false },
+    );
+    expect(network).toHaveLength(1);
+    expect(network[0].event).toBe('lk.device.network.changed');
+    expect(network[0].attributes['network.connection.type']).toBe('cell');
+    expect(network[0].attributes['lk.device.network.expensive']).toBe(true);
+  });
+
+  test('factors multiply and stop at 4x', () => {
+    expect(cadenceFactor({})).toBe(1);
+    expect(cadenceFactor({ thermal: 'fair' })).toBe(1);
+    expect(cadenceFactor({ thermal: 'serious' })).toBe(2);
+    expect(cadenceFactor({ thermal: 'serious', lowPower: true })).toBe(4);
+    // thermal critical (4) x background (2) x low power (2) is capped, not 16.
+    expect(cadenceFactor({ thermal: 'critical', appState: 'background', lowPower: true })).toBe(4);
+  });
+
+  test('NetworkInformation names become SPEC names', () => {
+    expect(networkType('cellular')).toBe('cell');
+    expect(networkType('ethernet')).toBe('wired');
+    expect(networkType('none')).toBe('unavailable');
+    expect(networkType(undefined)).toBe('unknown');
+  });
+
+  test('the factor stretches both periods, and relief applies at once', () => {
+    const pipeline = new Pipeline();
+    pipeline.configure({
+      endpoint: 'http://collector.test/v1/logs',
+      flushInterval: 15,
+      statsWindow: 15,
+    });
+    expect(pipeline.statsWindow).toBe(15);
+    pipeline.setCadenceFactor(4);
+    expect(pipeline.flushInterval).toBe(60);
+    expect(pipeline.statsWindow).toBe(60);
+    pipeline.setCadenceFactor(1);
+    expect(pipeline.statsWindow).toBe(15);
+    pipeline.stop();
   });
 });

@@ -18,6 +18,15 @@ import type { Pipeline } from './pipeline';
 
 export type Outcome = 'ok' | 'error' | 'cancelled';
 
+/** An attribute nobody set is not an attribute: `undefined` would ship as an empty value. */
+function defined(attributes: Attributes): Attributes {
+  const out: Attributes = {};
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
 export type TrackDirection = 'inbound' | 'outbound';
 
 export interface RoomIdentity {
@@ -185,7 +194,7 @@ export class TelemetrySpan {
       // Cancellation is `Unset` like success: only a failure is an error (SPEC).
       status:
         outcome === 'error' ? { code: SpanStatus.error, message } : { code: SpanStatus.unset },
-      attributes: { ...this.scope.attributes(), ...this.attributes },
+      attributes: defined({ ...this.scope.attributes(), ...this.attributes }),
       links: [],
       events: this.events,
       ended: true,
@@ -262,7 +271,7 @@ export class TelemetryScope {
       severityText: severity.toUpperCase(),
       // Log viewers key their line on the body, and not every backend surfaces event_name yet.
       body: eventName,
-      attributes: { ...this.attributes(), ...attributes },
+      attributes: defined({ ...this.attributes(), ...attributes }),
       droppedAttributesCount: 0,
       resource: { attributes: {} },
       instrumentationScope: INSTRUMENTATION_SCOPE,
