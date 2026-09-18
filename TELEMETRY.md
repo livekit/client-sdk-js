@@ -131,6 +131,15 @@ this package is in RN with no second implementation. The rules that keep it that
 - The seam: `pagehide` / `visibilitychange` in a page, `AppState` in an app; `navigator.connection`
   in Chromium, nothing (or `@react-native-community/netinfo`, an app-owned dependency) in RN.
 
+Done, and verified on the simulator: `@livekit/react-native`'s `src/telemetry.ts` sets
+`service.name`, `service.version`, `os.name` and `os.version`, registers the `AppState` flush, and
+is called from `registerGlobals`. The telemetry module itself needed no React Native branch.
+
+One thing the PoC found, which is about this package rather than telemetry: `livekit-client`
+evaluates `class … extends DOMException` and `new TextDecoder()` at **module scope**, and Hermes has
+neither, so anything importing it must come after the React Native polyfills. That is why
+`registerTelemetry` is imported below them in `src/index.tsx` — the order is load-bearing.
+
 ## Shape
 
 ```

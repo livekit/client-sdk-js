@@ -3,6 +3,7 @@
  * Everything a browser cannot do is absent by design — no disk cache, no replay across launches
  * (TELEMETRY.md §3), so the queue is the only bound and every eviction is counted.
  */
+import { version } from '../version';
 import {
   type AttributeValue,
   type Attributes,
@@ -141,6 +142,10 @@ export class Pipeline {
     this.maxQueueSize = options.maxQueueSize ?? this.maxQueueSize;
     this.resource = {
       attributes: {
+        // The platform SDK owns `service.*` and `os.*`; these are what this package can say
+        // about itself. React Native overrides the name and adds the device (SPEC).
+        'service.name': 'livekit-client-js',
+        'service.version': version,
         'telemetry.sdk.name': INSTRUMENTATION_SCOPE.name,
         'telemetry.sdk.language': 'webjs',
         'telemetry.sdk.version': INSTRUMENTATION_SCOPE.version,
