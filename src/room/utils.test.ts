@@ -1,9 +1,12 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getBrowser } from '../utils/browserParser';
 import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
+  isAppleMobile,
+  isIPadOS,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
@@ -365,5 +368,76 @@ describe('usesLegacySVCEncodings', () => {
   it('is legacy on react native regardless of chrome version', () => {
     vi.stubGlobal('navigator', { userAgent: chrome('120.0.0.0'), product: 'ReactNative' });
     expect(usesLegacySVCEncodings()).toBe(true);
+  });
+});
+
+describe('isIPadOS / isAppleMobile', () => {
+  const stub = (userAgent: string, maxTouchPoints: number) =>
+    vi.stubGlobal('navigator', { userAgent, maxTouchPoints, product: 'Gecko' });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // measured on an iPad 6 running iPadOS 17: the default (desktop) user agent, maxTouchPoints 5
+  const IPAD_DESKTOP_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.14 Safari/605.1.15';
+  // measured on macOS Safari 26.4: the same shape of user agent, maxTouchPoints 0
+  const MAC_SAFARI_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Safari/605.1.15';
+  const IPHONE_UA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Mobile/15E148 Safari/604.1';
+  const IPAD_MOBILE_UA =
+    'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+  const MAC_CHROME_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+  const ANDROID_CHROME_UA =
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+
+  it('detects an iPad sending the desktop user agent', () => {
+    stub(IPAD_DESKTOP_UA, 5);
+    expect(isIPadOS()).toBe(true);
+    expect(isAppleMobile()).toBe(true);
+  });
+
+  it('is the case getBrowser() alone gets wrong', () => {
+    // the gap this exists to close: iPadOS parses as macOS, so `os === 'iOS'` misses it
+    stub(IPAD_DESKTOP_UA, 5);
+    expect(getBrowser()?.os).toBe('macOS');
+  });
+
+  it('leaves macOS Safari alone, where the camera reports correctly and frames are slow', () => {
+    stub(MAC_SAFARI_UA, 0);
+    expect(isIPadOS()).toBe(false);
+    expect(isAppleMobile()).toBe(false);
+  });
+
+  it('covers iPhones through the existing iOS check', () => {
+    stub(IPHONE_UA, 5);
+    expect(isIPadOS()).toBe(false);
+    expect(isAppleMobile()).toBe(true);
+  });
+
+  it('covers an iPad set to request the mobile site', () => {
+    stub(IPAD_MOBILE_UA, 5);
+    expect(isIPadOS()).toBe(false);
+    expect(isAppleMobile()).toBe(true);
+  });
+
+  it('does not fire for a Mac with a touchscreen attached, which is not Safari', () => {
+    stub(MAC_CHROME_UA, 5);
+    expect(isIPadOS()).toBe(false);
+    expect(isAppleMobile()).toBe(false);
+  });
+
+  it('does not fire on android', () => {
+    stub(ANDROID_CHROME_UA, 5);
+    expect(isIPadOS()).toBe(false);
+    expect(isAppleMobile()).toBe(false);
+  });
+
+  it('does not fire on a desktop safari reporting no touch support', () => {
+    stub(MAC_SAFARI_UA, 1);
+    expect(isIPadOS()).toBe(false);
   });
 });
