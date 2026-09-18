@@ -75,6 +75,8 @@ export const Telemetry = {
     kind: 'audio' | 'video',
     direction: TrackDirection,
   ) {
+    // Nothing to route when nobody is listening: an SDK without a collector keeps no map.
+    if (!pipeline.enabled) return;
     tracks.set(`${sid}:${direction}`, { scope, kind, direction });
   },
 
