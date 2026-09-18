@@ -755,7 +755,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
       this.addMediaSections(requirement.numAudios, requirement.numVideos);
-      this.negotiate();
+      this.negotiate().catch((err) => {
+        this.log.error(err);
+      });
     };
 
     this.client.onPublishDataTrackResponse = (event: PublishDataTrackResponse) => {
