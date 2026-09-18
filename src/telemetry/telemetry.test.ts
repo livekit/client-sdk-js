@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { Telemetry } from '.';
+import type { Backend, Scope, Span } from './backend';
 import { cadenceFactor, changes, networkType } from './device';
 import { Pipeline } from './pipeline';
-import { TelemetryScope } from './scope';
+import { PipelineScope } from './scope';
 
 /** The JSON encoding is the readable one: every assertion here reads the body the collector gets. */
 function bodyOf(call: unknown[]): any {
@@ -41,7 +43,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('one window of readings becomes one record, counters last and gauges summarised', async () => {
-    const scope = new TelemetryScope(pipeline);
+    const scope = new PipelineScope(pipeline);
     scope.setRoom({ sid: 'RM_1', name: 'harness', participantIdentity: 'publisher' });
     scope.recordStats('TR_1', 'video', 'outbound', {
       bytes: 1000,
@@ -74,7 +76,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('a hold stops uploads, never collection', async () => {
-    const scope = new TelemetryScope(pipeline);
+    const scope = new PipelineScope(pipeline);
     pipeline.hold(true);
     scope.emit('lk.test.one');
     await pipeline.flush();
@@ -92,7 +94,7 @@ describe('telemetry pipeline', () => {
 
   test('a 429 holds the pipeline and keeps the batch', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
-    const scope = new TelemetryScope(pipeline);
+    const scope = new PipelineScope(pipeline);
     scope.emit('lk.test.throttled');
     await pipeline.flush(true);
     expect(pipeline.diagnostics()).toContain('throttled');
@@ -109,7 +111,7 @@ describe('telemetry pipeline', () => {
 
   test('the queue evicts the oldest and says how many', async () => {
     pipeline.maxQueueSize = 3;
-    const scope = new TelemetryScope(pipeline);
+    const scope = new PipelineScope(pipeline);
     for (let i = 0; i < 5; i += 1) {
       scope.emit(`lk.test.${i}`);
     }
@@ -123,7 +125,7 @@ describe('telemetry pipeline', () => {
   });
 
   test('a span carries its checkpoints and its outcome', async () => {
-    const scope = new TelemetryScope(pipeline);
+    const scope = new PipelineScope(pipeline);
     const span = scope.start('lk.connect', { attributes: { 'lk.connect.attempt': 1 } });
     span.step('ws_open');
     span.step('join_recv');
@@ -143,7 +145,7 @@ describe('telemetry pipeline', () => {
 
   test('an SDK nobody asked for telemetry collects nothing', async () => {
     const idle = new Pipeline();
-    const scope = new TelemetryScope(idle);
+    const scope = new PipelineScope(idle);
     scope.emit('lk.test.void');
     await idle.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -154,7 +156,7 @@ describe('telemetry pipeline', () => {
     // `registerGlobals` configures the resource long before a connect names the collector.
     const early = new Pipeline();
     early.configure({ encoding: 'json', flushInterval: 3600 });
-    const scope = new TelemetryScope(early);
+    const scope = new PipelineScope(early);
     scope.emit('lk.test.early');
     await early.flush(true);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -188,11 +190,10 @@ describe('device state', () => {
 
   test('factors multiply and stop at 4x', () => {
     expect(cadenceFactor({})).toBe(1);
-    expect(cadenceFactor({ thermal: 'fair' })).toBe(1);
-    expect(cadenceFactor({ thermal: 'serious' })).toBe(2);
-    expect(cadenceFactor({ thermal: 'serious', lowPower: true })).toBe(4);
-    // thermal critical (4) x background (2) x low power (2) is capped, not 16.
-    expect(cadenceFactor({ thermal: 'critical', appState: 'background', lowPower: true })).toBe(4);
+    expect(cadenceFactor({ appState: 'background' })).toBe(2);
+    // The rows a page cannot fill in are not here at all: a platform that knows heat, power or
+    // memory pressure reports them to its own backend (TELEMETRY.md §5).
+    expect(cadenceFactor({ appState: 'background', networkConstrained: true })).toBe(4);
   });
 
   test('NetworkInformation names become SPEC names', () => {
@@ -216,5 +217,78 @@ describe('device state', () => {
     pipeline.setCadenceFactor(1);
     expect(pipeline.statsWindow).toBe(15);
     pipeline.stop();
+  });
+});
+
+describe('the backend seam', () => {
+  test('a platform backend gets the instrumentation, not the records', () => {
+    // React Native binds the Rust core through exactly this shape; nothing about a platform
+    // appears in it, and the Room instrumentation is reused unchanged (TELEMETRY.md §5).
+    const calls: string[] = [];
+    const span: Span = {
+      step: (name) => calls.push(`step ${name}`),
+      setAttribute: (key, value) => calls.push(`attribute ${key}=${String(value)}`),
+      end: (outcome) => calls.push(`end ${outcome}`),
+      fail: () => calls.push('fail'),
+      cancel: () => calls.push('cancel'),
+      context: () => ({ traceId: 'trace', spanId: 'span', traceFlags: 1 }),
+    };
+    const scope: Scope = {
+      traceId: 'trace',
+      setRoom: (identity) => calls.push(`room ${identity.name}`),
+      start: (name) => {
+        calls.push(`start ${name}`);
+        return span;
+      },
+      emit: (event) => calls.push(`emit ${event}`),
+      recordStats: (sid, _kind, direction) => calls.push(`stats ${sid} ${direction}`),
+      subscribeStarted: (sid) => calls.push(`subscribe ${sid}`),
+      subscribeEnded: (sid, outcome) => calls.push(`subscribed ${sid} ${outcome}`),
+      disconnected: (reason) => calls.push(`disconnected ${reason}`),
+      close: () => calls.push('close'),
+    };
+    const platform: Backend = {
+      enabled: true,
+      setServer: () => calls.push('setServer'),
+      scope: () => scope,
+      hold: (up) => calls.push(`hold ${up}`),
+      deviceState: (state) => calls.push(`device ${state.appState}`),
+      flush: async () => {},
+      diagnostics: () => 'platform backend',
+      shutdown: async () => {},
+    };
+
+    const previous = Telemetry.setBackend(platform);
+    try {
+      Telemetry.setServer('wss://project.livekit.cloud', 'token');
+      const session = Telemetry.scope();
+      session.setRoom({ name: 'harness' });
+      Telemetry.registerTrack('TR_1', session, 'video', 'outbound');
+      Telemetry.hold(true);
+      const connect = session.start('lk.connect');
+      connect.step('ws_open');
+      connect.end('ok');
+      Telemetry.hold(false);
+      Telemetry.trackStats('TR_1', 'outbound', { bytes: 1 });
+      session.disconnected('client_initiated');
+
+      expect(calls).toEqual([
+        'setServer',
+        // The page observes itself and reports to whatever backend is installed. On React Native
+        // there is no `document`, so nothing is observed here and the native side reports instead.
+        'device foreground',
+        'room harness',
+        'hold true',
+        'start lk.connect',
+        'step ws_open',
+        'end ok',
+        'hold false',
+        'stats TR_1 outbound',
+        'disconnected client_initiated',
+      ]);
+      expect(Telemetry.diagnostics()).toBe('platform backend');
+    } finally {
+      Telemetry.setBackend(previous);
+    }
   });
 });

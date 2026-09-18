@@ -4,6 +4,8 @@
  * (TELEMETRY.md §3), so the queue is the only bound and every eviction is counted.
  */
 import { version } from '../version';
+import type { Backend, Scope } from './backend';
+import { type DeviceState, cadenceFactor, changes } from './device';
 import {
   type AttributeValue,
   type Attributes,
@@ -18,6 +20,7 @@ import {
   serializeLogs,
   serializeSpans,
 } from './otlp';
+import { PipelineScope } from './scope';
 
 export interface TelemetryOptions {
   /** OTLP logs route. Cloud derives it from the server URL instead; see `setServer`. */
@@ -92,7 +95,7 @@ export function tracesEndpointFor(logs: string): string {
   return logs;
 }
 
-export class Pipeline {
+export class Pipeline implements Backend {
   private logs: LogRecord[] = [];
 
   private spans: SpanRecord[] = [];
@@ -124,6 +127,11 @@ export class Pipeline {
   /** Set by whoever says telemetry is wanted, which is not the same as knowing where to send it. */
   private collecting = false;
 
+  /** Device state belongs to no call: it is filed under the pipeline's own scope (SPEC). */
+  private processScope?: PipelineScope;
+
+  private device: DeviceState = {};
+
   resource: Resource = { attributes: {} };
 
   private baseFlushInterval = FLUSH_INTERVAL;
@@ -141,6 +149,28 @@ export class Pipeline {
 
   get statsWindow(): number {
     return this.baseStatsWindow * this.cadence;
+  }
+
+  scope(): Scope {
+    return new PipelineScope(this);
+  }
+
+  /**
+   * What the platform now says about the device — only the rows a page can fill in; see
+   * `DeviceState`. Each group becomes an `lk.device.*` record the first time it is seen and on
+   * every change after, and the whole state sets the cadence factor.
+   */
+  deviceState(state: DeviceState) {
+    const next = { ...this.device, ...state };
+    const records = changes(this.device, next);
+    this.device = next;
+    if (this.enabled) {
+      this.processScope ??= new PipelineScope(this);
+      for (const record of records) {
+        this.processScope.emit(record.event, record.attributes);
+      }
+    }
+    this.setCadenceFactor(cadenceFactor(next));
   }
 
   setCadenceFactor(factor: number) {
@@ -427,6 +457,7 @@ export class Pipeline {
 
   async shutdown() {
     this.stop();
+    this.processScope = undefined;
     await this.flush(true);
   }
 }

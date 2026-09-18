@@ -148,15 +148,33 @@ this package is in RN with no second implementation. The rules that keep it that
 - The seam: `pagehide` / `visibilitychange` in a page, `AppState` in an app; `navigator.connection`
   in Chromium, nothing (or `@react-native-community/netinfo`, an app-owned dependency) in RN.
 
-Done: `@livekit/react-native`'s `src/telemetry.ts` sets `service.name`, `service.version`,
-`os.name` and `os.version`, reports `app_state` and flushes on `AppState`, and subscribes to a
-`LK_DEVICE_STATE` event from the native module, which reports thermal state, low power mode and
-memory pressure — `LKDeviceState.swift` (`ProcessInfo.thermalStateDidChangeNotification`,
-`NSProcessInfoPowerStateDidChange`, `DispatchSource.makeMemoryPressureSource`) and
-`DeviceStateMonitor.kt` (`PowerManager.addThermalStatusListener`,
-`ACTION_POWER_SAVE_MODE_CHANGED`, `onTrimMemory`), each mapping the platform's levels onto SPEC's
-names so a record from iOS and one from Android say the same thing. `registerGlobals` calls it.
-The telemetry module in this package needed no React Native branch at all.
+**React Native follows the phones, and reuses this package's instrumentation.** The decision is
+that `@livekit/react-native` binds the Rust core through UniFFI, the way the Swift, Kotlin and Dart
+SDKs do, so that an app on a phone behaves identically whichever SDK it used — same windowing code,
+same upload policy, same write-ahead file cache, same bytes on the wire. What it does *not* do is
+reimplement the instrumentation: when a connect span starts, which checkpoints it carries, how a
+subscribe ends at first media, which `getStats` fields become a window — all of that stays here and
+is reused.
+
+That is what `backend.ts` is for. It is the same set of operations SPEC calls the typed surface —
+the boundary Swift, Kotlin and Dart already cross into the core — expressed in terms this package
+owns: rooms, spans, tracks, outcomes. `Telemetry.setBackend` installs one, and `Room` does not know
+which is in place.
+
+```
+Room, LocalParticipant, the four track monitors     ← the instrumentation, one copy
+                     │
+              Backend / Scope / Span                ← backend.ts, platform-neutral by construction
+                ╱                ╲
+    Pipeline (this package)     RustBackend (@livekit/react-native)
+    fetch, in-memory queue      UniFFI → livekit-telemetry → FileCache, NetTransport
+```
+
+**Nothing mobile appears on this side of the seam.** `DeviceState` carries only what a page can
+answer — visibility and, on Chromium, the connection. Thermal state, low power mode and memory
+pressure are not absent because they are unimportant; they are absent because this package cannot
+observe them and must not pretend to. React Native's native monitors (`LKDeviceState.swift`,
+`DeviceStateMonitor.kt`) report those to the core natively, never through JavaScript.
 
 One thing the PoC found, which is about this package rather than telemetry: `livekit-client`
 evaluates `class … extends DOMException` and `new TextDecoder()` at **module scope**, and Hermes has
@@ -170,6 +188,7 @@ src/telemetry/
   index.ts     the Telemetry facade: configure/setServer, the scope factory, the track registry
   pipeline.ts  queue, flush timer, holds, 429/5xx, one request in flight, the self-report
   scope.ts     one per Room connection: trace id, attributes, spans, stats windows
+  backend.ts   the seam: what a platform must implement to carry the records (see §5)
   otlp.ts      the records and their wire form (the only OpenTelemetry import lives here)
   webrtc.ts    the SDK's typed sender/receiver stats → one SPEC reading
 ```

@@ -2,6 +2,15 @@
  * One scope per Room connection: a trace id, the attributes every record of that call carries, the
  * spans, and the stats windows. The scope is not ended — a call's last record is simply its last.
  */
+import type {
+  Outcome,
+  RoomIdentity,
+  Scope,
+  Severity as SeverityName,
+  Span,
+  StatsSample,
+  TrackDirection,
+} from './backend';
 import {
   type Attributes,
   INSTRUMENTATION_SCOPE,
@@ -16,8 +25,6 @@ import {
 } from './otlp';
 import type { Pipeline } from './pipeline';
 
-export type Outcome = 'ok' | 'error' | 'cancelled';
-
 /** An attribute nobody set is not an attribute: `undefined` would ship as an empty value. */
 function defined(attributes: Attributes): Attributes {
   const out: Attributes = {};
@@ -25,35 +32,6 @@ function defined(attributes: Attributes): Attributes {
     if (value !== undefined) out[key] = value;
   }
   return out;
-}
-
-export type TrackDirection = 'inbound' | 'outbound';
-
-export interface RoomIdentity {
-  sid?: string;
-  name?: string;
-  participantSid?: string;
-  participantIdentity?: string;
-}
-
-/** One track's reading, already in SPEC units: milliseconds, not the WebRTC seconds. */
-export interface StatsSample {
-  codec?: string;
-  bytes?: number;
-  packets?: number;
-  packetsLost?: number;
-  framesDropped?: number;
-  concealedSamples?: number;
-  concealmentEvents?: number;
-  silentConcealedSamples?: number;
-  jitterBufferDelayMs?: number;
-  qualityLimitationBandwidthMs?: number;
-  qualityLimitationCpuMs?: number;
-  qualityLimitationOtherMs?: number;
-  jitterMs?: number;
-  rttMs?: number;
-  fps?: number;
-  audioLevel?: number;
 }
 
 const COUNTERS = [
@@ -140,7 +118,7 @@ class Window {
   }
 }
 
-export class TelemetrySpan {
+export class PipelineSpan implements Span {
   private events: SpanRecord['events'] = [];
 
   private attributes: Attributes;
@@ -152,7 +130,7 @@ export class TelemetrySpan {
   private spanId = randomHex(8);
 
   constructor(
-    private scope: TelemetryScope,
+    private scope: PipelineScope,
     private pipeline: Pipeline,
     private name: string,
     private kind: number,
@@ -217,14 +195,14 @@ export class TelemetrySpan {
   }
 }
 
-export class TelemetryScope {
+export class PipelineScope implements Scope {
   readonly traceId = randomHex(16);
 
   private room: RoomIdentity = {};
 
   private windows = new Map<string, { window: Window; kind: string; direction: TrackDirection }>();
 
-  private pendingSubscribes = new Map<string, TelemetrySpan>();
+  private pendingSubscribes = new Map<string, PipelineSpan>();
 
   constructor(private pipeline: Pipeline) {}
 
@@ -244,9 +222,9 @@ export class TelemetryScope {
 
   start(
     name: string,
-    options: { kind?: number; attributes?: Attributes; parent?: TelemetrySpan } = {},
-  ): TelemetrySpan {
-    return new TelemetrySpan(
+    options: { kind?: number; attributes?: Attributes; parent?: Span } = {},
+  ): PipelineSpan {
+    return new PipelineSpan(
       this,
       this.pipeline,
       name,
@@ -259,8 +237,8 @@ export class TelemetryScope {
   emit(
     eventName: string,
     attributes: Attributes = {},
-    severity: keyof typeof Severity = 'info',
-    span?: TelemetrySpan,
+    severity: SeverityName = 'info',
+    span?: Span,
   ) {
     const now = hrTime();
     const record: LogRecord = {
