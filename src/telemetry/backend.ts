@@ -96,6 +96,16 @@ export interface Backend {
   hold(up: boolean): void;
   /** Only what the platform running this code can actually answer; see `DeviceState`. */
   deviceState(state: DeviceState): void;
+  /**
+   * A record belonging to the pipeline rather than to any call. A platform that observes something
+   * this package has no vocabulary for — a phone's thermal state, say — names the event itself.
+   */
+  emit(event: string, attributes?: Attributes, severity?: Severity): void;
+  /**
+   * Stretch the flush interval and the stats window by this much, 1–4. The platform that can see
+   * pressure this package cannot reports the number, not the reason.
+   */
+  setCadenceFactor(factor: number): void;
   flush(): Promise<void>;
   diagnostics(): string;
   shutdown(): Promise<void>;

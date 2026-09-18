@@ -12,7 +12,7 @@
  */
 import type { Backend, Scope, StatsSample, TrackDirection } from './backend';
 import { type DeviceState, observeBrowser } from './device';
-import { Severity, hrTime, randomHex } from './otlp';
+import { type Attributes, Severity, hrTime, randomHex } from './otlp';
 import { Pipeline, type TelemetryOptions } from './pipeline';
 import { receiverSample, senderSample } from './webrtc';
 
@@ -30,6 +30,8 @@ export type {
   TraceContext,
 } from './backend';
 export { SpanKind } from './otlp';
+export type { Attributes } from './otlp';
+export type { TelemetryStorage } from './storage';
 
 const pipeline = new Pipeline();
 
@@ -103,6 +105,22 @@ export const Telemetry = {
     backend.deviceState(state);
   },
 
+  /**
+   * A record belonging to the pipeline rather than to any call. A platform SDK that observes
+   * something this package has no vocabulary for — a phone's thermal state — names it here.
+   */
+  emit(event: string, attributes?: Attributes, severity?: 'info' | 'warn' | 'error') {
+    backend.emit(event, attributes, severity);
+  },
+
+  /**
+   * Stretch the flush interval and the stats window by this much, 1–4. The platform that can see
+   * pressure this package cannot reports the number, not the reason.
+   */
+  setCadenceFactor(factor: number) {
+    backend.setCadenceFactor(factor);
+  },
+
   registerTrack(sid: string, scope: Scope, kind: 'audio' | 'video', direction: TrackDirection) {
     // Nothing to route when nobody is listening: an SDK without a collector keeps no map.
     if (!backend.enabled) return;
@@ -142,7 +160,7 @@ export const Telemetry = {
   /** A pipeline smoke test: one record, one request, whatever the collector answers. */
   ping(seq = 1) {
     const now = hrTime();
-    pipeline.emit({
+    pipeline.record({
       hrTime: now,
       hrTimeObserved: now,
       eventName: 'lk.ping',

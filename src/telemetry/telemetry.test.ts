@@ -4,6 +4,7 @@ import type { Backend, Scope, Span } from './backend';
 import { cadenceFactor, changes, networkType } from './device';
 import { Pipeline } from './pipeline';
 import { PipelineScope } from './scope';
+import { MemoryStorage, batchId } from './storage';
 
 /** The JSON encoding is the readable one: every assertion here reads the body the collector gets. */
 function bodyOf(call: unknown[]): any {
@@ -253,6 +254,8 @@ describe('the backend seam', () => {
       scope: () => scope,
       hold: (up) => calls.push(`hold ${up}`),
       deviceState: (state) => calls.push(`device ${state.appState}`),
+      emit: (event) => calls.push(`emit ${event}`),
+      setCadenceFactor: (factor) => calls.push(`cadence ${factor}`),
       flush: async () => {},
       diagnostics: () => 'platform backend',
       shutdown: async () => {},
@@ -270,6 +273,9 @@ describe('the backend seam', () => {
       connect.end('ok');
       Telemetry.hold(false);
       Telemetry.trackStats('TR_1', 'outbound', { bytes: 1 });
+      // What a platform sees and this package cannot: it names the event and the factor itself.
+      Telemetry.emit('lk.device.thermal.changed', { 'lk.device.thermal.state': 'serious' });
+      Telemetry.setCadenceFactor(2);
       session.disconnected('client_initiated');
 
       expect(calls).toEqual([
@@ -284,11 +290,84 @@ describe('the backend seam', () => {
         'end ok',
         'hold false',
         'stats TR_1 outbound',
+        'emit lk.device.thermal.changed',
+        'cadence 2',
         'disconnected client_initiated',
       ]);
       expect(Telemetry.diagnostics()).toBe('platform backend');
     } finally {
       Telemetry.setBackend(previous);
     }
+  });
+});
+
+describe('the write-ahead cache', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  test('a batch the network refused is still there next time', async () => {
+    const storage = new MemoryStorage(4 * 1024 * 1024, 512);
+    const pipeline = new Pipeline();
+    pipeline.configure({
+      endpoint: 'http://collector.test/v1/logs',
+      encoding: 'json',
+      flushInterval: 3600,
+      storage,
+    });
+    const scope = new PipelineScope(pipeline);
+    scope.emit('lk.test.offline');
+
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    await pipeline.flush(true);
+    // The record left the queue, but it is in the cache, not gone.
+    expect(storage.pending()).toHaveLength(1);
+    expect(pipeline.diagnostics()).toContain('lost 0');
+
+    await pipeline.flush(true);
+    expect(storage.pending()).toHaveLength(0);
+    expect(recordsOf(fetchMock.mock.calls[1])[0].eventName).toBe('lk.test.offline');
+    pipeline.stop();
+  });
+
+  test('a backlog from a previous launch replays four batches a tick', async () => {
+    // What the store looks like after a crash: batches nobody has sent yet.
+    const storage = new MemoryStorage(4 * 1024 * 1024, 512);
+    for (let i = 0; i < 6; i += 1) {
+      storage.put(batchId('logs', i, 10), new Uint8Array([1, 2, 3]));
+    }
+    const pipeline = new Pipeline();
+    pipeline.configure({ endpoint: 'http://collector.test/v1/logs', flushInterval: 3600, storage });
+
+    await pipeline.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(storage.pending()).toHaveLength(2);
+
+    // A shutdown drains without the budget.
+    await pipeline.flush(true);
+    expect(storage.pending()).toHaveLength(0);
+    pipeline.stop();
+  });
+
+  test('an eviction costs a known number of records, not a batch', async () => {
+    const storage = new MemoryStorage(64, 512);
+    const pipeline = new Pipeline();
+    // No destination: batches pile up in the cache, which is where eviction happens.
+    pipeline.configure({ encoding: 'json', flushInterval: 3600, storage });
+    const scope = new PipelineScope(pipeline);
+    scope.emit('lk.test.one');
+    await pipeline.flush(true);
+    scope.emit('lk.test.two');
+    await pipeline.flush(true);
+
+    expect(storage.pending()).toHaveLength(1);
+    // The evicted batch held one record, and the report says so — not "one batch".
+    expect(pipeline.diagnostics()).toContain('lost 1');
+    pipeline.stop();
   });
 });

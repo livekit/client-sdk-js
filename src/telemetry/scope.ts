@@ -255,7 +255,7 @@ export class PipelineScope implements Scope {
       instrumentationScope: INSTRUMENTATION_SCOPE,
       spanContext: span?.context() ?? { traceId: this.traceId, spanId: '', traceFlags: 1 },
     };
-    this.pipeline.emit(record, { exemptFromFlood: eventName === 'lk.rtc.stats.sample' });
+    this.pipeline.record(record, { exemptFromFlood: eventName === 'lk.rtc.stats.sample' });
   }
 
   disconnected(reason: string) {

@@ -92,9 +92,15 @@ Saver, and an app stretches on everything.
 | Upload holds during `lk.connect` / `lk.reconnect`, 60 s cap, one request in flight | telemetry never wins over media |
 | Flood guard, `lk.telemetry.report` | fleet-wide denominators, same shape as everywhere else |
 
-## 3. Caching: in-memory only
+## 3. Caching: in-memory in a tab, whatever the platform has elsewhere
 
-Yes. Nobody in this ecosystem persists, and the reasons for disk on mobile do not exist in a tab.
+The pipeline is **write-ahead**, as the Rust core is: a batch is stored before the network is tried
+and removed only once the collector has taken it, so a refused upload, a lost connection or a
+process that dies costs nothing. Where it is stored is `TelemetryStorage` — five synchronous
+operations, the same five the core's `BatchCache` has — and the default keeps batches in memory,
+bounded by 4 MiB and 512 batches, oldest evicted first and counted.
+
+That default is right for a tab, and nobody in this ecosystem persists there either.
 
 - **OpenTelemetry JS** caches nothing: `BatchLogRecordProcessor` is a bounded in-memory queue and
   the spec puts retry on the exporter, explicitly not on the processor.
@@ -104,15 +110,16 @@ Yes. Nobody in this ecosystem persists, and the reasons for disk on mobile do no
 - **Grafana Faro** is in-memory.
 
 A tab's lifetime is the call's lifetime; there is no "app killed in the background, replay at next
-launch". The bound is therefore the queue alone (2048 records, oldest evicted and counted as
-`lk.telemetry.dropped.queue_full`), and the last-gasp flush is best effort: `fetch(keepalive)` under
-64 KiB on `pagehide`, an ordinary `fetch` on RN's `AppState` → background. Neither turns a
-disappearing page into a durable queue, which is why the flush happens at
-`visibilitychange → hidden` and not at `unload`.
+launch". The last-gasp flush is best effort: `fetch(keepalive)` under 64 KiB on `pagehide`, an
+ordinary `fetch` on React Native's `AppState` → background. Neither turns a disappearing page into
+a durable queue, which is why the flush happens at `visibilitychange → hidden` and not at `unload`.
 
-React Native *can* be killed with a backlog, and it does have `AsyncStorage`. Not for v1: it is
-async, slow, and a backlog that matters needs the whole cache policy (age, prune, replay budget)
-that §2 just deleted. Revisit if the field shows RN sessions losing their tail.
+React Native is the case where it is not right, because an app really can be killed holding a
+backlog and really can be offline for hours. There it supplies a store backed by files — the same
+shape the Rust core's `FileCache` has, written natively in the package that already ships native
+code rather than pulled in as a dependency. Nothing about that reaches this package: it hands over
+`storage` and knows nothing else. A browser could do the same over IndexedDB if the field ever
+shows it is worth it.
 
 ## 4. Protobuf or JSON?
 

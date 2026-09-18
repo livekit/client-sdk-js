@@ -21,6 +21,7 @@ import {
   serializeSpans,
 } from './otlp';
 import { PipelineScope } from './scope';
+import { MemoryStorage, type TelemetryStorage, batchId, batchKind, batchRecords } from './storage';
 
 export interface TelemetryOptions {
   /** OTLP logs route. Cloud derives it from the server URL instead; see `setServer`. */
@@ -33,6 +34,11 @@ export interface TelemetryOptions {
   statsWindow?: number;
   maxQueueSize?: number;
   resource?: Record<string, AttributeValue>;
+  /**
+   * Where batches wait between being made and being accepted. A platform with a filesystem
+   * supplies one that survives the process; the default keeps them in memory.
+   */
+  storage?: TelemetryStorage;
 }
 
 interface Destination {
@@ -45,6 +51,11 @@ const FLUSH_INTERVAL = 15;
 const STATS_WINDOW = 15;
 const MAX_QUEUE = 2048;
 const MAX_BATCH = 512;
+/** What the cache may hold: 4 MiB across at most 512 batches, oldest evicted first. */
+const MAX_CACHE_BYTES = 4 * 1024 * 1024;
+const MAX_CACHE_BATCHES = 512;
+/** A backlog replays beside a live call at this many batches per tick, never faster (SPEC). */
+const MAX_BATCHES_PER_UPLOAD = 4;
 /** Browsers cap every in-flight keepalive body at 64 KiB together; stay under it. */
 const KEEPALIVE_LIMIT = 60 * 1024;
 /** A hold never outlasts this, whatever the signal that raised it claims (SPEC). */
@@ -59,6 +70,8 @@ export interface Counters {
   bytes: number;
   failed: number;
   holdsCapped: number;
+  droppedCacheFull: number;
+  droppedCacheError: number;
   droppedQueueFull: number;
   droppedRejected: number;
   droppedThrottled: number;
@@ -71,6 +84,8 @@ function emptyCounters(): Counters {
     bytes: 0,
     failed: 0,
     holdsCapped: 0,
+    droppedCacheFull: 0,
+    droppedCacheError: 0,
     droppedQueueFull: 0,
     droppedRejected: 0,
     droppedThrottled: 0,
@@ -132,14 +147,24 @@ export class Pipeline implements Backend {
 
   private device: DeviceState = {};
 
+  private storage: TelemetryStorage = new MemoryStorage(MAX_CACHE_BYTES, MAX_CACHE_BATCHES);
+
+  private sequence = 0;
+
   resource: Resource = { attributes: {} };
 
   private baseFlushInterval = FLUSH_INTERVAL;
 
   private baseStatsWindow = STATS_WINDOW;
 
-  /** SPEC's cadence policy: device pressure stretches both periods, never past 4×. */
+  /** SPEC's cadence policy: pressure stretches both periods, never past 4×. Two sources
+   *  multiply — what this package observes, and what a platform reports through
+   *  `setCadenceFactor` for the pressure it can see and this one cannot. */
   private cadence = 1;
+
+  private deviceFactor = 1;
+
+  private platformFactor = 1;
 
   maxQueueSize = MAX_QUEUE;
 
@@ -170,10 +195,17 @@ export class Pipeline implements Backend {
         this.processScope.emit(record.event, record.attributes);
       }
     }
-    this.setCadenceFactor(cadenceFactor(next));
+    this.deviceFactor = cadenceFactor(next);
+    this.applyCadence();
   }
 
   setCadenceFactor(factor: number) {
+    this.platformFactor = factor;
+    this.applyCadence();
+  }
+
+  private applyCadence() {
+    const factor = Math.min(4, this.deviceFactor * this.platformFactor);
     if (factor === this.cadence) return;
     this.cadence = factor;
     // Restarting the timer is what makes a *shorter* period apply at once — pressure relieved
@@ -214,6 +246,9 @@ export class Pipeline implements Backend {
         ...options.resource,
       },
     };
+    if (options.storage) {
+      this.storage = options.storage;
+    }
     if (options.endpoint) {
       this.destination = {
         logs: options.endpoint,
@@ -278,7 +313,14 @@ export class Pipeline implements Backend {
     return true;
   }
 
-  emit(record: LogRecord, options: { exemptFromFlood?: boolean } = {}) {
+  /** A record that belongs to the pipeline rather than to a call — what a platform reports. */
+  emit(event: string, attributes: Attributes = {}, severity: 'info' | 'warn' | 'error' = 'info') {
+    if (!this.enabled) return;
+    this.processScope ??= new PipelineScope(this);
+    this.processScope.emit(event, attributes, severity);
+  }
+
+  record(record: LogRecord, options: { exemptFromFlood?: boolean } = {}) {
     if (!this.enabled) return;
     if (!options.exemptFromFlood && !this.floodOk()) return;
     record.resource = this.resource;
@@ -305,34 +347,71 @@ export class Pipeline implements Backend {
   }
 
   async flush(force = false): Promise<void> {
-    if (!this.enabled || !this.destination || this.inFlight) return;
+    if (!this.enabled || this.inFlight) return;
     if (!force && (this.held() || Date.now() < this.throttledUntil)) return;
     if (this.reportDue) this.appendReport();
-    if (this.logs.length === 0 && this.spans.length === 0) return;
+    // Write-ahead: what is queued becomes a stored batch whether or not anything can be sent yet.
+    this.persist();
+    const destination = this.destination;
+    if (!destination) return;
 
     this.inFlight = true;
     try {
-      const destination = this.destination!;
-      if (this.logs.length > 0) {
-        const batch = this.logs.splice(0, MAX_BATCH);
-        await this.send(destination.logs, serializeLogs(batch, this.encoding), batch, this.logs);
-      }
-      // A throttle raised by the logs request applies to the spans request too: same quota.
-      if (this.spans.length > 0 && Date.now() >= this.throttledUntil) {
-        const batch = this.spans.splice(0, MAX_BATCH);
-        await this.send(
-          destination.traces,
-          serializeSpans(batch, this.encoding),
-          batch,
-          this.spans,
-        );
+      // A backlog from a previous launch replays beside the call at 4 batches a tick; a shutdown
+      // or a page leaving drains without the budget.
+      const budget = force ? Number.POSITIVE_INFINITY : MAX_BATCHES_PER_UPLOAD;
+      for (const id of this.storage.pending().slice(0, budget)) {
+        const body = this.storage.read(id);
+        if (body === undefined) {
+          this.storage.remove(id);
+          continue;
+        }
+        const url = batchKind(id) === 'logs' ? destination.logs : destination.traces;
+        const verdict = await this.send(url, body, batchRecords(id));
+        // Throttled or offline: this batch keeps its place and so does everything behind it.
+        if (verdict === 'keep') break;
+        this.storage.remove(id);
       }
     } finally {
       this.inFlight = false;
     }
   }
 
-  private async send<T>(url: string, body: Uint8Array, batch: T[], queue: T[]) {
+  private persist() {
+    if (this.logs.length > 0) {
+      const batch = this.logs.splice(0, MAX_BATCH);
+      this.store(batchId('logs', (this.sequence += 1), batch.length), () =>
+        serializeLogs(batch, this.encoding),
+      );
+    }
+    if (this.spans.length > 0) {
+      const batch = this.spans.splice(0, MAX_BATCH);
+      this.store(batchId('traces', (this.sequence += 1), batch.length), () =>
+        serializeSpans(batch, this.encoding),
+      );
+    }
+  }
+
+  private store(id: string, body: () => Uint8Array) {
+    try {
+      const evicted = this.storage.put(id, body());
+      if (evicted.length > 0) {
+        // The id says how many records were in the batch, so an eviction costs a known number.
+        this.counters.droppedCacheFull += evicted.reduce((sum, key) => sum + batchRecords(key), 0);
+        this.reportDue = true;
+      }
+    } catch {
+      // A store that cannot store (disk full, quota) must not take the session down with it.
+      this.counters.droppedCacheError += batchRecords(id);
+      this.reportDue = true;
+    }
+  }
+
+  private async send(
+    url: string,
+    body: Uint8Array,
+    records: number,
+  ): Promise<'sent' | 'drop' | 'keep'> {
     const destination = this.destination!;
     try {
       const response = await fetch(url, {
@@ -349,7 +428,7 @@ export class Pipeline implements Backend {
       if (response.status >= 200 && response.status < 300) {
         this.counters.sent += 1;
         this.counters.bytes += body.byteLength;
-        return;
+        return 'sent';
       }
       if (response.status === 429 || response.status >= 500) {
         const retryAfter = Number.parseInt(response.headers.get('Retry-After') ?? '', 10);
@@ -357,30 +436,16 @@ export class Pipeline implements Backend {
           Date.now() + (Number.isFinite(retryAfter) ? retryAfter * 1000 : THROTTLE_DEFAULT_MS);
         this.counters.failed += 1;
         this.reportDue = true;
-        this.requeue(batch, queue);
-        return;
+        return 'keep';
       }
       // A 4xx is the collector's verdict on the payload: retrying cannot fix it.
-      this.counters.droppedRejected += batch.length;
+      this.counters.droppedRejected += records;
       this.reportDue = true;
+      return 'drop';
     } catch {
       this.counters.failed += 1;
       this.reportDue = true;
-      this.requeue(batch, queue);
-    }
-  }
-
-  /** A held or failed batch goes back at the front — a pause is not a hole in the session. */
-  private requeue<T>(batch: T[], queue: T[]) {
-    if (batch.length === 0) return;
-    queue.unshift(...batch);
-    const total = this.logs.length + this.spans.length;
-    if (total > this.maxQueueSize) {
-      const overflow = total - this.maxQueueSize;
-      const fromLogs = Math.min(overflow, this.logs.length);
-      this.logs.splice(0, fromLogs);
-      this.spans.splice(0, overflow - fromLogs);
-      this.counters.droppedThrottled += overflow;
+      return 'keep';
     }
   }
 
@@ -392,8 +457,15 @@ export class Pipeline implements Backend {
       'lk.telemetry.uploads.bytes': counters.bytes,
       'lk.telemetry.uploads.failed': counters.failed,
       'lk.telemetry.queue.records': this.logs.length + this.spans.length,
+      'lk.telemetry.cache.batches': this.storage.pending().length,
     };
     if (counters.holdsCapped) attributes['lk.telemetry.holds.capped'] = counters.holdsCapped;
+    if (counters.droppedCacheFull) {
+      attributes['lk.telemetry.dropped.cache_full'] = counters.droppedCacheFull;
+    }
+    if (counters.droppedCacheError) {
+      attributes['lk.telemetry.dropped.cache_error'] = counters.droppedCacheError;
+    }
     if (counters.droppedQueueFull) {
       attributes['lk.telemetry.dropped.queue_full'] = counters.droppedQueueFull;
     }
@@ -426,6 +498,7 @@ export class Pipeline implements Backend {
     this.disabled = true;
     this.logs = [];
     this.spans = [];
+    this.storage.clear();
     this.stop();
   }
 
@@ -441,6 +514,8 @@ export class Pipeline implements Backend {
             ? 'held'
             : 'ready';
     const lost =
+      counters.droppedCacheFull +
+      counters.droppedCacheError +
       counters.droppedQueueFull +
       counters.droppedRejected +
       counters.droppedThrottled +
