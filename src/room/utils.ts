@@ -300,6 +300,33 @@ export function isSafariBased(): boolean {
   return b?.name === 'Safari' || b?.os === 'iOS';
 }
 
+/**
+ * iPadOS has sent the desktop Macintosh user agent by default since iPadOS 13, so `getBrowser()`
+ * reports `os: 'macOS'` there and every `os === 'iOS'` check misses it. macOS Safari implements no
+ * touch events at all (`TouchEvent` undefined, `maxTouchPoints` 0) regardless of any touchscreen
+ * attached, so touch capability separates the two. Measured on an iPad 6 / iPadOS 17
+ * (`maxTouchPoints` 5) against macOS Safari 26.4 (`maxTouchPoints` 0).
+ *
+ * Deliberately a separate helper rather than a fix in `browserParser`: iPadOS spoofs the Mac
+ * version too, so reporting `os: 'iOS'` there would leave `osVersion` at `10.15.7` and silently
+ * break {@link isSafari17Based} and {@link isSafariSvcApi}, which compare it.
+ */
+export function isIPadOS(): boolean {
+  if (!isWeb()) {
+    return false;
+  }
+  const b = getBrowser();
+  return b?.name === 'Safari' && b?.os === 'macOS' && navigator.maxTouchPoints > 1;
+}
+
+/**
+ * iPhone, iPad and iOS-hosted browsers — everything running the Apple camera capture pipeline,
+ * including iPads that present themselves as a Mac.
+ */
+export function isAppleMobile(): boolean {
+  return getBrowser()?.os === 'iOS' || isIPadOS();
+}
+
 export function isSafari17Based(): boolean {
   const b = getBrowser();
   return (
