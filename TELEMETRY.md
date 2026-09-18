@@ -169,6 +169,8 @@ A page cannot POST at an OTLP receiver that does not answer the preflight, which
 difference from the mobile harness config: `receivers.otlp.protocols.http.cors`.
 
 React Native runs the identical file — `telemetry-poc/` in the `client-sdk-react-native` worktree
-copies `src/telemetry/index.ts` verbatim. Metro resolves the package and Hermes runs both encoders
-(`hermes-check.js`, which stubs `fetch` and needs no simulator); the app itself pings the same
-collector from the iOS simulator, which shares the host's network stack.
+copies `src/telemetry/index.ts` verbatim, no edits. Both pings arrive from a bare RN 0.82.1 app on
+the iOS simulator at the same collector and show up in Loki next to the browser's, and the module
+also runs under the bare Hermes VM with `fetch` stubbed, which is the cheap check when no simulator
+is around. There it reported the size difference that settles §4: **326 bytes of protobuf against
+846 bytes of JSON** for the same record.
