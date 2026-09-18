@@ -201,3 +201,6 @@ export {
   type SerializerOutput,
   serializers,
 } from './utils/serializer';
+
+// PoC: exported only so `pnpm size-limit` can weigh the telemetry path against the budget.
+export { ping as telemetryPing } from './telemetry';

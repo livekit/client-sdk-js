@@ -10,19 +10,27 @@ truth for event names, attributes and cadences; this document is only about what
 `@opentelemetry/otlp-transformer`, pinned — turns plain record objects into an OTLP request body in
 protobuf or JSON. Nothing else from OpenTelemetry ships.
 
-Measured here with esbuild (`--bundle --minify`, `gzip -9`), `@opentelemetry/*` 0.222.0 / 2.11.0:
+The budget first, from the repo's own `pnpm size-limit` (webpack, minified, **brotli**):
+
+| `pnpm size-limit` entry | before | with the encoder | limit |
+|---|---|---|---|
+| `{ Room }` from `dist/livekit-client.esm.mjs` | 114.24 kB | 118.75 kB | 150 kB |
+| `dist/livekit-client.umd.js` (not tree-shakeable — every app pays) | 123.58 kB | **128.01 kB** | 130 kB |
+
+So the encoder costs ~4.4 kB brotli where it cannot be shaken out, and leaves **2 kB** under the
+UMD limit. That is the number every option has to fit in. Measured against it with esbuild
+(`--bundle --minify`, `gzip -9`), `@opentelemetry/*` 0.222.0 / 2.11.0:
 
 | Bundle | minified | gzipped |
 |---|---|---|
-| `{ Room }` from `livekit-client` today | 409 KB | **106 KB** (budget in `.size-limit.cjs`: 150 kB) |
 | `otlp-transformer` proto serializers, logs + traces | 17.8 KB | **5.2 KB** |
 | logs SDK + OTLP/HTTP **JSON** exporter | 42.9 KB | 13.5 KB |
 | logs SDK + OTLP/HTTP **proto** exporter | 49.4 KB | 15.2 KB |
 | logs + traces SDKs + proto exporters | 78.2 KB | **23.0 KB** |
 
 What the full SDK adds over the serializers is a batch processor, a fetch transport and the
-provider/context plumbing: ~18 KB gzipped, most of the remaining size budget, for three things that
-do not fit.
+provider/context plumbing: ~18 KB gzipped on top, four times the UMD headroom, for three things
+that do not fit.
 
 - **The trace model is different.** Our trace is a *scope* — one Room connection across reconnects,
   its id minted by the pipeline and stamped on every span and log record. OTel's tracer wants a
@@ -133,6 +141,19 @@ src/telemetry/
   transport.ts    fetch, holds, 429/5xx, Retry-After, one request in flight
   lifecycle.ts    the platform seam (browser events / RN AppState)
 ```
+
+## What this design still owes an answer
+
+- **The UMD budget.** 2 kB of headroom is not enough for the pipeline that goes on top of the
+  encoder (scope, windowing, transport, self-report — call it another 3–5 kB brotli). Either
+  `.size-limit.cjs` moves the UMD limit to ~135 kB, or the UMD build gets telemetry behind its own
+  entry point the way the e2ee and frame-metadata workers already are. The ESM path, which is what
+  bundled apps use, has 31 kB of room and does not care.
+- **Where the stats windows come from.** `src/room/stats.ts` already polls at
+  `monitorFrequency = 2000` per track; the window folds those readings. Whether the pipeline
+  subscribes to the existing monitors or gets its own `getStats()` call is an implementation
+  choice with a real CPU cost attached, and it should be the former.
+- **The OTLP/JSON id bug on LiveKit Cloud** (see §4) — worth filing whichever encoding we ship.
 
 ## Proof of concept
 
