@@ -1,4 +1,5 @@
 import { AudioTrackFeature } from '@livekit/protocol';
+import { Telemetry } from '../../telemetry';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
@@ -157,6 +158,9 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
     if (stats && this.prevStats) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
+    }
+    if (stats) {
+      Telemetry.senderStats(this.sid, [stats]);
     }
 
     this.prevStats = stats;

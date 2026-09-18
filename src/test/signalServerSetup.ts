@@ -59,7 +59,6 @@ export default async function setup(project: { provide: (name: string, value: un
     project.provide('e2eUnavailable', '');
   };
   const skip = (reason: string) => {
-    // eslint-disable-next-line no-console
     console.warn(`\n[e2e] signal-connection e2e suite SKIPPED: ${reason}\n`);
     project.provide('serverUrl', '');
     project.provide('e2eUnavailable', reason);
