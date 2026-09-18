@@ -221,6 +221,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectAttempts: number = 0;
 
+  /** Why the current reconnect started — the two events below carry it to telemetry. */
+  private reconnectReason?: ReconnectReason;
+
   private reconnectStart: number = 0;
 
   private clientConfiguration?: ClientConfiguration;
@@ -1307,6 +1310,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this._isClosed) {
       return;
     }
+    this.reconnectReason = reason;
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
       this.log.warn('already attempting reconnect, returning early');
@@ -1404,7 +1408,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-      this.emit(EngineEvent.Restarting);
+      this.emit(EngineEvent.Restarting, this.reconnectReason);
 
       if (!this.client.isDisconnected) {
         await this.client.sendLeave();
@@ -1477,7 +1481,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    this.emit(EngineEvent.Resuming);
+    this.emit(EngineEvent.Resuming, this.reconnectReason);
     let res: ReconnectResponse | undefined;
     try {
       this.setupSignalClientCallbacks();
@@ -2068,9 +2072,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 export type EngineEventCallbacks = {
   connected: (joinResp: JoinResponse) => void;
   disconnected: (reason?: DisconnectReason) => void;
-  resuming: () => void;
+  resuming: (reason?: ReconnectReason) => void;
   resumed: () => void;
-  restarting: () => void;
+  restarting: (reason?: ReconnectReason) => void;
   restarted: () => void;
   signalResumed: () => void;
   signalRestarted: (joinResp: JoinResponse) => void;

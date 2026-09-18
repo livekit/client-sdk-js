@@ -7,19 +7,9 @@ module.exports = [
   {
     path: 'dist/livekit-client.umd.js',
     import: '{ Room }',
-    limit: '130 kB',
-  },
-  // PoC: what the OTLP encoder costs on top of Room, against the same budgets.
-  {
-    name: 'esm + telemetry',
-    path: 'dist/livekit-client.esm.mjs',
-    import: '{ Room, telemetryPing }',
-    limit: '150 kB',
-  },
-  {
-    name: 'umd + telemetry',
-    path: 'dist/livekit-client.umd.js',
-    import: '{ Room, telemetryPing }',
-    limit: '130 kB',
+    // Telemetry costs +8.95 kB brotli, and UMD cannot shake it out: 130 kB no longer fits.
+    // Raising it is one of two answers — the other is a separate UMD entry point, as the
+    // e2ee and frame-metadata workers already have. See TELEMETRY.md.
+    limit: '135 kB',
   },
 ];

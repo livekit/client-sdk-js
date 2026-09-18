@@ -135,35 +135,67 @@ this package is in RN with no second implementation. The rules that keep it that
 
 ```
 src/telemetry/
-  index.ts        pipeline: resource, destination, queue, flush timer, ping   ← the PoC is this file
-  scope.ts        one per Room: trace id, room/participant attributes, spans
-  stats.ts        getStats readings → lk.rtc.stats.sample windows
-  transport.ts    fetch, holds, 429/5xx, Retry-After, one request in flight
-  lifecycle.ts    the platform seam (browser events / RN AppState)
+  index.ts     the Telemetry facade: configure/setServer, the scope factory, the track registry
+  pipeline.ts  queue, flush timer, holds, 429/5xx, one request in flight, the self-report
+  scope.ts     one per Room connection: trace id, attributes, spans, stats windows
+  otlp.ts      the records and their wire form (the only OpenTelemetry import lives here)
+  webrtc.ts    the SDK's typed sender/receiver stats → one SPEC reading
 ```
+
+Where the SDK calls it — eleven places, all of them one line except the connect span:
+
+| Site | What it says |
+|---|---|
+| `Room.connect` | a Cloud URL names the destination; a scope is opened and `lk.connect` starts, holding uploads |
+| `Room.attemptConnection` | `signal`, `join_recv`, `pc_connected`, `room_connected` checkpoints, then the span ends |
+| `Room.applyJoinResponse` / `handleRoomUpdate` | `lk.room.*`, `lk.participant.*` on every record of the call |
+| `EngineEvent.Resuming` / `Restarting` / `Resumed` / `handleSignalRestarted` | one `lk.reconnect` span per reconnect, one checkpoint per attempt, mode = whichever won |
+| `Room.handleDisconnect` | open spans fail, `lk.room.disconnected`, the open windows close, one last upload |
+| `ParticipantEvent.TrackSubscribed` / `Unsubscribed` | `lk.subscribe`, ended by the first inbound window with bytes |
+| `Room.onLocalTrackPublished` / `Unpublished` | which scope and direction a track sid belongs to |
+| `LocalParticipant.publishTrack` | `lk.publish` |
+| the four track monitors | the reading they already took, every 2 s |
+
+`RTCEngine` gained one field: the reconnect reason, so `Resuming`/`Restarting` can carry it.
+`RemoteAudioTrack.getReceiverStats` gained `packetsReceived` / `packetsLost`, which its own
+`ReceiverStats` type already declared and nothing was filling in.
 
 ## What this design still owes an answer
 
-- **The UMD budget.** 2 kB of headroom is not enough for the pipeline that goes on top of the
-  encoder (scope, windowing, transport, self-report — call it another 3–5 kB brotli). Either
-  `.size-limit.cjs` moves the UMD limit to ~135 kB, or the UMD build gets telemetry behind its own
-  entry point the way the e2ee and frame-metadata workers already are. The ESM path, which is what
-  bundled apps use, has 31 kB of room and does not care.
-- **Where the stats windows come from.** `src/room/stats.ts` already polls at
-  `monitorFrequency = 2000` per track; the window folds those readings. Whether the pipeline
-  subscribes to the existing monitors or gets its own `getStats()` call is an implementation
-  choice with a real CPU cost attached, and it should be the former.
+- **The UMD budget — now measured, and over.** The finished integration costs **+8.95 kB brotli**:
+  ESM `{ Room }` goes 114.24 → 123.19 kB (limit 150 kB, comfortable), and the UMD bundle, which
+  cannot shake anything out, goes 123.58 → **132.70 kB against a 130 kB limit**. This branch raises
+  the UMD limit to 135 kB so the build passes; the alternative is a separate UMD entry point, the
+  way the e2ee and frame-metadata workers already have one. That is a call for the SDK's owners.
+- **What the SDK's typed stats do not carry.** The windows are folded from the readings the track
+  monitors already take, so they cost no extra `getStats()` — but those readings are a subset of
+  SPEC. Missing: inbound RTT and jitter-buffer counters, video freeze and pause counts, audio
+  level and interruptions. Each is a field to add to `getSenderStats` / `getReceiverStats`, which
+  parse the raw report already; `packetsReceived` / `packetsLost` on inbound audio were added here
+  as the first of them.
 - **The OTLP/JSON id bug on LiveKit Cloud** (see §4) — worth filing whichever encoding we ship.
 
-## Proof of concept
+## Tests
 
-Real Chromium (Playwright), the same collector + Grafana LGTM stack the mobile harness uses, one
-`lk.ping` per encoding:
+`pnpm test` covers the policy against a stubbed collector, reading the JSON bodies it would have
+sent: a window's counters and gauges, a hold that stops uploads and not collection, a 429 that keeps
+its batch, the queue evicting oldest-first and saying so, a span's checkpoints and outcome.
+
+`pnpm vitest run --config vitest.telemetry.config.mts` is the session: a real Chromium with fake
+media devices, a real `livekit-server --dev`, two Rooms in one page, both reconnect paths, and the
+collector that fans out to the same Grafana LGTM stack the mobile harness writes to.
 
 ```sh
+livekit-server --dev
 otelcol-contrib --config src/telemetry/otelcol-web.yaml     # :4320, CORS, fans out to :4318 LGTM
 pnpm vitest run --config vitest.telemetry.config.mts
 ```
+
+One run puts this in the collector: two `lk.connect` spans with all four checkpoints, two
+`lk.publish`, four `lk.subscribe` (`subscribed` → `first_media`), two `lk.reconnect`
+(`attempt 1 quick` → `attempt 2 full` at `signal_disconnected`, then a full one), six
+`lk.rtc.stats.sample` windows across both directions and both kinds, and two `lk.room.disconnected`
+at `client_initiated`.
 
 A page cannot POST at an OTLP receiver that does not answer the preflight, which is the one
 difference from the mobile harness config: `receivers.otlp.protocols.http.cors`.
