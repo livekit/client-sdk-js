@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.22.4
+
+### Patch Changes
+
+- Catch the rejection from `negotiate()` when the server requests media sections, so a failed renegotiation no longer surfaces as an unhandled promise rejection - [#2108](https://github.com/livekit/client-sdk-js/pull/2108) ([@SergeAx](https://github.com/SergeAx))
+
+- Add `disableIceLite` connect option to request full ICE from a server running ICE lite. - [#2085](https://github.com/livekit/client-sdk-js/pull/2085) ([@subham2006](https://github.com/subham2006))
+
+- Fix Document Picture-in-Picture detection reporting opener-document elements as being in PiP. `isElementInPiP` compared an element's coordinates (computed within its own document) against the PiP window's viewport without checking which document the element belongs to, so while any Document PiP window was open, every observed video element positioned inside the PiP window's bounds - a tile near the top-left of the page, for example - was treated as in PiP. Because `HTMLElementInfo.visible` is `isPiP || isIntersecting`, those elements also counted as visible while scrolled out of view, which affected adaptiveStream subscription and layer selection. Detection now requires the element to live in the PiP window's document, or in a frame nested inside it. - [#2106](https://github.com/livekit/client-sdk-js/pull/2106) ([@dkelson](https://github.com/dkelson))
+
+- Avoid attaching a new Closing/Restarting event listener for each negotiate call - [#2084](https://github.com/livekit/client-sdk-js/pull/2084) ([@1egoman](https://github.com/1egoman))
+
+- Wait for first video frame to be received before responding to waitForDimension on ios - [#2100](https://github.com/livekit/client-sdk-js/pull/2100) ([@1egoman](https://github.com/1egoman))
+
+- Retry against other LiveKit Cloud regions when the initial connection is rejected with 403. Cloud signals project-level region pinning with a 403 on the RTC paths, which was previously treated as terminal, so a client that geo-routed to a disallowed region never reached `/settings/regions` and failed to connect. 401 and the 404 "room does not exist" case remain terminal. - [#2097](https://github.com/livekit/client-sdk-js/pull/2097) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
 ## 2.22.3
 
 ### Patch Changes
