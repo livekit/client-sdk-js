@@ -535,7 +535,7 @@ function bytesToChunks(streamId: string): TransformStream<Uint8Array, DataStream
  * synthesized text chunk decodes independently. The `flush` emits the decoder's trailing bytes.
  */
 function bytesToDecodedUtf8(streamId: string): TransformStream<Uint8Array, DataStream_Chunk> {
-  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const decoder = new TextDecoder('utf-8');
   const encoder = new TextEncoder();
 
   let outIndex = 0;
