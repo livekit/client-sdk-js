@@ -103,6 +103,26 @@ a=sendonly
 a=msid:PA_remote|camera camera-cid
 a=rtpmap:96 VP8/90000`;
 
+// The legacy `addTrack` fallback (no `addTransceiver` support) reuses a transceiver instead
+// of creating a sendonly one, so the published camera lands on a `sendrecv` section. Mid 1
+// omits the direction attribute entirely, which SDP also defaults to sendrecv. Both send.
+const LEGACY_ADD_TRACK_SECTIONS = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sendrecv
+a=msid:PA_remote|camera camera-cid
+a=rtpmap:96 VP8/90000
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:1
+a=msid:PA_remote|camera other-track
+a=rtpmap:96 VP8/90000`;
+
 describe('video start bitrate', () => {
   it('matches only the section whose msid track ID matches the cid', () => {
     const { media } = parse(TWO_VIDEO_SECTIONS);
@@ -168,9 +188,17 @@ describe('video start bitrate', () => {
     expect(computeConnectionStartBitrate(parse(TWO_VIDEO_SECTIONS).media, trackBitrates)).toBe(
       7_200,
     );
-    // Once it is unpublished its entry is stale, so only the capped camera counts.
+    // Once it is unpublished its entry is stale, so only the capped camera counts. Both
+    // directions a removed sender can land on are excluded: `inactive` from a sendonly
+    // transceiver, `recvonly` from the sendrecv one the addTrack fallback reuses.
     expect(
       computeConnectionStartBitrate(parse(UNPUBLISHED_SCREEN_SHARE).media, trackBitrates),
+    ).toBe(900);
+    expect(
+      computeConnectionStartBitrate(
+        parse(UNPUBLISHED_SCREEN_SHARE.replace('a=inactive', 'a=recvonly')).media,
+        trackBitrates,
+      ),
     ).toBe(900);
   });
 
@@ -178,6 +206,21 @@ describe('video start bitrate', () => {
     const { media } = parse(TWO_VIDEO_SECTIONS);
 
     expect(computeConnectionStartBitrate(media, [])).toBeUndefined();
+  });
+
+  it('counts sendrecv and direction-less sections, which still send local media', () => {
+    // The legacy addTrack fallback never produces `sendonly`, so a strict match on it would
+    // leave those clients with no hint at all.
+    const { media } = parse(LEGACY_ADD_TRACK_SECTIONS);
+
+    expect(
+      computeConnectionStartBitrate(media, [{ cid: 'camera-cid', codec: 'VP8', maxbr: 1_000 }]),
+    ).toBe(900);
+    expect(
+      computeConnectionStartBitrate(media, [
+        { cid: 'other-track', codec: 'VP8', maxbr: 2_000, isScreenShare: true },
+      ]),
+    ).toBe(1_800);
   });
 
   it('leaves the hint unset when only non-sending sections match', () => {

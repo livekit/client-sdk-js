@@ -94,14 +94,20 @@ export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | un
  * values are therefore last-writer-wins, decided by m-section order, so every video section
  * gets the same number instead.
  *
- * Only sections that currently send are considered. `trackBitrates` is append-only and an
+ * Only sections that can send local media are considered. `trackBitrates` is append-only and an
  * unpublished section keeps its `a=msid`, so matching on msid alone would still pair a stale
  * entry with its old section — letting an uncapped screen-share target seed a connection that
  * now carries only a camera, or consuming the one-shot hint on a section that sends nothing.
- * `a=sendonly` is the discriminator: every publish creates its transceiver with
- * `direction: 'sendonly'`, unpublish sets it to `inactive` (explicitly in
- * `LocalParticipant.unpublishTrack`, and by `removeTrack`'s sendonly -> inactive transition for
- * the simulcast senders), and the pre-populated placeholders are `recvonly`.
+ *
+ * The direction is the discriminator, as an exclusion rather than a match: `recvonly` and
+ * `inactive` are the only directions that cannot carry local media, and they are exactly the
+ * two a dead section lands on — unpublish sets `inactive` (explicitly in
+ * `LocalParticipant.unpublishTrack`, and via `removeTrack`'s sendonly -> inactive transition for
+ * the simulcast senders), `removeTrack` on a `sendrecv` transceiver leaves `recvonly`, and the
+ * pre-populated placeholders are `recvonly`. Everything else sends: `sendonly` from the
+ * `addTransceiver` path, `sendrecv` from the legacy `addTrack` fallback (which reuses a
+ * transceiver rather than creating a sendonly one), and a section with no direction attribute,
+ * which SDP defaults to `sendrecv`.
  *
  * @internal
  */
@@ -111,7 +117,7 @@ export function computeConnectionStartBitrate(
 ): number | undefined {
   let connectionStartBitrate: number | undefined;
   for (const m of media) {
-    if (m.type !== 'video' || m.direction !== 'sendonly') {
+    if (m.type !== 'video' || m.direction === 'recvonly' || m.direction === 'inactive') {
       continue;
     }
     for (const trackbr of trackBitrates) {
