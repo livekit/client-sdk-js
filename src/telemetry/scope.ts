@@ -279,7 +279,13 @@ export class TelemetryScope {
       severityText: severity.toUpperCase(),
       // Log viewers key their line on the body, and not every backend surfaces event_name yet.
       body: eventName,
-      attributes: defined({ ...this.attributes(), ...attributes }),
+      attributes: defined({
+        ...this.attributes(),
+        // semconv 1.39, duplicating the record's own event name for backends that do not surface
+        // the field yet (Loki included) — the Rust core writes it too, so a query works either way.
+        'otel.event.name': eventName || undefined,
+        ...attributes,
+      }),
       droppedAttributesCount: 0,
       resource: { attributes: {} },
       instrumentationScope: INSTRUMENTATION_SCOPE,

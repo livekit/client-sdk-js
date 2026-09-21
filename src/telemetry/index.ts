@@ -157,7 +157,7 @@ export const Telemetry = {
       severityNumber: Severity.info,
       severityText: 'INFO',
       body: 'lk.ping',
-      attributes: { 'lk.ping.seq': seq },
+      attributes: { 'lk.ping.seq': seq, 'otel.event.name': 'lk.ping' },
       droppedAttributesCount: 0,
       resource: { attributes: {} },
       instrumentationScope: { name: 'livekit-telemetry', version: '0.1.0' },

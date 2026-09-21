@@ -791,6 +791,7 @@ export default class LocalParticipant extends Participant {
     try {
       const publication = await this.publishOrRepublishTrack(track, options);
       span?.setAttribute('lk.track.sid', publication.trackSid);
+      span?.setAttribute('lk.track.source', publication.source);
       span?.end('ok');
       return publication;
     } catch (error) {

@@ -10,7 +10,7 @@ import { RoomEvent } from '../room/events';
  *
  *   pnpm vitest run --config vitest.telemetry.config.mts
  */
-const { url, endpoint, publisherToken, subscriberToken } = inject('telemetry');
+const { url, endpoint, headers, publisherToken, subscriberToken } = inject('telemetry');
 
 async function poll(what: string, condition: () => boolean, timeout = 20_000) {
   const deadline = Date.now() + timeout;
@@ -26,6 +26,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 test('a session reports itself: connect span, stats windows, disconnect', async () => {
   Telemetry.configure({
     endpoint,
+    headers,
     flushInterval: 1,
     statsWindow: 2,
     resource: {
