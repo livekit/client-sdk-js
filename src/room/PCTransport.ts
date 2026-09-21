@@ -94,8 +94,14 @@ export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | un
  * values are therefore last-writer-wins, decided by m-section order, so every video section
  * gets the same number instead.
  *
- * Only sections present in the current SDP are considered: `trackBitrates` is append-only
- * and can hold entries for tracks that are no longer published.
+ * Only sections that currently send are considered. `trackBitrates` is append-only and an
+ * unpublished section keeps its `a=msid`, so matching on msid alone would still pair a stale
+ * entry with its old section — letting an uncapped screen-share target seed a connection that
+ * now carries only a camera, or consuming the one-shot hint on a section that sends nothing.
+ * `a=sendonly` is the discriminator: every publish creates its transceiver with
+ * `direction: 'sendonly'`, unpublish sets it to `inactive` (explicitly in
+ * `LocalParticipant.unpublishTrack`, and by `removeTrack`'s sendonly -> inactive transition for
+ * the simulcast senders), and the pre-populated placeholders are `recvonly`.
  *
  * @internal
  */
@@ -105,7 +111,7 @@ export function computeConnectionStartBitrate(
 ): number | undefined {
   let connectionStartBitrate: number | undefined;
   for (const m of media) {
-    if (m.type !== 'video') {
+    if (m.type !== 'video' || m.direction !== 'sendonly') {
       continue;
     }
     for (const trackbr of trackBitrates) {

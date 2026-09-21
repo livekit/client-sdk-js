@@ -82,6 +82,27 @@ a=sendonly
 a=msid:PA_remote|camera camera-cid
 a=rtpmap:96 VP8/90000`;
 
+// The same bundle after the screen share is unpublished: `unpublishTrack` sets the
+// transceiver to `inactive`, but the section keeps its `a=msid`, so it still matches the
+// append-only trackBitrates entry. Only the camera is still sending.
+const UNPUBLISHED_SCREEN_SHARE = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:0
+a=inactive
+a=msid:PA_remote|camera other-track
+a=rtpmap:96 VP8/90000
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=mid:1
+a=sendonly
+a=msid:PA_remote|camera camera-cid
+a=rtpmap:96 VP8/90000`;
+
 describe('video start bitrate', () => {
   it('matches only the section whose msid track ID matches the cid', () => {
     const { media } = parse(TWO_VIDEO_SECTIONS);
@@ -137,10 +158,37 @@ describe('video start bitrate', () => {
     expect(startBitrate).toBe(900);
   });
 
+  it('ignores a section that stopped sending but kept its msid', () => {
+    const trackBitrates = [
+      { cid: 'camera-cid', codec: 'VP8', maxbr: 1_000 },
+      { cid: 'other-track', codec: 'VP8', maxbr: 8_000, isScreenShare: true },
+    ];
+
+    // While both send, the uncapped screen share wins the connection-level max.
+    expect(computeConnectionStartBitrate(parse(TWO_VIDEO_SECTIONS).media, trackBitrates)).toBe(
+      7_200,
+    );
+    // Once it is unpublished its entry is stale, so only the capped camera counts.
+    expect(
+      computeConnectionStartBitrate(parse(UNPUBLISHED_SCREEN_SHARE).media, trackBitrates),
+    ).toBe(900);
+  });
+
   it('gives no connection value when no section maps to a published track', () => {
     const { media } = parse(TWO_VIDEO_SECTIONS);
 
     expect(computeConnectionStartBitrate(media, [])).toBeUndefined();
+  });
+
+  it('leaves the hint unset when only non-sending sections match', () => {
+    // Nothing is published, so the one-shot hint must not be consumed on a dead section.
+    const { media } = parse(UNPUBLISHED_SCREEN_SHARE);
+
+    expect(
+      computeConnectionStartBitrate(media, [
+        { cid: 'other-track', codec: 'VP8', maxbr: 8_000, isScreenShare: true },
+      ]),
+    ).toBeUndefined();
   });
 });
 
