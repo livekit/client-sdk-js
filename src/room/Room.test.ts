@@ -1,13 +1,22 @@
 import {
   ClientInfo_Capability,
   JoinResponse,
+  StreamState as ProtoStreamState,
+  StreamStateUpdate,
   SubscriptionError,
   SubscriptionResponse,
+  TrackInfo,
+  TrackType,
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
-import { EngineEvent, RoomEvent } from './events';
+import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
+import RemoteParticipant from './participant/RemoteParticipant';
+import RemoteTrackPublication from './track/RemoteTrackPublication';
+import RemoteVideoTrack from './track/RemoteVideoTrack';
+import { Track } from './track/Track';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -234,5 +243,81 @@ describe('remote track subscription', () => {
     room.emit(RoomEvent.Connected);
 
     expect(replay).not.toHaveBeenCalled();
+  });
+});
+
+describe('stream state updates', () => {
+  const participantSid = 'PA_remote';
+  const participantIdentity = 'remote-user';
+  const trackSid = 'TR_video';
+
+  function setupSubscribedTrack() {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+
+    const participant = new RemoteParticipant(
+      room.engine.client,
+      participantSid,
+      participantIdentity,
+    );
+    const publication = new RemoteTrackPublication(
+      Track.Kind.Video,
+      new TrackInfo({ sid: trackSid, type: TrackType.VIDEO, name: 'camera' }),
+      true,
+    );
+    publication.setTrack(
+      new RemoteVideoTrack(new MockMediaStreamTrack(), trackSid, undefined as never, {}),
+    );
+    participant.trackPublications.set(trackSid, publication);
+
+    (
+      room as unknown as { remoteParticipants: Map<string, RemoteParticipant> }
+    ).remoteParticipants.set(participantIdentity, participant);
+    (room as unknown as { sidToIdentity: Map<string, string> }).sidToIdentity.set(
+      participantSid,
+      participantIdentity,
+    );
+
+    return { room, participant, publication };
+  }
+
+  function pushStreamState(room: Room, state: ProtoStreamState) {
+    (
+      room as unknown as { handleStreamStateUpdate: (update: StreamStateUpdate) => void }
+    ).handleStreamStateUpdate(
+      new StreamStateUpdate({
+        streamStates: [{ participantSid, trackSid, state }],
+      }),
+    );
+  }
+
+  it('emits TrackStreamStateChanged when the SFU pauses a subscribed track', () => {
+    const { room, participant, publication } = setupSubscribedTrack();
+
+    const roomEvents = vi.fn();
+    const participantEvents = vi.fn();
+    room.on(RoomEvent.TrackStreamStateChanged, roomEvents);
+    participant.on(ParticipantEvent.TrackStreamStateChanged, participantEvents);
+
+    pushStreamState(room, ProtoStreamState.PAUSED);
+
+    expect(publication.track?.streamState).toBe(Track.StreamState.Paused);
+    expect(roomEvents).toHaveBeenCalledWith(publication, Track.StreamState.Paused, participant);
+    expect(participantEvents).toHaveBeenCalledWith(publication, Track.StreamState.Paused);
+  });
+
+  it('does not emit TrackStreamStateChanged when the state is unchanged', () => {
+    const { room, participant } = setupSubscribedTrack();
+
+    const roomEvents = vi.fn();
+    const participantEvents = vi.fn();
+    room.on(RoomEvent.TrackStreamStateChanged, roomEvents);
+    participant.on(ParticipantEvent.TrackStreamStateChanged, participantEvents);
+
+    // The track starts Active; a redundant ACTIVE update must stay silent.
+    pushStreamState(room, ProtoStreamState.ACTIVE);
+
+    expect(roomEvents).not.toHaveBeenCalled();
+    expect(participantEvents).not.toHaveBeenCalled();
   });
 });

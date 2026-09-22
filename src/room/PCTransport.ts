@@ -34,51 +34,130 @@ const startBitrateMultiplier = 0.9;
 /** Maximum x-google-start-bitrate in kbps. 1 Mbps prevents BWE from starting too aggressively. */
 const maxStartBitrateKbps = 1000;
 
+/**
+ * Minimum target bitrate in kbps for the start bitrate hint. Below this, seeding above the
+ * real capacity costs more than the ramp it saves, so libwebrtc's default is left in place.
+ */
+const minTargetBitrateKbps = 300;
+
 const debounceInterval = 20;
 
 /**
- * Applies the configured start bitrate when this media section belongs to `cid`.
- * This SDP munging is used for a bitrate setting that cannot be applied through
- * `RTCRtpEncodingParameters`.
+ * Codec payload for `codec` in this media section, when the section carries `cid`.
  *
- * Returns `undefined` when the section does not belong to the track, `0` when
- * it does but does not offer the requested codec, and the codec payload when the
- * requested codec is present (whether the bitrate was added or already set).
+ * Returns `undefined` when the section does not belong to the track, `0` when it does but
+ * does not offer the requested codec, and the codec payload otherwise.
+ *
+ * @internal
+ */
+export function findTrackCodecPayload(
+  media: MediaDescription,
+  cid: string,
+  codec: string,
+): number | undefined {
+  if (!media.msid?.includes(cid)) {
+    return undefined;
+  }
+  return media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
+}
+
+/**
+ * Start bitrate hinted for a single track, or `undefined` when its target is too low to
+ * be worth seeding.
+ *
+ * 90% of the target leaves ~10% headroom for the estimator to settle. The same multiplier
+ * is used for every codec because the target already reflects the codec's efficiency.
+ * Camera is capped at 1 Mbps so the estimator does not open too aggressively on a
+ * high-bitrate track; screen share is exempt, because its content needs the bitrate
+ * immediately to stay legible.
+ *
+ * TODO: adjust dynamically from network conditions (e.g. a previous BWE estimate) rather
+ * than a fixed cap.
+ *
+ * @internal
+ */
+export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | undefined {
+  if (trackbr.maxbr < minTargetBitrateKbps) {
+    return undefined;
+  }
+  const calculated = Math.round(trackbr.maxbr * startBitrateMultiplier);
+  return trackbr.isScreenShare ? calculated : Math.min(calculated, maxStartBitrateKbps);
+}
+
+/**
+ * The single start bitrate for this peer connection: the largest hint among the video
+ * m-sections of `media` that map to a published track.
+ *
+ * libwebrtc reads `x-google-start-bitrate` per m-section but applies it to the shared
+ * `Call` (`WebRtcVideoSendChannel::ApplyChangedParams` -> `SetSdpBitrateParameters`), where
+ * `RtpBitrateConfigurator` holds one config for the whole connection. Differing per-section
+ * values are therefore last-writer-wins, decided by m-section order, so every video section
+ * gets the same number instead.
+ *
+ * Only sections that can send local media are considered. `trackBitrates` is append-only and an
+ * unpublished section keeps its `a=msid`, so matching on msid alone would still pair a stale
+ * entry with its old section — letting an uncapped screen-share target seed a connection that
+ * now carries only a camera, or consuming the one-shot hint on a section that sends nothing.
+ *
+ * The direction is the discriminator, as an exclusion rather than a match: `recvonly` and
+ * `inactive` are the only directions that cannot carry local media, and they are exactly the
+ * two a dead section lands on — unpublish sets `inactive` (explicitly in
+ * `LocalParticipant.unpublishTrack`, and via `removeTrack`'s sendonly -> inactive transition for
+ * the simulcast senders), `removeTrack` on a `sendrecv` transceiver leaves `recvonly`, and the
+ * pre-populated placeholders are `recvonly`. Everything else sends: `sendonly` from the
+ * `addTransceiver` path, `sendrecv` from the legacy `addTrack` fallback (which reuses a
+ * transceiver rather than creating a sendonly one), and a section with no direction attribute,
+ * which SDP defaults to `sendrecv`.
+ *
+ * @internal
+ */
+export function computeConnectionStartBitrate(
+  media: MediaDescription[],
+  trackBitrates: TrackBitrateInfo[],
+): number | undefined {
+  let connectionStartBitrate: number | undefined;
+  for (const m of media) {
+    if (m.type !== 'video' || m.direction === 'recvonly' || m.direction === 'inactive') {
+      continue;
+    }
+    for (const trackbr of trackBitrates) {
+      if (!trackbr.cid) {
+        continue;
+      }
+      const codecPayload = findTrackCodecPayload(m, trackbr.cid, trackbr.codec);
+      if (codecPayload === undefined) {
+        continue;
+      }
+      const startBitrate = codecPayload > 0 ? computeTrackStartBitrate(trackbr) : undefined;
+      if (
+        startBitrate !== undefined &&
+        (connectionStartBitrate === undefined || startBitrate > connectionStartBitrate)
+      ) {
+        connectionStartBitrate = startBitrate;
+      }
+      break;
+    }
+  }
+  return connectionStartBitrate;
+}
+
+/**
+ * Declares `x-google-start-bitrate` on `codecPayload`'s fmtp. This SDP munging is used for
+ * a bitrate setting that cannot be applied through `RTCRtpEncodingParameters`.
+ *
+ * Returns whether the section now carries the hint.
  *
  * @internal
  */
 export function applyVideoStartBitrate(
   media: MediaDescription,
-  cid: string,
-  codec: string,
-  maxbr: number,
-  isScreenShare = false,
-): number | undefined {
-  if (!media.msid?.includes(cid)) {
-    return undefined;
-  }
-
-  const codecPayload =
-    media.rtp.find((rtp) => rtp.codec.toUpperCase() === codec.toUpperCase())?.payload ?? 0;
-  if (codecPayload === 0) {
-    return 0;
-  }
-
-  // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE
-  // from starting too aggressively. Screen share is not capped since text/UI
-  // clarity requires high bitrate from the start.
-  // TODO: dynamically adjust start bitrate based on network conditions (e.g., previous BWE estimate)
-  const calculatedStartBitrate = Math.round(maxbr * startBitrateMultiplier);
-  const startBitrate = isScreenShare
-    ? calculatedStartBitrate
-    : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-
+  codecPayload: number,
+  startBitrate: number,
+): boolean {
   const fmtp = media.fmtp.find((entry) => entry.payload === codecPayload);
   if (fmtp) {
-    // If another track's fmtp already has a start bitrate, it cannot be
-    // overridden here because the payload type is shared across the bundle.
-    // This forces every track sharing that payload to use the initial track's
-    // start bitrate.
+    // A payload type is shared across the bundle, so a value written for one section is
+    // already the connection-level one; leave it rather than rewrite it.
     if (!fmtp.config.includes('x-google-start-bitrate')) {
       fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
     }
@@ -90,7 +169,7 @@ export function applyVideoStartBitrate(
     });
   }
 
-  return codecPayload;
+  return true;
 }
 
 export const PCEvents = {
@@ -140,6 +219,15 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   renegotiate: boolean = false;
 
   trackBitrates: TrackBitrateInfo[] = [];
+
+  /**
+   * Whether an offer carrying the connection-level `x-google-start-bitrate` has been
+   * accepted locally. The hint is written once per peer connection: libwebrtc retains
+   * `start_bitrate_bps` in `RtpBitrateConfigurator` and re-applies it on network route
+   * changes, so a later rewrite is at best a no-op and at worst restarts a converged
+   * bandwidth estimator. A new peer connection (full reconnect) seeds a new estimator.
+   */
+  private hasAppliedVideoStartBitrate = false;
 
   remoteStereoMids: string[] = [];
 
@@ -425,9 +513,15 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         // the only exception to this is when ICE restart is needed
         const currentSD = this._pc.remoteDescription;
         if (options?.iceRestart && currentSD) {
-          // TODO: handle when ICE restart is needed but we don't have a remote description
-          // the best thing to do is to recreate the peerconnection
+          // roll the remote description back in so createOffer produces a valid
+          // ICE-restart offer on top of the already-negotiated state
           await this._pc.setRemoteDescription(currentSD);
+        } else if (options?.iceRestart) {
+          // ICE restart with no remote description to restart on: `renegotiate` would stall
+          // (the pending offer is never answered), so throw for the caller to recreate the PC.
+          throw new NegotiationError(
+            'ICE restart requested without a remote description, peer connection must be recreated',
+          );
         } else {
           this.renegotiate = true;
           this.log.debug('requesting renegotiation');
@@ -447,6 +541,14 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
+      // One value for every video m-section, written only on the first offer that carries
+      // local video: the hint is connection-level in libwebrtc, so differing per-section
+      // values would be last-writer-wins on m-section order. Offers before any video is
+      // published (data channel or audio only) find no target and leave the latch unset.
+      const connectionStartBitrate = this.hasAppliedVideoStartBitrate
+        ? undefined
+        : computeConnectionStartBitrate(sdpParsed.media, this.trackBitrates);
+      let appliedVideoStartBitrate = false;
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
@@ -457,19 +559,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
               return false;
             }
 
-            const codecPayload = applyVideoStartBitrate(
-              media,
-              trackbr.cid,
-              trackbr.codec,
-              trackbr.maxbr,
-              trackbr.isScreenShare,
-            );
+            const codecPayload = findTrackCodecPayload(media, trackbr.cid, trackbr.codec);
             if (codecPayload === undefined) {
               return false;
             }
 
-            if (codecPayload > 0 && isSVCCodec(trackbr.codec) && !isSafari()) {
-              this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+            if (codecPayload > 0) {
+              if (connectionStartBitrate !== undefined) {
+                appliedVideoStartBitrate =
+                  applyVideoStartBitrate(media, codecPayload, connectionStartBitrate) ||
+                  appliedVideoStartBitrate;
+              }
+
+              if (isSVCCodec(trackbr.codec) && !isSafari()) {
+                this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+              }
             }
 
             return true;
@@ -494,7 +598,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         });
         return;
       }
-      await this.setMungedSDP(offer, write(sdpParsed));
+      const mungedSdp = write(sdpParsed);
+      await this.setMungedSDP(offer, mungedSdp);
+      // setMungedSDP falls back to the unmunged SDP on rejection. Only consume the
+      // one-shot hint once the SDP carrying it has been accepted locally.
+      if (appliedVideoStartBitrate && offer.sdp === mungedSdp) {
+        this.hasAppliedVideoStartBitrate = true;
+      }
       this.onOffer(offer, this.latestOfferId);
     } finally {
       unlock();
@@ -591,8 +701,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return this.pc?.remoteDescription;
   }
 
+  /** stats of the underlying connection, `undefined` when there is none */
   getStats() {
-    return this.pc.getStats();
+    return this._pc?.getStats();
   }
 
   getMaxMessageSize() {
@@ -707,41 +818,95 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       throw new NegotiationError(msg);
     }
   }
+}
 
-  private ensureVideoDDExtensionForSVC(
-    media: {
-      type: string;
-      port: number;
-      protocol: string;
-      payloads?: string | undefined;
-    } & MediaDescription,
-    sdp: SessionDescription,
-  ) {
-    const ddFound = media.ext?.some((ext): boolean => {
-      if (ext.uri === ddExtensionURI) {
-        return true;
-      }
-      return false;
+/**
+ * Adds the AV1 dependency descriptor extension to `media` unless it is already there, and
+ * returns the id it is mapped to so callers can pass it back in as `ddExtID` (0 when no id has
+ * been chosen yet).
+ *
+ * A bundle has to map one URI to one id, so an id already in use for the extension anywhere in
+ * `sdp` wins over both the cached one and a fresh one: Chrome advertises the extension itself on
+ * sections it can send on, and an earlier offer may have munged it into others.
+ * @internal
+ */
+export function ensureVideoDDExtension(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+  sdp: SessionDescription,
+  ddExtID: number,
+): number {
+  const id = ddExtensionIDFor(sdp, ddExtID);
+  if (id === undefined) {
+    return ddExtID;
+  }
+
+  if (!media.ext?.some((ext) => ext.uri === ddExtensionURI)) {
+    media.ext ??= [];
+    media.ext.push({
+      value: id,
+      uri: ddExtensionURI,
     });
+  }
+  return id;
+}
 
-    if (!ddFound) {
-      if (this.ddExtID === 0) {
-        let maxID = 0;
-        sdp.media.forEach((m) => {
-          m.ext?.forEach((ext) => {
-            if (ext.value > maxID) {
-              maxID = ext.value;
-            }
-          });
-        });
-        this.ddExtID = maxID + 1;
-      }
-      media.ext?.push({
-        value: this.ddExtID,
-        uri: ddExtensionURI,
-      });
+/**
+ * The id to map the dependency descriptor to throughout `sdp`, or undefined when no id would be
+ * consistent for the whole bundle and the extension therefore has to be left out.
+ */
+function ddExtensionIDFor(sdp: SessionDescription, cachedID: number): number | undefined {
+  const mapped = mappedExtensionID(sdp, ddExtensionURI);
+  if (mapped !== undefined) {
+    // Adopting an id that also stands for another URI is what the browser rejects the bundle
+    // over, and its own half of the map is not ours to renumber, so give up on this offer.
+    return usedForOtherURI(sdp, mapped, ddExtensionURI) ? undefined : mapped;
+  }
+  // Reusing the id from the last offer keeps the mapping stable across renegotiations, but only
+  // while nothing else has taken it: the browser assigns ids to its own extensions without
+  // knowing about ours, so an id that was free when we picked it can since have been claimed —
+  // typically by the fuller extension set that arrives with the first section we send on.
+  if (cachedID !== 0 && !usedForOtherURI(sdp, cachedID, ddExtensionURI)) {
+    return cachedID;
+  }
+  return unusedExtensionID(sdp);
+}
+
+/** The id `uri` is mapped to in `sdp`, if any section maps it. */
+function mappedExtensionID(sdp: SessionDescription, uri: string): number | undefined {
+  for (const media of sdp.media) {
+    const ext = media.ext?.find((candidate) => candidate.uri === uri);
+    if (ext) {
+      return ext.value;
     }
   }
+  return undefined;
+}
+
+/** Whether `id` stands for anything in `sdp` other than `uri`. */
+function usedForOtherURI(sdp: SessionDescription, id: number, uri: string): boolean {
+  return sdp.media.some((media) => media.ext?.some((ext) => ext.value === id && ext.uri !== uri));
+}
+
+/**
+ * An id no extension in `sdp` uses. Stays above every id in use rather than filling gaps, so it
+ * is less likely to be an id the browser goes on to allocate to another extension, and steps
+ * over 15, which RFC 8285 reserves.
+ */
+function unusedExtensionID(sdp: SessionDescription): number {
+  let maxID = 0;
+  sdp.media.forEach((media) => {
+    media.ext?.forEach((ext) => {
+      if (ext.value > maxID) {
+        maxID = ext.value;
+      }
+    });
+  });
+  return maxID + 1 === 15 ? 16 : maxID + 1;
 }
 
 /**

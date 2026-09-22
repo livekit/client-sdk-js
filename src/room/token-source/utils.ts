@@ -7,19 +7,26 @@ const ONE_MINUTE_IN_MILLISECONDS = 60 * ONE_SECOND_IN_MILLISECONDS;
 
 export function isResponseTokenValid(response: TokenSourceResponse) {
   const jwtPayload = decodeTokenPayload(response.participantToken);
-  if (!jwtPayload?.nbf || !jwtPayload?.exp) {
-    return true;
+  // Missing exp: TokenSourceCached would otherwise return this response forever.
+  // nbf is optional (RFC 7519); do not skip the exp check when it is absent.
+  if (!jwtPayload?.exp) {
+    return false;
   }
 
   const now = new Date();
 
-  const nbfInMilliseconds = jwtPayload.nbf * ONE_SECOND_IN_MILLISECONDS;
-  const nbfDate = new Date(nbfInMilliseconds);
+  if (jwtPayload.nbf) {
+    const nbfInMilliseconds = jwtPayload.nbf * ONE_SECOND_IN_MILLISECONDS;
+    const nbfDate = new Date(nbfInMilliseconds);
+    if (nbfDate > now) {
+      return false;
+    }
+  }
 
   const expInMilliseconds = jwtPayload.exp * ONE_SECOND_IN_MILLISECONDS;
   const expDate = new Date(expInMilliseconds - ONE_MINUTE_IN_MILLISECONDS);
 
-  return nbfDate <= now && expDate > now;
+  return expDate > now;
 }
 
 /** Given a LiveKit generated participant token, decodes and returns the associated {@link TokenPayload} data. */

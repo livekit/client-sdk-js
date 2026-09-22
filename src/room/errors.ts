@@ -188,6 +188,33 @@ export class ConnectionError<
   }
 }
 
+/**
+ * Whether a failed connection attempt may be retried against a different LiveKit Cloud region.
+ *
+ * LiveKit Cloud signals project-level region pinning by returning 403 on the RTC paths when the
+ * project is not allowed in the region the client geo-routed to. `/settings/regions` is
+ * deliberately left reachable so the client can discover its allowed regions and connect there, so
+ * a 403 must not be treated as terminal.
+ *
+ * A 401 stays terminal: no other region will accept a token this one rejected. So does the 404
+ * "requested room does not exist" case, which is also reported as `NotAllowed`.
+ *
+ * We key on the status rather than the server's error message because that message is an
+ * unversioned human-readable string; matching it would let a copy edit break already-shipped
+ * clients. If a 403 really was a permissions failure rather than region pinning, every region
+ * attempt fails the same way and the original error still surfaces — at the cost of one extra
+ * region lookup.
+ */
+export function canFailOverToAnotherRegion(error: ConnectionError): boolean {
+  if (error.reason === ConnectionErrorReason.Cancelled) {
+    return false;
+  }
+  if (error.reason === ConnectionErrorReason.NotAllowed) {
+    return error.status === 403;
+  }
+  return true;
+}
+
 export class DeviceUnsupportedError extends LivekitError {
   readonly name = 'DeviceUnsupportedError';
 

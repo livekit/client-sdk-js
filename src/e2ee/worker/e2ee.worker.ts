@@ -18,6 +18,7 @@ import type {
   ScriptTransformOptions,
 } from '../types';
 import { DataCryptor } from './DataCryptor';
+import { ErrorRateLimiter } from './ErrorRateLimiter';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -36,7 +37,20 @@ let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 let rtpMap: Map<number, VideoCodec> = new Map();
 
+const dataDecryptErrorLimiter = new ErrorRateLimiter();
+
 workerLogger.setDefaultLevel('info');
+
+// Forward worker log calls to the main thread so they reach any
+// setLogExtension consumer installed there. The main-thread workerLogger
+// re-emits them, which invokes both the console and the extension.
+workerLogger.methodFactory = (methodName) => (msg, context) => {
+  postMessage({
+    kind: 'log',
+    data: { level: methodName, msg, context },
+  });
+};
+workerLogger.setLevel(workerLogger.getLevel());
 
 onmessage = (ev) => {
   messageQueue.run(async () => {
@@ -45,7 +59,7 @@ onmessage = (ev) => {
     switch (kind) {
       case 'init':
         workerLogger.setLevel(data.loglevel);
-        workerLogger.info('worker initialized');
+        workerLogger.info('e2ee worker initialized');
         keyProviderOptions = data.keyProviderOptions;
         useSharedKey = !!data.keyProviderOptions.sharedKey;
         // acknowledge init successful
@@ -54,6 +68,9 @@ onmessage = (ev) => {
           data: { enabled: isEncryptionEnabled },
         };
         postMessage(ackMsg);
+        break;
+      case 'setLogLevel':
+        workerLogger.setLevel(data.level);
         break;
       case 'enable':
         setEncryptionEnabled(data.enabled, data.participantIdentity);
@@ -71,7 +88,6 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
-          data.isReuse,
           data.codec,
         );
         break;
@@ -83,7 +99,6 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
-          data.isReuse,
           data.codec,
           data.packetTrailer, // wire format still uses 'packetTrailer' field name
         );
@@ -98,11 +113,6 @@ onmessage = (ev) => {
           data.payload,
           getParticipantKeyHandler(data.participantIdentity),
         );
-        console.log('encrypted payload', {
-          original: data.payload,
-          encrypted: encryptedPayload,
-          iv,
-        });
         postMessage({
           kind: 'encryptDataResponse',
           data: {
@@ -127,12 +137,23 @@ onmessage = (ev) => {
             data: { payload: decryptedPayload, uuid: data.uuid },
           } satisfies DecryptDataResponseMessage);
         } catch (error) {
-          // Send error back to main thread with uuid so it can reject the corresponding promise
-          workerLogger.error('DataCryptor decryption failed', {
-            error,
-            participantIdentity: data.participantIdentity,
-            uuid: data.uuid,
+          // Send error back to main thread with uuid so it can reject the corresponding promise.
+          // The error response must always be posted so the awaiting future resolves; only the
+          // log is throttled to avoid flooding when a broken key keeps producing failures.
+          const errorKey = `${data.participantIdentity}-datadecrypt`;
+          const shouldLog = dataDecryptErrorLimiter.shouldEmit(errorKey, () => {
+            workerLogger.warn(
+              `Suppressing further data decryption errors for ${data.participantIdentity}`,
+              { errorKey },
+            );
           });
+          if (shouldLog) {
+            workerLogger.error('DataCryptor decryption failed', {
+              error,
+              participantIdentity: data.participantIdentity,
+              uuid: data.uuid,
+            });
+          }
           postMessage({
             kind: 'error',
             data: {
@@ -163,15 +184,32 @@ onmessage = (ev) => {
         unsetCryptorParticipant(data.trackId, data.participantIdentity);
         break;
       case 'updateCodec':
-        const trackCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-        trackCryptor.setVideoCodec(data.codec);
+        const trackCryptor = getTrackCryptor(
+          data.participantIdentity,
+          data.trackId,
+          data.previousTrackId,
+        );
+        if (data.codec) {
+          trackCryptor.setVideoCodec(data.codec);
+        }
         trackCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
+          previousTrackId: data.previousTrackId,
           codec: data.codec,
           hasPacketTrailer: data.hasPacketTrailer,
         });
+        // Sent on transceiver reuse, where the main thread cannot hand us a new
+        // pipeline. If the previous one died in the meantime we have to rebuild it
+        // here or no frame ever gets decrypted again.
+        if (data.previousTrackId !== undefined && !trackCryptor.ensureTransform()) {
+          workerLogger.error('could not re-establish transform for reused receiver', {
+            participantIdentity: data.participantIdentity,
+            trackId: data.trackId,
+            previousTrackId: data.previousTrackId,
+          });
+        }
         break;
       case 'setRTPMap':
         // this is only used for the local participant
@@ -210,8 +248,26 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   }
 }
 
-function getTrackCryptor(participantIdentity: string, trackId: string) {
+function getTrackCryptor(participantIdentity: string, trackId: string, previousTrackId?: string) {
   let cryptors = participantCryptors.filter((c) => c.getTrackId() === trackId);
+
+  if (cryptors.length === 0 && previousTrackId !== undefined && previousTrackId !== trackId) {
+    // A reused transceiver carries a new trackId, but the cryptor that owns this
+    // receiver's encoded streams is still keyed on the old one. Re-point it instead
+    // of creating a fresh cryptor that has no pipeline (and leaving the old one
+    // piping frames with no participant assigned).
+    const previous = participantCryptors.filter((c) => c.getTrackId() === previousTrackId);
+    if (previous.length > 0) {
+      workerLogger.info('reusing cryptor from previous trackId', {
+        participantIdentity,
+        trackId,
+        previousTrackId,
+      });
+      previous[0].setTrackId(trackId);
+      cryptors = previous;
+    }
+  }
+
   if (cryptors.length > 1) {
     const debugInfo = cryptors
       .map((c) => {
@@ -351,7 +407,6 @@ if (self.RTCTransformEvent) {
         transformer.readable,
         transformer.writable,
         trackId,
-        false,
         codec,
         kind === 'encode' ? options.packetTrailer : undefined,
       );

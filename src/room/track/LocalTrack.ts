@@ -5,12 +5,13 @@ import { debounce } from '../debounce';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
-import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
+import { compareVersions, isAppleMobile, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { LocalTrackRecorder, isRecordingSupported } from './record';
 import type { ReplaceTrackOptions } from './types';
+import { waitForFirstVideoFrame } from './utils';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
 const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
@@ -224,17 +225,27 @@ export default abstract class LocalTrack<
       throw new Error('cannot get dimensions for audio tracks');
     }
 
-    if (getBrowser()?.os === 'iOS') {
-      // browsers report wrong initial resolution on iOS.
-      // when slightly delaying the call to .getSettings(), the correct resolution is being reported
-      await sleep(10);
+    const started = Date.now();
+
+    if (isAppleMobile()) {
+      // iOS and iPadOS keep reporting the camera's sensor frame from getSettings() until the
+      // camera has delivered its first picture, so a portrait capture initially reads as
+      // landscape. Wait for that first frame instead of guessing at a delay.
+      // Gated to the Apple capture pipeline rather than run everywhere: elsewhere getSettings() is
+      // already right and the first frame can be hundreds of milliseconds out (measured ~500ms on
+      // macOS Safari), which would be pure added publish latency.
+      // https://github.com/livekit/client-sdk-js/issues/2099
+      // https://github.com/livekit/client-sdk-js/issues/2107
+      await waitForFirstVideoFrame(this._mediaStreamTrack, timeout, this.attachedElements);
     }
 
-    const started = Date.now();
-    while (Date.now() - started < timeout) {
+    while (true) {
       const dims = this.dimensions;
       if (dims) {
         return dims;
+      }
+      if (Date.now() - started >= timeout) {
+        break;
       }
       await sleep(50);
     }

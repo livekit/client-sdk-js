@@ -15,6 +15,12 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "include": ["../../src/**/*", "demo.ts"],
+  "include": [
+    "../../src/**/*",
+    "demo.ts",
+    "machinePanel.ts",
+    "machinePanelStyles.ts",
+    "../shared/**/*"
+  ],
   "exclude": ["**/*.test.ts", "build/**/*"]
 }

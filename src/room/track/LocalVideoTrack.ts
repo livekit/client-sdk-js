@@ -16,7 +16,7 @@ import {
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
+import { isFireFox, isMobile, isSVCCodec, isSVCSimulcast, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { TrackPublishOptions, VideoCaptureOptions, VideoCodec } from './options';
@@ -243,6 +243,16 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     return items;
   }
 
+  /**
+   * Whether `codec` is being published as SVC (a single stream carrying all spatial
+   * layers) as opposed to rid based simulcast. VP9/AV1 are SVC unless the publisher
+   * opted into simulcast, in which case each rid is an independent stream and the
+   * layers can be enabled/disabled individually.
+   */
+  private isSvcPublish(codec?: string): boolean {
+    return isSVCCodec(codec) && !isSVCSimulcast(codec, this.publishOptions);
+  }
+
   setPublishingQuality(maxQuality: VideoQuality) {
     const qualities: SubscribedQuality[] = [];
     for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
@@ -254,7 +264,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       );
     }
     this.log.debug(`setting publishing quality. max quality ${maxQuality}`, this.logContext);
-    this.setPublishingLayers(isSVCCodec(this.codec), qualities);
+    this.setPublishingLayers(this.isSvcPublish(this.codec), qualities);
   }
 
   async restartTrack(options?: VideoCaptureOptions) {
@@ -406,15 +416,37 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   async setDegradationPreference(preference: RTCDegradationPreference) {
     this.degradationPreference = preference;
-    if (this.sender) {
-      try {
-        this.log.debug(`setting degradationPreference to ${preference}`, this.logContext);
-        const params = this.sender.getParameters();
-        params.degradationPreference = preference;
-        this.sender.setParameters(params);
-      } catch (e: any) {
-        this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
-      }
+    // applied one sender at a time on purpose, see applyDegradationPreference
+    await this.applyDegradationPreference(this.sender);
+    for (const sc of this.simulcastCodecs.values()) {
+      await this.applyDegradationPreference(sc.sender);
+    }
+  }
+
+  /**
+   * Degradation preference is a property of the sender, not of the track, so every sender
+   * publishing this track needs it applied separately. A backup codec publishes over its
+   * own sender, which would otherwise let the browser resolve a preference implicitly and
+   * diverge from the primary encoder.
+   *
+   * Callers apply this sequentially rather than concurrently: `setParameters` is only valid
+   * against the parameters most recently returned by `getParameters`, which is why this file
+   * serializes other sender parameter updates through `senderLock`.
+   */
+  private async applyDegradationPreference(sender?: RTCRtpSender) {
+    if (!sender) {
+      return;
+    }
+    try {
+      this.log.debug(
+        `setting degradationPreference to ${this.degradationPreference}`,
+        this.logContext,
+      );
+      const params = sender.getParameters();
+      params.degradationPreference = this.degradationPreference;
+      await sender.setParameters(params);
+    } catch (e: any) {
+      this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
     }
   }
 
@@ -436,12 +468,16 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     return simulcastCodecInfo;
   }
 
-  setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
+  async setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
     const simulcastCodecInfo = this.simulcastCodecs.get(codec);
     if (!simulcastCodecInfo) {
       return;
     }
     simulcastCodecInfo.sender = sender;
+
+    // the backup codec publishes over its own sender, so it needs the same degradation
+    // preference the primary sender resolved to.
+    await this.applyDegradationPreference(sender);
 
     // browser will reenable disabled codec/layers after new codec has been published,
     // so refresh subscribedCodecs after publish a new codec
@@ -465,7 +501,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     });
     // only enable simulcast codec for preference codec setted
     if (!this.codec && codecs.length > 0) {
-      await this.setPublishingLayers(isSVCCodec(codecs[0].codec), codecs[0].qualities);
+      await this.setPublishingLayers(this.isSvcPublish(codecs[0].codec), codecs[0].qualities);
 
       return [];
     }
@@ -475,7 +511,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     const newCodecs: VideoCodec[] = [];
     for await (const codec of codecs) {
       if (!this.codec || this.codec === codec.codec) {
-        await this.setPublishingLayers(isSVCCodec(codec.codec), codec.qualities);
+        await this.setPublishingLayers(this.isSvcPublish(codec.codec), codec.qualities);
       } else {
         const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
         this.log.debug(`try setPublishingCodec for ${codec.codec}`, {
@@ -496,7 +532,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
             simulcastCodecInfo.encodings!,
             codec.qualities,
             this.senderLock,
-            isSVCCodec(codec.codec),
+            this.isSvcPublish(codec.codec),
             this.log,
             this.logContext,
           );

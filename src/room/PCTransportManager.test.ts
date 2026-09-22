@@ -279,3 +279,38 @@ describe('PCTransportManager.negotiate', () => {
     await expect(p).resolves.toBeUndefined();
   });
 });
+
+describe('PCTransportManager.triggerIceRestart', () => {
+  let originalRTCPeerConnection: unknown;
+
+  beforeEach(() => {
+    originalRTCPeerConnection = (globalThis as unknown as { RTCPeerConnection?: unknown })
+      .RTCPeerConnection;
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = StubPC;
+  });
+
+  afterEach(() => {
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection =
+      originalRTCPeerConnection;
+  });
+
+  /**
+   * The subscriber must keep applying remote candidates across a reconnect.
+   *
+   * Putting it into `restartingIce` would queue them until a new remote description arrives —
+   * but the server only re-offers the subscriber when the reconnect moved us to another node,
+   * so on an ordinary signal-only resume nothing would ever flush that queue, and the
+   * transport would stop adopting new network paths for the rest of the session. The server
+   * also never sends candidates ahead of the offer that introduces them, so queueing buys
+   * nothing in exchange.
+   */
+  it('does not stop the subscriber applying remote candidates', async () => {
+    const manager = new PCTransportManager('subscriber-primary', {});
+    const publisher = new FakePublisher();
+    (manager as unknown as { publisher: FakePublisher }).publisher = publisher;
+
+    await manager.triggerIceRestart();
+
+    expect(manager.subscriber?.restartingIce).toBe(false);
+  });
+});

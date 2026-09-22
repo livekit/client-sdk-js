@@ -110,7 +110,6 @@ function prepareParticipantTest(
     new ReadableStream(input),
     new WritableStream(output),
     'testTrack',
-    false,
     undefined,
     packetTrailer,
   );

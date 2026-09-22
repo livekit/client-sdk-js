@@ -29,6 +29,12 @@ export const IV_LENGTH = 12;
 // flag set to indicate that e2ee has been setup for sender/receiver;
 export const E2EE_FLAG = 'lk_e2ee';
 
+/**
+ * trackId a receiver's/sender's encoded stream pipeline was last set up for.
+ * Needed to recover the right cryptor when a transceiver gets reused.
+ */
+export const E2EE_TRACK_ID = 'lk_e2ee_track_id';
+
 export const SALT = 'LKFrameEncryptionKey';
 
 export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {

@@ -19,6 +19,7 @@ import {
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
+  VideoLayer_Mode,
   protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
@@ -101,6 +102,8 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isSVCCodec,
+  isSVCSimulcast,
+  isSVCSimulcastSupportedByServer,
   isSafari17Based,
   isVideoCodec,
   isVideoTrack,
@@ -108,12 +111,14 @@ import {
   sleep,
   supportsAV1,
   supportsVP9,
+  usesLegacySVCEncodings,
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type RemoteParticipant from './RemoteParticipant';
 import {
+  computeStartTargetBitrate,
   computeTrackBackupEncodings,
   computeVideoEncodings,
   getDefaultDegradationPreference,
@@ -1135,7 +1140,19 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (isLocalVideoTrack(track)) {
-        if (isSVCCodec(videoCodec)) {
+        if (
+          isSVCSimulcast(videoCodec, opts) &&
+          (usesLegacySVCEncodings() || !isSVCSimulcastSupportedByServer(this.engine?.serverVersion))
+        ) {
+          opts.simulcast = false;
+          this.log.info(
+            'SVC simulcast is not supported, disabling simulcast.',
+            getLogContextFromTrack(track),
+          );
+        }
+
+        const svcSimulcast = isSVCSimulcast(videoCodec, opts);
+        if (isSVCCodec(videoCodec) && !svcSimulcast) {
           if (track.source === Track.Source.ScreenShare) {
             // vp9 svc with screenshare cannot encode multiple spatial layers
             // doing so reduces publish resolution to minimal resolution
@@ -1157,12 +1174,14 @@ export default class LocalParticipant extends Participant {
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
-        req.simulcastCodecs = [
-          new SimulcastCodec({
-            codec: videoCodec,
-            cid: track.mediaStreamTrack.id,
-          }),
-        ];
+        const primaryCodec = new SimulcastCodec({
+          codec: videoCodec,
+          cid: track.mediaStreamTrack.id,
+        });
+        if (svcSimulcast) {
+          primaryCodec.videoLayerMode = VideoLayer_Mode.ONE_SPATIAL_LAYER_PER_STREAM;
+        }
+        req.simulcastCodecs = [primaryCodec];
 
         // set up backup
         if (opts.backupCodec === true) {
@@ -1197,7 +1216,7 @@ export default class LocalParticipant extends Participant {
         req.width,
         req.height,
         encodings,
-        isSVCCodec(opts.videoCodec),
+        isSVCCodec(opts.videoCodec) && !isSVCSimulcast(opts.videoCodec, opts),
       );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
@@ -1253,12 +1272,9 @@ export default class LocalParticipant extends Participant {
             });
           }
         } else if (track.codec && isVideoCodec(track.codec)) {
-          // Apply start bitrate for all video codecs to prevent initial blurriness.
-          // - SVC codecs: use first encoding's bitrate (single stream with built-in layers)
-          // - Simulcast: sum all encoding bitrates (independent streams, BWE needs total)
-          const targetBitrate = isSVCCodec(track.codec)
-            ? (encodings[0]?.maxBitrate ?? 0)
-            : encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
+          // Apply start bitrate for all video codecs to prevent initial blurriness,
+          // see computeStartTargetBitrate
+          const targetBitrate = computeStartTargetBitrate(track.codec, opts, encodings);
           if (targetBitrate > 0) {
             this.engine.pcManager.publisher.setTrackCodecBitrate({
               cid: req.cid,

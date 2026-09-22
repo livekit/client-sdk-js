@@ -77,6 +77,7 @@ import {
   ConnectionErrorReason,
   UnexpectedConnectionState,
   UnsupportedServer,
+  canFailOverToAnotherRegion,
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
@@ -91,6 +92,7 @@ import {
   type RpcInvocationData,
   RpcServerManager,
 } from './rpc';
+import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -143,6 +145,7 @@ export enum ConnectionState {
 }
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
+const STATS_LOG_FREQUENCY_MS = 30 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -207,6 +210,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
+  private statsLogInterval?: ReturnType<typeof setInterval>;
+
   private regionUrlProvider?: RegionUrlProvider;
 
   private regionUrl?: string;
@@ -214,6 +219,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private isVideoPlaybackBlocked: boolean = false;
 
   private log = log;
+
+  private statsLog = log;
 
   private bufferedEvents: Array<any> = [];
 
@@ -254,6 +261,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room, () => this.logContext);
+    // its own logger name, so the stats dumps can be silenced or routed
+    // separately from the rest of the room's logs
+    this.statsLog = getLogger(LoggerNames.Stats, () => this.logContext);
     this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
@@ -271,7 +281,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.maybeCreateEngine();
 
-    this.incomingDataStreamManager = new IncomingDataStreamManager();
+    this.incomingDataStreamManager = new IncomingDataStreamManager(
+      this.options.dataStream?.maxPayloadByteLength,
+    );
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(
       this.engine,
       this.log,
@@ -328,7 +340,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.log,
       this.outgoingDataStreamManager,
       this.getRemoteParticipantClientProtocol,
-      () => this.engine.latestJoinResponse?.serverInfo?.version,
+      () => this.engine?.serverVersion,
     );
     this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
       this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
@@ -639,10 +651,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
-        this.bufferedEvents = [];
         if (this.state === ConnectionState.Reconnecting || this.isResuming) {
           this.sendSyncState();
         }
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.Restarted, this.handleRestarted)
@@ -897,8 +909,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (
           this.regionUrlProvider &&
           error instanceof ConnectionError &&
-          error.reason !== ConnectionErrorReason.Cancelled &&
-          error.reason !== ConnectionErrorReason.NotAllowed
+          canFailOverToAnotherRegion(error)
         ) {
           let nextUrl: string | null = null;
           try {
@@ -981,6 +992,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         autoSubscribe: connectOptions.autoSubscribe,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
+        disableIceLite: connectOptions.disableIceLite,
         clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
@@ -1591,14 +1603,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
+    if ([ConnectionState.Connecting, ConnectionState.Reconnecting].includes(this.state)) {
       const pendingTrackSid = extractTrackSid(mediaTrack, stream);
+      this.log.debug('deferring on track for later', {
+        mediaTrackId: mediaTrack.id,
+        mediaStreamId: stream.id,
+        tracksInStream: stream.getTracks().map((track) => track.id),
+      });
       const reconnectedHandler = () => {
-        this.log.debug('deferring on track for later', {
-          mediaTrackId: mediaTrack.id,
-          mediaStreamId: stream.id,
-          tracksInStream: stream.getTracks().map((track) => track.id),
-        });
         cleanup();
         this.onTrackAdded(mediaTrack, stream, receiver);
       };
@@ -1913,7 +1925,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
-        this.handleParticipantDisconnected(info.identity, remoteParticipant);
+        this.handleParticipantDisconnected(
+          info.identity,
+          remoteParticipant,
+          info.disconnectReason === DisconnectReason.UNKNOWN_REASON
+            ? undefined
+            : info.disconnectReason,
+        );
       } else {
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
@@ -1931,7 +1949,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
 
-  private handleParticipantDisconnected(identity: string, participant?: RemoteParticipant) {
+  private handleParticipantDisconnected(
+    identity: string,
+    participant?: RemoteParticipant,
+    disconnectReason?: DisconnectReason,
+  ) {
     // remove and send event
     this.remoteParticipants.delete(identity);
     if (!participant) {
@@ -1944,7 +1966,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emit(RoomEvent.ParticipantDisconnected, participant);
+    this.emit(RoomEvent.ParticipantDisconnected, participant, disconnectReason);
     participant.setDisconnected();
     this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
@@ -2028,8 +2050,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       const newStreamState = Track.streamStateFromProto(streamState.state);
+      const prevStreamState = pub.track.streamState;
       pub.track.setStreamState(newStreamState);
-      if (newStreamState !== pub.track.streamState) {
+      if (newStreamState !== prevStreamState) {
         participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
         this.emitWhenConnected(
           RoomEvent.TrackStreamStateChanged,
@@ -2581,6 +2604,46 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   }
 
+  private setStatsLogging(enabled: boolean) {
+    if (enabled) {
+      if (!this.statsLogInterval) {
+        this.statsLogInterval = CriticalTimers.setInterval(() => {
+          // logWebRTCStats handles its own errors, nothing to await here
+          this.logWebRTCStats();
+        }, STATS_LOG_FREQUENCY_MS);
+      }
+    } else if (this.statsLogInterval) {
+      CriticalTimers.clearInterval(this.statsLogInterval);
+      this.statsLogInterval = undefined;
+    }
+  }
+
+  /**
+   * Dumps stats of both peer connections.
+   */
+  private logWebRTCStats = async () => {
+    const pcManager = this.engine?.pcManager;
+    if (!pcManager) {
+      return;
+    }
+    try {
+      const [publisher, subscriber] = await Promise.all([
+        pcManager.publisher.getStats(),
+        pcManager.subscriber?.getStats(),
+      ]);
+      const publisherStats = publisher && summarizeStatsReport(publisher);
+      const subscriberStats = subscriber && summarizeStatsReport(subscriber);
+      this.statsLog.info(`webrtc stats`, {
+        publisher: publisherStats?.connection,
+        subscriber: subscriberStats?.connection,
+        inbound: [...(publisherStats?.inbound ?? []), ...(subscriberStats?.inbound ?? [])],
+        outbound: publisherStats?.outbound,
+      });
+    } catch (error) {
+      this.statsLog.debug('could not collect webrtc stats', { error });
+    }
+  };
+
   private registerConnectionReconcile() {
     this.clearConnectionReconcile();
     let consecutiveFailures = 0;
@@ -2604,11 +2667,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             : undefined,
         });
         if (consecutiveFailures >= 3) {
-          this.recreateEngine();
-          this.handleDisconnect(
-            this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.STATE_MISMATCH,
-          );
+          this.clearConnectionReconcile();
+          if (this.engine && !this.engine.isClosed) {
+            // The transport silently died while we still looked connected. Try a full reconnect
+            // (keeps the room alive; the engine falls back to Disconnected if it ultimately fails).
+            this.log.warn('detected connection state mismatch, attempting full reconnect');
+            this.engine.reconnect();
+          } else {
+            // No usable engine to reconnect with; tear down.
+            this.recreateEngine();
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              DisconnectReason.STATE_MISMATCH,
+            );
+          }
         }
       } else {
         consecutiveFailures = 0;
@@ -2630,7 +2702,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log.info(`connection state changed: ${this.state} -> ${state}`);
     this.state = state;
     this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
+    this.setStatsLogging(state === ConnectionState.Connected);
+
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
+
     return true;
   }
 
@@ -2936,7 +3011,10 @@ export type RoomEventCallbacks = {
   moved: (name: string) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
-  participantDisconnected: (participant: RemoteParticipant) => void;
+  participantDisconnected: (
+    participant: RemoteParticipant,
+    disconnectReason?: DisconnectReason,
+  ) => void;
   trackPublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void;
   trackSubscribed: (
     track: RemoteTrack,

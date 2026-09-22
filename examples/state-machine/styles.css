@@ -1,0 +1,161 @@
+:root {
+  color-scheme: light dark;
+  --border: color-mix(in srgb, currentColor 20%, transparent);
+  --muted: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
+#description {
+  max-width: 70ch;
+  color: var(--muted);
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 2rem;
+  align-items: start;
+}
+
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.legend {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+output {
+  font-family: ui-monospace, monospace;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #fff;
+}
+
+.inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+button {
+  font: inherit;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* handled in the current state: lit, in the same accent as the state chip */
+button.legal {
+  border-color: #2563eb;
+  box-shadow: inset 0 0 0 1px #2563eb;
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+  color: inherit;
+  font-weight: 600;
+}
+
+/* declared by the machine but not handled here — still clickable, and firing it is a visible no-op */
+button.illegal {
+  color: color-mix(in srgb, currentColor 40%, transparent);
+  border-style: dashed;
+}
+
+textarea,
+pre {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 0.5rem;
+  margin: 0;
+}
+
+pre {
+  overflow-x: auto;
+}
+
+.error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  min-height: 1.2em;
+  margin: 0.25rem 0 0;
+}
+
+.log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.log li {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.log .declined,
+.log .unhandled {
+  color: var(--muted);
+}
+
+.log .declined code,
+.log .unhandled code {
+  text-decoration: line-through;
+}
+
+.legend label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.75rem;
+  cursor: pointer;
+}
+
+.empty {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}

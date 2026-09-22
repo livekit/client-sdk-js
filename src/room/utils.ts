@@ -58,7 +58,7 @@ export function supportsAddTrack() {
 }
 
 export function supportsAdaptiveStream() {
-  return typeof ResizeObserver !== undefined && typeof IntersectionObserver !== undefined;
+  return typeof ResizeObserver !== 'undefined' && typeof IntersectionObserver !== 'undefined';
 }
 
 export function supportsDynacast() {
@@ -146,6 +146,104 @@ export function isSVCCodec(codec?: string): boolean {
   return codec === 'av1' || codec === 'vp9';
 }
 
+/**
+ * Opts `transceiver` into negotiating the AV1 dependency descriptor, reporting whether it will be.
+ *
+ * Chrome only offers the extension on transceivers that can send, so one we create to receive on
+ * never negotiates it — and Chrome 152 stopped decoding AV1 that arrives without it: frames get
+ * assembled, none ever decode, and the receiver asks for a keyframe forever. Asking through the
+ * transceiver rather than munging the extension into the SDP leaves the browser owning the
+ * extension id, which is what keeps that id consistent across the bundle and across
+ * renegotiations.
+ *
+ * A no-op where the browser offers no such control, or does not know the extension at all.
+ * @internal
+ */
+export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): boolean {
+  const extensions = transceiver.getHeaderExtensionsToNegotiate?.();
+  if (!extensions || !transceiver.setHeaderExtensionsToNegotiate) {
+    return false;
+  }
+  const dd = extensions.find((ext) => ext.uri === ddExtensionURI);
+  if (!dd) {
+    return false;
+  }
+  if (dd.direction !== 'stopped') {
+    return true;
+  }
+  // sendrecv rather than recvonly, so that the extension is written as a plain `a=extmap` line —
+  // the form the server already emits where it is the one offering — rather than one carrying a
+  // `/recvonly` suffix that its parser may not expect
+  dd.direction = 'sendrecv';
+  try {
+    transceiver.setHeaderExtensionsToNegotiate(extensions);
+    return true;
+  } catch (e) {
+    // a rejected direction throws. Negotiating without the extension is what happened before this
+    // existed, so it is not worth failing the connection over
+    return false;
+  }
+}
+
+/**
+ * VP9 and AV1 are published as SVC (a single RTP stream carrying every spatial layer)
+ * by default. They can instead be published as real, rid based simulcast — one
+ * independent stream per rid, each carrying a single spatial layer — when the caller
+ * opts in with `simulcast: true` and a single spatial layer scalability mode (`L1Tx`).
+ *
+ * The SFU has to be told about this: without an explicit
+ * `SimulcastCodec.videoLayerMode` it assumes `MULTIPLE_SPATIAL_LAYERS_PER_STREAM` for
+ * any SVC capable codec.
+ */
+export function isSVCSimulcast(
+  codec?: string,
+  options?: { simulcast?: boolean; scalabilityMode?: string },
+): boolean {
+  return isSVCCodec(codec) && !!options?.simulcast && !!options.scalabilityMode?.startsWith('L1T');
+}
+
+/**
+ * Whether the browser reads multiple encodings on an SVC capable codec as *legacy SVC*
+ * rather than as real simulcast.
+ *
+ * Before Chrome M113, supplying more than one encoding for VP9/AV1 selected SVC mode;
+ * only from M113 does libwebrtc treat such encodings as simulcast, and only when each
+ * one carries its own scalabilityMode. Safari (and anything WebKit based, i. e. every
+ * browser on iOS) still uses the old interpretation, as does React Native's libwebrtc.
+ * Announced at https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw
+ *
+ * Where this is true the rids would not exist on the wire, so VP9/AV1 must be published
+ * as SVC no matter what the caller asked for.
+ */
+export function usesLegacySVCEncodings(): boolean {
+  const browser = getBrowser();
+  return (
+    isSafariBased() ||
+    // Even tho RN runs M114, it does not produce SVC layers when a single encoding
+    // is provided. So we'll use the legacy SVC specification for now.
+    // TODO: when we upstream libwebrtc, this will need additional verification
+    isReactNative() ||
+    (browser?.name === 'Chrome' && compareVersions(browser.version, '113') < 0)
+  );
+}
+
+/**
+ * Last server version that doesn't support vp9/av1 simulcast.
+ */
+const svcSimulcastMinServerVersion = '1.13.6';
+
+/**
+ * Whether the connected server honours `SimulcastCodec.videoLayerMode`, i. e. whether
+ * VP9/AV1 can be published as rid based simulcast. An unknown version is treated as
+ * unsupported so the publish falls back to SVC.
+ */
+export function isSVCSimulcastSupportedByServer(serverVersion?: string): boolean {
+  if (!serverVersion) {
+    return false;
+  }
+  return compareVersions(serverVersion, svcSimulcastMinServerVersion) > 0;
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;
@@ -200,6 +298,33 @@ export function isSafari(): boolean {
 export function isSafariBased(): boolean {
   const b = getBrowser();
   return b?.name === 'Safari' || b?.os === 'iOS';
+}
+
+/**
+ * iPadOS has sent the desktop Macintosh user agent by default since iPadOS 13, so `getBrowser()`
+ * reports `os: 'macOS'` there and every `os === 'iOS'` check misses it. macOS Safari implements no
+ * touch events at all (`TouchEvent` undefined, `maxTouchPoints` 0) regardless of any touchscreen
+ * attached, so touch capability separates the two. Measured on an iPad 6 / iPadOS 17
+ * (`maxTouchPoints` 5) against macOS Safari 26.4 (`maxTouchPoints` 0).
+ *
+ * Deliberately a separate helper rather than a fix in `browserParser`: iPadOS spoofs the Mac
+ * version too, so reporting `os: 'iOS'` there would leave `osVersion` at `10.15.7` and silently
+ * break {@link isSafari17Based} and {@link isSafariSvcApi}, which compare it.
+ */
+export function isIPadOS(): boolean {
+  if (!isWeb()) {
+    return false;
+  }
+  const b = getBrowser();
+  return b?.name === 'Safari' && b?.os === 'macOS' && navigator.maxTouchPoints > 1;
+}
+
+/**
+ * iPhone, iPad and iOS-hosted browsers — everything running the Apple camera capture pipeline,
+ * including iPads that present themselves as a Mac.
+ */
+export function isAppleMobile(): boolean {
+  return getBrowser()?.os === 'iOS' || isIPadOS();
 }
 
 export function isSafari17Based(): boolean {

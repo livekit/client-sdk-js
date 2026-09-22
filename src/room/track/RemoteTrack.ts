@@ -1,3 +1,4 @@
+import type { EventEmitter } from 'events';
 import { TrackEvent } from '../events';
 import { monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
@@ -123,20 +124,46 @@ export default abstract class RemoteTrack<
     }
   }
 
+  /* @internal */
+  stopMonitor() {
+    super.stopMonitor();
+    (this as unknown as EventEmitter).off('newListener', this.onTimeSyncListenerAdded);
+  }
+
   protected abstract monitorReceiver(): void;
 
-  registerTimeSyncUpdate() {
-    const loop = () => {
-      this.timeSyncHandle = requestAnimationFrame(() => loop());
-      const sources = this.receiver?.getSynchronizationSources()[0];
-      if (sources) {
-        const { timestamp, rtpTimestamp } = sources;
-        if (rtpTimestamp && this.rtpTimestamp !== rtpTimestamp) {
-          this.emit(TrackEvent.TimeSyncUpdate, { timestamp, rtpTimestamp });
-          this.rtpTimestamp = rtpTimestamp;
-        }
+  private timeSyncLoop = () => {
+    if (this.listenerCount(TrackEvent.TimeSyncUpdate) === 0) {
+      // nobody is listening anymore, pause the loop until a new listener subscribes
+      this.timeSyncHandle = undefined;
+      return;
+    }
+    this.timeSyncHandle = requestAnimationFrame(this.timeSyncLoop);
+    const sources = this.receiver?.getSynchronizationSources()[0];
+    if (sources) {
+      const { timestamp, rtpTimestamp } = sources;
+      if (rtpTimestamp && this.rtpTimestamp !== rtpTimestamp) {
+        this.emit(TrackEvent.TimeSyncUpdate, { timestamp, rtpTimestamp });
+        this.rtpTimestamp = rtpTimestamp;
       }
-    };
-    loop();
+    }
+  };
+
+  private onTimeSyncListenerAdded = (event: string) => {
+    if (event === TrackEvent.TimeSyncUpdate && this.timeSyncHandle === undefined) {
+      // `newListener` fires before the listener is registered, so schedule the
+      // next frame instead of entering the loop (which would see a count of 0)
+      this.timeSyncHandle = requestAnimationFrame(this.timeSyncLoop);
+    }
+  };
+
+  registerTimeSyncUpdate() {
+    // `newListener` isn't part of the typed event map, hence the cast
+    const emitter = this as unknown as EventEmitter;
+    emitter.off('newListener', this.onTimeSyncListenerAdded);
+    emitter.on('newListener', this.onTimeSyncListenerAdded);
+    if (this.timeSyncHandle === undefined) {
+      this.timeSyncLoop();
+    }
   }
 }
