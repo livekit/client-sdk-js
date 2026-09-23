@@ -71,7 +71,8 @@ per negotiation direction:
 
 Gotcha: with the publisher's default `backupCodecPolicy` (`PREFER_REGRESSION`), a single
 subscriber excluding the primary codec regresses the track to the backup codec for all subscribers
-(observed on LiveKit Cloud). `SIMULCAST` is meant to give each subscriber its best allowed codec.
+(observed on LiveKit Cloud). `SIMULCAST` gives each subscriber its best allowed codec (observed on
+LiveKit Cloud).
 
 Gotcha: `setCodecPreferences([])` resets to the browser defaults, so a filter that excludes
 everything is ignored rather than applied. Receive-side codec _order_ is meaningless because the
