@@ -314,3 +314,134 @@ describe('PCTransportManager.triggerIceRestart', () => {
     expect(manager.subscriber?.restartingIce).toBe(false);
   });
 });
+
+describe('PCTransportManager video receive codecs', () => {
+  const withoutAV1 = (codec: RTCRtpCodec) => codec.mimeType.toLowerCase() !== 'video/av1';
+
+  beforeEach(() => {
+    vi.stubGlobal('RTCPeerConnection', StubPC);
+    vi.stubGlobal('RTCRtpReceiver', {
+      getCapabilities: () => ({
+        codecs: [
+          { mimeType: 'video/H264', clockRate: 90000 },
+          { mimeType: 'video/AV1', clockRate: 90000 },
+        ],
+      }),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A transceiver of `kind` whose codec preference calls are recorded into `calls`. */
+  const transceiverOf = (kind: string, calls: string[] = []) => ({
+    receiver: { track: { kind } },
+    setCodecPreferences: vi.fn((codecs: RTCRtpCodec[]) => {
+      calls.push(`setCodecPreferences:${kind}:${codecs.map((c) => c.mimeType).join(',')}`);
+    }),
+  });
+
+  describe('createSubscriberAnswerFromOffer', () => {
+    /** A subscriber whose calls are recorded in order, with one video and one audio transceiver. */
+    function makeManager(
+      filter?: (codec: RTCRtpCodec) => boolean,
+      { offerApplies }: { offerApplies: boolean } = { offerApplies: true },
+    ) {
+      const calls: string[] = [];
+      const video = transceiverOf('video', calls);
+      const audio = transceiverOf('audio', calls);
+      const subscriber = {
+        getSignallingState: () => 'stable',
+        setRemoteDescription: vi.fn(async () => {
+          calls.push('setRemoteDescription');
+          return offerApplies;
+        }),
+        getTransceivers: () => [video, audio],
+        createAndSetAnswer: vi.fn(async () => {
+          calls.push('createAndSetAnswer');
+          return { type: 'answer', sdp: '' };
+        }),
+      };
+      const manager = new PCTransportManager('subscriber-primary', {}, undefined, filter);
+      (manager as unknown as { subscriber: typeof subscriber }).subscriber = subscriber;
+      return { manager, calls, video, audio };
+    }
+
+    const offer: RTCSessionDescriptionInit = { type: 'offer', sdp: '' };
+
+    it('restricts the receive video codecs between applying the offer and answering it', async () => {
+      const { manager, calls, audio } = makeManager(withoutAV1);
+
+      await manager.createSubscriberAnswerFromOffer(offer, 1);
+
+      expect(calls).toEqual([
+        'setRemoteDescription',
+        'setCodecPreferences:video:video/H264',
+        'createAndSetAnswer',
+      ]);
+      expect(audio.setCodecPreferences).not.toHaveBeenCalled();
+    });
+
+    it('restricts a transceiver only once across offers', async () => {
+      const { manager, video } = makeManager(withoutAV1);
+
+      await manager.createSubscriberAnswerFromOffer(offer, 1);
+      await manager.createSubscriberAnswerFromOffer(offer, 2);
+
+      expect(video.setCodecPreferences).toHaveBeenCalledOnce();
+    });
+
+    it('leaves codec preferences alone without a filter', async () => {
+      const { manager, video } = makeManager();
+
+      await manager.createSubscriberAnswerFromOffer(offer, 1);
+
+      expect(video.setCodecPreferences).not.toHaveBeenCalled();
+    });
+
+    it('does not touch codec preferences for an offer that was not applied', async () => {
+      const { manager, video } = makeManager(withoutAV1, { offerApplies: false });
+
+      await expect(manager.createSubscriberAnswerFromOffer(offer, 1)).resolves.toBeUndefined();
+      expect(video.setCodecPreferences).not.toHaveBeenCalled();
+    });
+
+    it('swallows rejected preferences rather than failing the answer', async () => {
+      const { manager, video } = makeManager(withoutAV1);
+      video.setCodecPreferences.mockImplementation(() => {
+        throw new Error('InvalidModificationError');
+      });
+
+      await expect(manager.createSubscriberAnswerFromOffer(offer, 1)).resolves.toBeDefined();
+    });
+  });
+
+  describe('addPublisherTransceiverOfKind', () => {
+    /** A manager whose publisher hands out `transceiver` for every added transceiver. */
+    function makeManager(mode: 'publisher-only' | 'publisher-primary') {
+      const manager = new PCTransportManager(mode, {}, undefined, withoutAV1);
+      const transceiver = transceiverOf('video');
+      (
+        manager.publisher as unknown as { addTransceiverOfKind: () => unknown }
+      ).addTransceiverOfKind = () => transceiver;
+      return { manager, transceiver };
+    }
+
+    it('restricts the receive-only video sections media arrives on', () => {
+      const { manager, transceiver } = makeManager('publisher-only');
+
+      manager.addPublisherTransceiverOfKind('video', { direction: 'recvonly' });
+
+      expect(transceiver.setCodecPreferences).toHaveBeenCalledOnce();
+    });
+
+    it('leaves the publisher sections alone when media arrives on the subscriber', () => {
+      const { manager, transceiver } = makeManager('publisher-primary');
+
+      manager.addPublisherTransceiverOfKind('video', { direction: 'recvonly' });
+
+      expect(transceiver.setCodecPreferences).not.toHaveBeenCalled();
+    });
+  });
+});

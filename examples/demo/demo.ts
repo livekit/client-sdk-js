@@ -197,6 +197,7 @@ const appActions = {
     const scalabilityMode = (<HTMLSelectElement>$('scalability-mode')).value;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
+    const excludeAV1OnReceive = (<HTMLInputElement>$('exclude-av1-receive')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const frameMetadataEnabled = (<HTMLInputElement>$('frame-metadata')).checked;
     const frameMetadata = getFrameMetadataPublishOptions();
@@ -235,6 +236,9 @@ const appActions = {
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
       frameMetadata: frameMetadataEnabled ? { worker: new FrameMetadataWorker() } : undefined,
+      videoReceiveCodecFilter: excludeAV1OnReceive
+        ? (codec) => codec.mimeType.toLowerCase() !== 'video/av1'
+        : undefined,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||

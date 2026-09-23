@@ -122,6 +122,39 @@ export interface InternalRoomOptions {
   singlePeerConnection: boolean;
 
   /**
+   * Decides which video codecs this participant is willing to receive. Called with each video
+   * codec the browser reports it can decode; return `false` to exclude it from negotiation.
+   *
+   * An excluded codec makes the server treat this participant as unable to receive it, so a
+   * track published in that codec is delivered in the publisher's backup codec instead (see
+   * `TrackPublishOptions.backupCodec`). Without a compatible backup codec, no video is received
+   * for that track.
+   *
+   * How far that fallback reaches depends on the publisher's `backupCodecPolicy`. With the
+   * default (`PREFER_REGRESSION`), one subscriber excluding the primary codec makes the publisher
+   * switch to its backup codec for **every** subscriber of that track, including those that could
+   * receive the primary codec. For each subscriber to keep receiving the best codec it allows,
+   * publishers need `backupCodecPolicy: BackupCodecPolicy.SIMULCAST`, at the cost of encoding
+   * and sending both codecs.
+   *
+   * Only the allowed set matters: the server picks among the publisher's codecs in the
+   * publisher's order, so receive-side ordering has no effect. Retransmission and FEC codecs
+   * (rtx, red, ulpfec, flexfec) are always kept. A filter that would exclude every codec is
+   * ignored. The filter is read when media sections are negotiated, so it applies for the
+   * lifetime of the room and across reconnects.
+   *
+   * Requires `RTCRtpTransceiver.setCodecPreferences`; a no-op where it is unavailable.
+   *
+   * @example
+   * ```ts
+   * new Room({
+   *   videoReceiveCodecFilter: (codec) => codec.mimeType.toLowerCase() !== 'video/av1',
+   * });
+   * ```
+   */
+  videoReceiveCodecFilter?: (codec: RTCRtpCodec) => boolean;
+
+  /**
    * Options controlling data stream behavior for this room.
    */
   dataStream?: RoomDataStreamOptions;
