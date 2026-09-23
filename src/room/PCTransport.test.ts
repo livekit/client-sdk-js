@@ -10,6 +10,7 @@ import {
   extractStereoAndNackAudioFromOffer,
   findTrackCodecPayload,
   fmtpConfigHasParam,
+  isDuplicateAnswer,
   placeholderMidsFromTransceivers,
 } from './PCTransport';
 import { ddExtensionURI } from './utils';
@@ -533,5 +534,23 @@ a=extmap:3 ${ddExtensionURI}`);
     delete section.ext;
     expect(ensureVideoDDExtension(section, sdp, 0)).toBe(12);
     expect(ddOf(sdp.media, '1')).toBe(12);
+  });
+});
+
+describe('isDuplicateAnswer', () => {
+  it('drops a second answer for an offer that was already answered', () => {
+    expect(isDuplicateAnswer(3, 3, 'have-local-offer', false)).toBe(true);
+  });
+
+  it('accepts the answer for a new offer', () => {
+    expect(isDuplicateAnswer(4, 3, 'have-local-offer', false)).toBe(false);
+  });
+
+  it('without an offerId, drops an answer in stable', () => {
+    expect(isDuplicateAnswer(0, 0, 'stable', false)).toBe(true);
+  });
+
+  it('without an offerId, accepts the answer to a deferred initial offer', () => {
+    expect(isDuplicateAnswer(0, 0, 'stable', true)).toBe(false);
   });
 });

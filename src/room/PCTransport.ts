@@ -206,6 +206,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   latestOfferId: number = 0;
 
+  private answeredOfferId: number = 0;
+
   latestAcknowledgedOfferId: number = 0;
 
   private offerLock: Mutex;
@@ -337,6 +339,23 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         latestOfferId: this.latestOfferId,
       });
       return false;
+    }
+    if (sd.type === 'answer') {
+      if (
+        isDuplicateAnswer(
+          offerId,
+          this.answeredOfferId,
+          this._pc?.signalingState,
+          this.pendingInitialOffer !== undefined,
+        )
+      ) {
+        // a repeat of an answer already applied or being applied (e.g.
+        // duplicated by a proxy): there is no local offer left to answer
+        this.log.warn('ignoring duplicate answer', { offerId });
+        return false;
+      }
+      // claimed before any await, so a copy arriving mid-apply is caught too
+      if (offerId > 0) this.answeredOfferId = offerId;
     }
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
@@ -1056,6 +1075,23 @@ export function conformBundledCodecFmtp(
 }
 
 /** @internal */
+/**
+ * Whether an incoming answer repeats one already applied or being applied.
+ * With an offerId (current servers) an answer is a duplicate if its offer was
+ * already answered. Without one, fall back to the signaling state: in `stable`
+ * no local offer is pending, unless the initial offer is still deferred (it is
+ * set locally only once its answer arrives).
+ */
+export function isDuplicateAnswer(
+  offerId: number,
+  answeredOfferId: number,
+  signalingState: RTCSignalingState | undefined,
+  hasPendingInitialOffer: boolean,
+): boolean {
+  if (offerId > 0) return offerId === answeredOfferId;
+  return signalingState === 'stable' && !hasPendingInitialOffer;
+}
+
 export function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
