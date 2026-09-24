@@ -186,6 +186,97 @@ export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): b
 }
 
 /**
+ * The video codecs this browser negotiates for receiving but cannot decode the way the SFU
+ * forwards them.
+ *
+ * Firefox 155 turned AV1 on for WebRTC by default, but still has no SVC support
+ * (https://bugzilla.mozilla.org/show_bug.cgi?id=1571470). A publisher's AV1 is SVC by default
+ * (`L3T3_KEY`), and SVC is not visible in SDP, so a Firefox subscriber that negotiates AV1 is
+ * served the SVC stream in place of the publisher's backup codec and decodes only its base
+ * spatial layer: any subscription selecting a higher one renders black. Declining AV1 outright
+ * is what makes the SFU pick the backup codec, and mirrors `supportsAV1()` on the publish side.
+ */
+function undecodableVideoReceiveCodecs(): string[] {
+  return isFireFox() ? ['video/av1'] : [];
+}
+
+/** Whether `mimeType` stands for a codec that carries no media of its own. */
+function isAuxiliaryVideoCodec(mimeType: string): boolean {
+  const codec = mimeType.toLowerCase();
+  return (
+    codec === 'video/rtx' ||
+    codec === 'video/red' ||
+    codec === 'video/ulpfec' ||
+    codec === 'video/flexfec-03'
+  );
+}
+
+/**
+ * `codecs` without the ones whose mime type is in `excludedMimeTypes`, or undefined where that
+ * list would not be worth preferring: nothing was excluded, or what is left could carry no media.
+ * The surviving codecs keep their relative order, which is the browser's own preference.
+ * @internal
+ */
+export function excludeCodecCapabilities(
+  codecs: RTCRtpCodec[] | undefined,
+  excludedMimeTypes: string[],
+): RTCRtpCodec[] | undefined {
+  if (!codecs || excludedMimeTypes.length === 0) {
+    return undefined;
+  }
+  const excluded = new Set(excludedMimeTypes.map((mimeType) => mimeType.toLowerCase()));
+  const kept = codecs.filter((codec) => !excluded.has(codec.mimeType.toLowerCase()));
+  if (kept.length === codecs.length) {
+    return undefined;
+  }
+  if (!kept.some((codec) => !isAuxiliaryVideoCodec(codec.mimeType))) {
+    return undefined;
+  }
+  return kept;
+}
+
+/**
+ * Keeps `transceiver` from negotiating video codecs this browser cannot decode as they arrive,
+ * reporting whether it excluded any.
+ *
+ * Preferences set on the transceiver cover both directions of negotiation — the offer a single
+ * peer connection makes for its receive sections, and the answer a subscriber connection gives to
+ * the server's offer — which SDP munging of one description would not. Call it only on a
+ * transceiver that receives video.
+ *
+ * A no-op where the browser decodes everything it negotiates, or offers no such control.
+ * @internal
+ */
+export function excludeUndecodableVideoReceiveCodecs(transceiver: RTCRtpTransceiver): boolean {
+  const excludedMimeTypes = undecodableVideoReceiveCodecs();
+  if (excludedMimeTypes.length === 0) {
+    return false;
+  }
+  if (
+    typeof RTCRtpReceiver === 'undefined' ||
+    !('getCapabilities' in RTCRtpReceiver) ||
+    !transceiver.setCodecPreferences
+  ) {
+    return false;
+  }
+  const preferences = excludeCodecCapabilities(
+    RTCRtpReceiver.getCapabilities('video')?.codecs,
+    excludedMimeTypes,
+  );
+  if (!preferences) {
+    return false;
+  }
+  try {
+    transceiver.setCodecPreferences(preferences);
+    return true;
+  } catch (e) {
+    // a list the browser will not accept throws. Negotiating every codec is what happened before
+    // this existed, so it is not worth failing the connection over
+    return false;
+  }
+}
+
+/**
  * VP9 and AV1 are published as SVC (a single RTP stream carrying every spatial layer)
  * by default. They can instead be published as real, rid based simulcast — one
  * independent stream per rid, each carrying a single spatial layer — when the caller

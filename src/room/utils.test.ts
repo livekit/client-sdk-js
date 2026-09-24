@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getBrowser } from '../utils/browserParser';
 import {
   ddExtensionURI,
+  excludeCodecCapabilities,
+  excludeUndecodableVideoReceiveCodecs,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isAppleMobile,
@@ -262,6 +264,140 @@ describe('negotiateDependencyDescriptor', () => {
     const { transceiver } = transceiverWith([{ uri: ddExtensionURI, direction: 'stopped' }], true);
 
     expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+  });
+});
+
+describe('excludeCodecCapabilities', () => {
+  const codec = (mimeType: string): RTCRtpCodec => ({ mimeType, clockRate: 90000 });
+
+  const FIREFOX_VIDEO_CODECS = [
+    codec('video/VP8'),
+    codec('video/rtx'),
+    codec('video/VP9'),
+    codec('video/AV1'),
+    codec('video/H264'),
+    codec('video/ulpfec'),
+  ];
+
+  it('drops the excluded codec and leaves the browser ordering of the rest', () => {
+    expect(
+      excludeCodecCapabilities(FIREFOX_VIDEO_CODECS, ['video/av1'])?.map((c) => c.mimeType),
+    ).toEqual(['video/VP8', 'video/rtx', 'video/VP9', 'video/H264', 'video/ulpfec']);
+  });
+
+  it('matches a mime type whatever its case', () => {
+    expect(excludeCodecCapabilities([codec('video/AV1')], ['VIDEO/Av1'])).toBeUndefined();
+  });
+
+  it('prefers nothing where the browser offers none of the excluded codecs', () => {
+    expect(excludeCodecCapabilities([codec('video/VP8')], ['video/av1'])).toBeUndefined();
+  });
+
+  it('prefers nothing where there is nothing to exclude', () => {
+    expect(excludeCodecCapabilities(FIREFOX_VIDEO_CODECS, [])).toBeUndefined();
+  });
+
+  it('prefers nothing where the browser reports no capabilities at all', () => {
+    expect(excludeCodecCapabilities(undefined, ['video/av1'])).toBeUndefined();
+  });
+
+  it('keeps every codec rather than leaving a list that could carry no media', () => {
+    // excluding the only real codec would leave retransmission and fec alone
+    expect(
+      excludeCodecCapabilities([codec('video/AV1'), codec('video/rtx')], ['video/av1']),
+    ).toBeUndefined();
+  });
+});
+
+describe('excludeUndecodableVideoReceiveCodecs', () => {
+  const FIREFOX_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0';
+  const CHROME_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+  const stubBrowser = (userAgent: string) => vi.stubGlobal('navigator', { userAgent });
+
+  /** A receiver whose video capabilities are `codecs`, or none at all where undefined. */
+  const stubReceiverCapabilities = (codecs?: string[]) =>
+    vi.stubGlobal(
+      'RTCRtpReceiver',
+      codecs
+        ? {
+            getCapabilities: () => ({
+              codecs: codecs.map((mimeType) => ({ mimeType, clockRate: 90000 })),
+              headerExtensions: [],
+            }),
+          }
+        : {},
+    );
+
+  /** A transceiver that records the preferences set on it, or throws instead. */
+  const transceiver = (throws = false) => {
+    const setCodecPreferences = vi.fn((codecs: RTCRtpCodec[]) => {
+      if (throws) {
+        throw new Error('InvalidAccessError');
+      }
+      return codecs;
+    });
+    return {
+      transceiver: { setCodecPreferences } as unknown as RTCRtpTransceiver,
+      setCodecPreferences,
+    };
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('excludes AV1 on firefox, which negotiates it but cannot decode the SVC it is sent', () => {
+    stubBrowser(FIREFOX_UA);
+    stubReceiverCapabilities(['video/VP8', 'video/AV1']);
+    const { transceiver: tr, setCodecPreferences } = transceiver();
+
+    expect(excludeUndecodableVideoReceiveCodecs(tr)).toBe(true);
+    expect(setCodecPreferences).toHaveBeenCalledWith([{ mimeType: 'video/VP8', clockRate: 90000 }]);
+  });
+
+  it('leaves a browser that decodes what it negotiates alone', () => {
+    stubBrowser(CHROME_UA);
+    stubReceiverCapabilities(['video/VP8', 'video/AV1']);
+    const { transceiver: tr, setCodecPreferences } = transceiver();
+
+    expect(excludeUndecodableVideoReceiveCodecs(tr)).toBe(false);
+    expect(setCodecPreferences).not.toHaveBeenCalled();
+  });
+
+  it('does nothing on a firefox that does not negotiate AV1 in the first place', () => {
+    stubBrowser(FIREFOX_UA);
+    stubReceiverCapabilities(['video/VP8', 'video/VP9']);
+    const { transceiver: tr, setCodecPreferences } = transceiver();
+
+    expect(excludeUndecodableVideoReceiveCodecs(tr)).toBe(false);
+    expect(setCodecPreferences).not.toHaveBeenCalled();
+  });
+
+  it('reports no exclusion where the browser reports no receive capabilities', () => {
+    stubBrowser(FIREFOX_UA);
+    stubReceiverCapabilities();
+    const { transceiver: tr, setCodecPreferences } = transceiver();
+
+    expect(excludeUndecodableVideoReceiveCodecs(tr)).toBe(false);
+    expect(setCodecPreferences).not.toHaveBeenCalled();
+  });
+
+  it('reports no exclusion where the transceiver has no such control', () => {
+    stubBrowser(FIREFOX_UA);
+    stubReceiverCapabilities(['video/VP8', 'video/AV1']);
+
+    expect(excludeUndecodableVideoReceiveCodecs({} as RTCRtpTransceiver)).toBe(false);
+  });
+
+  it('swallows a rejected preference list rather than failing the connection', () => {
+    stubBrowser(FIREFOX_UA);
+    stubReceiverCapabilities(['video/VP8', 'video/AV1']);
+    const { transceiver: tr } = transceiver(true);
+
+    expect(excludeUndecodableVideoReceiveCodecs(tr)).toBe(false);
   });
 });
 
