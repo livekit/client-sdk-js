@@ -208,6 +208,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private answeredOfferId: number = 0;
 
+  /** offerId (0 if unnumbered) of the answer being applied right now */
+  private answerInFlight: number | undefined;
+
   latestAcknowledgedOfferId: number = 0;
 
   private offerLock: Mutex;
@@ -344,6 +347,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       if (
         isDuplicateAnswer(
           offerId,
+          this.answerInFlight,
           this.answeredOfferId,
           this._pc?.signalingState,
           this.pendingInitialOffer !== undefined,
@@ -354,9 +358,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         this.log.warn('ignoring duplicate answer', { offerId });
         return false;
       }
-      // claimed before any await, so a copy arriving mid-apply is caught too
-      if (offerId > 0) this.answeredOfferId = offerId;
+      // claimed before any await, so a copy arriving mid-apply is caught too;
+      // released however the apply ends, so a genuine retry is still possible
+      this.answerInFlight = offerId;
     }
+    try {
+      return await this.applyRemoteDescription(sd, offerId);
+    } finally {
+      if (sd.type === 'answer') this.answerInFlight = undefined;
+    }
+  }
+
+  private async applyRemoteDescription(
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+  ): Promise<boolean> {
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
@@ -438,6 +454,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       mungedSDP = write(sdpParsed);
     }
     await this.setMungedSDP(sd, mungedSDP, true);
+    // only a successfully applied answer makes later copies duplicates
+    if (sd.type === 'answer' && offerId > 0) this.answeredOfferId = offerId;
 
     if (this.pendingCandidates.length > 0) {
       this.iceLog.debug('flushing queued ICE candidates', {
@@ -1077,17 +1095,20 @@ export function conformBundledCodecFmtp(
 /** @internal */
 /**
  * Whether an incoming answer repeats one already applied or being applied.
- * With an offerId (current servers) an answer is a duplicate if its offer was
- * already answered. Without one, fall back to the signaling state: in `stable`
- * no local offer is pending, unless the initial offer is still deferred (it is
- * set locally only once its answer arrives).
+ * Any answer for the offer whose answer is in flight is a duplicate, numbered
+ * or not. With an offerId (current servers) an answer is also a duplicate if
+ * that offer's answer was already applied. Without one, fall back to the
+ * signaling state: in `stable` no local offer is pending, unless the initial
+ * offer is still deferred (it is set locally only once its answer arrives).
  */
 export function isDuplicateAnswer(
   offerId: number,
+  answerInFlight: number | undefined,
   answeredOfferId: number,
   signalingState: RTCSignalingState | undefined,
   hasPendingInitialOffer: boolean,
 ): boolean {
+  if (answerInFlight === offerId) return true;
   if (offerId > 0) return offerId === answeredOfferId;
   return signalingState === 'stable' && !hasPendingInitialOffer;
 }

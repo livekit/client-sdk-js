@@ -538,19 +538,31 @@ a=extmap:3 ${ddExtensionURI}`);
 });
 
 describe('isDuplicateAnswer', () => {
-  it('drops a second answer for an offer that was already answered', () => {
-    expect(isDuplicateAnswer(3, 3, 'have-local-offer', false)).toBe(true);
+  it('drops an answer while the same offer is still being answered', () => {
+    expect(isDuplicateAnswer(3, 3, 0, 'have-local-offer', false)).toBe(true);
+  });
+
+  it('drops a repeat of an unnumbered answer while the first is still applying', () => {
+    expect(isDuplicateAnswer(0, 0, 0, 'have-local-offer', false)).toBe(true);
+  });
+
+  it('drops an answer for an offer whose answer was already applied', () => {
+    expect(isDuplicateAnswer(3, undefined, 3, 'stable', false)).toBe(true);
+  });
+
+  it('accepts a retry after a failed apply: nothing in flight, nothing applied', () => {
+    expect(isDuplicateAnswer(3, undefined, 2, 'have-local-offer', false)).toBe(false);
   });
 
   it('accepts the answer for a new offer', () => {
-    expect(isDuplicateAnswer(4, 3, 'have-local-offer', false)).toBe(false);
+    expect(isDuplicateAnswer(4, undefined, 3, 'have-local-offer', false)).toBe(false);
   });
 
   it('without an offerId, drops an answer in stable', () => {
-    expect(isDuplicateAnswer(0, 0, 'stable', false)).toBe(true);
+    expect(isDuplicateAnswer(0, undefined, 0, 'stable', false)).toBe(true);
   });
 
   it('without an offerId, accepts the answer to a deferred initial offer', () => {
-    expect(isDuplicateAnswer(0, 0, 'stable', true)).toBe(false);
+    expect(isDuplicateAnswer(0, undefined, 0, 'stable', true)).toBe(false);
   });
 });
