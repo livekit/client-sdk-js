@@ -1,10 +1,12 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StructuredLogger } from '../logger';
 import { getBrowser } from '../utils/browserParser';
 import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
+  getVideoReceiveCodecs,
   isAppleMobile,
   isIPadOS,
   isSVCSimulcast,
@@ -262,6 +264,63 @@ describe('negotiateDependencyDescriptor', () => {
     const { transceiver } = transceiverWith([{ uri: ddExtensionURI, direction: 'stopped' }], true);
 
     expect(negotiateDependencyDescriptor(transceiver)).toBe(false);
+  });
+});
+
+describe('getVideoReceiveCodecs', () => {
+  const receiveCodecs: RTCRtpCodec[] = [
+    { mimeType: 'video/VP8', clockRate: 90000 },
+    { mimeType: 'video/rtx', clockRate: 90000 },
+    { mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: 'profile-level-id=42e01f' },
+    { mimeType: 'video/AV1', clockRate: 90000 },
+    { mimeType: 'video/red', clockRate: 90000 },
+    { mimeType: 'video/ulpfec', clockRate: 90000 },
+  ];
+  const withoutAV1 = (codec: RTCRtpCodec) => codec.mimeType.toLowerCase() !== 'video/av1';
+
+  beforeEach(() => {
+    vi.stubGlobal('RTCRtpReceiver', { getCapabilities: () => ({ codecs: receiveCodecs }) });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the allowed codecs in the browser order, along with the repair codecs', () => {
+    expect(getVideoReceiveCodecs(withoutAV1)?.map((codec) => codec.mimeType)).toEqual([
+      'video/VP8',
+      'video/rtx',
+      'video/H264',
+      'video/red',
+      'video/ulpfec',
+    ]);
+  });
+
+  it('never asks the filter about repair codecs', () => {
+    const filter = vi.fn((_codec: RTCRtpCodec) => true);
+
+    getVideoReceiveCodecs(filter);
+
+    expect(filter.mock.calls.map(([codec]) => codec.mimeType)).toEqual([
+      'video/VP8',
+      'video/H264',
+      'video/AV1',
+    ]);
+  });
+
+  it('ignores a filter that excludes every media codec rather than resetting to all of them', () => {
+    const warn = vi.fn();
+
+    expect(
+      getVideoReceiveCodecs(() => false, { warn } as unknown as StructuredLogger),
+    ).toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('gives nothing where receive capabilities are unavailable', () => {
+    vi.stubGlobal('RTCRtpReceiver', undefined);
+
+    expect(getVideoReceiveCodecs(withoutAV1)).toBeUndefined();
   });
 });
 

@@ -8,7 +8,7 @@ import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, NegotiationError } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
-import { sleep } from './utils';
+import { getVideoReceiveCodecs, sleep } from './utils';
 
 export enum PCTransportState {
   NEW,
@@ -75,10 +75,24 @@ export class PCTransportManager {
     return this._mode;
   }
 
-  constructor(mode: PCMode, loggerOptions: LoggerOptions, rtcConfig?: RTCConfiguration) {
+  /** Codec preferences for receiving video, when the room restricts them. */
+  private videoReceiveCodecs?: RTCRtpCodec[];
+
+  /** Receiving transceivers that already carry `videoReceiveCodecs`. */
+  private videoReceiveCodecsApplied = new WeakSet<RTCRtpTransceiver>();
+
+  constructor(
+    mode: PCMode,
+    loggerOptions: LoggerOptions,
+    rtcConfig?: RTCConfiguration,
+    videoReceiveCodecFilter?: (codec: RTCRtpCodec) => boolean,
+  ) {
     this.loggerOptions = loggerOptions;
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager, () => this.logContext);
     this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
+    // the filter and the browser capabilities are both fixed for the room, so compute this once
+    this.videoReceiveCodecs =
+      videoReceiveCodecFilter && getVideoReceiveCodecs(videoReceiveCodecFilter, this.log);
 
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
@@ -203,6 +217,12 @@ export class PCTransportManager {
         return undefined;
       }
 
+      // the offer may have added receive transceivers; restrict their codecs before answering
+      this.subscriber
+        ?.getTransceivers()
+        .filter((transceiver) => transceiver.receiver.track?.kind === 'video')
+        .forEach(this.applyVideoReceiveCodecs);
+
       // answer the offer
       const answer = await this.subscriber?.createAndSetAnswer();
       return answer;
@@ -310,8 +330,39 @@ export class PCTransportManager {
   }
 
   addPublisherTransceiverOfKind(kind: 'audio' | 'video', transceiverInit: RTCRtpTransceiverInit) {
-    return this.publisher.addTransceiverOfKind(kind, transceiverInit);
+    const transceiver = this.publisher.addTransceiverOfKind(kind, transceiverInit);
+    // media only arrives on the publisher when there is no subscriber connection to arrive on
+    if (
+      this._mode === 'publisher-only' &&
+      kind === 'video' &&
+      transceiverInit.direction === 'recvonly'
+    ) {
+      this.applyVideoReceiveCodecs(transceiver);
+    }
+    return transceiver;
   }
+
+  /**
+   * Restricts a receiving video transceiver to the room's allowed codecs, once: the preferences
+   * stay on the transceiver across renegotiations.
+   */
+  private applyVideoReceiveCodecs = (transceiver: RTCRtpTransceiver) => {
+    if (
+      !this.videoReceiveCodecs ||
+      this.videoReceiveCodecsApplied.has(transceiver) ||
+      typeof transceiver.setCodecPreferences !== 'function'
+    ) {
+      return;
+    }
+    this.videoReceiveCodecsApplied.add(transceiver);
+    try {
+      transceiver.setCodecPreferences(this.videoReceiveCodecs);
+    } catch (e) {
+      // older browsers reject preferences on a receive-only transceiver. Negotiating every codec is
+      // what happens without a filter, so it is not worth failing the connection over
+      this.log.warn('could not apply videoReceiveCodecFilter', { error: e });
+    }
+  };
 
   getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
     const transceivers = this.subscriber

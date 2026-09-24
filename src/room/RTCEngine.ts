@@ -585,7 +585,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (!joinResponse) {
       const rtcConfig = this.makeRTCConfiguration();
-      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, rtcConfig);
+      this.pcManager = new PCTransportManager(
+        'publisher-only',
+        this.loggerOptions,
+        rtcConfig,
+        this.options.videoReceiveCodecFilter,
+      );
     } else {
       this.participantSid = joinResponse.participant?.sid;
       const rtcConfig = this.makeRTCConfiguration(joinResponse);
@@ -597,6 +602,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             : 'publisher-primary',
         this.loggerOptions,
         rtcConfig,
+        this.options.videoReceiveCodecFilter,
       );
     }
 
