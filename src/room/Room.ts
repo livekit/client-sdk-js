@@ -121,7 +121,7 @@ import {
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
-  isCompressionStreamSupported,
+  isDeflateRawCompressionSupported,
   isLocalAudioTrack,
   isLocalParticipant,
   isReactNative,
@@ -2575,7 +2575,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // Advertise deflate-raw decompression support so peers know they can send us compressed data
     // streams (gated separately from clientProtocol — see the data streams v2 spec).
-    if (isCompressionStreamSupported()) {
+    if (isDeflateRawCompressionSupported()) {
       capabilities.push(ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW);
     }
     return capabilities;
