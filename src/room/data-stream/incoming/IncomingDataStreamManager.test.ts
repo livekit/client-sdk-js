@@ -9,6 +9,10 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
