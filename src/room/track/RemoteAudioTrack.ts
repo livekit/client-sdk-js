@@ -1,3 +1,4 @@
+import { Telemetry } from '../../telemetry';
 import { TrackEvent } from '../events';
 import type { AudioReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
@@ -230,6 +231,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     if (stats && this.prevStats && this.receiver) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
+    Telemetry.receiverStats(this.sid, stats);
 
     this.prevStats = stats;
   };
@@ -249,6 +251,8 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
           timestamp: v.timestamp,
           jitter: v.jitter,
           bytesReceived: v.bytesReceived,
+          packetsReceived: v.packetsReceived,
+          packetsLost: v.packetsLost,
           concealedSamples: v.concealedSamples,
           concealmentEvents: v.concealmentEvents,
           silentConcealedSamples: v.silentConcealedSamples,

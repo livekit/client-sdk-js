@@ -7,6 +7,7 @@ import {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
+import { Telemetry } from '../../telemetry';
 import { TrackEvent } from '../events';
 import {
   ScalabilityMode,
@@ -644,6 +645,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       });
       this._currentBitrate = totalBitrate;
     }
+    Telemetry.senderStats(this.sid, stats);
 
     this.prevStats = statsMap;
   };

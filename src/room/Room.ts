@@ -14,6 +14,7 @@ import {
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
+  ReconnectReason,
   Room as RoomModel,
   ServerInfo,
   SimulateScenario,
@@ -46,6 +47,7 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import { SpanKind, Telemetry, type TelemetryScope, type TelemetrySpan } from '../telemetry';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
@@ -199,6 +201,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void, Error>;
+
+  /** One telemetry scope per connect: a trace id and the attributes every record of it carries. */
+  private telemetry?: TelemetryScope;
+
+  private connectSpan?: TelemetrySpan;
+
+  private reconnectSpan?: TelemetrySpan;
+
+  /** Attempts inside the *current* reconnect; the engine's own counter spans several. */
+  private reconnectAttempts = 0;
 
   private disconnectLock: Mutex;
 
@@ -632,7 +644,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
-      .on(EngineEvent.Resuming, () => {
+      .on(EngineEvent.Resuming, (reason?: ReconnectReason) => {
+        this.startReconnectSpan('quick', reason);
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.debug('Resuming signal connection');
@@ -641,6 +654,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Resumed, () => {
+        this.endReconnectSpan('ok');
         this.registerConnectionReconcile();
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
@@ -858,6 +872,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
+    if (isCloud(new URL(url))) {
+      // Cloud names its own destination: this host's client OTLP route, this token (SPEC).
+      Telemetry.setServer(url, token);
+    }
+    this.telemetry = Telemetry.scope();
+    this.localParticipant.telemetry = this.telemetry;
+    this.connectSpan = this.telemetry.start('lk.connect', {
+      kind: SpanKind.client,
+      attributes: { 'lk.connect.attempt': 1 },
+    });
+    Telemetry.hold(true);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
       this.regionUrl = undefined;
       this.regionUrlProvider = undefined;
@@ -1022,6 +1047,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
+    this.telemetry?.setRoom({ participantSid: pi.sid, participantIdentity: pi.identity });
     this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
     if (this.e2eeManager) {
@@ -1076,6 +1102,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
+      this.connectSpan?.step('signal');
       const joinResponse = await this.connectSignal(
         url,
         token,
@@ -1084,6 +1111,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options,
         abortController,
       );
+      this.connectSpan?.step('join_recv');
 
       this.applyJoinResponse(joinResponse);
       // forward metadata changed for the local participant
@@ -1121,6 +1149,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
+      this.connectSpan?.step('pc_connected');
     } catch (e) {
       await this.engine.close();
       this.recreateEngine();
@@ -1137,6 +1166,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.connectSpan?.step('room_connected');
+    this.endConnectSpan('ok');
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1781,7 +1812,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emitWhenConnected(RoomEvent.LocalTrackSubscribed, trackPublication, this.localParticipant);
   }
 
-  private handleRestarting = () => {
+  private handleRestarting = (reason?: ReconnectReason) => {
+    this.startReconnectSpan('full', reason);
     this.clearConnectionReconcile();
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
@@ -1824,10 +1856,60 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.endReconnectSpan('ok');
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
     this.emitBufferedEvents();
   };
+
+  /** `lk.connect` ends once per connect, hold and all; ending it twice is a no-op. */
+  private endConnectSpan(outcome: 'ok' | 'cancelled', error?: unknown) {
+    if (!this.connectSpan) return;
+    if (error !== undefined) {
+      this.connectSpan.fail(error);
+    } else {
+      this.connectSpan.end(outcome);
+    }
+    this.connectSpan = undefined;
+    Telemetry.hold(false);
+  }
+
+  private startReconnectSpan(mode: 'quick' | 'full', reason?: ReconnectReason) {
+    this.reconnectAttempts += 1;
+    const attempts = this.reconnectAttempts;
+    if (this.reconnectSpan) {
+      // A resume that turned into a restart is the same reconnect, one attempt later.
+      this.reconnectSpan.setAttribute('lk.reconnect.mode', mode);
+      this.reconnectSpan.setAttribute('lk.reconnect.attempts', attempts);
+    } else {
+      this.reconnectSpan = this.telemetry?.start('lk.reconnect', {
+        kind: SpanKind.client,
+        attributes: {
+          'lk.reconnect.mode': mode,
+          'lk.reconnect.attempts': attempts,
+          'lk.reconnect.reason': (
+            ReconnectReason[reason ?? ReconnectReason.RR_UNKNOWN] ?? 'RR_UNKNOWN'
+          )
+            .replace(/^RR_/, '')
+            .toLowerCase(),
+        },
+      });
+      Telemetry.hold(true);
+    }
+    this.reconnectSpan?.step(`attempt ${attempts} ${mode}`);
+  }
+
+  private endReconnectSpan(outcome: 'ok' | 'cancelled', error?: unknown) {
+    if (!this.reconnectSpan) return;
+    if (error !== undefined) {
+      this.reconnectSpan.fail(error);
+    } else {
+      this.reconnectSpan.end(outcome);
+    }
+    this.reconnectSpan = undefined;
+    this.reconnectAttempts = 0;
+    Telemetry.hold(false);
+  }
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
@@ -1840,6 +1922,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+
+    const reasonName = (
+      DisconnectReason[reason ?? DisconnectReason.UNKNOWN_REASON] ?? 'UNKNOWN_REASON'
+    ).toLowerCase();
+    // The call never came up: then the connect attempt is what failed, and it says why.
+    this.endConnectSpan('cancelled', new Error(`disconnected: ${reasonName}`));
+    this.endReconnectSpan('cancelled', new Error(`disconnected: ${reasonName}`));
+    this.telemetry?.disconnected(reasonName);
+    this.telemetry?.close();
+    Telemetry.flush().catch(() => {});
 
     this.regionUrl = undefined;
 
@@ -2320,6 +2412,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleRoomUpdate = (room: RoomModel) => {
     const oldRoom = this.roomInfo;
     this.roomInfo = room;
+    this.telemetry?.setRoom({ sid: room.sid, name: room.name });
     if (oldRoom && oldRoom.metadata !== room.metadata) {
       this.emitWhenConnected(RoomEvent.RoomMetadataChanged, room.metadata);
     }
@@ -2450,6 +2543,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
+          if (this.telemetry) {
+            Telemetry.registerTrack(
+              publication.trackSid,
+              this.telemetry,
+              track.kind === Track.Kind.Audio ? 'audio' : 'video',
+              'inbound',
+            );
+            this.telemetry.subscribeStarted(publication.trackSid, {
+              'lk.track.kind': track.kind,
+              'lk.track.source': publication.source,
+              'lk.participant.remote_identity': participant.identity,
+            });
+          }
           this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
@@ -2460,6 +2566,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(
         ParticipantEvent.TrackUnsubscribed,
         (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          this.telemetry?.subscribeEnded(publication.trackSid, 'cancelled');
+          Telemetry.unregisterTrack(publication.trackSid, 'inbound');
           this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
         },
       )
@@ -2763,6 +2871,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.track?.on(TrackEvent.Restarted, this.onLocalTrackRestarted);
     pub.track?.getProcessor()?.onPublish?.(this);
 
+    if (this.telemetry && pub.track) {
+      Telemetry.registerTrack(
+        pub.trackSid,
+        this.telemetry,
+        pub.kind === Track.Kind.Audio ? 'audio' : 'video',
+        'outbound',
+      );
+    }
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
 
     if (isLocalAudioTrack(pub.track)) {
@@ -2786,6 +2902,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
     pub.track?.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
     pub.track?.off(TrackEvent.Restarted, this.onLocalTrackRestarted);
+    Telemetry.unregisterTrack(pub.trackSid, 'outbound');
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
   };
 

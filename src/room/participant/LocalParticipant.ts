@@ -30,6 +30,7 @@ import {
   isFrameMetadataSupported,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
+import type { TelemetryScope } from '../../telemetry';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
@@ -137,6 +138,9 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   activeDeviceMap: Map<MediaDeviceKind, string>;
+
+  /** @internal — the Room's telemetry scope, set at connect; publishing is a span on it. */
+  telemetry?: TelemetryScope;
 
   private pendingPublishing = new Set<Track.Source>();
 
@@ -778,7 +782,22 @@ export default class LocalParticipant extends Participant {
    * @param options
    */
   async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
-    return this.publishOrRepublishTrack(track, options);
+    const span = this.telemetry?.start('lk.publish', {
+      attributes: {
+        'lk.track.kind': track.kind,
+        'lk.track.source': 'source' in track ? track.source : undefined,
+      },
+    });
+    try {
+      const publication = await this.publishOrRepublishTrack(track, options);
+      span?.setAttribute('lk.track.sid', publication.trackSid);
+      span?.setAttribute('lk.track.source', publication.source);
+      span?.end('ok');
+      return publication;
+    } catch (error) {
+      span?.fail(error);
+      throw error;
+    }
   }
 
   /**

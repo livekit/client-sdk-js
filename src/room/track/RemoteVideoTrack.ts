@@ -1,4 +1,5 @@
 import type { FrameMetadata } from '../../frameMetadata/types';
+import { Telemetry } from '../../telemetry';
 import { debounce } from '../debounce';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -186,6 +187,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     if (stats && this.prevStats && this.receiver) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
+    Telemetry.receiverStats(this.sid, stats);
 
     this.prevStats = stats;
   };

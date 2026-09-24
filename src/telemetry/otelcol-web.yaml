@@ -1,0 +1,30 @@
+# Browser variant of the mobile harness collector (Tests/.../otelcol-lgtm.yaml in client-sdk-swift):
+# same file sink + Grafana LGTM fan-out, on its own port, with CORS — a page cannot POST to an
+# OTLP receiver that does not answer the preflight.
+# Run: otelcol-contrib --config src/telemetry/otelcol-web.yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4320
+        cors:
+          allowed_origins: ['http://localhost:*', 'http://127.0.0.1:*']
+          allowed_headers: ['*']
+exporters:
+  file:
+    path: /tmp/livekit-telemetry-web.jsonl
+  otlphttp/lgtm:
+    endpoint: http://127.0.0.1:4318
+    retry_on_failure:
+      enabled: false
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [file, otlphttp/lgtm]
+    traces:
+      receivers: [otlp]
+      exporters: [file, otlphttp/lgtm]
