@@ -7,7 +7,12 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { debounce } from './debounce';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
+import {
+  ddExtensionURI,
+  excludeUndecodableVideoReceiveCodecs,
+  isSVCCodec,
+  isSafari,
+} from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -649,6 +654,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
+    this.excludeUndecodableReceiveCodecs();
     const answer = await this.pc.createAnswer();
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
@@ -659,6 +665,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     });
     await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
+  }
+
+  /**
+   * Keeps the answer from advertising video codecs this browser negotiates but cannot decode as
+   * they arrive. Only the subscriber connection answers an offer, and only the transceivers it
+   * receives on are touched, so a transceiver that sends keeps every codec it could send.
+   */
+  private excludeUndecodableReceiveCodecs() {
+    videoReceiveTransceivers(this._pc?.getTransceivers() ?? []).forEach((transceiver) => {
+      excludeUndecodableVideoReceiveCodecs(transceiver);
+    });
   }
 
   /**
@@ -1032,6 +1049,18 @@ export function placeholderMidsFromTransceivers(
     }
   }
   return mids;
+}
+
+/**
+ * The transceivers of `transceivers` that only receive video: the ones a remote offer's sending
+ * sections created on a subscriber connection. A transceiver that can also send is left out, so
+ * restricting what can be received never restricts what can be sent.
+ */
+export function videoReceiveTransceivers(transceivers: RTCRtpTransceiver[]): RTCRtpTransceiver[] {
+  return transceivers.filter(
+    (transceiver) =>
+      transceiver.direction === 'recvonly' && transceiver.receiver?.track?.kind === 'video',
+  );
 }
 
 /**
