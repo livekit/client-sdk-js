@@ -103,13 +103,7 @@ function setupRoomWithE2EE() {
     }
   ).getOrCreateParticipant('jake', new ParticipantInfo({ sid: 'PA_jake', identity: 'jake' }));
 
-  const trackInfo = new TrackInfo({
-    sid: 'TR_video',
-    type: TrackType.VIDEO,
-    name: 'camera',
-    mimeType: 'video/h264',
-    encryption: Encryption_Type.GCM,
-  });
+  const trackInfo = jakeTrackInfo();
   const publication = new RemoteTrackPublication(Track.Kind.Video, trackInfo, true);
   // addTrackPublication is what wires TrackEvent.Subscribed -> ParticipantEvent.TrackSubscribed
   (
@@ -124,6 +118,27 @@ function setupRoomWithE2EE() {
   const unsubscribe = () => publication.setTrack(undefined);
 
   return { room, worker, publication, receiver, subscribe, unsubscribe };
+}
+
+function jakeTrackInfo() {
+  return new TrackInfo({
+    sid: 'TR_video',
+    type: TrackType.VIDEO,
+    name: 'camera',
+    mimeType: 'video/h264',
+    encryption: Encryption_Type.GCM,
+  });
+}
+
+/**
+ * The server replays the full participant roster after the ReconnectResponse; Room reconciles
+ * against it to drop participants that left while the link was down, so a resume simulation has
+ * to include it or jake gets (correctly) evicted.
+ */
+function replayRosterDuringResume(room: Room) {
+  room.engine.emit(EngineEvent.ParticipantUpdate, [
+    new ParticipantInfo({ sid: 'PA_jake', identity: 'jake', tracks: [jakeTrackInfo()] }),
+  ]);
 }
 
 describe('subscriber black screen', () => {
@@ -164,6 +179,7 @@ describe('subscriber black screen', () => {
 
       // signal comes back: Room.ts:642 throws the buffered events away...
       room.engine.emit(EngineEvent.SignalResumed);
+      replayRosterDuringResume(room);
       // ...so the flush on Resumed has nothing left to flush.
       room.engine.emit(EngineEvent.Resumed);
 
@@ -188,6 +204,7 @@ describe('subscriber black screen', () => {
       subscribe();
       unsubscribe();
       room.engine.emit(EngineEvent.SignalResumed);
+      replayRosterDuringResume(room);
       room.engine.emit(EngineEvent.Resumed);
 
       // CURRENTLY FAILS with ['unsubscribed']: subscribe is buffered then
