@@ -96,6 +96,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  excludeUndecodableVideoReceiveCodecs,
   isPublisherOfferWithJoinSupported,
   isReactNative,
   isVideoCodec,
@@ -889,6 +890,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const negotiated = negotiateDependencyDescriptor(transceiver);
 
         this.log.debug('dependency descriptor negotiated for received video', { negotiated });
+
+        if (excludeUndecodableVideoReceiveCodecs(transceiver)) {
+          this.log.debug('excluded undecodable codecs from received video');
+        }
       }
     }
   }
