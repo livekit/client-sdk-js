@@ -5,14 +5,19 @@ import {
   DataStream_CompressionType,
   type DataStream_TextHeader,
 } from '@livekit/protocol';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import log from '../../../logger';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../../../test/compressionStreamStubs';
 import {
   CLIENT_PROTOCOL_DATA_STREAM_RPC,
   CLIENT_PROTOCOL_DATA_STREAM_V2,
   CLIENT_PROTOCOL_DEFAULT,
 } from '../../../version';
 import type RTCEngine from '../../RTCEngine';
+import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import OutgoingDataStreamManager from './OutgoingDataStreamManager';
 
 /** Builds a low quality random string of the given length. */
@@ -1243,50 +1248,66 @@ describe('OutgoingDataStreamManager', () => {
     });
   });
 
-  describe('runtime without CompressionStream', () => {
+  describe.each([
+    ['a runtime without CompressionStream', stubMissingCompressionStreams],
+    ['a runtime without deflate-raw support', stubMissingDeflateRawSupport],
+  ])('on %s', (_label, stub) => {
+    let restoreCompressionStreams: () => void;
+
+    beforeEach(() => {
+      restoreCompressionStreams = stub();
+    });
+
+    afterEach(() => {
+      restoreCompressionStreams();
+    });
+
     it('should send raw inline even to compression-capable recipients when the runtime cannot compress', async () => {
-      const originalCompressionStream = CompressionStream;
-      try {
-        (globalThis as any).CompressionStream = undefined;
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+      await manager.sendText('hello hello compressible world', {
+        topic: 'my-topic',
+        destinationIdentities: ['alice'],
+      });
 
-        const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
-        await manager.sendText('hello hello compressible world', {
-          topic: 'my-topic',
-          destinationIdentities: ['alice'],
-        });
+      // Compression eligibility also requires a local compressor; without one, inline still
+      // applies but the payload is sent raw.
+      expect(sentPackets).toHaveLength(1);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(header.inlineContent).toStrictEqual(
+        new TextEncoder().encode('hello hello compressible world'),
+      );
+    });
 
-        // Compression eligibility also requires a local compressor; without one, inline still
-        // applies but the payload is sent raw.
-        expect(sentPackets).toHaveLength(1);
-        const header = headerOf(sentPackets[0]);
-        expect(header.compression).toBe(DataStream_CompressionType.NONE);
-        expect(header.inlineContent).toStrictEqual(
-          new TextEncoder().encode('hello hello compressible world'),
-        );
-      } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream;
-      }
+    it('should send BYTES uncompressed when the runtime cannot compress', async () => {
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+      // Larger than the inline budget, so this takes the chunked path rather than riding along in
+      // the header.
+      const bytes = new Uint8Array(20_000).fill(0x07);
+      await manager.sendBytes(bytes, {
+        topic: 'my-topic',
+        destinationIdentities: ['alice'],
+      });
+
+      expect(sentPackets).toHaveLength(4);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(chunkOf(sentPackets[1]).content).toHaveLength(STREAM_CHUNK_SIZE_BYTES);
+      expect(chunkOf(sentPackets[2]).content).toHaveLength(20_000 - STREAM_CHUNK_SIZE_BYTES);
     });
 
     it('should send a FILE uncompressed when the runtime cannot compress', async () => {
-      const originalCompressionStream = CompressionStream;
-      try {
-        (globalThis as any).CompressionStream = undefined;
+      const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
+      const bytes = new Uint8Array(10_000).fill(0x07);
+      await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
+        topic: 'my-topic',
+        destinationIdentities: ['alice'],
+      });
 
-        const { manager, sentPackets } = createManager({ alice: CLIENT_PROTOCOL_DATA_STREAM_V2 });
-        const bytes = new Uint8Array(10_000).fill(0x07);
-        await manager.sendFile(new File([bytes as NonSharedUint8Array], 'text.txt'), {
-          topic: 'my-topic',
-          destinationIdentities: ['alice'],
-        });
-
-        expect(sentPackets).toHaveLength(3);
-        const header = headerOf(sentPackets[0]);
-        expect(header.compression).toBe(DataStream_CompressionType.NONE);
-        expect(chunkOf(sentPackets[1]).content).toHaveLength(10_000);
-      } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream;
-      }
+      expect(sentPackets).toHaveLength(3);
+      const header = headerOf(sentPackets[0]);
+      expect(header.compression).toBe(DataStream_CompressionType.NONE);
+      expect(chunkOf(sentPackets[1]).content).toHaveLength(10_000);
     });
   });
 });
