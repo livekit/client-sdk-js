@@ -921,6 +921,65 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('addMediaSections', () => {
+    const FIREFOX_UA =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0';
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    /** An engine whose transport manager hands out recording transceivers in `mode`. */
+    function stubTransceiverEngine(engine: RTCEngine, mode: string) {
+      const setCodecPreferences = vi.fn();
+      const addPublisherTransceiverOfKind = vi.fn(() => ({ setCodecPreferences }));
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        pcManager: { mode, addPublisherTransceiverOfKind },
+      });
+      return { setCodecPreferences, addPublisherTransceiverOfKind };
+    }
+
+    const addMediaSections = (engine: RTCEngine, audios: number, videos: number) =>
+      (
+        engine as unknown as { addMediaSections: (audios: number, videos: number) => void }
+      ).addMediaSections(audios, videos);
+
+    /** Firefox, whose receive capabilities include the AV1 it cannot decode as SVC. */
+    function stubFirefoxWithAV1() {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        configurable: true,
+        value: FIREFOX_UA,
+      });
+      vi.stubGlobal('RTCRtpReceiver', {
+        getCapabilities: () => ({
+          codecs: [{ mimeType: 'video/VP8' }, { mimeType: 'video/AV1' }],
+          headerExtensions: [],
+        }),
+      });
+    }
+
+    it('keeps a firefox receive section from negotiating AV1 it cannot decode as SVC', () => {
+      stubFirefoxWithAV1();
+      const engine = new RTCEngine(roomOptionDefaults);
+      const { setCodecPreferences } = stubTransceiverEngine(engine, 'publisher-only');
+
+      addMediaSections(engine, 1, 1);
+
+      expect(setCodecPreferences).toHaveBeenCalledWith([{ mimeType: 'video/VP8' }]);
+    });
+
+    it('leaves the sections alone where no media arrives on them', () => {
+      stubFirefoxWithAV1();
+      const engine = new RTCEngine(roomOptionDefaults);
+      // with a subscriber connection these are publisher placeholders, not receive sections
+      const { setCodecPreferences } = stubTransceiverEngine(engine, 'subscriber-primary');
+
+      addMediaSections(engine, 1, 1);
+
+      expect(setCodecPreferences).not.toHaveBeenCalled();
+    });
+  });
+
   describe('negotiate', () => {
     /**
      * An engine whose `pcManager` parks in `negotiate()` until its abort controller fires, so
