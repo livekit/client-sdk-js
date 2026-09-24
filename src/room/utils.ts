@@ -988,6 +988,49 @@ export function isCompressionStreamSupported() {
   return typeof CompressionStream !== 'undefined';
 }
 
+let deflateRawCompressionSupported: boolean | null = null;
+
+/**
+ * Whether this runtime can compress AND decompress the `deflate-raw` format, which is a stricter
+ * requirement than {@link isCompressionStreamSupported}: Chromium 80-102 included
+ * `CompressionStream` supporting only `gzip` / `deflate`, and `deflate-raw` was added in Chromium
+ * 103 (Firefox 113, Safari 16.4).
+ */
+export function isDeflateRawCompressionSupported(): boolean {
+  if (typeof deflateRawCompressionSupported !== 'boolean') {
+    deflateRawCompressionSupported = probeDeflateRawCompressionSupport();
+  }
+  return deflateRawCompressionSupported;
+}
+
+function probeDeflateRawCompressionSupport(): boolean {
+  if (typeof CompressionStream === 'undefined' || typeof DecompressionStream === 'undefined') {
+    return false;
+  }
+  try {
+    // There is no api to query format support, and constructing with an unsupported format throws
+    // synchronously, so constructing one of each is the probe. Both are checked because the
+    // deflate-raw capability advertised to peers is as much about decompressing what they send us
+    // as it is about compressing what we send them.
+    new CompressionStream('deflate-raw');
+    new DecompressionStream('deflate-raw');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clears the memoized {@link isDeflateRawCompressionSupported} probe result. A runtime doesn't
+ * gain or lose compression formats while it is running, so this only exists for tests that swap
+ * the global `CompressionStream` / `DecompressionStream`.
+ *
+ * @internal
+ */
+export function resetDeflateRawCompressionSupportCache() {
+  deflateRawCompressionSupported = null;
+}
+
 export function isPublisherOfferWithJoinSupported() {
   // we have connectivity issue about publisher offer with join on firefox #1919
   return isCompressionStreamSupported() && !isFireFox();
