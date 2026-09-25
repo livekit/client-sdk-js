@@ -686,6 +686,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
+      this.emit(EngineEvent.RequestSubscribedCodecRefresh);
     };
 
     // add candidate on trickle
@@ -2112,6 +2113,7 @@ export type EngineEventCallbacks = {
   joined: (joinResponse: JoinResponse) => void;
   tokenRefreshed: (token: string) => void;
   serverRegionsReported: (regions: RegionSettings) => void;
+  requestSubscribedCodecRefresh: () => void;
 };
 
 export interface RegionStrategy {
