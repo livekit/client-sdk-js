@@ -761,11 +761,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.RequestSubscribedCodecRefresh, () => {
         for (const videoPub of this.localParticipant.videoTrackPublications.values()) {
           if (isLocalVideoTrack(videoPub.track)) {
-            try {
-              videoPub.track.refreshSubscribedCodecs();
-            } catch (e) {
-              this.log.warn(`could not refresh subscribed codecs for track ${videoPub.trackSid}`);
-            }
+            videoPub.track.refreshSubscribedCodecs();
           }
         }
       });

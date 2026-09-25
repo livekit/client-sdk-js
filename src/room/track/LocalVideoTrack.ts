@@ -487,9 +487,11 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   }
 
   /** @interal */
-  refreshSubscribedCodecs() {
+  async refreshSubscribedCodecs() {
     if (this.subscribedCodecs) {
-      this.setPublishingCodecs(this.subscribedCodecs);
+      return this.setPublishingCodecs(this.subscribedCodecs).catch((e) =>
+        this.log.warn(`failed to refrech codec for track`, { ...this.logContext, error: e }),
+      );
     }
   }
 
