@@ -482,10 +482,17 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     // browser will reenable disabled codec/layers after new codec has been published,
     // so refresh subscribedCodecs after publish a new codec
     setTimeout(() => {
-      if (this.subscribedCodecs) {
-        this.setPublishingCodecs(this.subscribedCodecs);
-      }
+      this.refreshSubscribedCodecs();
     }, refreshSubscribedCodecAfterNewCodec);
+  }
+
+  /** @interal */
+  async refreshSubscribedCodecs() {
+    if (this.subscribedCodecs) {
+      return this.setPublishingCodecs(this.subscribedCodecs).catch((e) =>
+        this.log.warn(`failed to refresh codec for track`, { ...this.logContext, error: e }),
+      );
+    }
   }
 
   /**

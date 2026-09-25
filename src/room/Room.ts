@@ -124,6 +124,7 @@ import {
   isCompressionStreamSupported,
   isLocalAudioTrack,
   isLocalParticipant,
+  isLocalVideoTrack,
   isReactNative,
   isRemotePub,
   isSafariBased,
@@ -756,6 +757,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           updatedAtInMs: Date.now(),
           maxAgeInMs: DEFAULT_MAX_AGE_MS,
         });
+      })
+      .on(EngineEvent.RequestSubscribedCodecRefresh, () => {
+        for (const videoPub of this.localParticipant.videoTrackPublications.values()) {
+          if (isLocalVideoTrack(videoPub.track)) {
+            videoPub.track.refreshSubscribedCodecs();
+          }
+        }
       });
 
     if (this.localParticipant) {
@@ -1212,8 +1220,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
+        const reconnectDelay = typeof arg === 'number' ? arg : 0;
         // @ts-expect-error function is private
-        await this.engine.client.handleOnClose('simulate disconnect');
+        await this.engine.client.handleOnClose('simulate disconnect', undefined, reconnectDelay);
         break;
       case 'fail-on-v1-path':
         this.engine.failNextV1Path();

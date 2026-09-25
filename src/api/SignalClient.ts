@@ -1113,7 +1113,11 @@ export class SignalClient {
    * Handles a transport we lost without asking to. The client goes to `offline` rather than
    * `closed`: whether this session gets resumed, restarted or given up on is the engine's call.
    */
-  private async handleOnClose(reason: string, attemptId: number = this.attemptId) {
+  private async handleOnClose(
+    reason: string,
+    attemptId: number = this.attemptId,
+    simulateReconnectDelay?: number,
+  ) {
     const onCloseCallback = this.onClose;
     if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
       // a close we caused ourselves, or one from a transport that has since been replaced: logged
@@ -1128,6 +1132,10 @@ export class SignalClient {
     }
     await this.teardownTransport(reason);
     this.log.info(`websocket connection closed: ${reason}`, { reason });
+    if (simulateReconnectDelay) {
+      this.log.info(`waiting for ${simulateReconnectDelay}ms until reconnecting signal`);
+      await sleep(simulateReconnectDelay);
+    }
     if (onCloseCallback) {
       onCloseCallback(reason);
     }
