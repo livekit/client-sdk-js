@@ -118,6 +118,42 @@ describe('ReliableDataChannel', () => {
     expect(newDc.send).toHaveBeenCalledTimes(1);
   });
 
+  it('replays on the replacement handle when the channel is swapped while replay is parked on flow control', async () => {
+    const { channel, dc: oldDc, state, buffer } = makeChannel();
+    // Two packets queued unsent during the reconnect window, awaiting the replay.
+    state.deferring = true;
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    await channel.send(new Uint8Array([2]), channel.nextSequence());
+    state.deferring = false;
+
+    // Replay parks on a full buffer before its first send.
+    oldDc.bufferedAmount = 2048;
+    const replay = channel.replay(0);
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+    await replay;
+
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send.mock.calls.map(([data]) => data[0])).toEqual([1, 2]);
+    expect(buffer.getAll().every((item) => item.sent)).toBe(true);
+  });
+
+  it('rejects the replay when the engine is closed while it is parked on flow control', async () => {
+    const { channel, dc, state } = makeChannel();
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    dc.bufferedAmount = 2048;
+    const replay = channel.replay(0);
+    replay.catch(() => {});
+    await tick();
+
+    state.engineClosed = true;
+    channel.invalidateWaiters('engine closed');
+
+    await expect(replay).rejects.toBeInstanceOf(UnexpectedConnectionState);
+  });
+
   it('rejects when the engine is closed while waiting', async () => {
     const { channel, dc, state } = makeChannel();
     dc.bufferedAmount = 2048;

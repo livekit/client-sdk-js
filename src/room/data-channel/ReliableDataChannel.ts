@@ -1,5 +1,6 @@
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { DataPacketBuffer } from '../../utils/dataPacketBuffer';
+import { UnexpectedConnectionState } from '../errors';
 import {
   FlowControlledDataChannel,
   type FlowControlledDataChannelOptions,
@@ -125,9 +126,8 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       ) {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
-          await this.waitForHeadroomWithoutLock();
-          // Resolved per message: the handle can be replaced while parked on flow control.
-          this.getChannel()!.send(item.data);
+          const current = await this.waitForHeadroomOnCurrentChannel();
+          current.send(item.data);
           this.messageBuffer.markSent(item);
         }
       }
@@ -135,6 +135,32 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       unlock();
     }
     this.refreshBufferStatus();
+  }
+
+  /**
+   * Waits for headroom while the replay holds the lock, resolving with the channel to send on. If
+   * the handle is replaced while parked, the wait is retried against the replacement so the item
+   * keeps its place in the replay. Any other failure (engine closed, channel closed or torn down
+   * without a replacement) propagates.
+   */
+  private async waitForHeadroomOnCurrentChannel(): Promise<RTCDataChannel> {
+    for (;;) {
+      const parkedOn = this.getChannel();
+      try {
+        await this.waitForHeadroomWithoutLock();
+      } catch (error) {
+        const replacement = this.getChannel();
+        if (this.isEngineClosed() || !replacement || replacement === parkedOn) {
+          throw error;
+        }
+        continue;
+      }
+      const current = this.getChannel();
+      if (!current) {
+        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+      }
+      return current;
+    }
   }
 
   /**
