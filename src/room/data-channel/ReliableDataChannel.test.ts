@@ -77,6 +77,47 @@ describe('ReliableDataChannel', () => {
     expect(buffer.getAll()[0].sent).toBe(false);
   });
 
+  it('sends on the replacement handle when the channel is swapped while a send is queued on the lock', async () => {
+    const { channel, dc: oldDc, buffer } = makeChannel();
+    oldDc.bufferedAmount = 2048; // above high mark → the first send parks
+    const parked = channel.send(new Uint8Array([1]), channel.nextSequence());
+    // A second send queues behind the parked one on the headroom lock, having captured the old handle.
+    const queuedMsg = new Uint8Array([2]);
+    const queued = channel.send(queuedMsg, channel.nextSequence());
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    oldDc.send.mockImplementation(() => {
+      throw new DOMException('RTCDataChannel.readyState is not open', 'InvalidStateError');
+    });
+    channel.attach(newDc as unknown as RTCDataChannel);
+
+    await expect(parked).resolves.toBeUndefined(); // queued unsent for the replay
+    await expect(queued).resolves.toBeUndefined();
+
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).toHaveBeenCalledWith(queuedMsg);
+    expect(buffer.getAll().find((i) => i.sequence === 2)?.sent).toBe(true);
+  });
+
+  it('replays on the replacement handle when the channel is swapped while replay waits for the lock', async () => {
+    const { channel, dc: oldDc } = makeChannel();
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    oldDc.send.mockClear();
+
+    const unlock = await channel.lockHeadroom();
+    const replay = channel.replay(0);
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+    unlock();
+    await replay;
+
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects when the engine is closed while waiting', async () => {
     const { channel, dc, state } = makeChannel();
     dc.bufferedAmount = 2048;

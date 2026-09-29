@@ -83,8 +83,16 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       return;
     }
 
+    // The handle can be replaced while this send is queued behind the headroom lock, so resolve
+    // it again rather than sending on the one captured before the wait.
+    const current = this.getChannel();
+    if (!current) {
+      this.messageBuffer.push({ data: msg, sequence, sent: false });
+      return;
+    }
+
     this.messageBuffer.push({ data: msg, sequence, sent: true });
-    dc.send(msg);
+    current.send(msg);
     this.refreshBufferStatus();
   }
 
@@ -96,8 +104,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
    * receivers would then discard the remaining lower-sequence resent messages as duplicates.
    */
   async replay(lastMessageSeq: number) {
-    const dc = this.getChannel();
-    if (!dc) {
+    if (!this.getChannel()) {
       return;
     }
     this.messageBuffer.popToSequence(lastMessageSeq);
@@ -119,7 +126,8 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
           await this.waitForHeadroomWithoutLock();
-          dc.send(item.data);
+          // Resolved per message: the handle can be replaced while parked on flow control.
+          this.getChannel()!.send(item.data);
           this.messageBuffer.markSent(item);
         }
       }
