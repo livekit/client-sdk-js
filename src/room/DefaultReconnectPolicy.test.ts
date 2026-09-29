@@ -49,4 +49,10 @@ describe('DefaultReconnectPolicy', () => {
     expect(delayFor(policy, 0, 0.5)).toBe(1000);
     expect(delayFor(policy, 0, 0)).toBe(500);
   });
+
+  it('keeps a zero delay at a later index immediate', () => {
+    const policy = new DefaultReconnectPolicy([100, 0]);
+    expect(delayFor(policy, 1, 0.5)).toBe(0);
+    expect(delayFor(policy, 1, 0.999)).toBe(0);
+  });
 });

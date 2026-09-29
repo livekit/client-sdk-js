@@ -33,8 +33,11 @@ class DefaultReconnectPolicy implements ReconnectPolicy {
 
     const retryDelay = this._retryDelays[context.retryCount];
 
-    // The first retry has no base delay to scale, so it gets a fixed window instead.
-    if (retryDelay === 0) return Math.random() * maxFirstRetryJitterInMs;
+    // The first retry has no base delay to scale, so it gets a fixed window instead. A zero at a
+    // later index is an explicit request for an immediate retry and passes through the formula as zero.
+    if (context.retryCount === 0 && retryDelay === 0) {
+      return Math.random() * maxFirstRetryJitterInMs;
+    }
 
     // Jitter scales with the delay (+/-50%) so clients spread out further on later retries.
     return Math.round(retryDelay * (0.5 + Math.random()));
