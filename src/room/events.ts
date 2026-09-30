@@ -205,7 +205,7 @@ export enum RoomEvent {
 
   /**
    * A participant's published action catalog changed.
-   * args: (actions: [[ActionEntry]][], participant: [[Participant]])
+   * args: (actions: [[ActionSummary]][], participant: [[Participant]])
    */
   ParticipantActionsChanged = 'participantActionsChanged',
 
@@ -586,7 +586,7 @@ export enum ParticipantEvent {
    */
   AttributesChanged = 'attributesChanged',
 
-  /** the participant's action catalog changed, args: (actions: [[ActionEntry]][]) */
+  /** the participant's action catalog changed, args: (actions: [[ActionSummary]][]) */
   ActionsChanged = 'actionsChanged',
 
   /**

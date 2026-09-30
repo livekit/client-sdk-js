@@ -1,6 +1,12 @@
 export const ACTIONS_ATTRIBUTE = 'lk.actions';
 export const ACTION_METHOD_PREFIX = 'action:';
+export const DESCRIBE_METHOD = 'lk.actions.describe';
 export const ACTION_DECLINED_CODE = 1710;
+
+export interface ActionSummary {
+  name: string;
+  summary?: string;
+}
 
 export interface ActionEntry {
   name: string;
@@ -16,6 +22,8 @@ export type ActionHandler = (
 ) => unknown | Promise<unknown>;
 
 export interface ActionRegistration extends ActionEntry {
+  /** one line, published in the catalog attribute */
+  summary?: string;
   /** throw an {@link ActionDeclinedError} to decline the call */
   handler: ActionHandler;
 }
@@ -31,7 +39,7 @@ export class ActionDeclinedError extends Error {
   }
 }
 
-export function parseActions(attributes: Readonly<Record<string, string>>): ActionEntry[] {
+export function parseActions(attributes: Readonly<Record<string, string>>): ActionSummary[] {
   try {
     const parsed = JSON.parse(attributes[ACTIONS_ATTRIBUTE] ?? '[]');
     return Array.isArray(parsed) ? parsed : [];

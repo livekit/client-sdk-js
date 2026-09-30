@@ -8,7 +8,7 @@ import {
 import type { SignalClient } from '../../api/SignalClient';
 import { DeferrableMap } from '../../utils/deferrable-map';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
-import { type ActionEntry, parseActions } from '../actions';
+import { type ActionSummary, parseActions } from '../actions';
 import RemoteDataTrack from '../data-track/RemoteDataTrack';
 import type IncomingDataTrackManager from '../data-track/incoming/IncomingDataTrackManager';
 import { DataTrackInfo } from '../data-track/types';
@@ -45,7 +45,7 @@ export default class RemoteParticipant extends Participant {
   signalClient: SignalClient;
 
   /** snapshot of the actions this participant exposes */
-  get actions(): ActionEntry[] {
+  get actions(): ActionSummary[] {
     return parseActions(this.attributes);
   }
 

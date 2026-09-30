@@ -54,7 +54,7 @@ import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
-import type { ActionEntry } from './actions';
+import type { ActionSummary } from './actions';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -2493,7 +2493,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           participant,
         );
       })
-      .on(ParticipantEvent.ActionsChanged, (actions: ActionEntry[]) => {
+      .on(ParticipantEvent.ActionsChanged, (actions: ActionSummary[]) => {
         this.emitWhenConnected(RoomEvent.ParticipantActionsChanged, actions, participant);
       })
       .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
@@ -2760,7 +2760,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.ParticipantAttributesChanged, changedAttributes, this.localParticipant);
   };
 
-  private onLocalActionsChanged = (actions: ActionEntry[]) => {
+  private onLocalActionsChanged = (actions: ActionSummary[]) => {
     this.emit(RoomEvent.ParticipantActionsChanged, actions, this.localParticipant);
   };
 
@@ -3072,7 +3072,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   participantActionsChanged: (
-    actions: ActionEntry[],
+    actions: ActionSummary[],
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;

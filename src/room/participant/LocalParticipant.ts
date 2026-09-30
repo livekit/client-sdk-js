@@ -43,6 +43,7 @@ import {
   type ActionEntry,
   type ActionHandle,
   type ActionRegistration,
+  DESCRIBE_METHOD,
 } from '../actions';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
@@ -184,7 +185,7 @@ export default class LocalParticipant extends Participant {
 
   private rpcServerManager: RpcServerManager;
 
-  private actionCatalog = new Map<string, ActionEntry>();
+  private actionCatalog = new Map<string, { entry: ActionEntry; summary?: string }>();
 
   private pendingSignalRequests: Map<
     number,
@@ -1918,7 +1919,13 @@ export default class LocalParticipant extends Participant {
 
   private publishActions() {
     return this.setAttributes({
-      [ACTIONS_ATTRIBUTE]: JSON.stringify([...this.actionCatalog.values()]),
+      // JSON.stringify drops an undefined summary, so the key is omitted when absent
+      [ACTIONS_ATTRIBUTE]: JSON.stringify(
+        [...this.actionCatalog.values()].map(({ entry, summary }) => ({
+          name: entry.name,
+          summary,
+        })),
+      ),
     });
   }
 
@@ -1926,7 +1933,7 @@ export default class LocalParticipant extends Participant {
     this.publishActions().catch((e) => this.log.warn('failed to republish actions', e));
   }
 
-  async registerAction({ handler, ...entry }: ActionRegistration): Promise<ActionHandle> {
+  async registerAction({ handler, summary, ...entry }: ActionRegistration): Promise<ActionHandle> {
     const method = ACTION_METHOD_PREFIX + entry.name;
     this.rpcServerManager.registerRpcMethod(method, async ({ payload, callerIdentity }) => {
       try {
@@ -1938,15 +1945,36 @@ export default class LocalParticipant extends Participant {
         throw e;
       }
     });
-    this.actionCatalog.set(entry.name, entry);
+    if (this.actionCatalog.size === 0) {
+      this.rpcServerManager.registerRpcMethod(DESCRIBE_METHOD, async ({ payload }) => {
+        const { names } = JSON.parse(payload) as { names: string[] };
+        const actions = names
+          .map((n) => this.actionCatalog.get(n)?.entry)
+          .filter((e) => e !== undefined);
+        return JSON.stringify({ actions });
+      });
+    }
+    this.actionCatalog.set(entry.name, { entry, summary });
     await this.publishActions();
     return {
       unregister: () => {
         this.rpcServerManager.unregisterRpcMethod(method);
         this.actionCatalog.delete(entry.name);
+        if (this.actionCatalog.size === 0) {
+          this.rpcServerManager.unregisterRpcMethod(DESCRIBE_METHOD);
+        }
         this.republishActions();
       },
     };
+  }
+
+  async describeActions(targetIdentity: string, names: string[]): Promise<ActionEntry[]> {
+    const res = await this.performRpc({
+      destinationIdentity: targetIdentity,
+      method: DESCRIBE_METHOD,
+      payload: JSON.stringify({ names }),
+    });
+    return (JSON.parse(res) as { actions: ActionEntry[] }).actions;
   }
 
   async callAction(targetIdentity: string, name: string, args: unknown = {}): Promise<any> {

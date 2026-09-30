@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
-import { ACTIONS_ATTRIBUTE, type ActionEntry, parseActions } from '../actions';
+import { ACTIONS_ATTRIBUTE, type ActionSummary, parseActions } from '../actions';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type LocalVideoTrack from '../track/LocalVideoTrack';
@@ -450,7 +450,7 @@ export type ParticipantEventCallbacks = {
     status: TrackPublication.SubscriptionStatus,
   ) => void;
   attributesChanged: (changedAttributes: Record<string, string>) => void;
-  actionsChanged: (actions: ActionEntry[]) => void;
+  actionsChanged: (actions: ActionSummary[]) => void;
   localTrackSubscribed: (trackPublication: LocalTrackPublication) => void;
   chatMessage: (msg: ChatMessage) => void;
   active: () => void;

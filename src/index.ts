@@ -71,6 +71,7 @@ export {
   type ActionHandle,
   type ActionHandler,
   type ActionRegistration,
+  type ActionSummary,
 } from './room/actions';
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
 export type {
