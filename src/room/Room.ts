@@ -54,6 +54,7 @@ import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
 import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
+import type { ActionEntry } from './actions';
 import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
 import {
   type ByteStreamHandler,
@@ -1559,6 +1560,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .on(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
       .on(ParticipantEvent.AttributesChanged, this.onLocalAttributesChanged)
+      .on(ParticipantEvent.ActionsChanged, this.onLocalActionsChanged)
       .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
       .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
       .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -1871,6 +1873,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
         .off(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
         .off(ParticipantEvent.AttributesChanged, this.onLocalAttributesChanged)
+        .off(ParticipantEvent.ActionsChanged, this.onLocalActionsChanged)
         .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
         .off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
         .off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -2490,6 +2493,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           participant,
         );
       })
+      .on(ParticipantEvent.ActionsChanged, (actions: ActionEntry[]) => {
+        this.emitWhenConnected(RoomEvent.ParticipantActionsChanged, actions, participant);
+      })
       .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
         this.emitWhenConnected(RoomEvent.ConnectionQualityChanged, quality, participant);
       })
@@ -2752,6 +2758,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalAttributesChanged = (changedAttributes: Record<string, string>) => {
     this.emit(RoomEvent.ParticipantAttributesChanged, changedAttributes, this.localParticipant);
+  };
+
+  private onLocalActionsChanged = (actions: ActionEntry[]) => {
+    this.emit(RoomEvent.ParticipantActionsChanged, actions, this.localParticipant);
   };
 
   private onLocalTrackMuted = (pub: TrackPublication) => {
@@ -3059,6 +3069,10 @@ export type RoomEventCallbacks = {
   ) => void;
   participantAttributesChanged: (
     changedAttributes: Record<string, string>,
+    participant: RemoteParticipant | LocalParticipant,
+  ) => void;
+  participantActionsChanged: (
+    actions: ActionEntry[],
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;

@@ -65,6 +65,13 @@ import {
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
 
+export {
+  ActionDeclinedError,
+  type ActionEntry,
+  type ActionHandle,
+  type ActionHandler,
+  type ActionRegistration,
+} from './room/actions';
 export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/rpc';
 export type {
   FrameMetadata,

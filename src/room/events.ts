@@ -204,6 +204,12 @@ export enum RoomEvent {
   ParticipantAttributesChanged = 'participantAttributesChanged',
 
   /**
+   * A participant's published action catalog changed.
+   * args: (actions: [[ActionEntry]][], participant: [[Participant]])
+   */
+  ParticipantActionsChanged = 'participantActionsChanged',
+
+  /**
    * Emitted when the participant's state changes to ACTIVE and is ready to send/receive data messages
    *
    * args: (participant: [[Participant]])
@@ -579,6 +585,9 @@ export enum ParticipantEvent {
    * args: (changedAttributes: [[Record<string, string]])
    */
   AttributesChanged = 'attributesChanged',
+
+  /** the participant's action catalog changed, args: (actions: [[ActionEntry]][]) */
+  ActionsChanged = 'actionsChanged',
 
   /**
    * fired on local participant only, when the first remote participant has subscribed to the track specified in the payload

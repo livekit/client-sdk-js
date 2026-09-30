@@ -35,6 +35,15 @@ import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
+import {
+  ACTIONS_ATTRIBUTE,
+  ACTION_DECLINED_CODE,
+  ACTION_METHOD_PREFIX,
+  ActionDeclinedError,
+  type ActionEntry,
+  type ActionHandle,
+  type ActionRegistration,
+} from '../actions';
 import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
 import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import LocalDataTrack from '../data-track/LocalDataTrack';
@@ -175,6 +184,8 @@ export default class LocalParticipant extends Participant {
 
   private rpcServerManager: RpcServerManager;
 
+  private actionCatalog = new Map<string, ActionEntry>();
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -289,6 +300,9 @@ export default class LocalParticipant extends Participant {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
     this.updateTrackSubscriptionPermissions();
+    if (this.actionCatalog.size > 0) {
+      this.republishActions();
+    }
   };
 
   private handleClosing = () => {
@@ -1900,6 +1914,55 @@ export default class LocalParticipant extends Participant {
     return this.rpcClientManager.performRpc(params).then(([_id, completionPromise]) => {
       return completionPromise;
     });
+  }
+
+  private publishActions() {
+    return this.setAttributes({
+      [ACTIONS_ATTRIBUTE]: JSON.stringify([...this.actionCatalog.values()]),
+    });
+  }
+
+  private republishActions() {
+    this.publishActions().catch((e) => this.log.warn('failed to republish actions', e));
+  }
+
+  async registerAction({ handler, ...entry }: ActionRegistration): Promise<ActionHandle> {
+    const method = ACTION_METHOD_PREFIX + entry.name;
+    this.rpcServerManager.registerRpcMethod(method, async ({ payload, callerIdentity }) => {
+      try {
+        return JSON.stringify(await handler(JSON.parse(payload), { callerIdentity }));
+      } catch (e) {
+        if (e instanceof ActionDeclinedError) {
+          throw new RpcError(ACTION_DECLINED_CODE, e.message);
+        }
+        throw e;
+      }
+    });
+    this.actionCatalog.set(entry.name, entry);
+    await this.publishActions();
+    return {
+      unregister: () => {
+        this.rpcServerManager.unregisterRpcMethod(method);
+        this.actionCatalog.delete(entry.name);
+        this.republishActions();
+      },
+    };
+  }
+
+  async callAction(targetIdentity: string, name: string, args: unknown = {}): Promise<any> {
+    try {
+      const res = await this.performRpc({
+        destinationIdentity: targetIdentity,
+        method: ACTION_METHOD_PREFIX + name,
+        payload: JSON.stringify(args),
+      });
+      return JSON.parse(res);
+    } catch (e) {
+      if (e instanceof RpcError && e.code === ACTION_DECLINED_CODE) {
+        throw new ActionDeclinedError(e.message);
+      }
+      throw e;
+    }
   }
 
   /**
