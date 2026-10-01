@@ -1,5 +1,6 @@
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { DataPacketBuffer } from '../../utils/dataPacketBuffer';
+import { UnexpectedConnectionState } from '../errors';
 import {
   FlowControlledDataChannel,
   type FlowControlledDataChannelOptions,
@@ -58,8 +59,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       return;
     }
 
-    const dc = this.getChannel();
-    if (!dc) {
+    if (!this.getChannel()) {
       return;
     }
 
@@ -83,6 +83,15 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       return;
     }
 
+    // Resolve the handle only now: it can be replaced while this send is queued on the headroom
+    // lock (queued, not parked, so the replacement doesn't reject it), and the one resolved
+    // before the wait would then be the abandoned channel.
+    const dc = this.getChannel();
+    if (!dc) {
+      this.messageBuffer.push({ data: msg, sequence, sent: false });
+      return;
+    }
+
     this.messageBuffer.push({ data: msg, sequence, sent: true });
     dc.send(msg);
     this.refreshBufferStatus();
@@ -96,8 +105,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
    * receivers would then discard the remaining lower-sequence resent messages as duplicates.
    */
   async replay(lastMessageSeq: number) {
-    const dc = this.getChannel();
-    if (!dc) {
+    if (!this.getChannel()) {
       return;
     }
     this.messageBuffer.popToSequence(lastMessageSeq);
@@ -119,6 +127,11 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
           await this.waitForHeadroomWithoutLock();
+          // Resolved per message: the handle can be replaced while the replay waits on the lock.
+          const dc = this.getChannel();
+          if (!dc) {
+            throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+          }
           dc.send(item.data);
           this.messageBuffer.markSent(item);
         }

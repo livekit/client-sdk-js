@@ -77,6 +77,29 @@ describe('ReliableDataChannel', () => {
     expect(buffer.getAll()[0].sent).toBe(false);
   });
 
+  it('sends on the replacement handle when the channel is replaced while a send is queued on the lock', async () => {
+    const { channel, dc: oldDc, buffer } = makeChannel();
+    oldDc.bufferedAmount = 2048; // above high mark → the first send parks
+    const parked = channel.send(new Uint8Array([1]), channel.nextSequence());
+    // Queues behind the parked send on the headroom lock; replacing the handle rejects only the
+    // parked waiter, so this one proceeds once the lock frees.
+    const queuedMsg = new Uint8Array([2]);
+    const queued = channel.send(queuedMsg, channel.nextSequence());
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+
+    await expect(parked).resolves.toBeUndefined(); // queued unsent for the replay
+    await expect(queued).resolves.toBeUndefined();
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).toHaveBeenCalledWith(queuedMsg);
+    expect(buffer.getAll().map(({ sequence, sent }) => ({ sequence, sent }))).toEqual([
+      { sequence: 1, sent: false },
+      { sequence: 2, sent: true },
+    ]);
+  });
+
   it('rejects when the engine is closed while waiting', async () => {
     const { channel, dc, state } = makeChannel();
     dc.bufferedAmount = 2048;
@@ -133,6 +156,24 @@ describe('ReliableDataChannel', () => {
     // sent without sending it, and a later align would then strand it.
     expect(dc.send.mock.calls.map(([d]) => d[0])).toEqual([1, 2]);
     expect(buffer.getAll().filter((i) => !i.sent)).toHaveLength(0);
+  });
+
+  it('replays on the replacement handle when the channel is replaced while replay waits for the lock', async () => {
+    const { channel, dc: oldDc } = makeChannel();
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    oldDc.send.mockClear();
+
+    const unlock = await channel.lockHeadroom();
+    const replay = channel.replay(0);
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+    unlock();
+    await replay;
+
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).toHaveBeenCalledTimes(1);
   });
 
   it('holds the headroom lock across the whole replay so new sends cannot interleave', async () => {
