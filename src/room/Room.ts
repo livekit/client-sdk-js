@@ -1374,7 +1374,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         track.enabled = true;
         const stream = new MediaStream([track]);
         dummyAudioEl.srcObject = stream;
-        document.addEventListener('visibilitychange', () => {
+        const onVisibilityChange = () => {
           if (!dummyAudioEl) {
             return;
           }
@@ -1386,9 +1386,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             );
             this.startAudio();
           }
-        });
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
         document.body.append(dummyAudioEl);
         this.once(RoomEvent.Disconnected, () => {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
           dummyAudioEl?.remove();
           dummyAudioEl = null;
         });
@@ -1908,7 +1910,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
         window.removeEventListener('freeze', this.onPageLeave);
-        navigator.mediaDevices?.removeEventListener?.('devicechange', this.handleDeviceChange);
       }
     } finally {
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
