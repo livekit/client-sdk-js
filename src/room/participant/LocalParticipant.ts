@@ -30,6 +30,7 @@ import {
   isFrameMetadataSupported,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
+import { telemetry } from '../../telemetry';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
@@ -778,7 +779,33 @@ export default class LocalParticipant extends Participant {
    * @param options
    */
   async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
-    return this.publishOrRepublishTrack(track, options);
+    return this.publishSpanned(track, options, false);
+  }
+
+  /** One `lk.publish` span per attempt, republishes included; nested under the open connect/reconnect span, when any. */
+  private async publishSpanned(
+    track: LocalTrack | MediaStreamTrack,
+    options: TrackPublishOptions | undefined,
+    isRepublish: boolean,
+  ) {
+    const scope = telemetry.scopeOf(this);
+    const span = scope?.start('lk.publish', {
+      parent: scope.uplink(),
+      attributes: {
+        'lk.track.kind': track.kind,
+        'lk.track.source': 'source' in track ? track.source : undefined,
+      },
+    });
+    try {
+      const publication = await this.publishOrRepublishTrack(track, options, isRepublish);
+      span?.setAttribute('lk.track.sid', publication.trackSid);
+      span?.setAttribute('lk.track.source', publication.source);
+      span?.end('ok');
+      return publication;
+    } catch (error) {
+      span?.fail(error);
+      throw error;
+    }
   }
 
   /**
@@ -1721,7 +1748,7 @@ export default class LocalParticipant extends Participant {
               this.log.debug('restarting existing track', { track: pub.trackSid });
               await track.restartTrack();
             }
-            await this.publishOrRepublishTrack(track, pub.options, true);
+            await this.publishSpanned(track, pub.options, true);
           }),
         );
         resolve();

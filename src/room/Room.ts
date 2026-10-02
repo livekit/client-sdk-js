@@ -14,6 +14,7 @@ import {
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
+  ReconnectReason,
   Room as RoomModel,
   ServerInfo,
   SimulateScenario,
@@ -39,13 +40,21 @@ import { EncryptionEvent } from '../e2ee';
 import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import { FrameMetadataManager } from '../frameMetadata/FrameMetadataManager';
 import { isFrameMetadataSupported } from '../frameMetadata/utils';
-import log, { LoggerNames, getLogger } from '../logger';
+import log, { LOG_OWNER, LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
   InternalRoomOptions,
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
+import {
+  type SpanTrack,
+  type StatsPoller,
+  type TelemetryScope,
+  type TrackRef,
+  disconnectReasonName,
+  telemetry,
+} from '../telemetry';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
@@ -101,7 +110,7 @@ import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
-import type { TrackPublication } from './track/TrackPublication';
+import { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
@@ -199,6 +208,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void, Error>;
+
+  /** This room's telemetry session: one trace id for the room's lifetime, across connects. */
+  private readonly telemetry: TelemetryScope;
+
+  /** The weak carrier of the scope for this Room's log contexts. */
+  private telemetryRef: WeakRef<TelemetryScope> | undefined;
+
+  /** One `getStats()` per peer connection, paced by telemetry; runs only while connected. */
+  private statsPoller: StatsPoller;
 
   private disconnectLock: Mutex;
 
@@ -365,6 +383,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.rpcClientManager,
       this.rpcServerManager,
     );
+    this.telemetry = telemetry.scope();
+    telemetry.bind(this, this.telemetry);
+    telemetry.bind(this.localParticipant, this.telemetry);
+    this.telemetryRef = telemetry.carrier(this.telemetry);
+    this.statsPoller = telemetry.poller(this.telemetry, {
+      peers: () => [this.engine?.pcManager?.publisher, this.engine?.pcManager?.subscriber],
+      tracks: () => this.telemetryTracks(),
+    });
 
     this.setupFrameMetadata();
 
@@ -549,6 +575,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       roomID: this.roomInfo?.sid,
       participant: this.localParticipant?.identity,
       participantID: this.localParticipant?.sid,
+      [LOG_OWNER]: this.telemetryRef, // telemetry files the line under this Room by identity, not by name
     };
   }
 
@@ -611,6 +638,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.logOwner = () => this.telemetryRef;
     this.engine.e2eeManager = this.e2eeManager;
 
     this.engine
@@ -632,7 +660,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
-      .on(EngineEvent.Resuming, () => {
+      .on(EngineEvent.Resuming, (reason?: ReconnectReason) => {
+        this.telemetry.reconnectAttempt('quick', reason);
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.debug('Resuming signal connection');
@@ -641,6 +670,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Resumed, () => {
+        this.telemetry.reconnectEnded('ok');
         this.registerConnectionReconcile();
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
@@ -672,6 +702,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.RoomMoved, (roomMoved) => {
         this.log.debug('room moved', roomMoved);
+        if (roomMoved.token) {
+          this.telemetry.refreshToken(roomMoved.token);
+        }
+        this.telemetry.setRoom({ participantSid: roomMoved.participant?.sid });
 
         if (roomMoved.room) {
           this.handleRoomUpdate(roomMoved.room);
@@ -749,7 +783,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.TokenRefreshed, (token) => {
         this.regionUrlProvider?.updateToken(token);
+        this.telemetry.refreshToken(token);
       })
+      .on(EngineEvent.SignalOpened, () => {
+        // The join request goes out on the open socket; its answer is `join_recv`.
+        this.telemetry.connectStep('ws_open');
+        this.telemetry.connectStep('signal');
+      })
+      .on(EngineEvent.TransportsCreated, () => this.telemetry.connectStep('pc_created'))
       .on(EngineEvent.ServerRegionsReported, (regions) => {
         this.regionUrlProvider?.setServerReportedRegions({
           regionSettings: regions,
@@ -858,6 +899,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
+    this.telemetry.connectStarted(url, token);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
       this.regionUrl = undefined;
       this.regionUrlProvider = undefined;
@@ -923,6 +965,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               (regionFetchError.status === 401 ||
                 regionFetchError.reason === ConnectionErrorReason.Cancelled)
             ) {
+              this.endConnectSpan(regionFetchError);
               this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
               reject(regionFetchError);
               return;
@@ -946,6 +989,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine(true);
             await connectFn(resolve, reject, nextUrl);
           } else {
+            this.endConnectSpan(error);
             this.handleDisconnect(
               this.options.stopLocalTrackOnUnpublish,
               getDisconnectReasonFromConnectionError(error),
@@ -957,6 +1001,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           if (error instanceof ConnectionError) {
             disconnectReason = getDisconnectReasonFromConnectionError(error);
           }
+          this.endConnectSpan(error);
           this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
           reject(error);
         }
@@ -1022,6 +1067,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
+    this.telemetry.setRoom({ participantSid: pi.sid, participantIdentity: pi.identity });
     this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
     if (this.e2eeManager) {
@@ -1040,6 +1086,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
+    // Tracks already in the room: the intent to subscribe exists from the join (SPEC `lk.subscribe`).
+    this.remoteParticipants.forEach((participant) =>
+      participant.trackPublications.forEach((pub) => {
+        if (pub.isDesired && !pub.isSubscribed) {
+          this.telemetry.subscribeStarted(this.telemetryTrack(pub, participant));
+        }
+      }),
+    );
   };
 
   private attemptConnection = async (
@@ -1084,6 +1138,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options,
         abortController,
       );
+      this.telemetry.connectStep('join_recv');
 
       this.applyJoinResponse(joinResponse);
       // forward metadata changed for the local participant
@@ -1121,6 +1176,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
+      this.telemetry.connectStep('pc_connected');
     } catch (e) {
       await this.engine.close();
       this.recreateEngine();
@@ -1137,6 +1193,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.telemetry.connectStep('room_connected');
+    this.telemetry.connectEnded('ok');
+    this.statsPoller.start();
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1781,7 +1840,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emitWhenConnected(RoomEvent.LocalTrackSubscribed, trackPublication, this.localParticipant);
   }
 
-  private handleRestarting = () => {
+  private handleRestarting = (reason?: ReconnectReason) => {
+    this.telemetry.reconnectAttempt('full', reason);
     this.clearConnectionReconcile();
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
@@ -1824,10 +1884,58 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.telemetry.reconnectEnded('ok');
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
     this.emitBufferedEvents();
   };
+
+  private endConnectSpan(error: unknown) {
+    const cancelled =
+      error instanceof ConnectionError && error.reason === ConnectionErrorReason.Cancelled;
+    this.telemetry.connectEnded(cancelled ? 'cancelled' : 'error', error);
+  }
+
+  /** @internal `MediaStreamTrack` id → the room's published and subscribed tracks, for the stats poller. */
+  private telemetryTracks(): Map<string, TrackRef> {
+    const tracks = new Map<string, TrackRef>();
+    const add = (pub: TrackPublication, direction: TrackRef['direction']) => {
+      const kind = pub.kind === Track.Kind.Audio ? 'audio' : 'video';
+      if (pub.track)
+        tracks.set(pub.track.mediaStreamTrack.id, { sid: pub.trackSid, kind, direction });
+    };
+    this.localParticipant.trackPublications.forEach((pub) => add(pub, 'outbound'));
+    this.remoteParticipants.forEach((p) =>
+      p.trackPublications.forEach((pub) => add(pub, 'inbound')),
+    );
+    return tracks;
+  }
+
+  private telemetryTrack(pub: RemoteTrackPublication, participant: RemoteParticipant): SpanTrack {
+    return {
+      sid: pub.trackSid,
+      kind: pub.kind === Track.Kind.Audio ? 'audio' : 'video',
+      source: pub.source,
+      remoteIdentity: participant.identity,
+    };
+  }
+
+  /**
+   * Reports an app-defined telemetry event under this room's session, exported as `custom.<name>`.
+   * Names and keys up to 128 bytes, string values up to 1024 bytes, 64 attributes at most; anything
+   * over a limit, or an `lk.*` key, is dropped and counted, never truncated.
+   */
+  emitTelemetryEvent(name: string, attributes: Record<string, string> = {}): void {
+    this.telemetry.emitCustom(name, attributes);
+  }
+
+  /**
+   * Sets a correlation attribute (`app.call_id`, `enduser.id`, …) carried by this room's subsequent
+   * telemetry records; `null` removes it. Same limits as {@link emitTelemetryEvent}.
+   */
+  setTelemetryAttribute(key: string, value: string | null): void {
+    this.telemetry.setAttribute(key, value);
+  }
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
@@ -1840,6 +1948,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+
+    // An engine that gave up reconnecting reports no reason of its own (SPEC `reconnect_failed`).
+    const gaveUp = reason === undefined && this.telemetry.reconnecting;
+    const clientInitiated = reason === DisconnectReason.CLIENT_INITIATED;
+    const cause = gaveUp ? 'reconnect_failed' : disconnectReasonName(reason);
+    this.statsPoller.stop();
+    this.telemetry.connectEnded(clientInitiated ? 'cancelled' : 'error', cause);
+    this.telemetry.reconnectEnded(clientInitiated ? 'cancelled' : 'error', cause);
+    this.telemetry.disconnected(reason, gaveUp ? cause : undefined);
 
     this.regionUrl = undefined;
 
@@ -2328,6 +2445,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleRoomUpdate = (room: RoomModel) => {
     const oldRoom = this.roomInfo;
     this.roomInfo = room;
+    this.telemetry.setRoom({ sid: room.sid, name: room.name });
     if (oldRoom && oldRoom.metadata !== room.metadata) {
       this.emitWhenConnected(RoomEvent.RoomMetadataChanged, room.metadata);
     }
@@ -2445,6 +2563,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // and remote participant joined the room
     participant
       .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
+        if (trackPublication.isDesired) {
+          this.telemetry.subscribeStarted(this.telemetryTrack(trackPublication, participant));
+        }
         this.emitWhenConnected(RoomEvent.TrackPublished, trackPublication, participant);
       })
       .on(
@@ -2458,16 +2579,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
             track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
+          this.telemetry.subscribed(this.telemetryTrack(publication, participant));
           this.emitWhenConnected(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
         this.cancelPendingTrackAdded(publication.trackSid);
+        this.telemetry.trackEnded(publication.trackSid);
         this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
         ParticipantEvent.TrackUnsubscribed,
         (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          this.telemetry.trackEnded(publication.trackSid);
           this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
         },
       )
@@ -2504,9 +2628,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackSubscriptionStatusChanged, (pub, status) => {
+        // A manual `setSubscribed(true)` is an intent; `setSubscribed(false)` before media ends it.
+        if (status === TrackPublication.SubscriptionStatus.Desired) {
+          this.telemetry.subscribeStarted(this.telemetryTrack(pub, participant));
+        } else if (status === TrackPublication.SubscriptionStatus.Unsubscribed) {
+          this.telemetry.trackEnded(pub.trackSid);
+        }
         this.emitWhenConnected(RoomEvent.TrackSubscriptionStatusChanged, pub, status, participant);
       })
       .on(ParticipantEvent.TrackSubscriptionFailed, (trackSid, error) => {
+        this.telemetry.subscribeFailed(
+          trackSid,
+          (SubscriptionError[error ?? SubscriptionError.SE_UNKNOWN] ?? 'SE_UNKNOWN')
+            .replace(/^SE_/, '')
+            .toLowerCase(),
+        );
         this.emit(RoomEvent.TrackSubscriptionFailed, trackSid, participant, error);
       })
       .on(ParticipantEvent.TrackSubscriptionPermissionChanged, (pub, status) => {
@@ -2770,6 +2906,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.track?.on(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
     pub.track?.on(TrackEvent.Restarted, this.onLocalTrackRestarted);
     pub.track?.getProcessor()?.onPublish?.(this);
+    this.telemetry.trackPublished(pub.trackSid);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
 
@@ -2794,6 +2931,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
     pub.track?.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
     pub.track?.off(TrackEvent.Restarted, this.onLocalTrackRestarted);
+    this.telemetry.trackEnded(pub.trackSid);
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
   };
 
@@ -2816,6 +2954,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private onMediaDevicesError = (e: Error, kind?: MediaDeviceKind) => {
+    telemetry.captureFailed(e, kind === 'videoinput' ? 'camera' : 'microphone');
     this.emit(RoomEvent.MediaDevicesError, e, kind);
   };
 
