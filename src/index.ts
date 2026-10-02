@@ -201,3 +201,12 @@ export {
   type SerializerOutput,
   serializers,
 } from './utils/serializer';
+
+export { disableTelemetry } from './telemetry';
+// @internal: the one seam a non-browser host (React Native) wires; not public API.
+export {
+  configureTelemetryHost,
+  type TelemetryHost,
+  type TelemetryStorage,
+  type DeviceState as TelemetryDeviceState,
+} from './telemetry';
