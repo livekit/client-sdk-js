@@ -633,6 +633,7 @@ export enum EngineEvent {
   Joined = 'joined',
   TokenRefreshed = 'tokenRefreshed',
   ServerRegionsReported = 'serverRegionsReported',
+  RequestSubscribedCodecRefresh = 'requestSubscribedCodecRefresh',
 }
 
 export enum TrackEvent {
