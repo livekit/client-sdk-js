@@ -46,7 +46,7 @@ export class LossyDataChannel extends FlowControlledDataChannel {
 
   /** Sends prepared bytes with this channel's full-buffer policy (drop or wait). */
   async send(msg: NonSharedUint8Array) {
-    const dc = this.getChannel();
+    let dc = this.getChannel();
     if (!dc) {
       return;
     }
@@ -56,6 +56,11 @@ export class LossyDataChannel extends FlowControlledDataChannel {
       case 'wait':
         if (!this.isBelowHighWaterMark(dc)) {
           await this.waitForHeadroomWithLock();
+          // The handle can be replaced while this send is queued on the lock; re-resolve it.
+          dc = this.getChannel();
+          if (!dc) {
+            return;
+          }
         }
         break;
       case 'drop':
