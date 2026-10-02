@@ -1,6 +1,8 @@
 import {
   ClientInfo_Capability,
   JoinResponse,
+  ParticipantInfo,
+  ParticipantInfo_State,
   StreamState as ProtoStreamState,
   StreamStateUpdate,
   SubscriptionError,
@@ -319,5 +321,116 @@ describe('stream state updates', () => {
 
     expect(roomEvents).not.toHaveBeenCalled();
     expect(participantEvents).not.toHaveBeenCalled();
+  });
+});
+
+describe('participant roster reconciliation after resume', () => {
+  const rooms: Room[] = [];
+
+  afterEach(() => {
+    while (rooms.length > 0) {
+      const room = rooms.pop()!;
+      // the Resumed handler starts a reconcile interval; don't leak it across tests
+      (room as unknown as { clearConnectionReconcile(): void }).clearConnectionReconcile();
+    }
+  });
+
+  function info(identity: string) {
+    return new ParticipantInfo({
+      sid: `PA_${identity}`,
+      identity,
+      state: ParticipantInfo_State.ACTIVE,
+    });
+  }
+
+  function pushUpdate(room: Room, ...infos: ParticipantInfo[]) {
+    room.engine.emit(EngineEvent.ParticipantUpdate, infos);
+  }
+
+  /** A connected room with the given remote participants already in the roster. */
+  function setupConnectedRoom(...identities: string[]) {
+    const room = new Room();
+    rooms.push(room);
+    room.state = ConnectionState.Connected;
+    pushUpdate(room, ...identities.map(info));
+    expect([...room.remoteParticipants.keys()]).toEqual(identities);
+    return room;
+  }
+
+  it('removes participants that left while the signal connection was down', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    const disconnected = vi.fn();
+    room.on(RoomEvent.ParticipantDisconnected, disconnected);
+
+    room.engine.emit(EngineEvent.Resuming);
+    // server replays the full roster after the ReconnectResponse — bob left while we were down
+    pushUpdate(room, info('alice'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice']);
+    expect(disconnected).toHaveBeenCalledTimes(1);
+    expect(disconnected.mock.calls[0][0].identity).toBe('bob');
+  });
+
+  it('accumulates identities across updates interleaved during the resume', () => {
+    const room = setupConnectedRoom('alice', 'bob', 'carol');
+
+    room.engine.emit(EngineEvent.Resuming);
+    // the roster snapshot can arrive split across several batched updates
+    pushUpdate(room, info('alice'));
+    pushUpdate(room, info('bob'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
+  });
+
+  it('keeps participants that joined during the resume', () => {
+    const room = setupConnectedRoom('alice');
+
+    room.engine.emit(EngineEvent.Resuming);
+    pushUpdate(room, info('alice'), info('dave'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'dave']);
+  });
+
+  it('emits ParticipantDisconnected before Reconnected', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    const order: string[] = [];
+    room.on(RoomEvent.ParticipantDisconnected, (p) => order.push(`disconnected:${p.identity}`));
+    room.on(RoomEvent.Reconnected, () => order.push('reconnected'));
+
+    room.engine.emit(EngineEvent.Resuming);
+    pushUpdate(room, info('alice'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect(order).toEqual(['disconnected:bob', 'reconnected']);
+  });
+
+  it('does not reconcile against updates received outside of a resume', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    // a routine partial update (e.g. alice changed metadata) must not evict bob
+    pushUpdate(room, info('alice'));
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
+  });
+
+  it('does not evict participants when the resume escalates to a full reconnect', () => {
+    const room = setupConnectedRoom('alice', 'bob');
+
+    room.engine.emit(EngineEvent.Resuming);
+    pushUpdate(room, info('alice'));
+    // resume failed; the engine falls back to a full reconnect, which rebuilds from the
+    // JoinResponse instead — the abandoned resume's roster must not be applied later
+    room.engine.emit(EngineEvent.Restarting);
+    expect(room.remoteParticipants.size).toBe(0);
+
+    pushUpdate(room, info('alice'), info('bob'));
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
   });
 });
