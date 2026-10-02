@@ -110,6 +110,7 @@ export type {
   ByteStreamInfo,
 } from './room/types';
 export * from './version';
+export { ParticipantAgentAttributes } from './room/participant/attributes';
 export {
   /** @internal */
   attributes,
