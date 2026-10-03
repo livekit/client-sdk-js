@@ -9,6 +9,10 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
@@ -907,18 +911,15 @@ describe('IncomingDataStreamManager', () => {
       expect(await reader.readAll()).toStrictEqual(text);
     });
 
-    it(`should ignore a v2 TEXT data stream with compression if DecompressionStream doesn't exist`, async () => {
+    it.each([
+      [`DecompressionStream doesn't exist`, stubMissingCompressionStreams],
+      [`deflate-raw isn't a supported format`, stubMissingDeflateRawSupport],
+    ])(`should ignore a v2 TEXT data stream with compression if %s`, async (_label, stub) => {
       const text = 'hello world';
       const compressed = await deflateRawCompress(new TextEncoder().encode(text));
 
-      let originalCompressionStream: typeof CompressionStream,
-        originalDecompressionStream: typeof DecompressionStream;
+      const restoreCompressionStreams = stub();
       try {
-        originalCompressionStream = CompressionStream;
-        (globalThis as any).CompressionStream = undefined;
-        originalDecompressionStream = DecompressionStream;
-        (globalThis as any).DecompressionStream = undefined;
-
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
 
@@ -977,23 +978,19 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream!;
-        (globalThis as any).DecompressionStream = originalDecompressionStream!;
+        restoreCompressionStreams();
       }
     });
 
-    it(`should ignore a v2 BYTES data stream with compression if DecompressionStream doesn't exist`, async () => {
+    it.each([
+      [`DecompressionStream doesn't exist`, stubMissingCompressionStreams],
+      [`deflate-raw isn't a supported format`, stubMissingDeflateRawSupport],
+    ])(`should ignore a v2 BYTES data stream with compression if %s`, async (_label, stub) => {
       const bytes = new Uint8Array([0x01, 0x02, 0x03]);
       const compressed = await deflateRawCompress(bytes);
 
-      let originalCompressionStream: typeof CompressionStream,
-        originalDecompressionStream: typeof DecompressionStream;
+      const restoreCompressionStreams = stub();
       try {
-        originalCompressionStream = CompressionStream;
-        (globalThis as any).CompressionStream = undefined;
-        originalDecompressionStream = DecompressionStream;
-        (globalThis as any).DecompressionStream = undefined;
-
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
 
@@ -1052,8 +1049,7 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream!;
-        (globalThis as any).DecompressionStream = originalDecompressionStream!;
+        restoreCompressionStreams();
       }
     });
 

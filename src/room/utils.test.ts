@@ -1,15 +1,22 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../test/compressionStreamStubs';
 import { getBrowser } from '../utils/browserParser';
 import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isAppleMobile,
+  isCompressionStreamSupported,
+  isDeflateRawCompressionSupported,
   isIPadOS,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
+  resetDeflateRawCompressionSupportCache,
   splitUtf8,
   supportsAdaptiveStream,
   toWebsocketUrl,
@@ -439,5 +446,48 @@ describe('isIPadOS / isAppleMobile', () => {
   it('does not fire on a desktop safari reporting no touch support', () => {
     stub(MAC_SAFARI_UA, 1);
     expect(isIPadOS()).toBe(false);
+  });
+});
+
+describe('isDeflateRawCompressionSupported', () => {
+  afterEach(() => {
+    resetDeflateRawCompressionSupportCache();
+  });
+
+  it('is true in a runtime that supports the deflate-raw format', () => {
+    expect(isDeflateRawCompressionSupported()).toBe(true);
+  });
+
+  it('is false without the compression streams api at all', () => {
+    const restoreCompressionStreams = stubMissingCompressionStreams();
+    try {
+      expect(isDeflateRawCompressionSupported()).toBe(false);
+      expect(isCompressionStreamSupported()).toBe(false);
+    } finally {
+      restoreCompressionStreams();
+    }
+  });
+
+  it('is false when the api exists but deflate-raw is not a supported format', () => {
+    const restoreCompressionStreams = stubMissingDeflateRawSupport();
+    try {
+      expect(isDeflateRawCompressionSupported()).toBe(false);
+      // Chromium 80-102 still compresses gzip, which is all the wrapped join request needs.
+      expect(isCompressionStreamSupported()).toBe(true);
+    } finally {
+      restoreCompressionStreams();
+    }
+  });
+
+  it('probes the runtime only once', () => {
+    expect(isDeflateRawCompressionSupported()).toBe(true);
+
+    const originalCompressionStream = globalThis.CompressionStream;
+    try {
+      (globalThis as any).CompressionStream = undefined;
+      expect(isDeflateRawCompressionSupported()).toBe(true);
+    } finally {
+      (globalThis as any).CompressionStream = originalCompressionStream;
+    }
   });
 });

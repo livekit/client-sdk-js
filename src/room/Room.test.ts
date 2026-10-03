@@ -10,6 +10,7 @@ import {
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
+import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
 import Room, { ConnectionState } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
@@ -46,8 +47,8 @@ describe('Active device switch', () => {
 });
 
 describe('Room signaling options', () => {
-  it('advertises packet trailer capability when E2EE can handle trailers', async () => {
-    const room = new Room();
+  /** Drives `connectSignal` with E2EE enabled against a stub engine, returning the `join` mock. */
+  async function connectSignalWithE2EE(room: Room) {
     const join = vi.fn().mockResolvedValue({
       joinResponse: new JoinResponse({
         room: { name: 'test-room', sid: 'room-sid' },
@@ -91,19 +92,44 @@ describe('Room signaling options', () => {
       new AbortController(),
     );
 
+    return join;
+  }
+
+  function expectCapabilities(
+    join: ReturnType<typeof vi.fn>,
+    clientInfoCapabilities: Array<ClientInfo_Capability>,
+  ) {
     expect(join).toHaveBeenCalledWith(
       'wss://test.livekit.io',
       'test-token',
       expect.objectContaining({
-        clientInfoCapabilities: [
-          ClientInfo_Capability.CAP_PACKET_TRAILER,
-          ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW,
-        ],
+        clientInfoCapabilities,
         e2eeEnabled: true,
       }),
       expect.any(AbortSignal),
       false,
     );
+  }
+
+  it('advertises packet trailer capability when E2EE can handle trailers', async () => {
+    const join = await connectSignalWithE2EE(new Room());
+
+    expectCapabilities(join, [
+      ClientInfo_Capability.CAP_PACKET_TRAILER,
+      ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW,
+    ]);
+  });
+
+  it('does not advertise deflate-raw compression when the runtime cannot decompress it', async () => {
+    const restoreCompressionStreams = stubMissingDeflateRawSupport();
+    try {
+      const join = await connectSignalWithE2EE(new Room());
+
+      // Otherwise peers would compress what they send us and we'd have to drop it.
+      expectCapabilities(join, [ClientInfo_Capability.CAP_PACKET_TRAILER]);
+    } finally {
+      restoreCompressionStreams();
+    }
   });
 });
 
