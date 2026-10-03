@@ -18,6 +18,12 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
   private isKrispNoiseFilterEnabled = false;
 
+  /**
+   * the processed track we currently have krisp feature listeners registered on. Tracked
+   * separately, as `processor.processedTrack` can be swapped out while we hold the listeners.
+   */
+  private observedProcessedTrack?: MediaStreamTrack;
+
   protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
 
   /**
@@ -184,6 +190,44 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     );
   };
 
+  /**
+   * registers the krisp feature listeners on the given processed track, moving them over from
+   * a previously observed one. Passing `undefined` just removes the existing listeners.
+   */
+  private observeProcessedTrack(processedTrack: MediaStreamTrack | undefined) {
+    if (this.observedProcessedTrack === processedTrack) {
+      return;
+    }
+    if (this.observedProcessedTrack) {
+      this.observedProcessedTrack.removeEventListener(
+        'enable-lk-krisp-noise-filter',
+        this.handleKrispNoiseFilterEnable,
+      );
+      this.observedProcessedTrack.removeEventListener(
+        'disable-lk-krisp-noise-filter',
+        this.handleKrispNoiseFilterDisable,
+      );
+      this.observedProcessedTrack = undefined;
+      if (this.isKrispNoiseFilterEnabled) {
+        // we're no longer observing the track that had the filter enabled, so the feature
+        // can't be active anymore. Make sure the state doesn't get stuck on `true`.
+        this.handleKrispNoiseFilterDisable();
+      }
+    }
+    if (!processedTrack) {
+      return;
+    }
+    processedTrack.addEventListener(
+      'enable-lk-krisp-noise-filter',
+      this.handleKrispNoiseFilterEnable,
+    );
+    processedTrack.addEventListener(
+      'disable-lk-krisp-noise-filter',
+      this.handleKrispNoiseFilterDisable,
+    );
+    this.observedProcessedTrack = processedTrack;
+  }
+
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.trackChangeLock.lock();
     try {
@@ -209,14 +253,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this.processor = processor;
       if (this.processor.processedTrack) {
         await this.sender?.replaceTrack(this.processor.processedTrack);
-        this.processor.processedTrack.addEventListener(
-          'enable-lk-krisp-noise-filter',
-          this.handleKrispNoiseFilterEnable,
-        );
-        this.processor.processedTrack.addEventListener(
-          'disable-lk-krisp-noise-filter',
-          this.handleKrispNoiseFilterDisable,
-        );
+        this.observeProcessedTrack(this.processor.processedTrack);
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
@@ -224,12 +261,53 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     }
   }
 
+  protected async internalStopProcessor(keepElement = true) {
+    this.observeProcessedTrack(undefined);
+    await super.internalStopProcessor(keepElement);
+  }
+
+  stop() {
+    this.observeProcessedTrack(undefined);
+    super.stop();
+  }
+
   /**
    * @internal
    * @experimental
+   *
+   * A processor's nodes (`AudioWorkletNode`, ...) can't move between contexts, so the processor
+   * is rebuilt whenever the context changes and torn down when there is none left to run in.
    */
-  setAudioContext(audioContext: AudioContext | undefined) {
-    this.audioContext = audioContext;
+  async setAudioContext(audioContext: AudioContext | undefined) {
+    if (this.audioContext === audioContext) {
+      return;
+    }
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      this.audioContext = audioContext;
+      if (!this.processor || isReactNative()) {
+        return;
+      }
+      if (!audioContext) {
+        this.log.debug('stopping audio processor, audio context has been removed', this.logContext);
+        await this.internalStopProcessor();
+        return;
+      }
+      this.log.debug('restarting audio processor on new audio context', this.logContext);
+      await this.processor.restart({
+        kind: this.kind,
+        track: this._mediaStreamTrack,
+        audioContext,
+        localTrack: this,
+      });
+      if (this.processor.processedTrack) {
+        await this.sender?.replaceTrack(this.processor.processedTrack);
+        this.observeProcessedTrack(this.processor.processedTrack);
+      }
+      this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
+    } finally {
+      unlock();
+    }
   }
 
   async getSenderStats(): Promise<AudioSenderStats | undefined> {
