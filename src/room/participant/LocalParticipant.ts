@@ -2139,11 +2139,16 @@ export default class LocalParticipant extends Participant {
             'track ended, attempting to use a different device',
             getLogContextFromTrack(track),
           );
-          if (isLocalAudioTrack(track)) {
-            // fall back to default device if available
-            await track.restartTrack({ deviceId: 'default' });
+          // fall back to default device if available
+          if (isLocalVideoTrack(track)) {
+            // keep the previously requested resolution/frame rate/facing mode,
+            // only swap out the (now gone) deviceId
+            await track.restartTrack({
+              ...track.constraints,
+              deviceId: 'default',
+            } as VideoCaptureOptions);
           } else {
-            await track.restartTrack();
+            await track.restartTrack({ deviceId: 'default' });
           }
         }
       } catch (e) {
