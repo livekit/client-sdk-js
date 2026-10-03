@@ -12,6 +12,7 @@ import {
   fmtpConfigHasParam,
   isDuplicateAnswer,
   placeholderMidsFromTransceivers,
+  videoReceiveTransceivers,
 } from './PCTransport';
 import { ddExtensionURI } from './utils';
 
@@ -248,6 +249,30 @@ describe('placeholderMidsFromTransceivers', () => {
       tr(null, null), // not yet negotiated — no mid, excluded
     ]);
     expect(mids).toEqual(new Set(['1', '2']));
+  });
+});
+
+describe('videoReceiveTransceivers', () => {
+  const tr = (direction: RTCRtpTransceiverDirection, kind: string) =>
+    ({ direction, receiver: { track: { kind } } }) as unknown as RTCRtpTransceiver;
+
+  it('picks the video transceivers that only receive', () => {
+    const video = tr('recvonly', 'video');
+    expect(
+      videoReceiveTransceivers([
+        tr('recvonly', 'audio'), // a codec restriction for video says nothing about audio
+        tr('sendonly', 'video'), // a published track: what it can send is not ours to narrow
+        tr('sendrecv', 'video'), // sends too, same again
+        tr('inactive', 'video'),
+        video,
+      ]),
+    ).toEqual([video]);
+  });
+
+  it('tolerates a transceiver with no receiver track', () => {
+    expect(
+      videoReceiveTransceivers([{ direction: 'recvonly' } as unknown as RTCRtpTransceiver]),
+    ).toEqual([]);
   });
 });
 
