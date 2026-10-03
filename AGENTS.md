@@ -19,6 +19,11 @@ the primary way to react to state changes — tracks published, participants joi
 Important: event handlers should be registered **before** calling `room.connect()` because some
 events (like `DataTrackPublished`) fire during the connection handshake.
 
+When changing full reconnects, carry the attempt's `AbortSignal` through joins and region
+selection. Cancellation must cover continuations after awaited cleanup and late join responses:
+engine close removes room listeners, so room-event guards cannot catch those continuations.
+Regression tests live in `RTCEngine.test.ts` and `SignalClient.test.ts`.
+
 ### Data transport APIs
 
 LiveKit has four data transport mechanisms, each suited to different patterns:
