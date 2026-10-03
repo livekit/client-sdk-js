@@ -5,6 +5,7 @@ import FrameMetadataWorker from '../../src/frameMetadata/worker/frameMetadata.wo
 import type {
   BackupVideoCodec,
   ChatMessage,
+  DataTrackFrame,
   LocalDataTrack,
   RemoteDataTrack,
   RoomConnectOptions,
@@ -33,6 +34,7 @@ import {
   RpcError,
   ScreenSharePresets,
   Track,
+  TrackEvent,
   TrackPublication,
   VideoPresets,
   VideoQuality,
@@ -42,14 +44,16 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isSVCCodec,
   isVideoTrack,
   setLogLevel,
   supportsAV1,
+  supportsH265,
   supportsVP9,
 } from '../../src/index';
-import type { DataTrackFrame } from '../../src/room/data-track/frame';
-import { TrackEvent } from '../../src/room/events';
-import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
+import { sleep } from '../../src/room/utils';
+import { enableMachineInspector } from '../../src/utils/machineInspector';
+import { machinePanelSawRoom, openMachinePanel } from './machinePanel';
 
 setLogLevel(LogLevel.debug);
 
@@ -64,6 +68,10 @@ const state = {
   e2eeKeyProvider: new ExternalE2EEKeyProvider({ ratchetWindowSize: 100 }),
   chatMessages: new Map<string, { text: string; participant?: Participant }>(),
 };
+// Lets the state-machine inspector see the machines driving the connection. Must run before the
+// first Room is created, since the signal machine is announced from its constructor.
+enableMachineInspector();
+
 let currentRoom: Room | undefined;
 
 let startTime: number;
@@ -160,6 +168,14 @@ syncFrameMetadataFeatureControls();
 
 // handles actions from the HTML
 const appActions = {
+  openMachineInspector: () => {
+    try {
+      // has to happen on the click itself, or the popup is blocked
+      openMachinePanel(() => currentRoom);
+    } catch (e) {
+      appendLog('could not open the state machine inspector:', (e as Error).message);
+    }
+  },
   sendFile: async () => {
     console.log('start sending');
     const file = ($('file') as HTMLInputElement).files?.[0]!;
@@ -254,6 +270,9 @@ const appActions = {
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
+    // so the inspector sees this room's events from the first one. `currentRoom` is deliberately
+    // not set until the connect succeeds, which is far too late to watch a connect.
+    machinePanelSawRoom(room);
 
     startTime = Date.now();
     await room.prepareConnection(url, token);

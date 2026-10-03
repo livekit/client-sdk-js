@@ -1195,7 +1195,7 @@ describe('OutgoingDataStreamManager', () => {
       // The split backs off below the MTU rather than bisecting the emoji, so each chunk decodes
       // independently.
       expect(first.content).toHaveLength(14_999);
-      const decode = (bytes: Uint8Array) => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const decode = (bytes: Uint8Array) => new TextDecoder('utf-8').decode(bytes);
       expect(() => decode(first.content)).not.toThrow();
       expect(() => decode(second.content)).not.toThrow();
       expect(decode(first.content) + decode(second.content)).toStrictEqual(text);

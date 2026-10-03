@@ -1,5 +1,89 @@
 # Change Log
 
+## 2.22.3
+
+### Patch Changes
+
+- fix: add code 1000 to onclose handler in WebSocketStream - [#2086](https://github.com/livekit/client-sdk-js/pull/2086) ([@phaitonican](https://github.com/phaitonican))
+
+- forward worker logs to main thread - [#2078](https://github.com/livekit/client-sdk-js/pull/2078) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: don't reset mid track map on publisher answers with empty map - [#2089](https://github.com/livekit/client-sdk-js/pull/2089) ([@lukasIO](https://github.com/lukasIO))
+
+- Support simulcast for svc codecs (vp9/av1) - [#2083](https://github.com/livekit/client-sdk-js/pull/2083) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 2.22.2
+
+### Patch Changes
+
+- Fix the subscriber silently buffering remote ICE candidates after a reconnect - [#2054](https://github.com/livekit/client-sdk-js/pull/2054) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+  `triggerIceRestart` put the subscriber into `restartingIce` on every reconnect, but only
+  `setRemoteDescription` clears that — and the server re-offers the subscriber only when the
+  reconnect moved the participant to a different node. After an ordinary signal-only resume no
+  offer arrives, so the flag stayed set for the lifetime of the transport and every subsequent
+  remote candidate was queued instead of applied, leaving the subscriber unable to adopt any new
+  network path the server proposed. The subscriber no longer enters that state: the server does
+  not send candidates ahead of the offer that introduces them, so queueing them gains nothing.
+
+- fix: track ws close with attemptId - [#2069](https://github.com/livekit/client-sdk-js/pull/2069) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: ensure buffered events are flushed on signal reconnection - [#2044](https://github.com/livekit/client-sdk-js/pull/2044) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: error on datastreams when chunks are missing - [#2073](https://github.com/livekit/client-sdk-js/pull/2073) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.22.1
+
+### Patch Changes
+
+- Forward `DisconnectReason` to the `ParticipantDisconnected` event - [#2055](https://github.com/livekit/client-sdk-js/pull/2055) ([@seonghunYang](https://github.com/seonghunYang))
+
+- chore: periodically log webrtc stats - [#2064](https://github.com/livekit/client-sdk-js/pull/2064) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: enqueue signal requests until queue has been drained - [#2061](https://github.com/livekit/client-sdk-js/pull/2061) ([@lukasIO](https://github.com/lukasIO))
+
+- Add roomOptions.dataStream.maxPayloadByteLength to control max data stream size - [#2060](https://github.com/livekit/client-sdk-js/pull/2060) ([@1egoman](https://github.com/1egoman))
+
+- chore: signalling state machine - [#2046](https://github.com/livekit/client-sdk-js/pull/2046) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: catch unhandled ws signal errors - [#2065](https://github.com/livekit/client-sdk-js/pull/2065) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix `supportsAdaptiveStream` always returning `true` by comparing `typeof` against the `'undefined'` string. It now returns `false` in environments without `ResizeObserver` or `IntersectionObserver`. - [#2059](https://github.com/livekit/client-sdk-js/pull/2059) ([@mrpmohiburrahman](https://github.com/mrpmohiburrahman))
+
+- Treat TokenSource JWTs without `exp` as expired, and still honor `exp` when `nbf` is absent - [#2057](https://github.com/livekit/client-sdk-js/pull/2057) ([@SashaMIT](https://github.com/SashaMIT))
+
+- Convert internal exports to be external in examples/demo - [#2067](https://github.com/livekit/client-sdk-js/pull/2067) ([@1egoman](https://github.com/1egoman))
+
+## 2.22.0
+
+### Minor Changes
+
+- introduce DevelopmentTokenServer and deprecate SandboxTokenServer - [#2032](https://github.com/livekit/client-sdk-js/pull/2032) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Decode text data streams without TextDecoder fatal mode for broader runtime support - [#2037](https://github.com/livekit/client-sdk-js/pull/2037) ([@JoelTowell](https://github.com/JoelTowell))
+
+- fix: ensure buffered events are flushed on signal reconnection - [#2043](https://github.com/livekit/client-sdk-js/pull/2043) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: cancel pending onTrack callbacks when subscription fails - [#2019](https://github.com/livekit/client-sdk-js/pull/2019) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: match opus fmtp parameters by exact token and look up the opus codec case-insensitively when munging SDP - [#2036](https://github.com/livekit/client-sdk-js/pull/2036) ([@lukasIO](https://github.com/lukasIO))
+
+- Only run the `TrackEvent.TimeSyncUpdate` animation frame loop while something is subscribed to the event, and clear the frame handle when a track's monitor is stopped so the loop can be restarted - [#2038](https://github.com/livekit/client-sdk-js/pull/2038) ([@U-OK](https://github.com/U-OK))
+
+- fix: emit TrackStreamStateChanged again by reading the previous stream state before overwriting it - [#2039](https://github.com/livekit/client-sdk-js/pull/2039) ([@tomkail](https://github.com/tomkail))
+
+- Apply the resolved degradation preference to the backup codec's sender - [#2040](https://github.com/livekit/client-sdk-js/pull/2040) ([@xianshijing-lk](https://github.com/xianshijing-lk))
+
+  Degradation preference is a property of the sender, not of the track, and a backup codec publishes over its own sender. Previously only the primary sender was configured, so the backup encoder resolved a preference implicitly and could adapt along a different axis than the primary.
+
+- fix: recover broken publish paths — act on local `ConnectionQuality.Lost`, recreate the peer connection when an ICE restart has no remote description, bound how long a transport may stay connecting, and reconnect (instead of disconnecting) on a detected connection state mismatch - [#2030](https://github.com/livekit/client-sdk-js/pull/2030) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: enable Terser `mangle.safari10` to fix scoping issues for variables in react-native - [#2028](https://github.com/livekit/client-sdk-js/pull/2028) ([@davidliu](https://github.com/davidliu))
+
+- fix: ensure dd extension also for recvonly - [#2052](https://github.com/livekit/client-sdk-js/pull/2052) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.21.0
 
 ### Minor Changes

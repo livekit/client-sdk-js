@@ -47,6 +47,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
   autoSubscribe: true,
+  disableIceLite: false,
   maxRetries: 1,
   peerConnectionTimeout: 15_000,
   websocketTimeout: 15_000,

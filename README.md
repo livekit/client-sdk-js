@@ -14,6 +14,41 @@
 Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
+<!--BEGIN_AGENTS_INFO-->
+> [!IMPORTANT]
+> If you're building Voice AI, [LiveKit Agents](https://github.com/livekit/agents) is the SDK for code-first realtime voice agents. STT, LLM, TTS, turn detection, [expressive speech](https://docs.livekit.io/agents/models/tts/expressive/), [keyterm accuracy](https://docs.livekit.io/agents/models/stt/keyterms/), tool usage, and telephony all come bundled in the framework. It's available in both [Python](https://github.com/livekit/agents) and [Node.js](https://github.com/livekit/agents-js).
+>
+> ```python
+> # agent.py
+> from livekit import agents
+> from livekit.agents import Agent, AgentServer, AgentSession, STTContextOptions, TurnHandlingOptions, inference
+>
+> server = AgentServer()
+>
+>
+> @server.rtc_session(agent_name="my-agent")
+> async def my_agent(ctx: agents.JobContext):
+>     session = AgentSession(
+>         stt=inference.STT(model="deepgram/nova-3", language="multi"),
+>         llm=inference.LLM(model="google/gemma-4-31b-it"),
+>         tts=inference.TTS(model="inworld/inworld-tts-2", voice="Ashley"),
+>         turn_handling=TurnHandlingOptions(turn_detection=inference.TurnDetector()),
+>         stt_context_options=STTContextOptions(keyterms=["LiveKit", "Acme Corp"]),
+>         expressive=True,
+>     )
+>     await session.start(room=ctx.room, agent=Agent(instructions="You are a helpful voice AI assistant."))
+>     await session.generate_reply(instructions="Greet the user and offer your assistance.")
+>
+>
+> if __name__ == "__main__":
+>     agents.cli.run_app(server)
+> ```
+>
+> Models come from [LiveKit Inference](https://docs.livekit.io/agents/models/) with no per-provider API keys, and LiveKit Cloud handles [deployment](https://docs.livekit.io/deploy/agents/) and [observability](https://docs.livekit.io/deploy/observability/). Visit the docs for more info at [docs.livekit.io/agents](https://docs.livekit.io/agents/).
+>
+> Using a coding agent? Install the LiveKit skill with `npx skills add livekit/agent-skills` and add the docs MCP at `https://docs.livekit.io/mcp/` (see [coding agent support](https://docs.livekit.io/intro/coding-agents/)).
+<!--END_AGENTS_INFO-->
+
 ## Docs
 
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
@@ -336,7 +371,7 @@ room.connect(configurableResponse.serverUrl, configurableResponse.participantTok
 |Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
 |-------------|--|--|--|
 |Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
-|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.sandboxTokenServer`](#tokensourceendpoint)  | [`TokenSource.custom`](#tokensourcecustom) |
+|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourcedevelopmenttokenserver)  | [`TokenSource.custom`](#tokensourcecustom) |
 
 #### TokenSource.Literal
 A fixed token source which returns a static set of credentials or a computed set of credentials
@@ -354,9 +389,9 @@ await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: 
 #### TokenSource.Endpoint
 A configurable token source which makes a request to an endpoint to generate credentials. By
 default, a `POST` request with a `Content-Type: application/json` header is made, and the request
-body is expected to follow the [standard token format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server). If
+body is expected to follow the [standard token format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema). If
 credentials generation is successful, the endpoint returns a 2xx status code with a body following
-the [standard token response format](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server).
+the [standard token response format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema).
 
 Example:
 ```ts
@@ -373,21 +408,21 @@ const endpoint2 = TokenSource.endpoint("http://example.com/credentials-endpoint"
 await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
-#### TokenSource.SandboxTokenServer
+#### TokenSource.DevelopmentTokenServer
 A configurable token source which makes a request to a
-[sandbox token server endpoint](https://cloud.livekit.io/projects/p_/sandbox/templates/token-server),
+[development token server endpoint](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/),
 a LiveKit-hosted token generation mechanism.
 
 This token generation mechanism is inherently insecure and should only be used for
 prototyping; do NOT use in production.
 
-One parameter is required - the sandbox id from the dashboard. This is the `token-server-xxxxxx`
+One parameter is required - the development token server id from the dashboard. This is the `token-server-xxxxxx`
 value in `https://token-server-xxxxxx.sandbox.livekit.io`.
 
 Example:
 ```ts
-const sandbox = TokenSource.sandboxTokenServer("token-server-xxxxxx");
-await sandbox.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+const devTokenSource = TokenSource.developmentTokenServer("token-server-xxxxxx");
+await devTokenSource.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
 #### TokenSource.Custom
@@ -401,11 +436,11 @@ output token. If you'd rather implement a fixed version of this TokenSource, see
 
 Example:
 ```ts
-const sandbox = TokenSource.custom(async (options) => {
+const myTokenSource = TokenSource.custom(async (options) => {
   // generate token info via custom means here
   return { serverUrl: "...", participantToken: "... options encoded in here ..." };
 });
-await sandbox.fetch({ agentName: "agent to dispatch" });
+await myTokenSource.fetch({ agentName: "agent to dispatch" });
 ```
 
 ### RPC

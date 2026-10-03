@@ -162,12 +162,20 @@ export class PCTransportManager {
     this.updateState();
   }
 
+  /**
+   * Restarts ICE on the transports that need it. Only the publisher: the server restarts the
+   * subscriber's ICE itself and follows with a fresh offer.
+   *
+   * The subscriber deliberately does NOT enter `restartingIce` here. Queueing its remote
+   * candidates would guard against candidates for a new generation arriving before the offer
+   * that introduces it, but the server does not send them in that order -- on a same-node
+   * resume it buffers them until the offer has gone out, and on a reconnect that lands on
+   * another node it withholds subscriber candidates until immediately before creating the
+   * offer. Setting the flag only risks withholding candidates during the window that decides
+   * whether the reconnect succeeded.
+   */
   async triggerIceRestart() {
     this.iceLog.warn('triggering ICE restart');
-    if (this.subscriber) {
-      this.subscriber.restartingIce = true;
-    }
-    // only restart publisher if it's needed
     if (this.needsPublisher) {
       await this.createAndSendPublisherOffer({ iceRestart: true });
     }

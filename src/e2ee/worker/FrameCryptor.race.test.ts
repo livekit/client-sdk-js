@@ -68,8 +68,8 @@ describe('FrameCryptor Race Conditions', () => {
     vitest.useRealTimers();
   });
 
-  describe('Race Condition 1: setupTransform with isReuse does not update trackId', () => {
-    it('should update trackId even when returning early on reuse', async () => {
+  describe('Race Condition 1: setupTransform on transceiver reuse updates trackId', () => {
+    it('should update trackId when the transform is replaced', async () => {
       const { cryptor, keys } = createCryptor('participant1');
       await keys.setKey(await createKeyMaterialFromString('key1'), 0);
 
@@ -82,7 +82,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input1),
         new WritableStream(output1),
         'track1',
-        false,
         undefined,
       );
 
@@ -91,18 +90,16 @@ describe('FrameCryptor Race Conditions', () => {
       const input2 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
       const output2 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
 
-      // Second setup with isReuse=true and different trackId 'track2'
+      // Second setup with a different trackId 'track2'
       // This simulates transceiver reuse for a new track
       cryptor.setupTransform(
         'encode',
         new ReadableStream(input2),
         new WritableStream(output2),
         'track2',
-        true, // isReuse = true
         undefined,
       );
 
-      // BUG: trackId should be updated to 'track2' but remains 'track1'
       expect(cryptor.getTrackId()).toBe('track2');
     });
   });
@@ -120,7 +117,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input),
         new WritableStream(output),
         'track1',
-        false,
         undefined,
       );
 
@@ -147,7 +143,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input2),
         new WritableStream(output2),
         'track2',
-        false,
         undefined,
       );
 
@@ -198,7 +193,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input1),
         new WritableStream(output1),
         'track1',
-        false,
         undefined,
       );
 
@@ -213,7 +207,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input2),
         new WritableStream(output2),
         'track2',
-        false,
         undefined,
       );
 
@@ -244,7 +237,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input1),
         new WritableStream(output1),
         'track1',
-        false,
         undefined,
       );
 
@@ -257,13 +249,12 @@ describe('FrameCryptor Race Conditions', () => {
         const input2 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
         const output2 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
 
-        // This should create a new transform since isTransformActive should be false
+        // This should create a new transform
         cryptor.setupTransform(
           'encode',
           new ReadableStream(input2),
           new WritableStream(output2),
           'track2',
-          true, // isReuse=true
           undefined,
         );
 
@@ -274,7 +265,7 @@ describe('FrameCryptor Race Conditions', () => {
       expect(cryptor.getTrackId()).toBe('track2');
     });
 
-    it('should handle race between pipe completion and new setupTransform with isReuse', async () => {
+    it('should handle race between pipe completion and a new setupTransform', async () => {
       const { cryptor, keys } = createCryptor('participant1');
       await keys.setKey(await createKeyMaterialFromString('key1'), 0);
 
@@ -286,11 +277,10 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input1),
         new WritableStream(output1),
         'track1',
-        false,
         undefined,
       );
 
-      // Immediately call with isReuse=true (simulating quick reuse detection)
+      // Immediately set up again (simulating a quick resubscribe)
       const input2 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
       const output2 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
 
@@ -298,8 +288,7 @@ describe('FrameCryptor Race Conditions', () => {
         'encode',
         new ReadableStream(input2),
         new WritableStream(output2),
-        'track2',
-        true, // Should return early
+        'track2', // Should return early
         undefined,
       );
 
@@ -308,7 +297,7 @@ describe('FrameCryptor Race Conditions', () => {
 
       await vitest.advanceTimersToNextTimerAsync();
 
-      // Now try to setup with isReuse=true again after first pipe completed
+      // Now set up again after the first pipe completed
       const input3 = new TestUnderlyingSource<RTCEncodedVideoFrame>();
       const output3 = new TestUnderlyingSink<RTCEncodedVideoFrame>();
 
@@ -317,7 +306,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input3),
         new WritableStream(output3),
         'track3',
-        true,
         undefined,
       );
 
@@ -345,7 +333,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input),
         new WritableStream(output),
         'track1',
-        false,
         undefined,
       );
 
@@ -431,7 +418,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input),
         new WritableStream(output),
         'track1',
-        false,
         undefined,
       );
 
@@ -469,7 +455,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input),
         new WritableStream(output),
         'track1',
-        false,
         'vp8',
       );
 
@@ -509,7 +494,6 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input1),
         new WritableStream(output1),
         'track1',
-        false,
         undefined,
       );
 
@@ -534,11 +518,10 @@ describe('FrameCryptor Race Conditions', () => {
         new ReadableStream(input2),
         new WritableStream(output2),
         'track2',
-        true, // isReuse
         undefined,
       );
 
-      // Track ID should be updated even with isReuse
+      // Track ID should be updated
       expect(cryptor.getTrackId()).toBe('track2');
       expect(cryptor.getParticipantIdentity()).toBe('participant2');
     });

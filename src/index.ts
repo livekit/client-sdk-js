@@ -53,12 +53,14 @@ import {
   isLocalTrack,
   isRemoteParticipant,
   isRemoteTrack,
+  isSVCCodec,
   isVideoCodec,
   isVideoTrack,
   supportsAV1,
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
   supportsDynacast,
+  supportsH265,
   supportsVP9,
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
@@ -149,12 +151,14 @@ export {
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
   supportsDynacast,
+  supportsH265,
   supportsVP9,
   Mutex,
   isAudioCodec,
   isAudioTrack,
   isLocalTrack,
   isRemoteTrack,
+  isSVCCodec,
   isVideoCodec,
   isVideoTrack,
   isLocalParticipant,
@@ -180,6 +184,7 @@ export type {
   DataTrackSubscribeOptions,
   RemoteDataTrackPipelineOptions,
 };
+export { type DataTrackFrame } from './room/data-track/frame';
 export { DataTrackPacket, type DataTrackPacketHeader } from './room/data-track/packet';
 export {
   type DataTrackExtensions,

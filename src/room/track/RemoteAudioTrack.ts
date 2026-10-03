@@ -61,7 +61,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
    * gets the volume of attached audio elements (loudest)
    */
   getVolume(): number {
-    if (this.elementVolume) {
+    if (this.elementVolume !== undefined) {
       return this.elementVolume;
     }
     if (isReactNative()) {
@@ -122,7 +122,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       }
     }
 
-    if (this.elementVolume) {
+    if (this.elementVolume !== undefined) {
       // make sure volume setting is being applied to the newly attached element
       this.setVolume(this.elementVolume);
     }
@@ -213,7 +213,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     lastNode.connect(this.gainNode);
     this.gainNode.connect(context.destination);
 
-    if (this.elementVolume) {
+    if (this.elementVolume !== undefined) {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
     }
 

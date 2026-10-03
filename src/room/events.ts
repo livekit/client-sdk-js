@@ -80,7 +80,7 @@ export enum RoomEvent {
    * When a [[RemoteParticipant]] leaves *after* the local
    * participant has joined.
    *
-   * args: ([[RemoteParticipant]])
+   * args: ([[RemoteParticipant]], [[DisconnectReason]] | undefined)
    */
   ParticipantDisconnected = 'participantDisconnected',
 
@@ -225,7 +225,7 @@ export enum RoomEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args: (payload: NonSharedUint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
+   * args: (payload: NonSharedUint8Array, participant: [[Participant]] | undefined, kind: [[DataPacket_Kind]], topic?: string, encryptionType?: Encryption_Type, participantIdentity?: string)
    */
   DataReceived = 'dataReceived',
 
@@ -633,6 +633,7 @@ export enum EngineEvent {
   Joined = 'joined',
   TokenRefreshed = 'tokenRefreshed',
   ServerRegionsReported = 'serverRegionsReported',
+  RequestSubscribedCodecRefresh = 'requestSubscribedCodecRefresh',
 }
 
 export enum TrackEvent {

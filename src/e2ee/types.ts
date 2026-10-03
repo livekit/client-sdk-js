@@ -53,7 +53,6 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
-    isReuse: boolean;
     /**
      * Whether the published track advertises packet trailer features.
      * When false, the cryptor skips the per-frame trailer extraction path
@@ -80,7 +79,15 @@ export interface UpdateCodecMessage extends BaseMessage {
   data: {
     participantIdentity: string;
     trackId: string;
-    codec: VideoCodec;
+    /** undefined for audio tracks */
+    codec?: VideoCodec;
+    /**
+     * trackId this receiver's pipeline was previously set up for, set when a
+     * transceiver gets reused for a new track. Lets the worker find the cryptor
+     * that still owns the (already transferred) encoded streams and re-point it,
+     * rather than creating a fresh cryptor with no pipeline at all.
+     */
+    previousTrackId?: string;
     hasPacketTrailer: boolean;
   };
 }
@@ -169,6 +176,22 @@ export interface PTMetadataFromE2EEMessage extends BaseMessage {
   data: FrameMetadataPayload;
 }
 
+export interface LogMessage extends BaseMessage {
+  kind: 'log';
+  data: {
+    level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+    msg: string;
+    context?: object;
+  };
+}
+
+export interface SetLogLevelMessage extends BaseMessage {
+  kind: 'setLogLevel';
+  data: {
+    level: LogLevel;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -186,7 +209,9 @@ export type E2EEWorkerMessage =
   | DecryptDataResponseMessage
   | EncryptDataRequestMessage
   | EncryptDataResponseMessage
-  | PTMetadataFromE2EEMessage;
+  | PTMetadataFromE2EEMessage
+  | LogMessage
+  | SetLogLevelMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

@@ -13,12 +13,12 @@ import type {
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import type { LoggerOptions } from '../types';
 import {
-  compareVersions,
   getReactNativeOs,
   isReactNative,
   isSVCCodec,
-  isSafariBased,
+  isSVCSimulcast,
   isSafariSvcApi,
+  usesLegacySVCEncodings,
 } from '../utils';
 
 /** @internal */
@@ -111,6 +111,8 @@ export function computeVideoEncodings(
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
   const videoCodec = options?.videoCodec;
+  // VP9/AV1 published as rid based simulcast rather than SVC, see isSVCSimulcast
+  const useSVCSimulcast = isSVCSimulcast(videoCodec, options);
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
@@ -134,7 +136,7 @@ export function computeVideoEncodings(
     videoEncoding.priority,
   );
 
-  if (scalabilityMode && isSVCCodec(videoCodec)) {
+  if (scalabilityMode && isSVCCodec(videoCodec) && !useSVCSimulcast) {
     const sm = new ScalabilityMode(scalabilityMode);
 
     const encodings: RTCRtpEncodingParameters[] = [];
@@ -142,20 +144,10 @@ export function computeVideoEncodings(
     if (sm.spatial > 3) {
       throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
-    // Before M113 in Chrome, defining multiple encodings with an SVC codec indicated
-    // that SVC mode should be used. Safari still works this way.
-    // This is a bit confusing but is due to how libwebrtc interpreted the encodings field
-    // before M113.
-    // Announced here: https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw?pli=1
+    // Browsers that read multiple encodings on an SVC codec as SVC rather than as
+    // simulcast, see usesLegacySVCEncodings
     const browser = getBrowser();
-    if (
-      isSafariBased() ||
-      // Even tho RN runs M114, it does not produce SVC layers when a single encoding
-      // is provided. So we'll use the legacy SVC specification for now.
-      // TODO: when we upstream libwebrtc, this will need additional verification
-      isReactNative() ||
-      (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
-    ) {
+    if (usesLegacySVCEncodings()) {
       const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
       // safari 18.4 uses a different svc API that requires scaleResolutionDownBy to be set.
       const requireScale = isSafariSvcApi(browser);
@@ -193,6 +185,19 @@ export function computeVideoEncodings(
     return [videoEncoding];
   }
 
+  // Chrome M113+ only treats multiple encodings on an SVC capable codec as real
+  // simulcast when every encoding carries an explicit scalabilityMode next to its
+  // scaleResolutionDownBy. Without it the encodings are interpreted as legacy SVC.
+  const applySVCSimulcastMode = (encodings: RTCRtpEncodingParameters[]) => {
+    if (useSVCSimulcast) {
+      encodings.forEach((encoding) => {
+        /* @ts-ignore */
+        encoding.scalabilityMode = scalabilityMode;
+      });
+    }
+    return encodings;
+  };
+
   let presets: Array<VideoPreset>;
   if (isScreenShare) {
     presets =
@@ -220,13 +225,43 @@ export function computeVideoEncodings(
     //      based on other conditions.
     const size = Math.max(width, height);
     if (size >= 960 && midPreset) {
-      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate);
+      return applySVCSimulcastMode(
+        encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate),
+      );
     }
     if (size >= 480) {
-      return encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate);
+      return applySVCSimulcastMode(
+        encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate),
+      );
     }
   }
-  return encodingsFromPresets(width, height, [original]);
+  return applySVCSimulcastMode(encodingsFromPresets(width, height, [original]));
+}
+
+/**
+ * Bitrate to hint to the bandwidth estimator through `x-google-start-bitrate`, so that
+ * a publish does not spend its first seconds ramping up from a very low rate.
+ *
+ * It has to be the total the encoder will put on the wire, which means picking the
+ * encoding that carries the inclusive bitrate:
+ *  - SVC publishes a single stream with the layers built in. `encodings[0]` holds the
+ *    full bitrate — the legacy SVC shape orders its encodings `f`..`q`, so that holds
+ *    for both SVC shapes.
+ *  - Simulcast publishes independent streams ordered `q`..`f`, so the total is the sum.
+ *    This includes VP9/AV1 published as rid based simulcast, where `encodings[0]` is
+ *    the *smallest* layer even though the codec is SVC capable.
+ *
+ * @internal
+ */
+export function computeStartTargetBitrate(
+  codec: string,
+  options: TrackPublishOptions | undefined,
+  encodings: RTCRtpEncodingParameters[],
+): number {
+  if (isSVCCodec(codec) && !isSVCSimulcast(codec, options)) {
+    return encodings[0]?.maxBitrate ?? 0;
+  }
+  return encodings.reduce((sum, enc) => sum + (enc.maxBitrate ?? 0), 0);
 }
 
 export function computeTrackBackupEncodings(

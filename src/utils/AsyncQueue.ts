@@ -3,9 +3,9 @@ import { Mutex } from '@livekit/mutex';
 type QueueTask<T> = () => PromiseLike<T>;
 
 enum QueueTaskStatus {
-  'WAITING',
-  'RUNNING',
-  'COMPLETED',
+  WAITING,
+  RUNNING,
+  COMPLETED,
 }
 
 type QueueTaskInfo = {

@@ -435,9 +435,35 @@ class HTMLElementInfo implements ElementInfo {
 function isElementInPiP(el: HTMLElement) {
   // Simple video PiP
   if (document.pictureInPictureElement === el) return true;
-  // Document PiP
-  if (window.documentPictureInPicture?.window)
-    return isElementInViewport(el, window.documentPictureInPicture?.window);
+  // Document PiP: the element has to actually live in the PiP window, otherwise an
+  // opener-document element whose coordinates happen to fall inside the PiP window's
+  // bounds is reported as being in PiP.
+  const pipWindow = window.documentPictureInPicture?.window;
+  if (pipWindow) {
+    return isDocumentInPiPWindow(el.ownerDocument, pipWindow) && isElementInViewport(el, pipWindow);
+  }
+  return false;
+}
+
+// Whether the document is the Document PiP window's own document, or the document of a frame
+// nested inside it. The spec allows frames in a PiP window, so an element in one is in PiP:
+// https://wicg.github.io/document-picture-in-picture/#iframes
+function isDocumentInPiPWindow(doc: Document, pipWindow: Window) {
+  // A cross-origin frame anywhere between the element and the PiP window hides frameElement
+  // from the walk below, but top stays readable across origins and identifies the top-level
+  // window the element belongs to. For an opener element that is the opener, not the PiP window.
+  if (doc.defaultView?.top === pipWindow) return true;
+  let current: Document | null | undefined = doc;
+  while (current) {
+    if (current === pipWindow.document) return true;
+    try {
+      // Reading frameElement across a cross-origin boundary throws, which means we cannot
+      // establish the ancestry and must not claim the element is in PiP.
+      current = current.defaultView?.frameElement?.ownerDocument;
+    } catch {
+      return false;
+    }
+  }
   return false;
 }
 

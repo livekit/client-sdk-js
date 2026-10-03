@@ -1,6 +1,7 @@
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import { getErrorDescription } from '../../api/utils';
 import {
   appendPacketTrailerToEncodedFrame,
   processPacketTrailer,
@@ -22,6 +23,7 @@ import type {
   RatchetResult,
 } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
+import { ErrorRateLimiter } from './ErrorRateLimiter';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { processNALUsForEncryption } from './naluUtils';
 import { identifySifPayload } from './sifPayload';
@@ -85,6 +87,22 @@ export class FrameCryptor extends BaseFrameCryptor {
   private currentTransform?: TransformerInfo;
 
   /**
+   * The encoded streams this cryptor was last set up with, retained beyond the
+   * lifetime of {@link currentTransform}.
+   *
+   * The main thread transfers a receiver's encoded streams to the worker once and
+   * cannot transfer them again (a transferred stream is locked), and
+   * `createEncodedStreams()` may only be called once per receiver. So when a
+   * transceiver is reused, or when a pipe dies underneath us, re-establishing the
+   * transform is only possible from here. See {@link ensureTransform}.
+   */
+  private retainedStreams?: {
+    readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>;
+    writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>;
+    operation: 'encode' | 'decode';
+  };
+
+  /**
    * Whether the subscribed track advertises packet trailer features.
    * When false, we skip the per-frame trailer extraction path entirely
    * on decode to avoid unnecessary work on tracks that don't use it.
@@ -95,18 +113,12 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private frameMetadataFrameId = 0;
 
-  /**
-   * Throttling mechanism for decryption errors to prevent memory leaks
-   */
-  private lastErrorTimestamp: Map<string, number> = new Map();
+  private errorLimiter = new ErrorRateLimiter();
 
-  private errorCounts: Map<string, number> = new Map();
+  private undecryptedTrackTimeout?: ReturnType<typeof setTimeout>;
 
-  private readonly ERROR_THROTTLE_MS = 1000; // Emit error at most once per second
-
-  private readonly MAX_ERRORS_PER_MINUTE = 5; // Maximum errors to emit per minute per key
-
-  private readonly ERROR_WINDOW_MS = 60000; // 1 minute window
+  /** grace period for a teardown or a resubscribe to land before we report a stalled track */
+  private readonly UNDECRYPTED_TRACK_GRACE_MS = 2000;
 
   /**
    * Tracks (participant, trackId, payloadType) tuples for which we've already logged a NALU
@@ -167,13 +179,15 @@ export class FrameCryptor extends BaseFrameCryptor {
   unsetParticipant() {
     workerLogger.debug('unsetting participant', this.logContext);
 
-    if (this.currentTransform) {
-      this.currentTransform = undefined;
-    }
-
+    // NOTE: deliberately does not clear `currentTransform`. Nothing here cancels
+    // the pipe, so the transform really is still running and clearing it would
+    // desync our bookkeeping from reality -- which previously let a later
+    // resubscribe skip setup while frames kept flowing through a cryptor with no
+    // participant assigned.
+    clearTimeout(this.undecryptedTrackTimeout);
+    this.undecryptedTrackTimeout = undefined;
     this.participantIdentity = undefined;
-    this.lastErrorTimestamp = new Map();
-    this.errorCounts = new Map();
+    this.errorLimiter.reset();
   }
 
   isEnabled() {
@@ -190,6 +204,78 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   getTrackId() {
     return this.trackId;
+  }
+
+  /**
+   * Re-point this cryptor at a new trackId, keeping its (already transferred)
+   * encoded streams. Used when a transceiver is reused for a new track.
+   */
+  setTrackId(trackId: string) {
+    if (this.trackId === trackId) {
+      return;
+    }
+    workerLogger.debug('re-pointing cryptor at new trackId', {
+      ...this.logContext,
+      newTrackId: trackId,
+    });
+    this.trackId = trackId;
+  }
+
+  hasActiveTransform() {
+    return !!this.currentTransform;
+  }
+
+  /**
+   * A track that is subscribed and known to be encrypted, but has no transform to
+   * decrypt it, will never produce a decodable frame again. That state used to be
+   * completely silent (a black tile and endless PLIs), so report it.
+   *
+   * Deferred, because on teardown the encoded streams routinely close before the
+   * 'removeTransform' message arrives -- checking immediately would cry wolf on
+   * every unsubscribe.
+   *
+   * Only meaningful while decoding: a sender's pipe closing on unpublish is
+   * routine and has no 'removeTransform' equivalent to quiet it down.
+   */
+  private scheduleUndecryptedTrackWatchdog(operation: 'encode' | 'decode') {
+    clearTimeout(this.undecryptedTrackTimeout);
+    this.undecryptedTrackTimeout = undefined;
+    if (operation !== 'decode') {
+      return;
+    }
+    this.undecryptedTrackTimeout = setTimeout(() => {
+      if (this.currentTransform || !this.isEnabled()) {
+        return;
+      }
+      workerLogger.warn('encrypted track has no active decrypt transform', this.logContext);
+      this.emitThrottledError(
+        new CryptorError(
+          `no active decrypt transform for encrypted track ${this.trackId}`,
+          CryptorErrorReason.InternalError,
+          this.participantIdentity,
+        ),
+      );
+    }, this.UNDECRYPTED_TRACK_GRACE_MS);
+  }
+
+  /**
+   * Re-establish the transform if it is gone while we still own the encoded
+   * streams, e.g. after a pipe died on its own (the swallowed
+   * 'Destination stream closed') or when a reused transceiver never got a new
+   * pipeline. Without this the frames pile up in a readable nobody reads and the
+   * decoder starves, which shows up as a permanently black tile.
+   */
+  ensureTransform() {
+    if (this.currentTransform) {
+      return true;
+    }
+    if (!this.retainedStreams || this.trackId === undefined) {
+      workerLogger.warn('no streams retained, cannot re-establish transform', this.logContext);
+      return false;
+    }
+    const { readable, writable, operation } = this.retainedStreams;
+    workerLogger.info('re-establishing transform', { ...this.logContext, operation });
+    return this.setupTransform(operation, readable, writable, this.trackId);
   }
 
   /**
@@ -227,7 +313,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     trackId: string,
-    isReuse: boolean,
     codec?: VideoCodec,
     frameMetadata?: FrameMetadataPublishOptions,
   ) {
@@ -243,27 +328,17 @@ export class FrameCryptor extends BaseFrameCryptor {
       operation,
       passedTrackId: trackId,
       codec,
-      isReuse,
       hasCurrentTransform: !!this.currentTransform,
       ...this.logContext,
     });
 
-    // Always update trackId, even on reuse
     this.trackId = trackId;
 
-    // If we're reusing and have an active transform skip setup
-    if (
-      isReuse &&
-      this.currentTransform &&
-      readable === this.currentTransform.readable &&
-      writable === this.currentTransform.writable
-    ) {
-      workerLogger.debug('reusing existing transform', {
-        ...this.logContext,
-        trackId,
-      });
-      return;
-    }
+    // Retain the streams so we can rebuild the pipe later even if this cryptor
+    // gets detached from its participant in between (see `ensureTransform`).
+    this.retainedStreams = { readable, writable, operation };
+
+    clearTimeout(this.undecryptedTrackTimeout);
 
     const symbol = Symbol('transform');
 
@@ -281,33 +356,54 @@ export class FrameCryptor extends BaseFrameCryptor {
       symbol,
     };
 
-    readable
-      .pipeThrough(transformStream)
-      .pipeTo(writable)
-      .catch((e) => {
-        if (e instanceof TypeError && e.message === 'Destination stream closed') {
-          // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
-          workerLogger.debug('destination stream closed');
-        } else {
-          workerLogger.warn('transform error', { error: e, ...this.logContext });
-          this.emit(
-            CryptorEvent.Error,
-            e instanceof CryptorError
-              ? e
-              : new CryptorError(e.message, undefined, this.participantIdentity),
-          );
-        }
-      })
-      .finally(() => {
-        // Only clear currentTransform if it's still the same one we started
-        if (this.currentTransform?.symbol === symbol) {
-          workerLogger.debug('transform completed', {
-            ...this.logContext,
-            trackId,
-          });
-          this.currentTransform = undefined;
-        }
-      });
+    // pipeThrough/pipeTo throw synchronously on an already locked stream, which
+    // would bypass the .catch below and leave us with no transform at all.
+    try {
+      readable
+        .pipeThrough(transformStream)
+        .pipeTo(writable)
+        .catch((e) => {
+          if (e instanceof TypeError && e.message === 'Destination stream closed') {
+            // this can happen when subscriptions happen in quick successions, but doesn't influence functionality
+            workerLogger.debug('destination stream closed');
+          } else {
+            workerLogger.warn('transform error', { error: e, ...this.logContext });
+            this.emit(
+              CryptorEvent.Error,
+              e instanceof CryptorError
+                ? e
+                : new CryptorError(e.message, undefined, this.participantIdentity),
+            );
+          }
+        })
+        .finally(() => {
+          // Only clear currentTransform if it's still the same one we started
+          if (this.currentTransform?.symbol === symbol) {
+            workerLogger.debug('transform completed', {
+              ...this.logContext,
+              trackId,
+            });
+            this.currentTransform = undefined;
+          }
+          // A pipe ending while the track is still assigned to a participant that
+          // publishes encrypted media means we have silently stopped decrypting.
+          this.scheduleUndecryptedTrackWatchdog(operation);
+        });
+    } catch (e: any) {
+      if (this.currentTransform?.symbol === symbol) {
+        this.currentTransform = undefined;
+      }
+      workerLogger.error('failed to set up transform', { error: e, ...this.logContext });
+      this.emit(
+        CryptorEvent.Error,
+        e instanceof CryptorError
+          ? e
+          : new CryptorError(e.message, CryptorErrorReason.InternalError, this.participantIdentity),
+      );
+      return false;
+    }
+
+    return true;
   }
 
   setSifTrailer(trailer: NonSharedUint8Array) {
@@ -315,64 +411,24 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.sifTrailer = trailer;
   }
 
-  /**
-   * Checks if we should emit an error based on throttling rules to prevent memory leaks
-   * @param errorKey - unique key identifying the error context
-   * @returns true if the error should be emitted, false otherwise
-   */
-  private shouldEmitError(errorKey: string): boolean {
-    const now = Date.now();
-    const lastErrorTime = this.lastErrorTimestamp.get(errorKey) ?? 0;
-    const errorCount = this.errorCounts.get(errorKey) ?? 0;
-
-    // Reset count if we're in a new time window
-    if (now - lastErrorTime > this.ERROR_WINDOW_MS) {
-      this.errorCounts.set(errorKey, 0);
-      this.lastErrorTimestamp.set(errorKey, now);
-      return true;
-    }
-
-    // Check if we've exceeded the throttle time
-    if (now - lastErrorTime < this.ERROR_THROTTLE_MS) {
-      return false;
-    }
-
-    // Check if we've exceeded the max errors per window
-    if (errorCount >= this.MAX_ERRORS_PER_MINUTE) {
-      // Only log a warning once when hitting the limit
-      if (errorCount === this.MAX_ERRORS_PER_MINUTE) {
-        workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
-          ...this.logContext,
-          errorKey,
-        });
-        this.errorCounts.set(errorKey, errorCount + 1);
-      }
-      return false;
-    }
-
-    // Update tracking
-    this.lastErrorTimestamp.set(errorKey, now);
-    this.errorCounts.set(errorKey, errorCount + 1);
-    return true;
-  }
-
-  /**
-   * Emits a throttled error to prevent memory leaks from repeated decryption failures
-   * @param error - the CryptorError to emit
-   */
   private emitThrottledError(error: CryptorError) {
     const errorKey = `${this.participantIdentity}-${error.reason}-decrypt`;
+    const emit = this.errorLimiter.shouldEmit(errorKey, () => {
+      workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
+        ...this.logContext,
+        errorKey,
+      });
+    });
+    if (!emit) return;
 
-    if (this.shouldEmitError(errorKey)) {
-      const errorCount = this.errorCounts.get(errorKey) ?? 0;
-      if (errorCount > 1) {
-        workerLogger.debug(`Decryption error (${errorCount} occurrences in window)`, {
-          ...this.logContext,
-          reason: CryptorErrorReason[error.reason],
-        });
-      }
-      this.emit(CryptorEvent.Error, error);
+    const count = this.errorLimiter.countFor(errorKey);
+    if (count > 1) {
+      workerLogger.debug(`Decryption error (${count} occurrences in window)`, {
+        ...this.logContext,
+        reason: CryptorErrorReason[error.reason],
+      });
     }
+    this.emit(CryptorEvent.Error, error);
   }
 
   /**
@@ -481,7 +537,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
         // TODO: surface this to the app.
-        workerLogger.error(e);
+        workerLogger.error(`error while encrypting`, { ...this.logContext, error: e });
       }
     } else {
       workerLogger.debug('failed to encrypt, emitting error', this.logContext);
@@ -539,11 +595,38 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     }
 
-    if (
-      !this.isEnabled() ||
-      // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0
-    ) {
+    // skip decryption for empty dtx frames
+    if (encodedFrame.data.byteLength === 0) {
+      return controller.enqueue(encodedFrame);
+    }
+
+    const encryptionEnabled = this.isEnabled();
+
+    if (encryptionEnabled === undefined) {
+      // Either way we drop: forwarding would hand ciphertext straight to the
+      // decoder, which renders as a black frame and logs nothing.
+      if (this.participantIdentity === undefined) {
+        // The pipe outlived its subscription. Expected on unsubscribe/disconnect:
+        // we deliberately leave the pipe running so a reused transceiver can be
+        // re-pointed at a new track, so in-flight frames still arrive here for a
+        // moment. Not worth reporting -- the watchdog covers a track that stays
+        // subscribed without a transform.
+        workerLogger.debug('dropping frame for unassigned cryptor', this.logContext);
+        return;
+      }
+      // A live subscription whose encryption state we were never told about.
+      this.emitThrottledError(
+        new CryptorError(
+          `encryption state unknown for track ${this.trackId}, dropping frame`,
+          CryptorErrorReason.InternalError,
+          this.participantIdentity,
+        ),
+      );
+      return;
+    }
+
+    if (!encryptionEnabled) {
+      // participant is known to publish unencrypted media
       return controller.enqueue(encodedFrame);
     }
 
@@ -725,7 +808,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         }
       } else {
         throw new CryptorError(
-          `Decryption failed: ${error.message}`,
+          `Decryption failed: ${getErrorDescription(error, 'decryption')}`,
           CryptorErrorReason.InvalidKey,
           this.participantIdentity,
         );
