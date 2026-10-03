@@ -36,6 +36,7 @@ The publish/subscribe lifecycle is managed by `OutgoingDataTrackManager` and
 `IncomingDataTrackManager` respectively.
 
 Key design decisions:
+
 - `RemoteDataTrack.subscribe()` is **synchronous** — it returns a `ReadableStream` immediately.
   The SFU subscription is initiated lazily inside the stream's `start` callback.
 - The `subscribe()` signal parameter follows the **fetch API pattern**: a single `AbortSignal`
@@ -52,6 +53,30 @@ Data stream readers (`ByteStreamReader`, `TextStreamReader`) implement async ite
 abort signal support. They extend a `BaseStreamReader` base class. The `withAbortSignal()`
 method on these readers is `@internal` — it exists for `readAll()` but is not meant as
 user-facing API.
+
+### Receive-side video codec filtering
+
+`RoomOptions.videoReceiveCodecFilter` restricts which video codecs a subscriber negotiates via
+`RTCRtpTransceiver.setCodecPreferences`. The server then binds the publisher's backup codec, and
+the publisher already publishes it on demand from `subscribedCodecs`. `PCTransportManager` owns
+it: it computes the allowed list once (`getVideoReceiveCodecs` in `src/room/utils.ts`) and applies
+it to each receiving transceiver once (tracked in a `WeakSet`). There are two injection points, one
+per negotiation direction:
+
+- **Single PC (default):** the client offers, so the filter is applied in
+  `addPublisherTransceiverOfKind` to the recvonly video sections in `publisher-only` mode.
+- **Dual PC:** the server offers, so the filter is applied in
+  `PCTransportManager.createSubscriberAnswerFromOffer` between `setRemoteDescription` and
+  `createAndSetAnswer`.
+
+Gotcha: with the publisher's default `backupCodecPolicy` (`PREFER_REGRESSION`), a single
+subscriber excluding the primary codec regresses the track to the backup codec for all subscribers
+(observed on LiveKit Cloud). `SIMULCAST` gives each subscriber its best allowed codec (observed on
+LiveKit Cloud).
+
+Gotcha: `setCodecPreferences([])` resets to the browser defaults, so a filter that excludes
+everything is ignored rather than applied. Receive-side codec _order_ is meaningless because the
+server picks in the publisher's order.
 
 ## Build and test
 

@@ -7,6 +7,7 @@ import {
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
 import { type Throws } from '@livekit/throws-transformer/throws';
+import type { StructuredLogger } from '../logger';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
@@ -183,6 +184,43 @@ export function negotiateDependencyDescriptor(transceiver: RTCRtpTransceiver): b
     // existed, so it is not worth failing the connection over
     return false;
   }
+}
+
+/** Codecs that carry retransmission or FEC for a media codec, never filtered out. */
+const videoRepairCodecMimeTypes = ['video/rtx', 'video/red', 'video/ulpfec', 'video/flexfec-03'];
+
+/**
+ * The video codecs this browser can receive that `filter` allows, in the browser's order, as
+ * codec preferences for a receiving transceiver. Repair codecs (rtx, red, ulpfec, flexfec) are
+ * always kept.
+ *
+ * Undefined where receive capabilities are unavailable, and when `filter` would exclude every
+ * media codec: an empty list passed to `setCodecPreferences` resets it to the browser defaults,
+ * which would silently re-allow them all.
+ * @internal
+ */
+export function getVideoReceiveCodecs(
+  filter: (codec: RTCRtpCodec) => boolean,
+  logger?: StructuredLogger,
+): RTCRtpCodec[] | undefined {
+  if (
+    typeof RTCRtpReceiver === 'undefined' ||
+    typeof RTCRtpReceiver.getCapabilities !== 'function'
+  ) {
+    return undefined;
+  }
+  const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs;
+  if (!codecs) {
+    return undefined;
+  }
+  const isRepairCodec = (codec: RTCRtpCodec) =>
+    videoRepairCodecMimeTypes.includes(codec.mimeType.toLowerCase());
+  const allowed = codecs.filter((codec) => isRepairCodec(codec) || filter(codec));
+  if (!allowed.some((codec) => !isRepairCodec(codec))) {
+    logger?.warn('videoReceiveCodecFilter excludes every video codec, ignoring it');
+    return undefined;
+  }
+  return allowed;
 }
 
 /**
