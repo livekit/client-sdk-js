@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
 import Room from '../room/Room';
+import { ParticipantEvent } from '../room/events';
+import { Track } from '../room/track/Track';
+import type { VideoCodec } from '../room/track/options';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
 
@@ -193,4 +196,44 @@ describe('E2EEManager GC cleanup', () => {
       expect(getWorkerLogLevelListenerCount()).toBe(before);
     },
   );
+});
+
+describe('E2EEManager sender codec seeding', () => {
+  function publishVideo(videoCodec: VideoCodec | undefined) {
+    const { room, worker, manager } = makeManager();
+    room.localParticipant.identity = 'me';
+    manager.setup(room);
+
+    const sender = {
+      createEncodedStreams: () => ({
+        readable: new ReadableStream(),
+        writable: new WritableStream(),
+      }),
+    } as unknown as RTCRtpSender;
+    const track = {
+      isLocal: true,
+      kind: Track.Kind.Video,
+      mediaStreamID: 'ms1',
+      publishOptions: { videoCodec },
+    };
+
+    room.localParticipant.emit(ParticipantEvent.LocalSenderCreated, sender, track as any);
+    manager.dispose();
+
+    return worker.postMessage.mock.calls.map(([m]) => m).find((m: any) => m?.kind === 'encode');
+  }
+
+  it('seeds the publish codec for h264', () => {
+    expect(publishVideo('h264')?.data.codec).toBe('h264');
+  });
+
+  it('seeds the publish codec for h265', () => {
+    expect(publishVideo('h265')?.data.codec).toBe('h265');
+  });
+
+  it('leaves vp8 unseeded so byte detection still decides', () => {
+    const encode = publishVideo('vp8');
+    expect(encode).toBeDefined();
+    expect(encode.data.codec).toBeUndefined();
+  });
 });
