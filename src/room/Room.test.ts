@@ -333,7 +333,9 @@ describe('audio context ownership', () => {
       this.state = 'closed';
     }
 
-    async resume() {}
+    async resume() {
+      this.state = 'running';
+    }
   }
 
   const created: StubAudioContext[] = [];
