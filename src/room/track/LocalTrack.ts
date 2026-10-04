@@ -221,6 +221,17 @@ export default abstract class LocalTrack<
         attachToElement(processedTrack ?? newTrack, el);
       });
     }
+    await this.onMediaStreamTrackChanged();
+  }
+
+  /**
+   * Hook invoked after the underlying MediaStreamTrack has been swapped and the processor has
+   * been restarted around it, so `processor.processedTrack` already holds the new track.
+   * Unlike `onSenderTrackSwapped` this also fires on the restart and unmute paths.
+   */
+  protected async onMediaStreamTrackChanged(): Promise<void> {
+    // base implementation is a no-op; LocalAudioTrack overrides this to move the krisp
+    // feature listeners onto the new processed track.
   }
 
   async waitForDimensions(timeout = DEFAULT_DIMENSIONS_TIMEOUT): Promise<Track.Dimensions> {

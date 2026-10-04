@@ -567,6 +567,8 @@ const outstandingEmptyAudioStreamTracks = new Set<MediaStreamTrack>();
 /**
  * Returns a silent audio track, cloned off a shared `AudioContext` created on first use. Hand the
  * clone back to `releaseEmptyAudioStreamTrack` rather than stopping it, so the context can close.
+ * A clone that is only stopped stays counted as outstanding, which holds the shared context open
+ * for the lifetime of the page.
  */
 export function getEmptyAudioStreamTrack() {
   if (!emptyAudioStreamTrack) {
@@ -595,14 +597,15 @@ export function getEmptyAudioStreamTrack() {
 
 /**
  * Stops a track obtained from `getEmptyAudioStreamTrack` and closes the shared `AudioContext`
- * backing it once every track it handed out has been released.
+ * backing it once every track it handed out has been released. Does nothing for a track this
+ * module never handed out, or one that has been released already.
  */
 export async function releaseEmptyAudioStreamTrack(track: MediaStreamTrack) {
-  track.stop();
   if (!outstandingEmptyAudioStreamTracks.delete(track)) {
     // the track wasn't obtained from `getEmptyAudioStreamTrack`, or has been released before
     return;
   }
+  track.stop();
   if (outstandingEmptyAudioStreamTracks.size > 0) {
     return;
   }

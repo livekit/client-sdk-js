@@ -321,3 +321,100 @@ describe('stream state updates', () => {
     expect(participantEvents).not.toHaveBeenCalled();
   });
 });
+
+describe('audio context ownership', () => {
+  class StubAudioContext {
+    state: AudioContextState = 'running';
+
+    closed = false;
+
+    async close() {
+      this.closed = true;
+      this.state = 'closed';
+    }
+
+    async resume() {}
+  }
+
+  const created: StubAudioContext[] = [];
+
+  function stubAudioContext() {
+    created.length = 0;
+    vi.stubGlobal(
+      'AudioContext',
+      class extends StubAudioContext {
+        constructor() {
+          super();
+          created.push(this);
+        }
+      },
+    );
+  }
+
+  /** `acquireAudioContext` and `releaseAudioContext` are private */
+  function internals(room: Room) {
+    return room as unknown as {
+      acquireAudioContext: () => Promise<void>;
+      releaseAudioContext: (retained?: unknown[]) => Promise<void>;
+      audioContext?: StubAudioContext;
+      ownsAudioContext: boolean;
+      localParticipant: { setAudioContext: (ctx: AudioContext | undefined) => Promise<void> };
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('closes a context it created for a webAudioMix object that supplies none', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+
+    await room.acquireAudioContext();
+    expect(created).toHaveLength(1);
+    expect(room.ownsAudioContext).toBe(true);
+    expect(room.audioContext).toBe(created[0]);
+
+    await room.releaseAudioContext();
+    expect(created[0].closed).toBe(true);
+    expect(room.audioContext).toBeUndefined();
+  });
+
+  it('leaves a supplied context open', async () => {
+    stubAudioContext();
+    const provided = new StubAudioContext();
+    const room = internals(
+      new Room({ webAudioMix: { audioContext: provided as unknown as AudioContext } }),
+    );
+
+    await room.acquireAudioContext();
+    expect(room.ownsAudioContext).toBe(false);
+    expect(created).toHaveLength(0);
+
+    await room.releaseAudioContext();
+    expect(provided.closed).toBe(false);
+  });
+
+  it('closes the context even when a retained track fails to detach', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+
+    const retained = { setAudioContext: () => Promise.reject(new Error('detach failed')) };
+    await room.releaseAudioContext([retained]);
+
+    expect(created[0].closed).toBe(true);
+  });
+
+  it('closes the outgoing context even when a participant fails to move off it', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+
+    vi.spyOn(room.localParticipant, 'setAudioContext').mockRejectedValue(new Error('move failed'));
+    await room.releaseAudioContext();
+
+    expect(created[0].closed).toBe(true);
+  });
+});

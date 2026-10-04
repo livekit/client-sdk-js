@@ -261,6 +261,12 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     }
   }
 
+  protected override async onMediaStreamTrackChanged(): Promise<void> {
+    // the processor rebuilds its graph around the new track, so the krisp listeners have to
+    // follow it onto whatever it hands back
+    this.observeProcessedTrack(this.processor?.processedTrack);
+  }
+
   protected async internalStopProcessor(keepElement = true) {
     this.observeProcessedTrack(undefined);
     await super.internalStopProcessor(keepElement);

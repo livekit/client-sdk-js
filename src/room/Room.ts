@@ -210,6 +210,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private audioContextReleased = false;
 
+  /**
+   * serialises `acquireAudioContext` against `releaseAudioContext`. Both await per-track graph
+   * rebuilds, so without it a reconnect landing inside a disconnect's teardown leaves the two
+   * racing to set the participants' context, and the loser's value is the one that sticks.
+   */
+  private audioContextMutex: Mutex = new Mutex();
+
   /** tears down the iOS dummy audio element, set while one is in place. See `startAudio` */
   private releaseDummyAudioElement?: () => void;
 
@@ -1093,7 +1100,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.setRegionStrategy(this.createRegionStrategy());
     }
 
-    this.acquireAudioContext();
+    this.acquireAudioContext().catch((error) =>
+      this.log.warn('Could not acquire audio context', { ...this.logContext, error }),
+    );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
@@ -1448,7 +1457,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   startAudio = async () => {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
-    if (browser && browser.os === 'iOS') {
+    if (browser && browser.os === 'iOS' && !this.audioContextReleased) {
       elements.push(this.acquireDummyAudioElement());
     }
 
@@ -2428,34 +2437,39 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private async acquireAudioContext() {
-    this.audioContextReleased = false;
-    const providedAudioContext =
-      typeof this.options.webAudioMix !== 'boolean'
-        ? this.options.webAudioMix.audioContext
-        : undefined;
-    if (providedAudioContext) {
-      // override audio context with custom audio context if supplied by user
-      await this.setRoomAudioContext(providedAudioContext, false);
-    } else if (!this.audioContext || this.audioContext.state === 'closed') {
-      // by using an AudioContext, it reduces lag on audio elements
-      // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
-      await this.setRoomAudioContext(getNewAudioContext() ?? undefined, true);
-    }
-
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      // for iOS a newly created AudioContext is always in `suspended` state.
-      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
-      try {
-        await Promise.race([this.audioContext.resume(), sleep(200)]);
-      } catch (e: any) {
-        this.log.warn('Could not resume audio context', { error: e });
+    const unlock = await this.audioContextMutex.lock();
+    try {
+      this.audioContextReleased = false;
+      const providedAudioContext =
+        typeof this.options.webAudioMix !== 'boolean'
+          ? this.options.webAudioMix.audioContext
+          : undefined;
+      if (providedAudioContext) {
+        // override audio context with custom audio context if supplied by user
+        await this.setRoomAudioContext(providedAudioContext, false);
+      } else if (!this.audioContext || this.audioContext.state === 'closed') {
+        // by using an AudioContext, it reduces lag on audio elements
+        // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
+        await this.setRoomAudioContext(getNewAudioContext() ?? undefined, true);
       }
-    }
 
-    const newContextIsRunning = this.audioContext?.state === 'running';
-    if (newContextIsRunning !== this.canPlaybackAudio) {
-      this.audioEnabled = newContextIsRunning;
-      this.emit(RoomEvent.AudioPlaybackStatusChanged, newContextIsRunning);
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        // for iOS a newly created AudioContext is always in `suspended` state.
+        // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+        try {
+          await Promise.race([this.audioContext.resume(), sleep(200)]);
+        } catch (e: any) {
+          this.log.warn('Could not resume audio context', { error: e });
+        }
+      }
+
+      const newContextIsRunning = this.audioContext?.state === 'running';
+      if (newContextIsRunning !== this.canPlaybackAudio) {
+        this.audioEnabled = newContextIsRunning;
+        this.emit(RoomEvent.AudioPlaybackStatusChanged, newContextIsRunning);
+      }
+    } finally {
+      unlock();
     }
   }
 
@@ -2473,22 +2487,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.audioContext = audioContext;
     this.ownsAudioContext = ownsAudioContext;
 
-    // every audio track rebuilds its nodes in the new context, which has to happen before the
-    // previous one is closed so that processors can move off it while it is still alive
-    if (this.options.webAudioMix) {
-      await Promise.all(
-        Array.from(this.remoteParticipants.values()).map((participant) =>
-          participant.setAudioContext(audioContext),
-        ),
-      );
-    }
-    await this.localParticipant.setAudioContext(audioContext);
-
-    if (contextToClose && contextToClose.state !== 'closed') {
-      try {
-        await contextToClose.close();
-      } catch (error) {
-        this.log.warn('Could not close audio context', { ...this.logContext, error });
+    try {
+      // every audio track rebuilds its nodes in the new context, which has to happen before the
+      // previous one is closed so that processors can move off it while it is still alive
+      if (this.options.webAudioMix) {
+        await Promise.all(
+          Array.from(this.remoteParticipants.values()).map((participant) =>
+            participant.setAudioContext(audioContext),
+          ),
+        );
+      }
+      await this.localParticipant.setAudioContext(audioContext);
+    } catch (error) {
+      // the context is being abandoned either way, so a track that failed to move off it must
+      // not stop us closing it — that would leak the context this whole path exists to release
+      this.log.warn('Could not move audio tracks to the new audio context', {
+        ...this.logContext,
+        error,
+      });
+    } finally {
+      if (contextToClose && contextToClose.state !== 'closed') {
+        try {
+          await contextToClose.close();
+        } catch (error) {
+          this.log.warn('Could not close audio context', { ...this.logContext, error });
+        }
       }
     }
   }
@@ -2498,16 +2521,39 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * context if the SDK created it. A context provided through `webAudioMix` is left untouched.
    */
   private async releaseAudioContext(retainedAudioTracks: LocalAudioTrack[] = []) {
+    // both reads happen before the first await, so they describe the room as it was when the
+    // disconnect started rather than after a reconnect has had a chance to run
     this.audioContextReleased = true;
-    if (!this.ownsAudioContext) {
-      // a provided context stays open, so tracks that outlive the room stay functional on it.
-      // The tracks this room detached have released their nodes during track teardown already.
-      return;
+    const contextToRelease = this.audioContext;
+    const unlock = await this.audioContextMutex.lock();
+    try {
+      if (!this.audioContextReleased || this.audioContext !== contextToRelease) {
+        // a reconnect acquired a new context while we were waiting, closing it would leave the
+        // reconnected room without one
+        return;
+      }
+      if (!this.ownsAudioContext) {
+        // a provided context stays open, so tracks that outlive the room stay functional on it.
+        // The tracks this room detached have released their nodes during track teardown already.
+        // read under the lock: an acquire queued behind an in-flight release flips this flag
+        return;
+      }
+      try {
+        // tracks that outlive the room aren't reachable through the local participant anymore,
+        // but still hold web audio nodes in the context we're about to close
+        await Promise.all(retainedAudioTracks.map((track) => track.setAudioContext(undefined)));
+      } catch (error) {
+        this.log.warn('Could not detach retained audio tracks from the audio context', {
+          ...this.logContext,
+          error,
+        });
+      }
+      // the participant maps have already been cleared by `handleDisconnect`, so this reaches no
+      // tracks of its own — `retainedAudioTracks` above is what detaches them
+      await this.setRoomAudioContext(undefined, false);
+    } finally {
+      unlock();
     }
-    // tracks that outlive the room aren't reachable through the local participant anymore, but
-    // still hold web audio nodes in the context we're about to close
-    await Promise.all(retainedAudioTracks.map((track) => track.setAudioContext(undefined)));
-    await this.setRoomAudioContext(undefined, false);
   }
 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
@@ -2539,7 +2585,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.webAudioMix) {
       participant
         .setAudioContext(this.audioContext)
-        .catch((e) => this.log.warn(`Could not set audio context: ${e.message}`));
+        .catch((error) =>
+          this.log.warn('Could not set audio context', { ...this.logContext, error }),
+        );
     }
     if (this.options.audioOutput?.deviceId) {
       participant

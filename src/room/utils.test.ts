@@ -441,3 +441,100 @@ describe('isIPadOS / isAppleMobile', () => {
     expect(isIPadOS()).toBe(false);
   });
 });
+
+// `freshUtils` below calls `vi.resetModules()`, so a dynamic import of `./utils` from a later
+// block would get a different module instance than the static import at the top of this file.
+// Keep this block last.
+describe('empty audio stream track refcounting', () => {
+  let closedContexts: number;
+
+  function makeTrack(): MediaStreamTrack {
+    const track = {
+      enabled: true,
+      stopped: false,
+      stop() {
+        track.stopped = true;
+      },
+      clone: () => makeTrack(),
+    };
+    return track as unknown as MediaStreamTrack;
+  }
+
+  /** reloads `./utils` so its module level context and refcount start empty */
+  async function freshUtils() {
+    closedContexts = 0;
+    vi.resetModules();
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        createOscillator() {
+          return { connect: () => {}, start: () => {} };
+        }
+
+        createGain() {
+          return { gain: { setValueAtTime: () => {} }, connect: () => {} };
+        }
+
+        createMediaStreamDestination() {
+          return { stream: { getAudioTracks: () => [makeTrack()] } };
+        }
+
+        async close() {
+          closedContexts += 1;
+        }
+      },
+    );
+    return import('./utils');
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('closes the shared context once every track handed out is released', async () => {
+    const { getEmptyAudioStreamTrack, releaseEmptyAudioStreamTrack } = await freshUtils();
+    const first = getEmptyAudioStreamTrack();
+    const second = getEmptyAudioStreamTrack();
+
+    await releaseEmptyAudioStreamTrack(first);
+    expect(closedContexts).toBe(0);
+
+    await releaseEmptyAudioStreamTrack(second);
+    expect(closedContexts).toBe(1);
+  });
+
+  it('ignores a second release of the same track', async () => {
+    const { getEmptyAudioStreamTrack, releaseEmptyAudioStreamTrack } = await freshUtils();
+    const first = getEmptyAudioStreamTrack();
+    const second = getEmptyAudioStreamTrack();
+
+    await releaseEmptyAudioStreamTrack(first);
+    await releaseEmptyAudioStreamTrack(first);
+    expect(closedContexts).toBe(0);
+
+    await releaseEmptyAudioStreamTrack(second);
+    expect(closedContexts).toBe(1);
+  });
+
+  it('leaves a track it never handed out alone', async () => {
+    const { getEmptyAudioStreamTrack, releaseEmptyAudioStreamTrack } = await freshUtils();
+    const owned = getEmptyAudioStreamTrack();
+    const foreign = makeTrack();
+
+    await releaseEmptyAudioStreamTrack(foreign);
+    expect(closedContexts).toBe(0);
+    expect((foreign as unknown as { stopped: boolean }).stopped).toBe(false);
+
+    await releaseEmptyAudioStreamTrack(owned);
+    expect(closedContexts).toBe(1);
+  });
+
+  it('builds a fresh context for an acquire that arrives after the last release', async () => {
+    const { getEmptyAudioStreamTrack, releaseEmptyAudioStreamTrack } = await freshUtils();
+    await releaseEmptyAudioStreamTrack(getEmptyAudioStreamTrack());
+    expect(closedContexts).toBe(1);
+
+    await releaseEmptyAudioStreamTrack(getEmptyAudioStreamTrack());
+    expect(closedContexts).toBe(2);
+  });
+});

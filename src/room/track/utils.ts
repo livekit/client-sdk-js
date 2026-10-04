@@ -126,7 +126,9 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
     const isRunning = () => ctx.state === 'running';
     if (!isRunning()) {
       try {
-        await ctx.resume();
+        // `resume` can stay pending indefinitely on a blocked page rather than rejecting, which
+        // would keep the context and its nodes alive past the `finally` below
+        await Promise.race([ctx.resume(), sleep(200)]);
       } catch {
         // autoplay policies can keep us from resuming the context
       }
