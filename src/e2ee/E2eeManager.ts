@@ -620,11 +620,15 @@ export class E2EEManager
       if (!sender) this.log.warn('early return because sender is not ready');
       return;
     }
+    const isVideo = isVideoTrack(track);
+    // Safari exposes no per-frame codec info until trackInfo arrives. Seed only h264/h265:
+    // a wrong vp8 seed would skip the NALU path, a wrong NALU seed only costs a logged fallback.
+    const publishedCodec = isVideo ? track.publishOptions?.videoCodec : undefined;
     this.handleSender(
       sender,
       track.mediaStreamID,
-      undefined,
-      isVideoTrack(track)
+      publishedCodec === 'h264' || publishedCodec === 'h265' ? publishedCodec : undefined,
+      isVideo
         ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
         : undefined,
     );
