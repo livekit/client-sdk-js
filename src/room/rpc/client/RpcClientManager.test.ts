@@ -255,6 +255,57 @@ describe('RpcClientManager', () => {
       }
     });
 
+    it('cleans up a failed v2 publish without a later ack timeout', async () => {
+      vi.useFakeTimers();
+
+      try {
+        sendTextMock.mockRejectedValue(new Error('engine closed'));
+        await expect(
+          rpcClientManager.performRpc({
+            destinationIdentity: 'remote-identity',
+            method: 'test-method',
+            payload: 'test-payload',
+          }),
+        ).rejects.toThrow('engine closed');
+
+        expect(vi.getTimerCount()).toBe(0);
+        expect((rpcClientManager as any).pendingAcks.size).toBe(0);
+        expect((rpcClientManager as any).pendingResponses.size).toBe(0);
+        await vi.advanceTimersByTimeAsync(7001);
+        // An unhandled rejection from completionFuture would also fail Vitest.
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('handles an ack timeout while a v2 publish is still pending', async () => {
+      vi.useFakeTimers();
+
+      try {
+        let resolveSend!: () => void;
+        sendTextMock.mockReturnValue(
+          new Promise<void>((resolve) => {
+            resolveSend = resolve;
+          }),
+        );
+        const performRpcPromise = rpcClientManager.performRpc({
+          destinationIdentity: 'remote-identity',
+          method: 'test-method',
+          payload: 'test-payload',
+        });
+
+        await vi.advanceTimersByTimeAsync(7001);
+        resolveSend();
+        const [, completionPromise] = await performRpcPromise;
+        await expect(completionPromise).rejects.toThrow(/Connection timeout/i);
+        expect(vi.getTimerCount()).toBe(0);
+        expect((rpcClientManager as any).pendingAcks.size).toBe(0);
+        expect((rpcClientManager as any).pendingResponses.size).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should handle a v2 RPC error response', async () => {
       const errorCode = 101;
       const errorMessage = 'Test error message';

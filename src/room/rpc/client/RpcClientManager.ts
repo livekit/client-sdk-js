@@ -108,22 +108,13 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       participantIdentity: destinationIdentity,
     });
 
-    await this.publishRpcRequest(
-      destinationIdentity,
-      id,
-      method,
-      payload,
-      effectiveTimeoutMs,
-      remoteClientProtocol,
-    );
-
-    responseTimeoutId = setTimeout(() => {
-      this.pendingResponses.delete(id);
-      completionFuture.reject?.(RpcError.builtIn('RESPONSE_TIMEOUT'));
-    }, responseTimeoutMs);
-
+    // Observe the future before publishing: a slow send can outlast the ack timer.
+    // Keep the returned promise rejected for callers, while marking its rejection
+    // handled until performRpc has finished publishing and can return it.
     const completionPromise = completionFuture.promise.finally(() => {
-      clearTimeout(responseTimeoutId);
+      if (responseTimeoutId !== null) {
+        clearTimeout(responseTimeoutId);
+      }
 
       if (this.pendingAcks.has(id)) {
         this.log.warn('RPC response received before ack', id);
@@ -131,6 +122,32 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
         clearTimeout(ackTimeoutId);
       }
     });
+    completionPromise.catch(() => {});
+
+    try {
+      await this.publishRpcRequest(
+        destinationIdentity,
+        id,
+        method,
+        payload,
+        effectiveTimeoutMs,
+        remoteClientProtocol,
+      );
+    } catch (e) {
+      // The caller receives the publish error. Do not leave an ack timer that
+      // later rejects a future the caller never received.
+      clearTimeout(ackTimeoutId);
+      this.pendingAcks.delete(id);
+      this.pendingResponses.delete(id);
+      throw e;
+    }
+
+    if (this.pendingResponses.has(id)) {
+      responseTimeoutId = setTimeout(() => {
+        this.pendingResponses.delete(id);
+        completionFuture.reject?.(RpcError.builtIn('RESPONSE_TIMEOUT'));
+      }, responseTimeoutMs);
+    }
 
     return [id, completionPromise];
   }
