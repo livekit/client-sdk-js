@@ -269,8 +269,8 @@ describe('RpcClientManager', () => {
         ).rejects.toThrow('engine closed');
 
         expect(vi.getTimerCount()).toBe(0);
-        expect(Reflect.get(rpcClientManager, 'pendingAcks').size).toBe(0);
-        expect(Reflect.get(rpcClientManager, 'pendingResponses').size).toBe(0);
+        expect((rpcClientManager as any).pendingAcks.size).toBe(0);
+        expect((rpcClientManager as any).pendingResponses.size).toBe(0);
         await vi.advanceTimersByTimeAsync(7001);
         // An unhandled rejection from completionFuture would also fail Vitest.
       } finally {
@@ -299,8 +299,8 @@ describe('RpcClientManager', () => {
         const [, completionPromise] = await performRpcPromise;
         await expect(completionPromise).rejects.toThrow(/Connection timeout/i);
         expect(vi.getTimerCount()).toBe(0);
-        expect(Reflect.get(rpcClientManager, 'pendingAcks').size).toBe(0);
-        expect(Reflect.get(rpcClientManager, 'pendingResponses').size).toBe(0);
+        expect((rpcClientManager as any).pendingAcks.size).toBe(0);
+        expect((rpcClientManager as any).pendingResponses.size).toBe(0);
       } finally {
         vi.useRealTimers();
       }
