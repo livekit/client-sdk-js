@@ -74,25 +74,6 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
   );
 };
 
-// /**
-//  *
-//  * @internal
-//  * @experimental
-//  */
-// const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
-//   // use vp8 as a default
-//   const vp8 = determineAppropriateEncoding(false, width, height);
-//   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
-//   const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
-//   const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
-//   return {
-//     vp8,
-//     vp9,
-//     h264,
-//     av1,
-//   };
-// };
-
 const videoRids = ['q', 'h', 'f'];
 
 /* @internal */
