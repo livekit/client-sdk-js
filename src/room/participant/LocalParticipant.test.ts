@@ -2,7 +2,7 @@ import { PacketTrailerFeature } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type LocalTrack from '../track/LocalTrack';
 import { Track } from '../track/Track';
-import type { TrackPublishOptions } from '../track/options';
+import type { AudioCaptureOptions, TrackPublishOptions } from '../track/options';
 import LocalParticipant from './LocalParticipant';
 
 type FrameMetadataTestParticipant = {
@@ -77,5 +77,55 @@ describe('LocalParticipant frame metadata publish options', () => {
     expect(features).toEqual([]);
     expect(opts.frameMetadata).toBeUndefined();
     expect(participant.log.warn).toHaveBeenCalledOnce();
+  });
+});
+
+type PreConnectBufferTestParticipant = Pick<LocalParticipant, 'setMicrophoneEnabled'> & {
+  log: { debug: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> };
+  roomOptions: { publishDefaults?: TrackPublishOptions };
+  pendingPublishing: Set<Track.Source>;
+  getTrackPublication: ReturnType<typeof vi.fn>;
+  createTracks: ReturnType<typeof vi.fn>;
+  publishTrack: ReturnType<typeof vi.fn>;
+};
+
+function makeAudioTrackWithBufferSpy() {
+  const track = makeTrack(Track.Kind.Audio) as LocalTrack & {
+    startPreConnectBuffer: ReturnType<typeof vi.fn>;
+  };
+  track.startPreConnectBuffer = vi.fn();
+  return track;
+}
+
+function makePreConnectParticipant(track: LocalTrack) {
+  const participant = Object.create(LocalParticipant.prototype) as PreConnectBufferTestParticipant;
+  participant.log = { debug: vi.fn(), info: vi.fn() };
+  participant.roomOptions = { publishDefaults: {} };
+  participant.pendingPublishing = new Set();
+  participant.getTrackPublication = vi.fn().mockReturnValue(undefined);
+  participant.createTracks = vi.fn().mockResolvedValue([track]);
+  participant.publishTrack = vi.fn().mockResolvedValue(undefined);
+  return participant;
+}
+
+describe('LocalParticipant preconnect buffer', () => {
+  it('starts the preconnect buffer when preConnectBuffer is set in the publish options', async () => {
+    const track = makeAudioTrackWithBufferSpy();
+    const participant = makePreConnectParticipant(track);
+
+    await participant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true });
+
+    expect(track.startPreConnectBuffer).toHaveBeenCalledOnce();
+  });
+
+  it('does not start the preconnect buffer when preConnectBuffer is set in the capture options', async () => {
+    const track = makeAudioTrackWithBufferSpy();
+    const participant = makePreConnectParticipant(track);
+
+    await participant.setMicrophoneEnabled(true, {
+      preConnectBuffer: true,
+    } as AudioCaptureOptions);
+
+    expect(track.startPreConnectBuffer).not.toHaveBeenCalled();
   });
 });
