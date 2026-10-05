@@ -202,8 +202,14 @@ export interface NALUProcessingResult {
  * @returns Detected codec type
  */
 function detectCodecFromNALUs(data: NonSharedUint8Array, naluIndices: number[]): DetectedCodec {
+  // h264 runs to completion first. Several non-slice h264 NALUs read as h265 slice types
+  // (AUD 0x09 -> STSA_N, SEI 0x06 -> TSA_R), so interleaving the two checks lets one of
+  // those outrank the real h264 slice that follows it. The reverse cannot happen: h265
+  // header bytes are even at nuh_layer_id 0, so they never mask to an h264 slice type.
   for (const naluIndex of naluIndices) {
     if (isH264SliceNALU(parseH264NALUType(data[naluIndex]))) return 'h264';
+  }
+  for (const naluIndex of naluIndices) {
     if (isH265SliceNALU(parseH265NALUType(data[naluIndex]))) return 'h265';
   }
   return 'unknown';
@@ -306,7 +312,7 @@ function findNALUIndices(stream: NonSharedUint8Array): number[] {
 /**
  * Process NALU data for frame encryption, detecting codec and finding unencrypted bytes
  * @param data Frame data
- * @param knownCodec Known codec from other sources (optional)
+ * @param knownCodec Codec from other sources, used only when the bytes are inconclusive (optional)
  * @returns NALU processing result
  */
 export function processNALUsForEncryption(
@@ -314,7 +320,11 @@ export function processNALUsForEncryption(
   knownCodec?: 'h264' | 'h265',
 ): NALUProcessingResult {
   const naluIndices = findNALUIndices(data);
-  const detectedCodec = knownCodec ?? detectCodecFromNALUs(data, naluIndices);
+  // The bytes outrank knownCodec, which can be the codec the client asked for rather than the
+  // one that was negotiated. Parsing the wrong one mis-slices without raising anything: the
+  // offset lands before the real slice header, so the header itself gets encrypted.
+  const codecFromNALUs = detectCodecFromNALUs(data, naluIndices);
+  const detectedCodec = codecFromNALUs === 'unknown' ? (knownCodec ?? 'unknown') : codecFromNALUs;
 
   if (detectedCodec === 'unknown') {
     return { unencryptedBytes: 0, detectedCodec, requiresNALUProcessing: false };
