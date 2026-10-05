@@ -20,6 +20,13 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
 
   private webAudioPluginNodes: AudioNode[];
 
+  /**
+   * the nodes of the graph currently wired up, in order, so teardown can undo exactly the edges
+   * `connectWebAudio` created. Reading `webAudioPluginNodes` instead would miss the old plugins
+   * once `setWebAudioPlugins` has replaced them.
+   */
+  private connectedNodes: AudioNode[] = [];
+
   private sinkId?: string;
 
   constructor(
@@ -205,12 +212,15 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     // @ts-ignore attached elements always have a srcObject set
     this.sourceNode = context.createMediaStreamSource(element.srcObject);
     let lastNode: AudioNode = this.sourceNode;
+    this.connectedNodes = [this.sourceNode];
     this.webAudioPluginNodes.forEach((node) => {
       lastNode.connect(node);
       lastNode = node;
+      this.connectedNodes.push(node);
     });
     this.gainNode = context.createGain();
     lastNode.connect(this.gainNode);
+    this.connectedNodes.push(this.gainNode);
     this.gainNode.connect(context.destination);
 
     if (this.elementVolume !== undefined) {
@@ -236,11 +246,21 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   }
 
   private disconnectWebAudio() {
+    // the plugin nodes belong to whoever passed them in and may feed graphs of their own, so only
+    // the edges this track created come down. A bare `node.disconnect()` would drop the
+    // application's own routing with them
+    for (let i = 0; i < this.connectedNodes.length - 1; i += 1) {
+      try {
+        this.connectedNodes[i].disconnect(this.connectedNodes[i + 1]);
+      } catch {
+        // a plugin node the application already disconnected itself, the rest of the chain still
+        // has to come apart
+      }
+    }
+    this.connectedNodes = [];
+    // the source and gain nodes are ours alone, so every remaining edge of theirs is ours to drop
     this.gainNode?.disconnect();
     this.sourceNode?.disconnect();
-    // the plugin nodes belong to whoever passed them in, but the connections between them are ours
-    // to undo, otherwise stale routing survives into the next graph the same nodes are used in
-    this.webAudioPluginNodes.forEach((node) => node.disconnect());
     this.gainNode = undefined;
     this.sourceNode = undefined;
   }

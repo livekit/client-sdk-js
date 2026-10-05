@@ -409,6 +409,23 @@ describe('audio context ownership', () => {
     expect(created[0].closed).toBe(true);
   });
 
+  it('does not build a context for an acquire queued behind a release', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+    expect(created).toHaveLength(1);
+
+    // `startAudio` reads `audioContextReleased` before it waits on the mutex, so its acquire can
+    // already be queued behind a disconnect by the time the flag is set
+    const released = room.releaseAudioContext();
+    const acquired = room.acquireAudioContext();
+    await Promise.all([released, acquired]);
+
+    expect(created).toHaveLength(1);
+    expect(created[0].closed).toBe(true);
+    expect(room.audioContext).toBeUndefined();
+  });
+
   it('closes the outgoing context even when a participant fails to move off it', async () => {
     stubAudioContext();
     const room = internals(new Room({ webAudioMix: {} }));

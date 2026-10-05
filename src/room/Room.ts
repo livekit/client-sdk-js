@@ -152,6 +152,28 @@ const STATS_LOG_FREQUENCY_MS = 30 * 1000;
 const DUMMY_AUDIO_ELEMENT_ID = 'livekit-dummy-audio-el';
 
 /**
+ * One silent audio element serves every room on the page, so it is reference counted: a room
+ * disconnecting must not pull it out from under the rooms still playing through it. The element
+ * and its track go away once the last room hands its reference back.
+ */
+let sharedDummyAudioElement:
+  | { element: HTMLAudioElement; stream: MediaStream; track: MediaStreamTrack; refCount: number }
+  | undefined;
+
+function createSharedDummyAudioElement() {
+  const element = document.createElement('audio');
+  element.id = DUMMY_AUDIO_ELEMENT_ID;
+  element.autoplay = true;
+  element.hidden = true;
+  const track = getEmptyAudioStreamTrack();
+  track.enabled = true;
+  const stream = new MediaStream([track]);
+  element.srcObject = stream;
+  document.body.append(element);
+  return { element, stream, track, refCount: 0 };
+}
+
+/**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
  *
@@ -1100,7 +1122,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.setRegionStrategy(this.createRegionStrategy());
     }
 
-    this.acquireAudioContext().catch((error) =>
+    this.acquireAudioContext(true).catch((error) =>
       this.log.warn('Could not acquire audio context', { ...this.logContext, error }),
     );
 
@@ -1376,26 +1398,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * iOS blocks audio element playback unless some audio source is already playing, so keep an
-   * element with a silent track around. Reuses an existing one instead of stacking up listeners.
+   * element with a silent track around. The element is shared with any other room on the page and
+   * handed back on disconnect, so it outlives whichever room happened to create it.
    */
   private acquireDummyAudioElement(): HTMLAudioElement {
-    const existingEl = document.getElementById(DUMMY_AUDIO_ELEMENT_ID);
-    if (existingEl instanceof HTMLAudioElement) {
-      return existingEl;
+    if (!sharedDummyAudioElement) {
+      sharedDummyAudioElement = createSharedDummyAudioElement();
     }
+    const shared = sharedDummyAudioElement;
+    if (this.releaseDummyAudioElement) {
+      // this room already holds a reference, a second one would never be handed back
+      return shared.element;
+    }
+    shared.refCount += 1;
 
-    const dummyAudioEl = document.createElement('audio');
-    dummyAudioEl.id = DUMMY_AUDIO_ELEMENT_ID;
-    dummyAudioEl.autoplay = true;
-    dummyAudioEl.hidden = true;
-    const track = this.acquireEmptyAudioStreamTrack();
-    track.enabled = true;
-    const stream = new MediaStream([track]);
-    dummyAudioEl.srcObject = stream;
-
+    // the listener is per room rather than shared, so that the room it resumes playback for is
+    // still connected, and so that it goes away with the room that installed it
     const handleVisibilityChange = () => {
       // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
-      dummyAudioEl.srcObject = document.hidden ? null : stream;
+      shared.element.srcObject = document.hidden ? null : shared.stream;
       if (!document.hidden) {
         this.log.debug(
           'page visible again, triggering startAudio to resume playback and update playback status',
@@ -1409,17 +1430,26 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    document.body.append(dummyAudioEl);
 
     this.releaseDummyAudioElement = () => {
       this.releaseDummyAudioElement = undefined;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      dummyAudioEl.srcObject = null;
-      dummyAudioEl.remove();
-      this.releaseAcquiredEmptyAudioTrack(track);
+      shared.refCount -= 1;
+      if (shared.refCount > 0) {
+        return;
+      }
+      shared.element.srcObject = null;
+      shared.element.remove();
+      sharedDummyAudioElement = undefined;
+      releaseEmptyAudioStreamTrack(shared.track).catch((error) =>
+        this.log.warn('Could not release the dummy audio element track', {
+          ...this.logContext,
+          error,
+        }),
+      );
     };
 
-    return dummyAudioEl;
+    return shared.element;
   }
 
   /**
@@ -2436,9 +2466,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
   };
 
-  private async acquireAudioContext() {
+  /**
+   * @param forConnect whether this acquisition belongs to a connect, which is the only caller
+   * allowed to put a released room back on an audio context.
+   */
+  private async acquireAudioContext(forConnect = false) {
     const unlock = await this.audioContextMutex.lock();
     try {
+      if (this.audioContextReleased && !forConnect) {
+        // a disconnect set the flag and took the lock while this call was queued behind it.
+        // Creating a context now would leave one open on a room nothing tears down again
+        return;
+      }
       this.audioContextReleased = false;
       const providedAudioContext =
         typeof this.options.webAudioMix !== 'boolean'
