@@ -76,22 +76,22 @@ describe('LossyDataChannel', () => {
     expect(dc.send).toHaveBeenCalledTimes(1);
   });
 
-  it('wait policy: sends on the replacement handle when the channel is replaced while queued on the lock', async () => {
+  it('wait policy: drops a send queued on the lock when the channel is replaced', async () => {
     const { channel, dc: oldDc } = makeChannel('wait');
     oldDc.bufferedAmount = 2048;
     const parked = channel.send(new Uint8Array([1]));
     parked.catch(() => {});
-    const queuedMsg = new Uint8Array([2]);
-    const queued = channel.send(queuedMsg);
+    const queued = channel.send(new Uint8Array([2]));
     await vi.advanceTimersByTimeAsync(0);
 
     const newDc = new FakeDataChannel();
     channel.attach(newDc as unknown as RTCDataChannel);
 
     await expect(parked).rejects.toThrow();
-    await queued;
+    await expect(queued).resolves.toBeUndefined();
+    // Not on the abandoned channel, and not on the replacement, which may still be connecting.
     expect(oldDc.send).not.toHaveBeenCalled();
-    expect(newDc.send).toHaveBeenCalledWith(queuedMsg);
+    expect(newDc.send).not.toHaveBeenCalled();
   });
 
   it('skips sends while a reconnect is underway', async () => {

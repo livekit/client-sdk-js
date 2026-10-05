@@ -59,7 +59,8 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       return;
     }
 
-    if (!this.getChannel()) {
+    const dc = this.getChannel();
+    if (!dc) {
       return;
     }
 
@@ -83,11 +84,12 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       return;
     }
 
-    // Resolve the handle only now: it can be replaced while this send is queued on the headroom
-    // lock (queued, not parked, so the replacement doesn't reject it), and the one resolved
-    // before the wait would then be the abandoned channel.
-    const dc = this.getChannel();
-    if (!dc) {
+    if (this.getChannel() !== dc) {
+      // The handle was replaced while this send was queued on the headroom lock (queued, not
+      // parked, so the replacement didn't reject it). Don't send on the abandoned channel, and
+      // don't send on the replacement either: it may still be connecting, and a parked send
+      // aborted by the same replacement is waiting for the replay with a lower sequence, which
+      // receivers would discard if this one got there first. Defer to the replay like it.
       this.messageBuffer.push({ data: msg, sequence, sent: false });
       return;
     }
@@ -111,6 +113,12 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
     this.messageBuffer.popToSequence(lastMessageSeq);
     const unlock = await this.lockHeadroom();
     try {
+      // Resolved only once the lock is held: the handle can be replaced while the replay waits
+      // for it.
+      const dc = this.getChannel();
+      if (!dc) {
+        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+      }
       // Everything left after the ack cutoff must be re-handed to the current channel.
       this.messageBuffer.markAllUnsent();
       // Drain in passes, re-scanning the live buffer each time: a send that arrives (deferred,
@@ -127,10 +135,12 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
           await this.waitForHeadroomWithoutLock();
-          // Resolved per message: the handle can be replaced while the replay waits on the lock.
-          const dc = this.getChannel();
-          if (!dc) {
-            throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+          if (this.getChannel() !== dc) {
+            // Replaced mid-replay: that means another resume, whose replay picks up the
+            // entries still flagged unsent.
+            throw new UnexpectedConnectionState(
+              `DataChannel ${this.kind} was replaced during the replay`,
+            );
           }
           dc.send(item.data);
           this.messageBuffer.markSent(item);

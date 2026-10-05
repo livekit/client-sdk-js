@@ -537,6 +537,37 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('createDataChannels', () => {
+    it('makes the next sender wait for replacement channels to open', () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const pcManager = {
+        createPublisherDataChannel: vi.fn((label: string) =>
+          Object.assign(new FakeDataChannel(), { label }),
+        ),
+      };
+      const connected = Promise.resolve();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        pcManager,
+        publisherConnectionPromise: connected,
+      });
+      const internals = engine as unknown as {
+        createDataChannels: () => void;
+        publisherConnectionPromise?: Promise<void>;
+        dataChannels: { lossy: { stopThresholdTuning: () => void } };
+      };
+
+      // First creation (nothing to replace) keeps the memoized readiness check.
+      internals.createDataChannels();
+      expect(internals.publisherConnectionPromise).toBe(connected);
+
+      // Recreation (the Safari null-id resume path) swaps in channels that start out connecting.
+      internals.createDataChannels();
+      expect(internals.publisherConnectionPromise).toBeUndefined();
+
+      internals.dataChannels.lossy.stopThresholdTuning();
+    });
+  });
+
   describe('handleDataChannelClose', () => {
     function stubCloseEnv(
       engine: RTCEngine,

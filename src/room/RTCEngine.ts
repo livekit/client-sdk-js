@@ -898,6 +898,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
+    if (this.dataChannels.hasPublisherChannels) {
+      // Replacing live channels (the Safari null-id path in resumeConnection): the new ones start
+      // out connecting, so drop the memoized readiness check and make the next sender wait for
+      // them to open.
+      this.publisherConnectionPromise = undefined;
+    }
     this.dataChannels.createPublisherChannels(this.pcManager);
   }
 
