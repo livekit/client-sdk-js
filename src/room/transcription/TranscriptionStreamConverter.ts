@@ -71,6 +71,10 @@ export default class TranscriptionStreamConverter {
       this.partials.set(key, { streamId: reader.info.id, text: '' });
     }
 
+    // Chunk boundaries follow the transport's packet splitting, not the sender's writes, so
+    // payload decoding has to carry state across chunks for the lifetime of this stream.
+    const decoder = new TranscriptStreamDecoder();
+
     try {
       for await (const chunk of reader) {
         const partial = this.partials.get(key);
@@ -78,18 +82,25 @@ export default class TranscriptionStreamConverter {
           // A newer stream for this segment took over while this one was still draining.
           return;
         }
-        partial.text += unwrapTimedString(chunk);
+        partial.text += decoder.push(chunk);
         this.emitSegment(partial, segmentId, senderIdentity, reader, this.isFinal(reader) ?? false);
       }
     } catch (err) {
       // The stream ended abnormally (sender disconnected mid-segment, decode failure). Whatever
       // was accumulated is all there will ever be, so close the segment out.
       this.log.debug('lk.transcription stream ended abnormally', err);
-      this.closeSegment(key, segmentId, senderIdentity, reader, true);
+      this.closeSegment(key, segmentId, senderIdentity, reader, true, decoder.flush());
       return;
     }
 
-    this.closeSegment(key, segmentId, senderIdentity, reader, this.isFinal(reader) ?? true);
+    this.closeSegment(
+      key,
+      segmentId,
+      senderIdentity,
+      reader,
+      this.isFinal(reader) ?? true,
+      decoder.flush(),
+    );
   };
 
   private closeSegment(
@@ -98,11 +109,13 @@ export default class TranscriptionStreamConverter {
     senderIdentity: string,
     reader: TextStreamReader,
     final: boolean,
+    trailingText: string,
   ) {
     const partial = this.partials.get(key);
     if (!partial || partial.streamId !== reader.info.id) {
       return;
     }
+    partial.text += trailingText;
     this.emitSegment(partial, segmentId, senderIdentity, reader, final);
     if (final) {
       this.partials.delete(key);
@@ -188,22 +201,62 @@ function partialKey(senderIdentity: string, segmentId: string) {
 }
 
 /**
- * Unwraps a chunk published by an agent running with `json_format`, which wraps every write as a
- * JSON `TimedString` (`{"text": "...", "start_time": 1.5}`) with a trailing newline.
+ * Decodes the chunks of a single `lk.transcription` stream into transcript text, unwrapping the
+ * payloads of an agent running with `json_format`. That mode wraps every write as a JSON
+ * `TimedString` (`{"text": "...", "start_time": 1.5}`) terminated by a newline.
  *
- * There is no wire marker for this mode - no attribute, no distinct mime type - so the payload has
- * to be sniffed. A transcript whose literal text happens to be a JSON object with a string `text`
- * field would be misread; that is accepted as vanishingly unlikely. The durable fix is a marker
- * attribute on the agent side.
+ * There is no wire marker for this mode - no attribute, no distinct mime type - so the stream's
+ * first chunk is sniffed: one opening with `{"` puts the whole stream in JSON mode. A plain-text
+ * transcript that happens to start that way still comes through intact, since lines that fail to
+ * parse as a `TimedString` are passed through verbatim; it just isn't surfaced until each newline
+ * (or the stream's close) arrives. The durable fix is a marker attribute on the agent side.
+ *
+ * A chunk is a transport packet, not a sender write: a `TimedString` larger than one packet arrives
+ * split across chunks, and one chunk may hold several. So JSON mode buffers and only decodes
+ * complete newline-terminated lines. Whatever is left unterminated when the stream closes (agents
+ * write their final markup-stripped tail unencoded) is decoded by `flush`.
  *
  * Only the text is taken. `TimedString` also carries `start_time`/`end_time` as floating point
  * values in an undocumented unit, while the proto segment fields are `uint64` - and the legacy
  * channel always reported zero - so the timings are deliberately dropped rather than guessed at.
  */
-function unwrapTimedString(chunk: string): string {
-  const trimmed = chunk.trim();
+class TranscriptStreamDecoder {
+  private mode: 'pending' | 'text' | 'json' = 'pending';
+
+  /** JSON mode only: the trailing, not yet newline-terminated part of the stream. */
+  private buffered = '';
+
+  /** Returns the transcript text the chunk completes, possibly empty. */
+  push(chunk: string): string {
+    if (this.mode === 'pending') {
+      if (chunk.trim() === '') {
+        return chunk;
+      }
+      this.mode = chunk.trim().startsWith('{"') ? 'json' : 'text';
+    }
+    if (this.mode === 'text') {
+      return chunk;
+    }
+
+    this.buffered += chunk;
+    const lines = this.buffered.split('\n');
+    this.buffered = lines.pop() ?? '';
+    return lines.map((line) => unwrapTimedString(line) ?? `${line}\n`).join('');
+  }
+
+  /** Returns any text still buffered at the end of the stream. */
+  flush(): string {
+    const rest = this.buffered;
+    this.buffered = '';
+    return rest === '' ? '' : (unwrapTimedString(rest) ?? rest);
+  }
+}
+
+/** The `text` of a JSON `TimedString` line, or `undefined` if the line is not one. */
+function unwrapTimedString(line: string): string | undefined {
+  const trimmed = line.trim();
   if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-    return chunk;
+    return undefined;
   }
   try {
     const parsed: unknown = JSON.parse(trimmed);
@@ -217,5 +270,5 @@ function unwrapTimedString(chunk: string): string {
   } catch {
     // Not JSON after all - it is ordinary transcript text that happens to be brace-wrapped.
   }
-  return chunk;
+  return undefined;
 }
