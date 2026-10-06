@@ -44,6 +44,9 @@ function transcriptionStream(id: string, attributes: Record<string, string> = {}
       }
       controller.close();
     },
+    error(err: Error) {
+      controller.error(err);
+    },
   };
 }
 
@@ -316,6 +319,83 @@ describe('TranscriptionStreamConverter', () => {
       // Timings stay zeroed, exactly as the legacy channel always reported them.
       expect(emitted[0].segments[0].startTime).toBe(0n);
       expect(emitted[0].segments[0].endTime).toBe(0n);
+    });
+
+    it('reassembles a TimedString split across chunks instead of leaking raw JSON', async () => {
+      // A write larger than one packet is split by the transport, so a single TimedString can
+      // arrive in pieces that are not valid JSON on their own.
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcription_final': 'false',
+      });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{"text": "Hel');
+      await flush();
+      stream.write('lo", "start_time": 1.5}\n{"text": " wor');
+      await flush();
+      stream.write('ld"}\n');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+
+      expect(emissions(emitted)).toEqual([
+        ['Hello', false],
+        ['Hello world', false],
+        ['Hello world', true],
+      ]);
+    });
+
+    it('unwraps several TimedStrings that arrive in one chunk', async () => {
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', { 'lk.segment_id': 'SG_1' });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{"text": "Hello"}\n{"text": " there"}\n{"text": " world"}\n');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+
+      expect(emitted[emitted.length - 1].segments[0].text).toBe('Hello there world');
+    });
+
+    it('appends an unterminated plain-text tail when the stream closes', async () => {
+      // Agents write the final markup-stripped remainder of a segment without JSON encoding.
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcription_final': 'false',
+      });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{"text": "Hello"}\n');
+      await flush();
+      stream.write(' world');
+      await flush();
+      stream.close({ 'lk.transcription_final': 'true' });
+      await done;
+
+      expect(emissions(emitted)).toEqual([
+        ['Hello', false],
+        ['Hello world', true],
+      ]);
+    });
+
+    it('decodes a buffered TimedString when the stream ends abnormally', async () => {
+      const { converter, emitted } = setup();
+      const stream = transcriptionStream('ST_1', {
+        'lk.segment_id': 'SG_1',
+        'lk.transcription_final': 'false',
+      });
+
+      const done = converter.handleTextStream(stream.reader, 'agent-1');
+      stream.write('{"text": "Hello"}');
+      await flush();
+      stream.error(new Error('sender disconnected'));
+      await done;
+
+      expect(emissions(emitted)).toEqual([['Hello', true]]);
     });
 
     it('leaves plain text chunks untouched, including ones that look JSON-ish', async () => {
