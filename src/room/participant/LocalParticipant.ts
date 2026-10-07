@@ -32,6 +32,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
+import DeviceManager from '../DeviceManager';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
@@ -2142,8 +2143,7 @@ export default class LocalParticipant extends Participant {
             'track ended, attempting to use a different device',
             getLogContextFromTrack(track),
           );
-          if (isLocalAudioTrack(track) && isChromiumBased()) {
-            // only chrome has the notion of a literal "default" device for audio
+          if (isLocalAudioTrack(track)) {
             await this.restartOnDefaultAudioDevice(track);
           } else {
             await track.restartTrack();
@@ -2158,12 +2158,16 @@ export default class LocalParticipant extends Participant {
 
   /**
    * @internal
-   * Chrome ignores a soft `deviceId` and opens the first enumerated device, which after an unplug
-   * is not the OS default
    */
   private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
     try {
-      await track.setDeviceId({ exact: 'default' });
+      if (isChromiumBased()) {
+        // only chrome has the notion of a literal `default` device
+        await track.setDeviceId({ exact: 'default' });
+      } else {
+        // just try to restart for other browsers and try to change the device id as a fallback in the catch clause
+        await track.restartTrack();
+      }
     } catch (e) {
       // restart() clears the manually-stopped flag on entry, so retrying a track the user stopped
       // while the first attempt was in flight would re-open the capture device behind their back
@@ -2171,10 +2175,12 @@ export default class LocalParticipant extends Participant {
         throw e;
       }
       this.log.debug(
-        'exact default device was rejected, retrying with ideal',
+        'could not reacquire the audio device, retrying with an enumerated device',
         getLogContextFromTrack(track),
       );
-      await track.setDeviceId('default');
+      // permission is already granted at this point, so skip the probe that would re-acquire media
+      const allDevices = await DeviceManager.getInstance().getDevices('audioinput', false);
+      await track.setDeviceId(allDevices?.[0]?.deviceId ?? 'default');
     }
   }
 
