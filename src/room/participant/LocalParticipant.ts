@@ -96,6 +96,7 @@ import {
 import {
   Future,
   isAudioTrack,
+  isChromiumBased,
   isDeviceAcquisitionFailure,
   isE2EESimulcastSupported,
   isFireFox,
@@ -2141,7 +2142,8 @@ export default class LocalParticipant extends Participant {
             'track ended, attempting to use a different device',
             getLogContextFromTrack(track),
           );
-          if (isLocalAudioTrack(track)) {
+          if (isLocalAudioTrack(track) && isChromiumBased()) {
+            // only chrome has the notion of a literal "default" device for audio
             await this.restartOnDefaultAudioDevice(track);
           } else {
             await track.restartTrack();
