@@ -22,6 +22,7 @@ const EXTENSION_MODULES = [
   'src/room/data-track/incoming/',
   'src/room/data-track/outgoing/',
   'src/room/data-track/extension.ts',
+  'src/room/data-track/types.ts',
   'src/room/data-stream/',
   'src/room/rpc/',
   'node_modules/webrtc-adapter/',

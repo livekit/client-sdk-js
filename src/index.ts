@@ -193,6 +193,12 @@ export {
   type DataTrackE2eeExtension,
 } from './room/data-track/packet/extensions';
 export { type DataChannelKind } from './room/RTCEngine';
+export type { CoreRoom } from './room/CoreRoom';
+export type { ExtendedRoom, ExtensionResult, RoomClass, RoomExtension } from './room/extensions';
+export type { DataStreamLocalApi, DataStreamRoomApi } from './room/data-stream/extension';
+export type { RpcLocalApi, RpcRoomApi } from './room/rpc/extension';
+export type { DataTrackLocalApi } from './room/data-track/extension';
+export type { E2eeRoomApi } from './e2ee/extension';
 
 export { LocalTrackRecorder } from './room/track/record';
 export {

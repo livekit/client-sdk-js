@@ -17,7 +17,7 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  *
  * a Room fires [[RoomEvent | RoomEvents]].
  *
- * This is the full-featured room: {@link CoreRoom} with every extension installed.
+ * This is the full-featured room: `CoreRoom` with every extension installed.
  */
 export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee) {}
 
