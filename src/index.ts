@@ -10,12 +10,12 @@ import 'webrtc-adapter';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
-import Room, { ConnectionState, type RoomEventCallbacks } from './room/Room';
+import { ConnectionState, Room, type RoomEventCallbacks } from './room/Room';
 import * as attributes from './room/attribute-typings';
 import LocalDataTrack from './room/data-track/LocalDataTrack';
 import RemoteDataTrack, { type DataTrackSubscribeOptions } from './room/data-track/RemoteDataTrack';
 import { type RemoteDataTrackPipelineOptions } from './room/data-track/types';
-import LocalParticipant from './room/participant/LocalParticipant';
+import { LocalParticipant } from './room/participant/LocalParticipant';
 import Participant, {
   ConnectionQuality,
   type ParticipantEventCallbacks,

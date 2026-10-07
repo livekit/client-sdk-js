@@ -35,9 +35,7 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
-import { EncryptionEvent } from '../e2ee';
-import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
-import { FrameMetadataManager } from '../frameMetadata/FrameMetadataManager';
+import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
@@ -79,7 +77,7 @@ import type {
   RoomClass,
   RoomExtension,
 } from './extensions';
-import LocalParticipant from './participant/LocalParticipant';
+import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -114,7 +112,6 @@ import {
   isCloud,
   isDeflateRawCompressionSupported,
   isLocalAudioTrack,
-  isLocalParticipant,
   isLocalVideoTrack,
   isReactNative,
   isRemotePub,
@@ -234,11 +231,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private disconnectLock: Mutex;
 
+  /** the E2EE manager slot; filled by the `e2ee` extension */
   private e2eeManager: BaseE2EEManager | undefined;
-
-  private frameMetadataManager: FrameMetadataManager | undefined;
-
-  private e2eeStateMutex: Mutex = new Mutex();
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
@@ -336,14 +330,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
 
-    this.setupFrameMetadata();
-
-    if (this.options.e2ee || this.options.encryption) {
-      this.setupE2EE();
-    }
-
-    this.engine.e2eeManager = this.e2eeManager;
-
     this.installExtensions();
 
     if (this.options.videoCaptureDefaults.deviceId) {
@@ -428,6 +414,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.syncStateHooks.push(cb);
       },
       getE2eeManager: () => this.e2eeManager,
+      setE2eeManager: (manager) => {
+        this.e2eeManager = manager;
+        this.engine.e2eeManager = manager;
+        this.e2eeManagerHooks.forEach((hook) => hook(manager));
+      },
       onE2eeManagerChanged: (cb) => {
         this.e2eeManagerHooks.push(cb);
       },
@@ -467,67 +458,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       dispose();
     }
     this.cleanupController?.abort();
-  }
-
-  /**
-   * @experimental
-   */
-  async setE2EEEnabled(enabled: boolean) {
-    const unlock = await this.e2eeStateMutex.lock();
-    try {
-      if (this.e2eeManager) {
-        if (this.isE2EEEnabled !== enabled) {
-          await this.localParticipant.setE2EEEnabled(enabled);
-
-          if (this.localParticipant.identity !== '') {
-            this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
-          }
-        }
-      } else {
-        throw Error('e2ee not configured, please set e2ee settings within the room options');
-      }
-    } finally {
-      unlock();
-    }
-  }
-
-  private setupE2EE() {
-    // when encryption is enabled via `options.encryption`, we enable data channel encryption
-
-    const dcEncryptionEnabled = !!this.options.encryption;
-    const e2eeOptions = this.options.encryption || this.options.e2ee;
-
-    if (e2eeOptions) {
-      if ('e2eeManager' in e2eeOptions) {
-        this.e2eeManager = e2eeOptions.e2eeManager;
-        this.e2eeManager.isDataChannelEncryptionEnabled = dcEncryptionEnabled;
-      } else {
-        this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
-      }
-      this.e2eeManager.on(
-        EncryptionEvent.ParticipantEncryptionStatusChanged,
-        (enabled, participant) => {
-          if (isLocalParticipant(participant)) {
-            this.isE2EEEnabled = enabled;
-          }
-          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
-        },
-      );
-      this.e2eeManager.on(EncryptionEvent.EncryptionError, (error, participantIdentity) => {
-        const participant = participantIdentity
-          ? this.getParticipantByIdentity(participantIdentity)
-          : undefined;
-        this.emit(RoomEvent.EncryptionError, error, participant);
-      });
-      this.e2eeManager?.setup(this);
-      this.e2eeManager?.setupEngine(this.engine);
-    }
-  }
-
-  private setupFrameMetadata() {
-    const opts = this.options.frameMetadata ?? this.options.packetTrailer;
-    this.frameMetadataManager = new FrameMetadataManager(opts);
-    this.frameMetadataManager.setup(this);
   }
 
   private get logContext() {

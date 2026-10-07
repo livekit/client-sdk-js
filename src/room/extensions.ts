@@ -78,6 +78,7 @@ export interface ExtensionContext {
   onSyncState(cb: () => PublishDataTrackResponse[]): void;
   /** The E2EE manager slot. Core owns the slot and reads it; the `e2ee` extension fills it. */
   getE2eeManager(): BaseE2EEManager | undefined;
+  setE2eeManager(manager: BaseE2EEManager): void;
   onE2eeManagerChanged(cb: (manager: BaseE2EEManager) => void): void;
   /** The `install` result of an already installed extension (a hard dependency). */
   get<E extends RoomExtension<any, any>>(ext: E): ReturnType<E['install']>;

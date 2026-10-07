@@ -1,3 +1,5 @@
+import { type E2eeRoomApi, e2ee } from '../e2ee/extension';
+import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
 import {
   type DataStreamLocalApi,
@@ -17,7 +19,7 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  *
  * This is the full-featured room: {@link CoreRoom} with every extension installed.
  */
-export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks) {}
+export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee) {}
 
 export default Room;
 
@@ -26,7 +28,7 @@ export default Room;
 // only on the `Room` class. The core entry does not load this file, so a light room keeps the
 // narrow types.
 declare module './CoreRoom' {
-  interface CoreRoom extends DataStreamRoomApi, RpcRoomApi {}
+  interface CoreRoom extends DataStreamRoomApi, RpcRoomApi, E2eeRoomApi {}
 }
 declare module './participant/LocalParticipant' {
   interface LocalParticipant extends DataStreamLocalApi, RpcLocalApi, DataTrackLocalApi {}

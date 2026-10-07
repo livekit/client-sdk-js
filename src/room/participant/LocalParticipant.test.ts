@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type LocalTrack from '../track/LocalTrack';
 import { Track } from '../track/Track';
 import type { TrackPublishOptions } from '../track/options';
-import LocalParticipant from './LocalParticipant';
+import { LocalParticipant } from './LocalParticipant';
 
 type FrameMetadataTestParticipant = {
   canPublishFrameMetadata: () => boolean;

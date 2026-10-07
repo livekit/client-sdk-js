@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { RoomConnectOptions, RoomOptions } from '../../options';
 import type RTCEngine from '../../room/RTCEngine';
-import Room, { ConnectionState } from '../../room/Room';
+import { ConnectionState, Room } from '../../room/Room';
 import { RoomEvent } from '../../room/events';
 import type { SimulationScenario } from '../../room/types';
 import { sleep } from '../../room/utils';
