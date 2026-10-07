@@ -5,7 +5,14 @@ import { debounce } from '../debounce';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
-import { compareVersions, isAppleMobile, isMobile, sleep, unwrapConstraint } from '../utils';
+import {
+  compareVersions,
+  isAppleMobile,
+  isMobile,
+  markDeviceAcquisitionFailure,
+  sleep,
+  unwrapConstraint,
+} from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
@@ -130,6 +137,10 @@ export default abstract class LocalTrack<
 
   get isUserProvided() {
     return this.providedByUser;
+  }
+
+  get isStopped() {
+    return this.manuallyStopped;
   }
 
   get mediaStreamTrack() {
@@ -386,19 +397,37 @@ export default abstract class LocalTrack<
       this._mediaStreamTrack.stop();
 
       // create new track and attach
-      const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
-      const newTrack = mediaStream.getTracks()[0];
-      if (this.kind === Track.Kind.Video) {
-        // we already captured the audio track with the constraints, so we only need to apply the video constraints
-        await newTrack.applyConstraints(otherConstraints);
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+      } catch (e) {
+        markDeviceAcquisitionFailure(e);
+        throw e;
       }
-      newTrack.addEventListener('ended', this.handleEnded);
-      this.log.debug('re-acquired MediaStreamTrack', this.logContext);
+      const newTrack = mediaStream.getTracks()[0];
+      try {
+        if (this.kind === Track.Kind.Video) {
+          // we already captured the audio track with the constraints, so we only need to apply the video constraints
+          await newTrack.applyConstraints(otherConstraints);
+        }
+        newTrack.addEventListener('ended', this.handleEnded);
+        this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
-      await this.setMediaStreamTrack(newTrack, false, isUnmuting);
+        await this.setMediaStreamTrack(newTrack, false, isUnmuting);
+      } catch (e) {
+        // setMediaStreamTrack can throw after acquisition but before it adopts the new track,
+        // which would leave the capture device live with nothing referencing it
+        if (this._mediaStreamTrack !== newTrack) {
+          newTrack.stop();
+        }
+        throw e;
+      }
       this._constraints = constraints;
       this.pendingDeviceChange = false;
       this.emit(TrackEvent.Restarted, this);
+      return this;
+    } finally {
+      // in the finally because a throw can also leave the new track adopted, and so still live
       if (this.manuallyStopped) {
         this.log.warn(
           'track was stopped during a restart, stopping restarted track',
@@ -406,8 +435,6 @@ export default abstract class LocalTrack<
         );
         this.stop();
       }
-      return this;
-    } finally {
       unlock();
     }
   }

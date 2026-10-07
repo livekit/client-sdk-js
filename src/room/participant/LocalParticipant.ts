@@ -96,11 +96,13 @@ import {
 import {
   Future,
   isAudioTrack,
+  isDeviceAcquisitionFailure,
   isE2EESimulcastSupported,
   isFireFox,
   isLocalAudioTrack,
   isLocalTrack,
   isLocalVideoTrack,
+  isPermissionDeniedError,
   isSVCCodec,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
@@ -2140,8 +2142,7 @@ export default class LocalParticipant extends Participant {
             getLogContextFromTrack(track),
           );
           if (isLocalAudioTrack(track)) {
-            // fall back to default device if available
-            await track.restartTrack({ deviceId: 'default' });
+            await this.restartOnDefaultAudioDevice(track);
           } else {
             await track.restartTrack();
           }
@@ -2152,6 +2153,28 @@ export default class LocalParticipant extends Participant {
       }
     }
   };
+
+  /**
+   * Chrome ignores a soft `deviceId` and opens the first enumerated device, which after an unplug
+   * is not the OS default. Only Chrome exposes a device whose id is literally `default`, so the
+   * exact form that works there is rejected everywhere else and has to be relaxed.
+   */
+  private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
+    try {
+      await track.restartTrack({ deviceId: { exact: 'default' } });
+    } catch (e) {
+      // restart() clears the manually-stopped flag on entry, so retrying a track the user stopped
+      // while the first attempt was in flight would re-open the capture device behind their back
+      if (!isDeviceAcquisitionFailure(e) || isPermissionDeniedError(e) || track.isStopped) {
+        throw e;
+      }
+      this.log.debug(
+        'exact default device was rejected, retrying with ideal',
+        getLogContextFromTrack(track),
+      );
+      await track.restartTrack({ deviceId: { ideal: 'default' } });
+    }
+  }
 
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack,
