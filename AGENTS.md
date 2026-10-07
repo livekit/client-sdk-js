@@ -74,6 +74,38 @@ pnpm dev
 The main demo app (`examples/demo/`) is a comprehensive kitchen-sink UI. Standalone examples
 (`examples/rpc/`, `examples/data-tracks/`) focus on individual features.
 
+## Room extensions
+
+`Room` (the main export) is `CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee)`.
+`CoreRoom` (`src/room/CoreRoom.ts`) holds the signal client, engine, participants, media and
+raw data packets. Everything else is a `RoomExtension` (`src/room/extensions.ts`) that
+`CoreRoom.with(...)` installs in the constructor. `src/core.ts` is the (not yet published) light
+entry; `pnpm check:core` fails if `CoreRoom` alone bundles an extension module.
+
+- An extension is a plain object: `key`, optional `requires` (hard dependencies, installed first,
+  deduped by key), and `install(room, ctx)`. It lives in `extension.ts` next to its managers.
+- `install` returns `{ room, local, dispose }`. `room` and `local` members are copied onto the
+  room and its local participant under the SDK's method names (`sendText`, `registerRpcMethod`).
+  Extra members (the managers) are visible to dependents through `ctx.get(extension)`.
+- `install`, `dispose` and every hook are synchronous. Async setup starts in `install` and is
+  awaited in the extension's own methods.
+- Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced
+  after a close, so register engine listeners there), `onDataPacket` (one owner per `DataPacket`
+  case), `onDisconnect`, `onParticipantCreated`, `onParticipantUpdates`, `onSyncState`, and the
+  E2EE manager slot (`getE2eeManager` / `setE2eeManager` / `onE2eeManagerChanged`). Core owns
+  the slot because `RTCEngine` and the publish path read it. Prefer an existing `RoomEvent` over
+  a new hook.
+- The full entry (`src/room/Room.ts`) augments `CoreRoom` and `LocalParticipant` with the
+  extension API interfaces via `declare module`, so the full build keeps its types wherever those
+  classes appear. Inside the SDK's own compilation this means core code can call extension
+  methods without a type error; `pnpm check:core` is the guard.
+- Extension method bodies must be closures over the managers, never `this`-based: they are
+  copied onto instances with `Object.defineProperties`.
+- `LocalParticipant.openByteStream` is an internal slot the `dataStreams` extension fills; the
+  preconnect audio buffer in `publishTrack` sends through it.
+- `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
+  `devicechange` listener. A disposed room cannot connect again.
+
 ## Manager pattern
 
 Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager`,
