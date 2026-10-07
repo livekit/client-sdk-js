@@ -1558,6 +1558,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     let restart: Promise<void> | undefined;
     const onRestarting = () => {
       restart = this.waitForRestartOutcome(abortController);
+      // Awaited only once the transport wait settles; keep an earlier failure from going unhandled.
+      restart.catch(() => {});
       stopTransportWait();
     };
     if (abortController?.signal.aborted) {

@@ -850,6 +850,33 @@ describe('RTCEngine', () => {
       await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
     });
 
+    it('keeps a restart failure handled while the transport wait is still settling', async () => {
+      const engine = primeEngine();
+      let cancelTransportWait!: () => void;
+      (engine as unknown as { pcManager: unknown }).pcManager = {
+        ensurePCTransportConnection: () =>
+          new Promise<void>((_, reject) => {
+            cancelTransportWait = () =>
+              reject(ConnectionError.cancelled('room connection has been cancelled'));
+          }),
+      };
+      const unhandledRejection = vi.fn();
+      process.on('unhandledRejection', unhandledRejection);
+      try {
+        const wait = engine.waitForPCInitialConnection(15_000);
+
+        engine.emit(EngineEvent.Restarting);
+        engine.emit(EngineEvent.Disconnected);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        cancelTransportWait();
+
+        await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
+        expect(unhandledRejection).not.toHaveBeenCalled();
+      } finally {
+        process.off('unhandledRejection', unhandledRejection);
+      }
+    });
+
     it('rejects when the engine closes during the full reconnect', async () => {
       const engine = primeEngine();
       const wait = engine.waitForPCInitialConnection(15_000);
