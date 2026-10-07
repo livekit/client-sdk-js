@@ -55,7 +55,7 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && rollup --config rollup.config.core.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
