@@ -1600,6 +1600,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Disconnected, onDisconnected);
       abortController?.signal.addEventListener('abort', onAbort);
+      if (abortController?.signal.aborted) {
+        onAbort();
+      }
     });
   }
 

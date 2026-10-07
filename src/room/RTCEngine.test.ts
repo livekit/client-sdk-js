@@ -860,6 +860,18 @@ describe('RTCEngine', () => {
 
       await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
     });
+
+    it('rejects as cancelled when the attempt was aborted before the full reconnect', async () => {
+      const engine = primeEngine();
+      const abortController = new AbortController();
+      const wait = engine.waitForPCInitialConnection(15_000, abortController);
+
+      abortController.abort();
+      engine.emit(EngineEvent.Restarting);
+      engine.emit(EngineEvent.Restarted);
+
+      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    });
   });
 
   describe('verifyTransport stuck-connecting bound', () => {
