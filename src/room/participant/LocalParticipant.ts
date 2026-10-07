@@ -2157,9 +2157,9 @@ export default class LocalParticipant extends Participant {
   };
 
   /**
+   * @internal
    * Chrome ignores a soft `deviceId` and opens the first enumerated device, which after an unplug
-   * is not the OS default. Only Chrome exposes a device whose id is literally `default`, so the
-   * exact form that works there is rejected everywhere else and has to be relaxed.
+   * is not the OS default
    */
   private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
     try {
