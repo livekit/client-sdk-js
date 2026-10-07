@@ -6,6 +6,7 @@ import {
   SubscriptionError,
   TrackType,
 } from '@livekit/protocol';
+import 'webrtc-adapter';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';

@@ -1,4 +1,4 @@
-import type Room from '../../Room';
+import type { CoreRoom } from '../../CoreRoom';
 import type LocalTrack from '../LocalTrack';
 import type { Track } from '../Track';
 
@@ -31,6 +31,6 @@ export interface TrackProcessor<
   restart: (opts: U) => Promise<void>;
   destroy: () => Promise<void>;
   processedTrack?: MediaStreamTrack;
-  onPublish?: (room: Room) => Promise<void>;
+  onPublish?: (room: CoreRoom) => Promise<void>;
   onUnpublish?: () => Promise<void>;
 }

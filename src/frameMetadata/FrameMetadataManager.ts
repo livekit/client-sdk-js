@@ -1,6 +1,6 @@
 import type { TrackInfo } from '@livekit/protocol';
 import log from '../logger';
-import type Room from '../room/Room';
+import type { CoreRoom } from '../room/CoreRoom';
 import { RoomEvent } from '../room/events';
 import { FrameMetadataExtractor } from '../room/track/FrameMetadataExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
@@ -37,7 +37,7 @@ export interface FrameMetadataOptions {
 export class FrameMetadataManager {
   private worker?: Worker;
 
-  private room?: Room;
+  private room?: CoreRoom;
 
   private extractors = new Map<string, FrameMetadataExtractor>();
 
@@ -54,7 +54,7 @@ export class FrameMetadataManager {
   }
 
   /** @internal */
-  setup(room: Room) {
+  setup(room: CoreRoom) {
     if (room === this.room) {
       return;
     }

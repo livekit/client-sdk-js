@@ -32,7 +32,6 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import 'webrtc-adapter';
 import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import { EncryptionEvent } from '../e2ee';
@@ -49,17 +48,11 @@ import type {
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
-import { CLIENT_PROTOCOL_DEFAULT } from '../version';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import RTCEngine, { DataChannelKind, type RegionStrategy } from './RTCEngine';
+import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
-import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
-import {
-  type ByteStreamHandler,
-  type TextStreamHandler,
-} from './data-stream/incoming/StreamReader';
-import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
+import type { DataChannelKind } from './data-channel/types';
 import type LocalDataTrack from './data-track/LocalDataTrack';
 import type RemoteDataTrack from './data-track/RemoteDataTrack';
 import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
@@ -80,18 +73,17 @@ import {
   canFailOverToAnotherRegion,
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
+import type {
+  DataPacketCase,
+  ExtendedRoom,
+  ExtensionContext,
+  RoomClass,
+  RoomExtension,
+} from './extensions';
 import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import {
-  RPC_REQUEST_DATA_STREAM_TOPIC,
-  RPC_RESPONSE_DATA_STREAM_TOPIC,
-  RpcClientManager,
-  RpcError,
-  type RpcInvocationData,
-  RpcServerManager,
-} from './rpc';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
@@ -149,6 +141,9 @@ const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
 const STATS_LOG_FREQUENCY_MS = 30 * 1000;
 
 /**
+ * The room without optional features. Use `CoreRoom.with(...extensions)` to build a room class
+ * with the features an application needs, or use `Room` from the main entry for all of them.
+ *
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
  *
@@ -156,7 +151,44 @@ const STATS_LOG_FREQUENCY_MS = 30 * 1000;
  *
  * @noInheritDoc
  */
-class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
+export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
+  /** The extensions this room class installs in its constructor. @internal */
+  static extensions: readonly RoomExtension<any, any>[] = [];
+
+  /**
+   * Returns a room class with the given extensions, and their dependencies, installed.
+   * Call it once at module level, not per room instance.
+   *
+   * @example
+   * ```typescript
+   * const AppRoom = CoreRoom.with(rpc); // also installs dataStreams, which rpc requires
+   * const room = new AppRoom(options);
+   * room.registerRpcMethod('greet', handler);
+   * ```
+   */
+  static with<
+    S extends RoomClass & { extensions: readonly RoomExtension<any, any>[] },
+    E extends RoomExtension<any, any>[],
+  >(this: S, ...extensions: E): ExtendedRoom<S, E[number]> {
+    const resolved = [...this.extensions];
+    const add = (ext: RoomExtension<any, any>, stack: RoomExtension<any, any>[]) => {
+      if (stack.includes(ext)) {
+        // @throws-transformer ignore - programmer error
+        throw new Error(`extension '${String(ext.key)}' depends on itself`);
+      }
+      if (resolved.some((installed) => installed.key === ext.key)) {
+        return;
+      }
+      ext.requires?.forEach((dep) => add(dep, [...stack, ext]));
+      resolved.push(ext);
+    };
+    extensions.forEach((ext) => add(ext, []));
+    // @ts-expect-error TS cannot express a class that extends a generic abstract constructor
+    return class extends this {
+      static extensions = resolved;
+    } as any;
+  }
+
   state: ConnectionState = ConnectionState.Disconnected;
 
   /**
@@ -234,17 +266,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
-  private incomingDataStreamManager: IncomingDataStreamManager;
-
-  private outgoingDataStreamManager: OutgoingDataStreamManager;
-
   private incomingDataTrackManager: IncomingDataTrackManager;
 
   private outgoingDataTrackManager: OutgoingDataTrackManager;
 
-  private rpcClientManager: RpcClientManager;
+  private installedExtensions = new Map<symbol, unknown>();
 
-  private rpcServerManager: RpcServerManager;
+  private extensionDisposers: Array<() => void> = [];
+
+  private engineCreatedHooks: Array<(engine: RTCEngine) => void> = [];
+
+  private disconnectHooks: Array<() => void> = [];
+
+  private dataPacketHandlers = new Map<
+    DataPacketCase,
+    (
+      packet: DataPacket,
+      encryptionType: Encryption_Type,
+      participant: RemoteParticipant | undefined,
+    ) => void
+  >();
+
+  /** aborts the `devicechange` listener; also reachable from the FinalizationRegistry callback */
+  private cleanupController?: AbortController;
+
+  private disposed = false;
 
   get hasE2EESetup(): boolean {
     return this.e2eeManager !== undefined;
@@ -281,17 +327,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     this.maybeCreateEngine();
-
-    this.incomingDataStreamManager = new IncomingDataStreamManager(
-      this.options.dataStream?.maxPayloadByteLength,
-    );
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(
-      this.engine,
-      this.log,
-      this.getRemoteParticipantClientProtocol,
-      this.getRemoteParticipantCapabilities,
-      this.getAllRemoteParticipantIdentities,
-    );
 
     this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
     this.incomingDataTrackManager
@@ -335,36 +370,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
       });
 
-    this.registerRpcDataStreamHandler();
-
-    this.rpcClientManager = new RpcClientManager(
-      this.log,
-      this.outgoingDataStreamManager,
-      this.getRemoteParticipantClientProtocol,
-      () => this.engine?.serverVersion,
-    );
-    this.rpcClientManager.on('sendDataPacket', ({ packet }) => {
-      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
-    });
-    this.rpcServerManager = new RpcServerManager(
-      this.log,
-      this.outgoingDataStreamManager,
-      this.getRemoteParticipantClientProtocol,
-    );
-    this.rpcServerManager.on('sendDataPacket', ({ packet }) => {
-      this.engine?.sendDataPacket(packet, DataChannelKind.RELIABLE);
-    });
-
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant(
       '',
       '',
       this.engine,
       this.options,
-      this.outgoingDataStreamManager,
       this.outgoingDataTrackManager,
-      this.rpcClientManager,
-      this.rpcServerManager,
     );
 
     this.setupFrameMetadata();
@@ -376,6 +388,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.engine.e2eeManager = this.e2eeManager;
     this.incomingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
     this.outgoingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
+
+    this.installExtensions();
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -398,9 +412,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (isWeb()) {
       const cleanupController = new AbortController();
+      this.cleanupController = cleanupController;
       let onDeviceChange: () => void;
 
-      if (Room.cleanupRegistry) {
+      const cleanupRegistry = (this.constructor as typeof CoreRoom).cleanupRegistry;
+      if (cleanupRegistry) {
         // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
         // strongly retain the Room. When the user drops their Room ref, the
         // FinalizationRegistry callback aborts the controller and removes the listener.
@@ -412,7 +428,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           }
           self.handleDeviceChange();
         };
-        Room.cleanupRegistry.register(this, () => {
+        cleanupRegistry.register(this, () => {
           cleanupController.abort();
         });
       } else {
@@ -428,59 +444,61 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
-    return this.incomingDataStreamManager.registerTextStreamHandler(topic, callback);
-  }
-
-  unregisterTextStreamHandler(topic: string) {
-    return this.incomingDataStreamManager.unregisterTextStreamHandler(topic);
-  }
-
-  registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
-    return this.incomingDataStreamManager.registerByteStreamHandler(topic, callback);
-  }
-
-  unregisterByteStreamHandler(topic: string) {
-    return this.incomingDataStreamManager.unregisterByteStreamHandler(topic);
-  }
-
-  /**
-   * Establishes the participant as a receiver for calls of the specified RPC method.
-   *
-   * @param method - The name of the indicated RPC method
-   * @param handler - Will be invoked when an RPC request for this method is received
-   * @returns A promise that resolves when the method is successfully registered
-   * @throws {Error} If a handler for this method is already registered (must call unregisterRpcMethod first)
-   *
-   * @example
-   * ```typescript
-   * room.localParticipant?.registerRpcMethod(
-   *   'greet',
-   *   async (data: RpcInvocationData) => {
-   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
-   *     return `Hello, ${data.callerIdentity}!`;
-   *   }
-   * );
-   * ```
-   *
-   * The handler should return a Promise that resolves to a string.
-   * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
-   *
-   * You may throw errors of type `RpcError` with a string `message` in the handler,
-   * and they will be received on the caller's side with the message intact.
-   * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
-   */
-  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    this.rpcServerManager.registerRpcMethod(method, handler);
+  private installExtensions() {
+    const ctx: ExtensionContext = {
+      log: this.log,
+      onEngineCreated: (cb) => {
+        this.engineCreatedHooks.push(cb);
+        cb(this.engine);
+      },
+      onDataPacket: (kind, handler) => {
+        if (this.dataPacketHandlers.has(kind)) {
+          // @throws-transformer ignore - programmer error
+          throw new Error(`data packet case '${kind}' is already handled by another extension`);
+        }
+        this.dataPacketHandlers.set(kind, (packet, encryptionType, participant) =>
+          handler(packet.value.value as any, packet, encryptionType, participant),
+        );
+      },
+      onDisconnect: (cb) => {
+        this.disconnectHooks.push(cb);
+      },
+      get: (ext) => {
+        const result = this.installedExtensions.get(ext.key);
+        if (!result) {
+          // @throws-transformer ignore - programmer error
+          throw new Error(`extension '${String(ext.key)}' is not installed`);
+        }
+        return result as any;
+      },
+    };
+    for (const ext of (this.constructor as typeof CoreRoom).extensions) {
+      const result = ext.install(this, ctx);
+      this.installedExtensions.set(ext.key, result);
+      defineExtensionApi(this, result.room, ext);
+      defineExtensionApi(this.localParticipant, result.local, ext);
+      if (result.dispose) {
+        this.extensionDisposers.push(result.dispose);
+      }
+    }
   }
 
   /**
-   * Unregisters a previously registered RPC method.
-   *
-   * @param method - The name of the RPC method to unregister
+   * Releases everything the room holds: disconnects if connected, disposes the extensions and
+   * removes global listeners. The room cannot connect again afterwards.
    */
-  unregisterRpcMethod(method: string) {
-    this.rpcServerManager.unregisterRpcMethod(method);
+  async dispose() {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    if (this.state !== ConnectionState.Disconnected) {
+      await this.disconnect();
+    }
+    for (const dispose of this.extensionDisposers.reverse()) {
+      dispose();
+    }
+    this.cleanupController?.abort();
   }
 
   /**
@@ -772,9 +790,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.e2eeManager) {
       this.e2eeManager.setupEngine(this.engine);
     }
-    if (this.outgoingDataStreamManager) {
-      this.outgoingDataStreamManager.setupEngine(this.engine);
-    }
+    this.engineCreatedHooks.forEach((hook) => hook(this.engine));
   }
 
   private createRegionStrategy(): RegionStrategy {
@@ -840,6 +856,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+    if (this.disposed) {
+      throw new UnexpectedConnectionState('room has been disposed');
+    }
     if (!isBrowserSupported()) {
       if (isReactNative()) {
         throw Error("WebRTC isn't detected, have you called registerGlobals?");
@@ -1843,7 +1862,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.isResuming = false;
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
-    this.incomingDataStreamManager.clearControllers();
+    this.disconnectHooks.forEach((hook) => hook());
     this.incomingDataTrackManager.reset();
     this.outgoingDataTrackManager.reset();
     if (this.state === ConnectionState.Disconnected) {
@@ -1969,7 +1988,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    this.incomingDataStreamManager.validateParticipantHasNoActiveDataStreams(identity);
     this.incomingDataTrackManager.handleRemoteParticipantDisconnected(identity);
 
     participant.trackPublications.forEach((publication) => {
@@ -1977,7 +1995,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant, disconnectReason);
     participant.setDisconnected();
-    this.rpcClientManager.handleParticipantDisconnected(participant.identity);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -2122,39 +2139,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
-    } else if (
-      packet.value.case === 'streamHeader' ||
-      packet.value.case === 'streamChunk' ||
-      packet.value.case === 'streamTrailer'
-    ) {
-      this.handleDataStream(packet, encryptionType);
-    } else if (packet.value.case === 'rpcRequest') {
-      const rpc = packet.value.value;
-      this.rpcServerManager.handleIncomingRpcRequest(packet.participantIdentity, rpc);
-    } else if (packet.value.case === 'rpcResponse') {
-      const rpcResponse = packet.value.value;
-      switch (rpcResponse.value.case) {
-        case 'payload':
-          this.rpcClientManager.handleIncomingRpcResponseSuccess(
-            rpcResponse.requestId,
-            rpcResponse.value.value,
-          );
-          break;
-        case 'error':
-          this.rpcClientManager.handleIncomingRpcResponseFailure(
-            rpcResponse.requestId,
-            RpcError.fromProto(rpcResponse.value.value),
-          );
-          break;
-        default:
-          this.log.warn(
-            `Unknown rpcResponse.value.case: ${rpcResponse.value.case}`,
-            this.logContext,
-          );
-          break;
-      }
-    } else if (packet.value.case === 'rpcAck') {
-      this.rpcClientManager.handleIncomingRpcAck(packet.value.value.requestId);
+    } else if (packet.value.case) {
+      // every other case belongs to an extension (data streams, rpc, ...)
+      this.dataPacketHandlers.get(packet.value.case)?.(packet, encryptionType, participant);
     }
   };
 
@@ -2219,10 +2206,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
     this.emit(RoomEvent.MetricsReceived, metrics, participant);
-  };
-
-  private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
-    this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
@@ -2590,37 +2573,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return capabilities;
   }
 
-  private getRemoteParticipantClientProtocol = (identity: Participant['identity']) => {
-    return this.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
-  };
-
-  private getRemoteParticipantCapabilities = (
-    identity: Participant['identity'],
-  ): Array<ClientInfo_Capability> => {
-    return this.remoteParticipants.get(identity)?.capabilities ?? [];
-  };
-
-  private getAllRemoteParticipantIdentities = () => {
-    return Array.from(this.remoteParticipants.keys());
-  };
-
-  private registerRpcDataStreamHandler() {
-    this.incomingDataStreamManager.registerTextStreamHandler(
-      RPC_REQUEST_DATA_STREAM_TOPIC,
-      async (reader, { identity }) => {
-        const attributes = reader.info.attributes ?? {};
-        await this.rpcServerManager.handleIncomingDataStream(reader, identity, attributes);
-      },
-    );
-    this.incomingDataStreamManager.registerTextStreamHandler(
-      RPC_RESPONSE_DATA_STREAM_TOPIC,
-      async (reader, { identity }) => {
-        const attributes = reader.info.attributes ?? {};
-        await this.rpcClientManager.handleIncomingDataStream(reader, identity, attributes);
-      },
-    );
-  }
-
   private setStatsLogging(enabled: boolean) {
     if (enabled) {
       if (!this.statsLogInterval) {
@@ -2718,7 +2670,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     this.log.info(`connection state changed: ${this.state} -> ${state}`);
     this.state = state;
-    this.incomingDataStreamManager.setConnected(state === ConnectionState.Connected);
     this.setStatsLogging(state === ConnectionState.Connected);
 
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
@@ -3016,7 +2967,22 @@ function mapArgs(args: unknown[]): any {
   });
 }
 
-export default Room;
+/** Copies an extension's API onto `target`. Refuses to redefine an existing member. */
+function defineExtensionApi(target: object, api: object | undefined, ext: RoomExtension<any, any>) {
+  if (!api) {
+    return;
+  }
+  for (const name of Object.keys(api)) {
+    if (name in target) {
+      // @throws-transformer ignore - programmer error
+      throw new Error(`extension '${String(ext.key)}' redefines '${name}'`);
+    }
+  }
+  // defineProperties (not Object.assign) keeps getters intact
+  Object.defineProperties(target, Object.getOwnPropertyDescriptors(api));
+}
+
+export default CoreRoom;
 
 export type RoomEventCallbacks = {
   connected: () => void;

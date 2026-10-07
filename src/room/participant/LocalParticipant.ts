@@ -35,8 +35,7 @@ import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
-import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
-import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
+import type { ByteStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import LocalDataTrack from '../data-track/LocalDataTrack';
 import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
 import { DataTrackPublishError } from '../data-track/outgoing/errors';
@@ -52,13 +51,6 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import {
-  type PerformRpcParams,
-  RpcClientManager,
-  RpcError,
-  type RpcInvocationData,
-  RpcServerManager,
-} from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -83,15 +75,10 @@ import {
   sourceToKind,
 } from '../track/utils';
 import {
-  type ByteStreamInfo,
   type ChatMessage,
   type DataPublishOptions,
-  type SendBytesOptions,
-  type SendFileOptions,
   type SendTextOptions,
   type StreamBytesOptions,
-  type StreamTextOptions,
-  type TextStreamInfo,
 } from '../types';
 import {
   Future,
@@ -124,7 +111,7 @@ import {
   getDefaultDegradationPreference,
 } from './publishUtils';
 
-export default class LocalParticipant extends Participant {
+export class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
 
   videoTrackPublications: Map<string, LocalTrackPublication>;
@@ -167,13 +154,14 @@ export default class LocalParticipant extends Participant {
 
   private firstActiveAgent?: RemoteParticipant;
 
-  private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
-
   private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
 
-  private rpcClientManager: RpcClientManager;
-
-  private rpcServerManager: RpcServerManager;
+  /**
+   * Opens an outgoing byte stream. Set by the `dataStreams` extension; the preconnect audio
+   * buffer is sent through it from inside `publishTrack`.
+   * @internal
+   */
+  openByteStream?: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
 
   private pendingSignalRequests: Map<
     number,
@@ -192,10 +180,7 @@ export default class LocalParticipant extends Participant {
     identity: string,
     engine: RTCEngine,
     options: InternalRoomOptions,
-    roomOutgoingDataStreamManager: OutgoingDataStreamManager,
     roomOutgoingDataTrackManager: OutgoingDataTrackManager,
-    rpcClientManager: RpcClientManager,
-    rpcServerManager: RpcServerManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -213,10 +198,7 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
-    this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
     this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
-    this.rpcClientManager = rpcClientManager;
-    this.rpcServerManager = rpcServerManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -1410,7 +1392,12 @@ export default class LocalParticipant extends Participant {
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
             this.log.debug('sending preconnect buffer', getLogContextFromTrack(track));
-            const writer = await this.streamBytes({
+            if (!this.openByteStream) {
+              throw new Error(
+                'the dataStreams extension is required to send the preconnect buffer',
+              );
+            }
+            const writer = await this.openByteStream({
               name: 'preconnect-buffer',
               mimeType,
               topic: 'lk.agent.pre-connect-audio-buffer',
@@ -1837,86 +1824,6 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Sends the given string to participants in the room via the data channel.
-   * For longer messages, consider using {@link streamText} instead.
-   *
-   * @param text The text payload
-   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-   */
-  async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
-    return this.roomOutgoingDataStreamManager.sendText(text, options);
-  }
-
-  /**
-   * Creates a new TextStreamWriter which can be used to stream text incrementally
-   * to participants in the room via the data channel.
-   *
-   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-   *
-   * @internal
-   * @experimental CAUTION, might get removed in a minor release
-   */
-  async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
-    return this.roomOutgoingDataStreamManager.streamText(options);
-  }
-
-  /** Send a File to all participants in the room via the data channel.
-   * @param file The File object payload
-   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-   * @param options.onProgress A callback function used to monitor the upload progress percentage.
-   */
-  async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
-    return this.roomOutgoingDataStreamManager.sendFile(file, options);
-  }
-
-  /**
-   * Sends the given bytes to participants in the room via the data channel.
-   * For files, consider using {@link sendFile}; for longer/incremental payloads, {@link streamBytes}.
-   *
-   * @param bytes The byte payload
-   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-   */
-  async sendBytes(bytes: Uint8Array, options?: SendBytesOptions): Promise<ByteStreamInfo> {
-    return this.roomOutgoingDataStreamManager.sendBytes(bytes, options);
-  }
-
-  /**
-   * Stream bytes incrementally to participants in the room via the data channel.
-   * For sending files, consider using {@link sendFile} instead.
-   *
-   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-   */
-  async streamBytes(options?: StreamBytesOptions) {
-    return this.roomOutgoingDataStreamManager.streamBytes(options);
-  }
-
-  /**
-   * Initiate an RPC call to a remote participant
-   * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
-   * @returns A promise that resolves with the response payload or rejects with an error.
-   * @throws Error on failure. Details in `message`.
-   */
-  performRpc(params: PerformRpcParams): TypedPromise<string, RpcError> {
-    return this.rpcClientManager.performRpc(params).then(([_id, completionPromise]) => {
-      return completionPromise;
-    });
-  }
-
-  /**
-   * @deprecated use `room.registerRpcMethod` instead
-   */
-  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    this.rpcServerManager.registerRpcMethod(method, handler);
-  }
-
-  /**
-   * @deprecated use `room.unregisterRpcMethod` instead
-   */
-  unregisterRpcMethod(method: string) {
-    this.rpcServerManager.unregisterRpcMethod(method);
-  }
-
-  /**
    * Control who can subscribe to LocalParticipant's published tracks.
    *
    * By default, all participants can subscribe. This allows fine-grained control over
@@ -2204,3 +2111,5 @@ export default class LocalParticipant extends Participant {
     return track;
   }
 }
+
+export default LocalParticipant;
