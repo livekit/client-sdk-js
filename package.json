@@ -76,7 +76,8 @@
     "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
-    "size-limit": "size-limit"
+    "size-limit": "size-limit",
+    "check:core": "node scripts/check-core-imports.mjs"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
