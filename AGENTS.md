@@ -55,10 +55,10 @@ user-facing API.
 
 ## Build and test
 
-- **Type check:** `npx tsc --noEmit`
-- **Run all tests:** `npx vitest run`
-- **Run specific test file:** `npx vitest run path/to/file.test.ts`
-- **Format:** `npm run format`
+- **Type check:** `pnpm tsc --noEmit`
+- **Run all tests:** `pnpm vitest run`
+- **Run specific test file:** `pnpm vitest run path/to/file.test.ts`
+- **Format:** `pnpm run format`
 
 ## Examples
 
