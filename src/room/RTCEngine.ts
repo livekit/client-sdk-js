@@ -73,7 +73,6 @@ import type { FlowControlledDataChannel } from './data-channel/FlowControlledDat
 import type { LossyDataChannel } from './data-channel/LossyDataChannel';
 import type { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import { DataChannelKind } from './data-channel/types';
-import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -1864,7 +1863,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   sendSyncState(
     remoteTracks: RemoteTrackPublication[],
     localTracks: LocalTrackPublication[],
-    localDataTrackInfos: Array<DataTrackInfo>,
+    publishDataTracks: PublishDataTrackResponse[],
   ) {
     if (!this.pcManager) {
       this.log.warn('sync state cannot be sent without peer connection setup');
@@ -1937,9 +1936,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
-        publishDataTracks: localDataTrackInfos.map((info) => {
-          return new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) });
-        }),
+        publishDataTracks,
       }),
     );
   }

@@ -36,10 +36,6 @@ import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
 import type { ByteStreamWriter } from '../data-stream/outgoing/StreamWriter';
-import LocalDataTrack from '../data-track/LocalDataTrack';
-import type OutgoingDataTrackManager from '../data-track/outgoing/OutgoingDataTrackManager';
-import { DataTrackPublishError } from '../data-track/outgoing/errors';
-import type { DataTrackOptions } from '../data-track/outgoing/types';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -154,8 +150,6 @@ export class LocalParticipant extends Participant {
 
   private firstActiveAgent?: RemoteParticipant;
 
-  private roomOutgoingDataTrackManager: OutgoingDataTrackManager;
-
   /**
    * Opens an outgoing byte stream. Set by the `dataStreams` extension; the preconnect audio
    * buffer is sent through it from inside `publishTrack`.
@@ -175,13 +169,7 @@ export class LocalParticipant extends Participant {
   private enabledPublishVideoCodecs: Codec[] = [];
 
   /** @internal */
-  constructor(
-    sid: string,
-    identity: string,
-    engine: RTCEngine,
-    options: InternalRoomOptions,
-    roomOutgoingDataTrackManager: OutgoingDataTrackManager,
-  ) {
+  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
@@ -198,7 +186,6 @@ export class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
-    this.roomOutgoingDataTrackManager = roomOutgoingDataTrackManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -310,35 +297,6 @@ export class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
-    }
-
-    switch (response.request.case) {
-      case 'publishDataTrack': {
-        let error;
-        switch (response.reason) {
-          case RequestResponse_Reason.NOT_ALLOWED:
-            error = DataTrackPublishError.notAllowed(response.message);
-            break;
-          case RequestResponse_Reason.DUPLICATE_NAME:
-            error = DataTrackPublishError.duplicateName(response.message);
-            break;
-          case RequestResponse_Reason.INVALID_NAME:
-            error = DataTrackPublishError.invalidName(response.message);
-            break;
-          case RequestResponse_Reason.LIMIT_EXCEEDED:
-            error = DataTrackPublishError.limitReached(response.message);
-            break;
-          default:
-            error = DataTrackPublishError.unknown(response.reason, response.message);
-            break;
-        }
-
-        this.roomOutgoingDataTrackManager.receivedSfuPublishResponse(
-          response.request.value.pubHandle,
-          { type: 'error', error },
-        );
-        break;
-      }
     }
   };
 
@@ -2097,18 +2055,6 @@ export class LocalParticipant extends Participant {
       }
       await sleep(20);
     }
-  }
-
-  /** Publishes a data track.
-   *
-   * Returns the published data track if successful. Use {@link LocalDataTrack#tryPush}
-   * to send data frames on the track.
-   */
-  async publishDataTrack(options: DataTrackOptions): Promise<LocalDataTrack> {
-    const track = new LocalDataTrack(options, this.roomOutgoingDataTrackManager);
-    await track.publish();
-
-    return track;
   }
 }
 

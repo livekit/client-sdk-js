@@ -4,6 +4,7 @@ import {
   type DataStreamRoomApi,
   dataStreams,
 } from './data-stream/extension';
+import { type DataTrackLocalApi, dataTracks } from './data-track/extension';
 import { type RpcLocalApi, type RpcRoomApi, rpc } from './rpc/extension';
 
 export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
@@ -16,7 +17,7 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  *
  * This is the full-featured room: {@link CoreRoom} with every extension installed.
  */
-export class Room extends CoreRoom.with(dataStreams, rpc) {}
+export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks) {}
 
 export default Room;
 
@@ -28,5 +29,5 @@ declare module './CoreRoom' {
   interface CoreRoom extends DataStreamRoomApi, RpcRoomApi {}
 }
 declare module './participant/LocalParticipant' {
-  interface LocalParticipant extends DataStreamLocalApi, RpcLocalApi {}
+  interface LocalParticipant extends DataStreamLocalApi, RpcLocalApi, DataTrackLocalApi {}
 }

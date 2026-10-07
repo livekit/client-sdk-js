@@ -14,6 +14,7 @@ import {
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
+  PublishDataTrackResponse,
   Room as RoomModel,
   ServerInfo,
   SimulateScenario,
@@ -55,9 +56,7 @@ import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
 import type LocalDataTrack from './data-track/LocalDataTrack';
 import type RemoteDataTrack from './data-track/RemoteDataTrack';
-import IncomingDataTrackManager from './data-track/incoming/IncomingDataTrackManager';
-import OutgoingDataTrackManager from './data-track/outgoing/OutgoingDataTrackManager';
-import { DataTrackInfo, type DataTrackSid } from './data-track/types';
+import type { DataTrackSid } from './data-track/types';
 import {
   audioDefaults,
   publishDefaults,
@@ -266,10 +265,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
-  private incomingDataTrackManager: IncomingDataTrackManager;
-
-  private outgoingDataTrackManager: OutgoingDataTrackManager;
-
   private installedExtensions = new Map<symbol, unknown>();
 
   private extensionDisposers: Array<() => void> = [];
@@ -277,6 +272,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private engineCreatedHooks: Array<(engine: RTCEngine) => void> = [];
 
   private disconnectHooks: Array<() => void> = [];
+
+  private participantCreatedHooks: Array<
+    (participant: RemoteParticipant, info: ParticipantInfo) => void
+  > = [];
+
+  private participantUpdateHooks: Array<(infos: ParticipantInfo[]) => void> = [];
+
+  private syncStateHooks: Array<() => PublishDataTrackResponse[]> = [];
+
+  private e2eeManagerHooks: Array<(manager: BaseE2EEManager) => void> = [];
 
   private dataPacketHandlers = new Map<
     DataPacketCase,
@@ -328,56 +333,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     this.maybeCreateEngine();
 
-    this.incomingDataTrackManager = new IncomingDataTrackManager({ e2eeManager: this.e2eeManager });
-    this.incomingDataTrackManager
-      .on('sfuUpdateSubscription', (event) => {
-        this.engine.client.sendUpdateDataSubscription(event.sid, event.subscribe);
-      })
-      .on('trackPublished', (event) => {
-        if (event.track.publisherIdentity === this.localParticipant.identity) {
-          // Only advertize tracks from other participants
-          return;
-        }
-        this.emit(RoomEvent.DataTrackPublished, event.track);
-        this.remoteParticipants.get(event.track.publisherIdentity)?.addRemoteDataTrack(event.track);
-      })
-      .on('trackUnpublished', (event) => {
-        if (event.publisherIdentity === this.localParticipant.identity) {
-          // Only advertize tracks from other participants
-          return;
-        }
-        this.emit(RoomEvent.DataTrackUnpublished, event.sid);
-        this.remoteParticipants.get(event.publisherIdentity)?.removeRemoteDataTrack(event.sid);
-      });
-
-    this.outgoingDataTrackManager = new OutgoingDataTrackManager({ e2eeManager: this.e2eeManager });
-    this.outgoingDataTrackManager
-      .on('sfuPublishRequest', (event) => {
-        this.engine.client.sendPublishDataTrackRequest(event.handle, event.name, event.usesE2ee);
-      })
-      .on('sfuUnpublishRequest', (event) => {
-        this.engine.client.sendUnPublishDataTrackRequest(event.handle);
-      })
-      .on('trackPublished', (event) => {
-        this.emit(RoomEvent.LocalDataTrackPublished, event.track);
-      })
-      .on('trackUnpublished', (event) => {
-        this.emit(RoomEvent.LocalDataTrackUnpublished, event.sid);
-      })
-      .on('packetAvailable', ({ handle, bytes }) => {
-        this.engine
-          .sendDataTrackFrame(bytes)
-          .finally(() => this.outgoingDataTrackManager.handlePacketSendComplete(handle));
-      });
-
     this.disconnectLock = new Mutex();
-    this.localParticipant = new LocalParticipant(
-      '',
-      '',
-      this.engine,
-      this.options,
-      this.outgoingDataTrackManager,
-    );
+    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
 
     this.setupFrameMetadata();
 
@@ -386,8 +343,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     this.engine.e2eeManager = this.e2eeManager;
-    this.incomingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
-    this.outgoingDataTrackManager.updateE2eeManager(this.e2eeManager ?? null);
 
     this.installExtensions();
 
@@ -462,6 +417,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       },
       onDisconnect: (cb) => {
         this.disconnectHooks.push(cb);
+      },
+      onParticipantCreated: (cb) => {
+        this.participantCreatedHooks.push(cb);
+      },
+      onParticipantUpdates: (cb) => {
+        this.participantUpdateHooks.push(cb);
+      },
+      onSyncState: (cb) => {
+        this.syncStateHooks.push(cb);
+      },
+      getE2eeManager: () => this.e2eeManager,
+      onE2eeManagerChanged: (cb) => {
+        this.e2eeManagerHooks.push(cb);
       },
       get: (ext) => {
         const result = this.installedExtensions.get(ext.key);
@@ -676,7 +644,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.emitBufferedEvents();
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
-      .on(EngineEvent.Restarted, this.handleRestarted)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.Offline, () => {
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
@@ -707,64 +674,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         } else {
           this.handleParticipantUpdates(roomMoved.otherParticipants);
         }
-      })
-      .on(EngineEvent.PublishDataTrackResponse, (event) => {
-        if (!event.info) {
-          this.log.warn(
-            `received PublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
-          );
-          return;
-        }
-
-        this.outgoingDataTrackManager.receivedSfuPublishResponse(event.info.pubHandle, {
-          type: 'ok',
-          data: {
-            sid: event.info.sid,
-            pubHandle: event.info.pubHandle,
-            name: event.info.name,
-            usesE2ee: event.info.encryption !== Encryption_Type.NONE,
-          },
-        });
-      })
-      .on(EngineEvent.UnPublishDataTrackResponse, (event) => {
-        if (!event.info) {
-          this.log.warn(
-            `received UnPublishDataTrackResponse, but event.info was ${event.info}, so skipping.`,
-          );
-          return;
-        }
-
-        this.outgoingDataTrackManager.receivedSfuUnpublishResponse(event.info.pubHandle);
-      })
-      .on(EngineEvent.DataTrackSubscriberHandles, (event) => {
-        const handleToSidMapping = new Map(
-          Object.entries(event.subHandles).map(([key, value]) => {
-            return [parseInt(key, 10), value.trackSid];
-          }),
-        );
-
-        this.incomingDataTrackManager.receivedSfuSubscriberHandles(handleToSidMapping);
-      })
-      .on(EngineEvent.DataTrackPacketReceived, (packetBytes) => {
-        try {
-          this.incomingDataTrackManager.packetReceived(packetBytes);
-        } catch (err) {
-          // NOTE: wrapping in the bare try/catch like this means that the Throws<...> type doesn't
-          // propagate upwards into the public interface.
-          throw err;
-        }
-      })
-      .on(EngineEvent.Joined, (joinResponse) => {
-        // Ingest data track publication updates into data tracks infrastructure
-        const mapped = new Map(
-          joinResponse.otherParticipants.map((participant) => {
-            return [
-              participant.identity,
-              participant.dataTracks.map((info) => DataTrackInfo.from(info)),
-            ];
-          }),
-        );
-        this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
       })
       .on(EngineEvent.TokenRefreshed, (token) => {
         this.regionUrlProvider?.updateToken(token);
@@ -1824,11 +1733,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   };
 
-  private handleRestarted = () => {
-    this.outgoingDataTrackManager.sfuWillRepublishTracks();
-    this.incomingDataTrackManager.resendSubscriptionUpdates();
-  };
-
   private handleSignalRestarted = async (joinResponse: JoinResponse) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
@@ -1863,8 +1767,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
     this.disconnectHooks.forEach((hook) => hook());
-    this.incomingDataTrackManager.reset();
-    this.outgoingDataTrackManager.reset();
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
@@ -1966,15 +1868,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
     }
 
-    // Ingest data track publication updates into data tracks infrastructure
-    const mapped = new Map(
-      participantInfos
-        .filter((p) => p.identity !== this.localParticipant.identity)
-        .map((info) => {
-          return [info.identity, info.dataTracks.map((dataTrack) => DataTrackInfo.from(dataTrack))];
-        }),
-    );
-    this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
+    this.participantUpdateHooks.forEach((hook) => hook(participantInfos));
   };
 
   private handleParticipantDisconnected(
@@ -1987,8 +1881,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     if (!participant) {
       return;
     }
-
-    this.incomingDataTrackManager.handleRemoteParticipantDisconnected(identity);
 
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
@@ -2379,15 +2271,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(
-        this.engine.client,
-        info,
-        {
-          loggerContextCb: () => this.logContext,
-          loggerName: this.options.loggerName,
-        },
-        this.incomingDataTrackManager,
-      );
+      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
+        loggerContextCb: () => this.logContext,
+        loggerName: this.options.loggerName,
+      });
+      this.participantCreatedHooks.forEach((hook) => hook(participant, info));
     } else {
       participant = new RemoteParticipant(
         this.engine.client,
@@ -2529,8 +2417,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return acc;
     }, [] as RemoteTrackPublication[]);
     const localTracks = this.localParticipant.getTrackPublications() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
-    const localDataTrackInfos = this.outgoingDataTrackManager.queryPublished();
-    this.engine.sendSyncState(remoteTracks, localTracks, localDataTrackInfos);
+    const publishDataTracks = ([] as PublishDataTrackResponse[]).concat(
+      ...this.syncStateHooks.map((hook) => hook()),
+    );
+    this.engine.sendSyncState(remoteTracks, localTracks, publishDataTracks);
   }
 
   /**

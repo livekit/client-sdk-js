@@ -1,4 +1,10 @@
-import type { DataPacket, Encryption_Type } from '@livekit/protocol';
+import type {
+  DataPacket,
+  Encryption_Type,
+  ParticipantInfo,
+  PublishDataTrackResponse,
+} from '@livekit/protocol';
+import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import type { StructuredLogger } from '../logger';
 import type { CoreRoom } from './CoreRoom';
 import type RTCEngine from './RTCEngine';
@@ -64,6 +70,15 @@ export interface ExtensionContext {
    * room, before the room emits `RoomEvent.Disconnected`.
    */
   onDisconnect(cb: () => void): void;
+  /** Runs after the room creates a remote participant from a `ParticipantInfo`. */
+  onParticipantCreated(cb: (participant: RemoteParticipant, info: ParticipantInfo) => void): void;
+  /** Runs after the room applied a participant update (join, update, reconnect). */
+  onParticipantUpdates(cb: (infos: ParticipantInfo[]) => void): void;
+  /** Contributes local data track publications to the sync state the room sends on resume. */
+  onSyncState(cb: () => PublishDataTrackResponse[]): void;
+  /** The E2EE manager slot. Core owns the slot and reads it; the `e2ee` extension fills it. */
+  getE2eeManager(): BaseE2EEManager | undefined;
+  onE2eeManagerChanged(cb: (manager: BaseE2EEManager) => void): void;
   /** The `install` result of an already installed extension (a hard dependency). */
   get<E extends RoomExtension<any, any>>(ext: E): ReturnType<E['install']>;
 }
