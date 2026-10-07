@@ -266,7 +266,8 @@ export default abstract class LocalTrack<
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
     if (
       this._constraints.deviceId === deviceId &&
-      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
+      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId) &&
+      this._mediaStreamTrack.readyState === 'live'
     ) {
       return true;
     }
