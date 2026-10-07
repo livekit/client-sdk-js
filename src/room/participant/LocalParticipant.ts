@@ -2163,7 +2163,7 @@ export default class LocalParticipant extends Participant {
    */
   private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
     try {
-      await track.restartTrack({ deviceId: { exact: 'default' } });
+      await track.setDeviceId({ exact: 'default' });
     } catch (e) {
       // restart() clears the manually-stopped flag on entry, so retrying a track the user stopped
       // while the first attempt was in flight would re-open the capture device behind their back
@@ -2174,7 +2174,7 @@ export default class LocalParticipant extends Participant {
         'exact default device was rejected, retrying with ideal',
         getLogContextFromTrack(track),
       );
-      await track.restartTrack({ deviceId: { ideal: 'default' } });
+      await track.setDeviceId('default');
     }
   }
 
