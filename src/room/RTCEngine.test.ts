@@ -311,6 +311,12 @@ describe('RTCEngine', () => {
     bufferedAmountLowThreshold = 64 * 1024;
 
     send = vi.fn();
+
+    readyState: RTCDataChannelState = 'open';
+
+    close = vi.fn(() => {
+      this.readyState = 'closing';
+    });
   }
 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -520,7 +526,7 @@ describe('RTCEngine', () => {
 
       // Park a waiter: buffer above the reliable high-water mark, holding the headroom lock.
       dc.bufferedAmount = 2 * 1024 * 1024;
-      const parked = engine.waitForBufferHeadroom(DataChannelKind.RELIABLE);
+      const parked = engine.reliableChannel.waitForHeadroomWithLock();
       // Swallow the expected rejection so it can't surface as unhandled before we assert on it.
       parked.catch(() => {});
       await tick();
@@ -533,7 +539,7 @@ describe('RTCEngine', () => {
       // The lock must be free again: a wait against the fresh, drained channel resolves instead
       // of queueing forever behind the stranded waiter.
       dc.bufferedAmount = 0;
-      await expect(engine.waitForBufferHeadroom(DataChannelKind.RELIABLE)).resolves.toBeUndefined();
+      await expect(engine.reliableChannel.waitForHeadroomWithLock()).resolves.toBeUndefined();
     });
   });
 

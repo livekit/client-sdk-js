@@ -118,6 +118,7 @@ export class DataChannelManager {
     for (const channel of [this.lossy, this.reliable, this.dataTrack]) {
       const old = channel.channelHandle;
       if (old) {
+        old.close();
         old.onmessage = null;
         old.onerror = null;
         old.onclose = null;

@@ -7,6 +7,7 @@ class FakeDataChannel extends EventTarget {
   bufferedAmount = 0;
 
   bufferedAmountLowThreshold = 64;
+  readyState: RTCDataChannelState = 'open';
 }
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));

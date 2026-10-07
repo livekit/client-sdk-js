@@ -6,6 +6,7 @@ class FakeDataChannel extends EventTarget {
   bufferedAmount = 0;
 
   bufferedAmountLowThreshold = 64;
+  readyState: RTCDataChannelState = 'open';
 
   send = vi.fn();
 }

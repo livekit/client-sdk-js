@@ -8,6 +8,7 @@ class FakeDataChannel extends EventTarget {
   bufferedAmount = 0;
 
   bufferedAmountLowThreshold = 0;
+  readyState: RTCDataChannelState = 'open';
 
   onmessage: ((message: MessageEvent) => void) | null = null;
 

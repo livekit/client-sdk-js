@@ -134,7 +134,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       ) {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
-          await this.waitForHeadroomWithoutLock();
+          await this.waitForHeadroomWithoutLock(dc);
           if (this.getChannel() !== dc) {
             // Replaced mid-replay: that means another resume, whose replay picks up the
             // entries still flagged unsent.

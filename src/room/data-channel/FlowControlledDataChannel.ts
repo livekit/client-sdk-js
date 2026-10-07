@@ -131,21 +131,27 @@ export class FlowControlledDataChannel {
   async waitForHeadroomWithLock() {
     const unlock = await this.lockHeadroom();
     try {
-      await this.waitForHeadroomWithoutLock();
+      const dc = this.getChannel();
+      if (!dc) {
+        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+      }
+      await this.waitForHeadroomWithoutLock(dc);
     } finally {
       unlock();
     }
   }
 
   /** Core wait of {@link waitForHeadroomWithLock}. The caller must hold the headroom lock. */
-  async waitForHeadroomWithoutLock() {
+  async waitForHeadroomWithoutLock(dc: RTCDataChannel) {
     if (this.isEngineClosed()) {
       throw new UnexpectedConnectionState('engine closed');
     }
-    const dc = this.getChannel();
-    if (!dc) {
-      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+    if (dc.readyState !== 'open') {
+      throw new UnexpectedConnectionState(
+        `expected data channel to be open, got ${dc.readyState} instead`,
+      );
     }
+
     if (this.isBelowHighWaterMark(dc)) {
       return;
     }

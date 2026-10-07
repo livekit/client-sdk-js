@@ -69,7 +69,6 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DataChannelManager } from './data-channel/DataChannelManager';
-import type { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
 import type { LossyDataChannel } from './data-channel/LossyDataChannel';
 import type { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import { DataChannelKind } from './data-channel/types';
@@ -188,15 +187,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   private dataChannels: DataChannelManager;
 
-  private get reliableChannel(): ReliableDataChannel {
+  /** @internal */
+  get reliableChannel(): ReliableDataChannel {
     return this.dataChannels.reliable;
   }
 
-  private get lossyChannel(): LossyDataChannel {
+  /** @internal */
+  get lossyChannel(): LossyDataChannel {
     return this.dataChannels.lossy;
   }
 
-  private get dataTrackChannel(): LossyDataChannel {
+  /** @internal */
+  get dataTrackChannel(): LossyDataChannel {
     return this.dataChannels.dataTrack;
   }
 
@@ -1686,19 +1688,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async resendReliableMessagesForResume(lastMessageSeq: number) {
     await this.ensurePublisherConnected(DataChannelKind.RELIABLE);
     await this.reliableChannel.replay(lastMessageSeq);
-  }
-
-  /** The flow-control gate for `kind` — see {@link FlowControlledDataChannel}. */
-  private flowControlFor(kind: DataChannelKind): FlowControlledDataChannel {
-    return this.dataChannels.channelFor(kind);
-  }
-
-  /**
-   * Resolves once the caller may send on the `kind` channel — see
-   * {@link FlowControlledDataChannel.waitForHeadroomWithLock}.
-   */
-  async waitForBufferHeadroom(kind: DataChannelKind) {
-    return this.flowControlFor(kind).waitForHeadroomWithLock();
   }
 
   /**
