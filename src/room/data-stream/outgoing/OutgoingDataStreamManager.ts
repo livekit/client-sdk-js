@@ -24,7 +24,7 @@ import type {
   TextStreamInfo,
 } from '../../types';
 import {
-  isCompressionStreamSupported,
+  isDeflateRawCompressionSupported,
   numberToBigInt,
   readBytesInChunks,
   readableFromBytes,
@@ -101,7 +101,7 @@ export default class OutgoingDataStreamManager {
 
     const compressEligible =
       compress &&
-      isCompressionStreamSupported() &&
+      isDeflateRawCompressionSupported() &&
       this.allRecipientsSupportV2(options?.destinationIdentities) &&
       this.allRecipientsSupportCompression(options?.destinationIdentities);
     let compressedStream = compressEligible
@@ -239,7 +239,7 @@ export default class OutgoingDataStreamManager {
 
     const compressEligible =
       compress &&
-      isCompressionStreamSupported() &&
+      isDeflateRawCompressionSupported() &&
       this.allRecipientsSupportV2(destinationIdentities) &&
       this.allRecipientsSupportCompression(destinationIdentities);
     let compressedStream = compressEligible
@@ -463,7 +463,7 @@ export default class OutgoingDataStreamManager {
     const destinationIdentities = options?.destinationIdentities;
     const compress =
       (options?.compress ?? true) &&
-      isCompressionStreamSupported() &&
+      isDeflateRawCompressionSupported() &&
       this.allRecipientsSupportV2(destinationIdentities) &&
       this.allRecipientsSupportCompression(destinationIdentities);
 
