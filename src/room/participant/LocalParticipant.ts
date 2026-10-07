@@ -1532,7 +1532,9 @@ export default class LocalParticipant extends Participant {
     }
     const packetTrailerFeatures = this.normalizeRequestedFrameMetadataOptions(track, opts);
 
-    const dims = track.dimensions;
+    // the backup sender encodes the processed track, not the raw capture track.dimensions reports
+    const { width, height } = track.mediaStreamTrack.getSettings();
+    const dims = width && height ? { width, height } : undefined;
     if (!dims) {
       this.log.warn(
         'could not determine track dimensions, publishing backup codec without layers',

@@ -100,9 +100,12 @@ type BackupCodecTestParticipant = {
   publishAdditionalCodecForTrack: LocalParticipant['publishAdditionalCodecForTrack'];
 };
 
-// `dimensions` is derived from getSettings() exactly as LocalTrack derives it, so the two
-// reads the publish path makes cannot disagree.
-function makeBackupCodecTrack(settings: MediaTrackSettings, source = Track.Source.Camera) {
+// a resizing processor makes mediaStreamTrack (processed) and dimensions (raw capture) differ
+function makeBackupCodecTrack(
+  settings: MediaTrackSettings,
+  source = Track.Source.Camera,
+  captureSettings = settings,
+) {
   return {
     isLocal: true,
     kind: Track.Kind.Video,
@@ -112,7 +115,7 @@ function makeBackupCodecTrack(settings: MediaTrackSettings, source = Track.Sourc
     mediaStreamID: 'stream-id',
     mediaStreamTrack: { enabled: true, id: 'primary-cid', getSettings: () => settings },
     get dimensions() {
-      const { width, height } = settings;
+      const { width, height } = captureSettings;
       return width && height ? { width, height } : undefined;
     },
     addSimulcastTrack: () => ({ mediaStreamTrack: { id: 'backup-cid' } }),
@@ -179,6 +182,22 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     expect(req.layers[0].quality).toBe(VideoQuality.HIGH);
     expect(req.simulcastCodecs[0].layers).toEqual(req.layers);
     expect(participant.log.warn).not.toHaveBeenCalled();
+  });
+
+  it('sizes layers from the processed track when a processor resizes', async () => {
+    const track = makeBackupCodecTrack({ width: 640, height: 360 }, Track.Source.Camera, {
+      width: 1280,
+      height: 720,
+    });
+    const participant = makeBackupCodecParticipant(track);
+
+    await participant.publishAdditionalCodecForTrack(track, 'vp8');
+
+    const req = capturedRequest(participant);
+    expect(req.width).toBe(640);
+    expect(req.height).toBe(360);
+    expect(Math.max(...req.layers.map((layer) => layer.width))).toBe(640);
+    expect(req.simulcastCodecs[0].layers).toEqual(req.layers);
   });
 
   it('omits layers when the capture dimensions are unknown', async () => {
