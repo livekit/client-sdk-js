@@ -31,6 +31,12 @@
     "dist",
     "src"
   ],
+  "sideEffects": [
+    "./dist/livekit-client.e2ee.worker.js",
+    "./dist/livekit-client.e2ee.worker.mjs",
+    "./dist/livekit-client.fm.worker.js",
+    "./dist/livekit-client.fm.worker.mjs"
+  ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
     "<4.8": {
@@ -53,6 +59,7 @@
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
+    "size:breakdown": "node scripts/size-breakdown.mjs",
     "build-docs": "typedoc && mkdir -p docs/assets/github && cp .github/*.png docs/assets/github/ && find docs -name '*.html' -type f -exec sed -i.bak 's|=\"/.github/|=\"assets/github/|g' {} + && find docs -name '*.bak' -delete",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "examples:demo": "vite examples/demo -c vite.config.mjs",
