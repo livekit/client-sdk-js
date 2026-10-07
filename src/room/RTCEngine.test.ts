@@ -850,6 +850,16 @@ describe('RTCEngine', () => {
       await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
     });
 
+    it('rejects when the engine closes during the full reconnect', async () => {
+      const engine = primeEngine();
+      const wait = engine.waitForPCInitialConnection(15_000);
+
+      engine.emit(EngineEvent.Restarting);
+      engine.emit(EngineEvent.Closing);
+
+      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
+    });
+
     it('rejects as cancelled when the attempt is aborted during the full reconnect', async () => {
       const engine = primeEngine();
       const abortController = new AbortController();

@@ -1582,14 +1582,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         this.off(EngineEvent.Restarted, onRestarted);
-        this.off(EngineEvent.Disconnected, onDisconnected);
+        this.off(EngineEvent.Disconnected, onFailed);
+        this.off(EngineEvent.Closing, onFailed);
         abortController?.signal.removeEventListener('abort', onAbort);
       };
       const onRestarted = () => {
         cleanup();
         resolve();
       };
-      const onDisconnected = () => {
+      const onFailed = () => {
         cleanup();
         reject(ConnectionError.internal('could not establish pc connection'));
       };
@@ -1598,7 +1599,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         reject(ConnectionError.cancelled('room connection has been cancelled'));
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      this.once(EngineEvent.Disconnected, onFailed);
+      this.once(EngineEvent.Closing, onFailed);
       abortController?.signal.addEventListener('abort', onAbort);
       if (abortController?.signal.aborted) {
         onAbort();
