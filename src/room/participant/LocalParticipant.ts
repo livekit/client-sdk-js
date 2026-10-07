@@ -1532,21 +1532,35 @@ export default class LocalParticipant extends Participant {
     }
     const packetTrailerFeatures = this.normalizeRequestedFrameMetadataOptions(track, opts);
 
+    const dims = track.dimensions;
+    if (!dims) {
+      this.log.warn(
+        'could not determine track dimensions, publishing backup codec without layers',
+        getLogContextFromTrack(track),
+      );
+    }
+    // the server reads the layers off the codec entry for a request that carries a sid, and
+    // falls back to the top level ones when it predates per codec layers
+    const layers = dims ? videoLayersFromEncodings(dims.width, dims.height, encodings) : [];
+
     const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       sid: track.sid,
+      width: dims?.width,
+      height: dims?.height,
       packetTrailerFeatures,
+      layers,
       simulcastCodecs: [
         {
           codec: opts.videoCodec,
           cid: simulcastTrack.mediaStreamTrack.id,
+          layers,
         },
       ],
     });
-    req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
 
     if (!this.engine || this.engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
