@@ -1,9 +1,11 @@
 import { e2ee } from '../e2ee/extension';
 import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
+import { chat } from './chat/extension';
 import { dataStreams } from './data-stream/extension';
 import { dataTracks } from './data-track/extension';
 import { rpc } from './rpc/extension';
+import { simulatedParticipants } from './simulated-participants/extension';
 import { registerVideoCapture } from './video/create';
 import { video } from './video/extension';
 
@@ -18,7 +20,16 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  * This is the full-featured room: `CoreRoom` with every extension installed.
  */
 export class Room
-  extends /*#__PURE__*/ CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee, video) {}
+  extends /*#__PURE__*/ CoreRoom.with(
+    dataStreams,
+    rpc,
+    dataTracks,
+    frameMetadata,
+    e2ee,
+    video,
+    simulatedParticipants,
+    chat,
+  ) {}
 
 export default Room;
 

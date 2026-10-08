@@ -28,6 +28,8 @@ const EXTENSION_MODULES = [
   'src/room/track/facingMode.ts',
   'src/room/participant/publishUtils.ts',
   'src/room/video/',
+  'src/room/chat/',
+  'src/room/simulated-participants/',
   'src/room/rpc/',
   'node_modules/webrtc-adapter/',
 ];

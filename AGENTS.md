@@ -109,6 +109,11 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   preconnect audio buffer in `publishTrack` sends through it.
 - `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
   `devicechange` listener. A disposed room cannot connect again.
+- `simulateParticipants` is the `simulatedParticipants` extension (`src/room/simulated-participants/`);
+  it uses the internal `CoreRoom.simulateConnected()` and `getOrCreateParticipant()`.
+  `simulateScenario` stays in core. The legacy chat packets (`sendChatMessage`,
+  `RoomEvent.ChatMessage`) are the `chat` extension (`src/room/chat/`): the full `Room` installs it,
+  the core entry does not export it because text streams supersede it.
 - Video publishing is the `video` extension (`src/room/video/`). Receiving video stays in core.
   Core keeps type guards (`isLocalVideoTrack`) and instance method calls on video tracks, which
   cost nothing; it must not import `LocalVideoTrack`, `publishUtils` or `facingMode` as values.

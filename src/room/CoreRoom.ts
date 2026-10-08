@@ -1,6 +1,5 @@
 import { Mutex } from '@livekit/mutex';
 import {
-  ChatMessage as ChatMessageModel,
   ClientInfo_Capability,
   ConnectionQualityUpdate,
   type DataPacket,
@@ -24,13 +23,9 @@ import {
   SubscriptionError,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
-  TrackInfo,
-  TrackSource,
-  TrackType,
   Transcription as TranscriptionModel,
   TranscriptionSegment as TranscriptionSegmentModel,
   UserPacket,
-  protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
@@ -82,27 +77,18 @@ import { type ConnectionQuality, ParticipantKind } from './participant/Participa
 import RemoteParticipant from './participant/RemoteParticipant';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
-import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import { getVideoCapture } from './track/create';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
-import {
-  type ChatMessage,
-  type SimulationOptions,
-  type SimulationScenario,
-  type TranscriptionSegment,
-} from './types';
+import { type ChatMessage, type SimulationScenario, type TranscriptionSegment } from './types';
 import {
   Future,
-  createDummyVideoStreamTrack,
-  extractChatMessage,
   extractTrackSid,
   extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
@@ -1431,7 +1417,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
       .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
       .on(ParticipantEvent.AudioStreamAcquired, this.startAudio)
-      .on(ParticipantEvent.ChatMessage, this.onLocalChatMessageSent)
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
@@ -1736,7 +1721,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
         .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
         .off(ParticipantEvent.AudioStreamAcquired, this.startAudio)
-        .off(ParticipantEvent.ChatMessage, this.onLocalChatMessageSent)
         .off(
           ParticipantEvent.ParticipantPermissionsChanged,
           this.onLocalParticipantPermissionsChanged,
@@ -1955,8 +1939,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
-    } else if (packet.value.case === 'chatMessage') {
-      this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     } else if (packet.value.case) {
@@ -2014,14 +1996,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     publication?.emit(TrackEvent.TranscriptionReceived, segments);
     participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
     this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
-  };
-
-  private handleChatMessage = (
-    participant: RemoteParticipant | undefined,
-    chatMessage: ChatMessageModel,
-  ) => {
-    const msg = extractChatMessage(chatMessage);
-    this.emit(RoomEvent.ChatMessage, msg, participant);
   };
 
   private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
@@ -2229,7 +2203,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     return participant;
   }
 
-  private getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
+  /** @internal */
+  getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
     if (this.remoteParticipants.has(identity)) {
       const existingParticipant = this.remoteParticipants.get(identity)!;
       if (info) {
@@ -2601,155 +2576,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
 
-  private onLocalChatMessageSent = (msg: ChatMessage) => {
-    this.emit(RoomEvent.ChatMessage, msg, this.localParticipant);
-  };
-
   /**
-   * Allows to populate a room with simulated participants.
-   * No actual connection to a server will be established, all state is
-   * @experimental
+   * Puts the room into the connected state without a server. For the `simulatedParticipants`
+   * extension.
+   * @internal
    */
-  async simulateParticipants(options: SimulationOptions) {
-    const publishOptions = {
-      audio: true,
-      video: true,
-      useRealTracks: false,
-      ...options.publish,
-    };
-    const participantOptions = {
-      count: 9,
-      audio: false,
-      video: true,
-      aspectRatios: [1.66, 1.7, 1.3],
-      ...options.participants,
-    };
+  simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo) {
     this.handleDisconnect();
-    this.roomInfo = new RoomModel({
-      sid: 'RM_SIMULATED',
-      name: 'simulated-room',
-      emptyTimeout: 0,
-      maxParticipants: 0,
-      creationTime: protoInt64.parse(new Date().getTime()),
-      metadata: '',
-      numParticipants: 1,
-      numPublishers: 1,
-      turnPassword: '',
-      enabledCodecs: [],
-      activeRecording: false,
-    });
-
-    this.localParticipant.updateInfo(
-      new ParticipantInfo({
-        identity: 'simulated-local',
-        name: 'local-name',
-      }),
-    );
+    this.roomInfo = roomInfo;
+    this.localParticipant.updateInfo(localParticipantInfo);
     this.setupLocalParticipantEvents();
     this.emit(RoomEvent.SignalConnected);
     this.emit(RoomEvent.Connected);
     this.setAndEmitConnectionState(ConnectionState.Connected);
-    if (publishOptions.video) {
-      const camPub = new LocalTrackPublication(
-        Track.Kind.Video,
-        new TrackInfo({
-          source: TrackSource.CAMERA,
-          sid: Math.floor(Math.random() * 10_000).toString(),
-          type: TrackType.AUDIO,
-          name: 'video-dummy',
-        }),
-        getVideoCapture().createTrack(
-          publishOptions.useRealTracks && window.navigator.mediaDevices?.getUserMedia
-            ? (
-                await window.navigator.mediaDevices.getUserMedia({ video: true })
-              ).getVideoTracks()[0]
-            : createDummyVideoStreamTrack(
-                160 * (participantOptions.aspectRatios[0] ?? 1),
-                160,
-                true,
-                true,
-              ),
-          undefined,
-          false,
-          { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
-        ),
-        { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
-      );
-      // @ts-ignore
-      this.localParticipant.addTrackPublication(camPub);
-      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, camPub);
-    }
-    if (publishOptions.audio) {
-      const audioPub = new LocalTrackPublication(
-        Track.Kind.Audio,
-        new TrackInfo({
-          source: TrackSource.MICROPHONE,
-          sid: Math.floor(Math.random() * 10_000).toString(),
-          type: TrackType.AUDIO,
-        }),
-        new LocalAudioTrack(
-          publishOptions.useRealTracks && navigator.mediaDevices?.getUserMedia
-            ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
-            : getEmptyAudioStreamTrack(),
-          undefined,
-          false,
-          this.audioContext,
-          { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
-        ),
-        { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
-      );
-      // @ts-ignore
-      this.localParticipant.addTrackPublication(audioPub);
-      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
-    }
-
-    for (let i = 0; i < participantOptions.count - 1; i += 1) {
-      let info: ParticipantInfo = new ParticipantInfo({
-        sid: Math.floor(Math.random() * 10_000).toString(),
-        identity: `simulated-${i}`,
-        state: ParticipantInfo_State.ACTIVE,
-        tracks: [],
-        joinedAt: protoInt64.parse(Date.now()),
-      });
-      const p = this.getOrCreateParticipant(info.identity, info);
-      if (participantOptions.video) {
-        const dummyVideo = createDummyVideoStreamTrack(
-          160 * (participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1),
-          160,
-          false,
-          true,
-        );
-        const videoTrack = new TrackInfo({
-          source: TrackSource.CAMERA,
-          sid: Math.floor(Math.random() * 10_000).toString(),
-          type: TrackType.AUDIO,
-        });
-        p.addSubscribedMediaTrack(
-          dummyVideo,
-          videoTrack.sid,
-          new MediaStream([dummyVideo]),
-          new RTCRtpReceiver(),
-        );
-        info.tracks = [...info.tracks, videoTrack];
-      }
-      if (participantOptions.audio) {
-        const dummyTrack = getEmptyAudioStreamTrack();
-        const audioTrack = new TrackInfo({
-          source: TrackSource.MICROPHONE,
-          sid: Math.floor(Math.random() * 10_000).toString(),
-          type: TrackType.AUDIO,
-        });
-        p.addSubscribedMediaTrack(
-          dummyTrack,
-          audioTrack.sid,
-          new MediaStream([dummyTrack]),
-          new RTCRtpReceiver(),
-        );
-        info.tracks = [...info.tracks, audioTrack];
-      }
-
-      p.updateInfo(info);
-    }
   }
 
   // /** @internal */

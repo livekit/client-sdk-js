@@ -3,7 +3,6 @@ import {
   AddTrackRequest,
   AudioTrackFeature,
   BackupCodecPolicy,
-  ChatMessage as ChatMessageModel,
   Codec,
   DataPacket,
   DataPacket_Kind,
@@ -17,7 +16,6 @@ import {
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
-  protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
 import {
@@ -61,12 +59,7 @@ import {
   mergeDefaultOptions,
   sourceToKind,
 } from '../track/utils';
-import {
-  type ChatMessage,
-  type DataPublishOptions,
-  type SendTextOptions,
-  type StreamBytesOptions,
-} from '../types';
+import { type DataPublishOptions, type StreamBytesOptions } from '../types';
 import {
   Future,
   isAudioTrack,
@@ -1398,51 +1391,6 @@ export class LocalParticipant extends Participant {
     });
 
     await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
-  }
-
-  /** @deprecated Consider migrating to {@link sendText} */
-  async sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage> {
-    const msg = {
-      id: crypto.randomUUID(),
-      message: text,
-      timestamp: Date.now(),
-      attachedFiles: options?.attachments,
-    } as const satisfies ChatMessage;
-    const packet = new DataPacket({
-      value: {
-        case: 'chatMessage',
-        value: new ChatMessageModel({
-          ...msg,
-          timestamp: protoInt64.parse(msg.timestamp),
-        }),
-      },
-    });
-    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
-
-    this.emit(ParticipantEvent.ChatMessage, msg);
-    return msg;
-  }
-
-  /** @deprecated Consider migrating to {@link sendText} */
-  async editChatMessage(editText: string, originalMessage: ChatMessage) {
-    const msg = {
-      ...originalMessage,
-      message: editText,
-      editTimestamp: Date.now(),
-    } as const satisfies ChatMessage;
-    const packet = new DataPacket({
-      value: {
-        case: 'chatMessage',
-        value: new ChatMessageModel({
-          ...msg,
-          timestamp: protoInt64.parse(msg.timestamp),
-          editTimestamp: protoInt64.parse(msg.editTimestamp),
-        }),
-      },
-    });
-    await this.engine.sendDataPacket(packet, DataChannelKind.RELIABLE);
-    this.emit(ParticipantEvent.ChatMessage, msg);
-    return msg;
   }
 
   /**

@@ -202,6 +202,7 @@ export type { RpcLocalApi, RpcRoomApi } from './room/rpc/extension';
 export type { DataTrackLocalApi } from './room/data-track/extension';
 export type { E2eeRoomApi } from './e2ee/extension';
 export type { VideoLocalApi } from './room/video/extension';
+export type { ChatLocalApi } from './room/chat/extension';
 
 export { LocalTrackRecorder } from './room/track/record';
 export {

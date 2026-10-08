@@ -26,4 +26,8 @@ export { dataTracks } from './room/data-track/extension';
 export { frameMetadata } from './frameMetadata/extension';
 export { e2ee } from './e2ee/extension';
 export { video } from './room/video/extension';
+export {
+  type SimulatedParticipantsRoomApi,
+  simulatedParticipants,
+} from './room/simulated-participants/extension';
 export { registerVideoCapture } from './room/video/create';
