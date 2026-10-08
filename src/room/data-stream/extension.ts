@@ -83,13 +83,13 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
   (
     room: CoreRoom,
     ctx: ExtensionContext,
-    options: RoomDataStreamOptions | undefined,
+    streamOptions: RoomDataStreamOptions | undefined,
   ): ExtensionResult<DataStreamRoomApi, DataStreamLocalApi> & {
     incoming: IncomingDataStreamManager;
     outgoing: OutgoingDataStreamManager;
   } => {
     const incoming = new IncomingDataStreamManager(
-      (options ?? room.options.dataStream)?.maxPayloadByteLength,
+      (streamOptions ?? room.options.dataStream)?.maxPayloadByteLength,
     );
     const outgoing = new OutgoingDataStreamManager(
       room.engine,

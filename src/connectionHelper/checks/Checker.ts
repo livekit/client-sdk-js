@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import type { RoomConnectOptions, RoomOptions } from '../../options';
-import type { CoreRoomOptions } from '../../options';
+import type { CoreRoomOptions, RoomConnectOptions, RoomOptions } from '../../options';
 import { ConnectionState } from '../../room/CoreRoom';
 import type RTCEngine from '../../room/RTCEngine';
 import { createRoom } from '../../room/createRoom';
