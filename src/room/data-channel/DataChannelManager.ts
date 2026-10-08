@@ -214,14 +214,19 @@ export class DataChannelManager {
     // "Unknown DataChannel error" during an otherwise graceful disconnect. Removing the handlers
     // before dc.close()/pcManager.close() makes this deterministic regardless of how/when the
     // browser dispatches those teardown events. See livekit/client-sdk-js#1953.
-    for (const channel of [this.lossy, this.reliable, this.dataTrack]) {
+    const publisherDataChannels = [this.lossy, this.reliable, this.dataTrack];
+    const subscriberDataChannels = [this.lossySub, this.reliableSub, this.dataTrackSub];
+
+    // Publisher handles are closed by detach, which also rejects parked waiters.
+    for (const channel of publisherDataChannels) {
       const dc = channel.channelHandle;
       if (dc) {
         clearHandlers(dc);
       }
       channel.detach('peer connections cleaned up');
     }
-    for (const dc of [this.lossySub, this.reliableSub, this.dataTrackSub]) {
+    // Subscriber handles have no wrapper, so close them directly.
+    for (const dc of subscriberDataChannels) {
       if (dc) {
         clearHandlers(dc);
         dc.close();
