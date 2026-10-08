@@ -8,6 +8,13 @@ class FakeDataChannel extends EventTarget {
   bufferedAmountLowThreshold = 64;
 
   send = vi.fn();
+
+  readyState: RTCDataChannelState = 'open';
+
+  // Like the real thing, close() moves to 'closing' synchronously.
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 }
 
 // Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)

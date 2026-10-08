@@ -7,6 +7,13 @@ class FakeDataChannel extends EventTarget {
   bufferedAmount = 0;
 
   bufferedAmountLowThreshold = 64;
+
+  readyState: RTCDataChannelState = 'open';
+
+  // Like the real thing, close() moves to 'closing' synchronously.
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 }
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -126,6 +133,22 @@ describe('FlowControlledDataChannel', () => {
     // Fresh controller: the gate is usable again and the lock was released.
     dc.bufferedAmount = 0;
     await expect(channel.waitForHeadroomWithLock()).resolves.toBeUndefined();
+  });
+
+  it('closes the handle it lets go of, on replacement and on detach', () => {
+    const { channel, dc: first } = makeChannel();
+    const second = new FakeDataChannel();
+
+    channel.attach(first as unknown as RTCDataChannel); // re-attaching the same handle is a no-op
+    expect(first.close).not.toHaveBeenCalled();
+
+    channel.attach(second as unknown as RTCDataChannel);
+    expect(first.close).toHaveBeenCalledTimes(1);
+    expect(second.close).not.toHaveBeenCalled();
+
+    channel.detach();
+    expect(second.close).toHaveBeenCalledTimes(1);
+    expect(channel.channelHandle).toBeUndefined();
   });
 
   it('rejects immediately when the engine is closed', async () => {

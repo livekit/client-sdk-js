@@ -30,7 +30,8 @@ export interface FlowControlledDataChannelOptions {
  * Waiters are parked on the channel object captured at wait entry. If that object stops being
  * current — replaced or torn down — its events may never fire again, so the owner must call
  * {@link invalidateWaiters}, which aborts parked waiters (releasing the gate); the next waiter
- * gets a fresh controller.
+ * gets a fresh controller. {@link attach} and {@link detach} do this, and close the released
+ * handle, as part of handle turnover.
  */
 export class FlowControlledDataChannel {
   readonly kind: DataChannelKind;
@@ -67,25 +68,39 @@ export class FlowControlledDataChannel {
   }
 
   /**
-   * Attaches the channel handle this wrapper controls. Replacing an existing handle rejects
-   * parked waiters — their events would never fire again on the abandoned object — and installs a
-   * fresh controller, so queued senders re-check against the new channel. Wrappers outlive their
-   * handles: this is the one place handle turnover happens, which is what makes stranding a
-   * waiter structurally impossible.
+   * Attaches the channel handle this wrapper controls. Replacing an existing handle closes it and
+   * rejects parked waiters — their events would never fire again on the abandoned object — and
+   * installs a fresh controller. Wrappers outlive their handles: this is the one place handle
+   * turnover happens, so a handle the wrapper lets go of is never left open, and stranding a
+   * waiter is structurally impossible.
    */
   attach(dc: RTCDataChannel) {
-    if (this.handle && this.handle !== dc) {
-      this.invalidateWaiters('data channel replaced');
-    }
+    const old = this.handle;
     this.handle = dc;
+    if (old && old !== dc) {
+      this.release(old, 'data channel replaced');
+    }
   }
 
-  /** Detaches the handle on teardown, rejecting parked waiters. */
+  /** Detaches and closes the handle on teardown, rejecting parked waiters. */
   detach(reason: string = 'data channel torn down') {
-    if (this.handle) {
-      this.invalidateWaiters(reason);
-    }
+    const old = this.handle;
     this.handle = undefined;
+    if (old) {
+      this.release(old, reason);
+    }
+  }
+
+  /**
+   * Closes a handle the wrapper no longer controls. `close()` moves it to `closing` synchronously,
+   * so senders still holding it (queued on the headroom lock) fail the open check once they get
+   * the lock. Parked waiters are aborted directly instead of relying on the `close` event, which
+   * fires asynchronously, if at all (the spec lets `pc.close()` skip it). Strip any handlers that
+   * must not observe the close before calling this.
+   */
+  private release(dc: RTCDataChannel, reason: string) {
+    this.invalidateWaiters(reason);
+    dc.close();
   }
 
   protected getChannel(): RTCDataChannel | undefined {

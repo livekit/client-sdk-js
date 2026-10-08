@@ -310,7 +310,13 @@ describe('RTCEngine', () => {
 
     bufferedAmountLowThreshold = 64 * 1024;
 
+    readyState: RTCDataChannelState = 'open';
+
     send = vi.fn();
+
+    close = vi.fn(() => {
+      this.readyState = 'closing';
+    });
   }
 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));

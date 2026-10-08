@@ -9,6 +9,13 @@ class FakeDataChannel extends EventTarget {
   bufferedAmountLowThreshold = 64;
 
   send = vi.fn();
+
+  readyState: RTCDataChannelState = 'open';
+
+  // Like the real thing, close() moves to 'closing' synchronously.
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 }
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
