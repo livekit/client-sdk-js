@@ -131,7 +131,7 @@ export const dataStreams: DataStreamsExtension = /* @__PURE__ */ defineExtension
       );
 
     // The preconnect audio buffer is sent as a byte stream from inside the core publish path.
-    room.localParticipant.openByteStream = (options) => outgoing.streamBytes(options);
+    ctx.setLocalParticipantSlot('openByteStream', (options) => outgoing.streamBytes(options));
 
     return {
       incoming,

@@ -118,21 +118,25 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   pulls `index.d.ts` and its augmentations into every core consumer, so a `[rpc]` room would type
   as if every extension were installed. `pnpm check:core` compiles a consumer probe against emitted
   declarations and fails on that.
-- `LocalParticipant.openByteStream` is an internal slot the `dataStreams` extension fills; the
-  preconnect audio buffer in `publishTrack` sends through it.
+- Operations that exist only for extensions live on `ExtensionContext`, not on `CoreRoom`:
+  `setLocalParticipantSlot()` (the `dataStreams` byte stream opener for the preconnect audio
+  buffer, the `video` publisher), `getOrCreateParticipant()` and `simulateConnected()`. The room
+  keeps the slots in one `LocalParticipantSlots` object that it hands to `LocalParticipant`.
+  `installExtensions()` is the only `@internal` member `CoreRoom` has for extensions.
 - `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
   `devicechange` listener. A disposed room cannot connect again.
 - `simulateParticipants` is the `simulatedParticipants` extension (`src/room/simulated-participants/`);
-  it uses the internal `CoreRoom.simulateConnected()` and `getOrCreateParticipant()`.
+  it uses `ctx.simulateConnected()` and `ctx.getOrCreateParticipant()`.
   `simulateScenario` stays in core. The legacy chat packets (`sendChatMessage`,
   `RoomEvent.ChatMessage`) are the `chat` extension (`src/room/chat/`): the full `Room` installs it,
   the core entry does not export it because text streams supersede it.
 - Video publishing is the `video` extension (`src/room/video/`). Receiving video stays in core.
   Core keeps type guards (`isLocalVideoTrack`) and instance method calls on video tracks, which
   cost nothing; it must not import `LocalVideoTrack`, `publishUtils` or `facingMode` as values.
-  Two slots connect them: `LocalParticipant.videoPublisher` (the publish pipeline for a video
-  track: codec, encodings, layers, start bitrate, server codec fallback, screen capture) and
-  `setVideoCapture()` in `track/create.ts` (how `createLocalTracks` builds a video track). The
+  Two slots connect them: the `videoPublisher` slot on the local participant (the publish
+  pipeline for a video track: codec, encodings, layers, start bitrate, server codec fallback,
+  screen capture, set through `ctx.setLocalParticipantSlot`) and `setVideoCapture()` in
+  `track/create.ts` (how `createLocalTracks` builds a video track). The
   full entry calls `registerVideoCapture()` at module load so `createLocalTracks({ video })` works
   before any Room exists.
 

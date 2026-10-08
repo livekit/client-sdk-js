@@ -78,7 +78,7 @@ export const video = {
     room.options.publishDefaults = { ...videoPublishDefaults, ...room.options.publishDefaults };
 
     const participant = room.localParticipant;
-    participant.videoPublisher = createVideoPublisher(room, ctx.log);
+    ctx.setLocalParticipantSlot('videoPublisher', createVideoPublisher(room, ctx.log));
 
     ctx.onEngineCreated((engine) => {
       engine.on(EngineEvent.SubscribedQualityUpdate, (update) =>

@@ -77,6 +77,18 @@ import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type RemoteParticipant from './RemoteParticipant';
 
 /**
+ * What extensions plug into the local participant. The room owns the object and fills it through
+ * `ExtensionContext.setLocalParticipantSlot()`; the participant only reads it.
+ * @internal
+ */
+export interface LocalParticipantSlots {
+  /** Opens an outgoing byte stream (`dataStreams`). The preconnect audio buffer goes through it. */
+  openByteStream?: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
+  /** The video publish pipeline (`video`). Without it, publishing a video track throws. */
+  videoPublisher?: VideoPublisher;
+}
+
+/**
  * The video publish pipeline. The `video` extension sets it on the local participant; without it,
  * publishing a video track throws.
  * @internal
@@ -152,13 +164,6 @@ export class LocalParticipant extends Participant {
 
   private firstActiveAgent?: RemoteParticipant;
 
-  /**
-   * Opens an outgoing byte stream. Set by the `dataStreams` extension; the preconnect audio
-   * buffer is sent through it from inside `publishTrack`.
-   * @internal
-   */
-  openByteStream?: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
-
   private pendingSignalRequests: Map<
     number,
     {
@@ -171,15 +176,21 @@ export class LocalParticipant extends Participant {
   /** @internal */
   enabledPublishVideoCodecs: Codec[] = [];
 
-  /** @internal set by the `video` extension */
-  videoPublisher?: VideoPublisher;
+  private readonly slots: LocalParticipantSlots;
 
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
+  constructor(
+    sid: string,
+    identity: string,
+    engine: RTCEngine,
+    options: InternalRoomOptions,
+    slots: LocalParticipantSlots = {},
+  ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
     });
+    this.slots = slots;
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
@@ -617,12 +628,12 @@ export class LocalParticipant extends Participant {
   }
 
   private requireVideoPublisher(): VideoPublisher {
-    if (!this.videoPublisher) {
+    if (!this.slots.videoPublisher) {
       throw new TrackInvalidError(
         'video publishing is not available in this build, add the video extension',
       );
     }
-    return this.videoPublisher;
+    return this.slots.videoPublisher;
   }
 
   /**
@@ -1095,12 +1106,12 @@ export class LocalParticipant extends Participant {
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
             this.log.debug('sending preconnect buffer', getLogContextFromTrack(track));
-            if (!this.openByteStream) {
+            if (!this.slots.openByteStream) {
               throw new Error(
                 'the dataStreams extension is required to send the preconnect buffer',
               );
             }
-            const writer = await this.openByteStream({
+            const writer = await this.slots.openByteStream({
               name: 'preconnect-buffer',
               mimeType,
               topic: 'lk.agent.pre-connect-audio-buffer',

@@ -33,16 +33,20 @@ export interface SimulatedParticipantsRoomApi {
  */
 export const simulatedParticipants = {
   key: /* @__PURE__ */ Symbol('simulatedParticipants'),
-  install(room: CoreRoom, _ctx: ExtensionContext): ExtensionResult<SimulatedParticipantsRoomApi> {
+  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<SimulatedParticipantsRoomApi> {
     return {
       room: {
-        simulateParticipants: (options) => simulateParticipants(room, options),
+        simulateParticipants: (options) => simulateParticipants(room, ctx, options),
       },
     };
   },
 } satisfies RoomExtension<SimulatedParticipantsRoomApi>;
 
-async function simulateParticipants(room: CoreRoom, options: SimulationOptions) {
+async function simulateParticipants(
+  room: CoreRoom,
+  ctx: ExtensionContext,
+  options: SimulationOptions,
+) {
   const publishOptions = {
     audio: true,
     video: true,
@@ -59,7 +63,7 @@ async function simulateParticipants(room: CoreRoom, options: SimulationOptions) 
   const participant = room.localParticipant;
   const loggerOptions = participant.trackLoggerOptions;
 
-  room.simulateConnected(
+  ctx.simulateConnected(
     new RoomModel({
       sid: 'RM_SIMULATED',
       name: 'simulated-room',
@@ -139,7 +143,7 @@ async function simulateParticipants(room: CoreRoom, options: SimulationOptions) 
       tracks: [],
       joinedAt: protoInt64.parse(Date.now()),
     });
-    const p = room.getOrCreateParticipant(info.identity, info);
+    const p = ctx.getOrCreateParticipant(info.identity, info);
     if (participantOptions.video) {
       const dummyVideo = createDummyVideoStreamTrack(
         160 * (participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1),

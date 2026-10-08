@@ -65,7 +65,7 @@ import {
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import type { DataPacketCase, ExtensionContext, RoomExtension } from './extensions';
-import { LocalParticipant } from './participant/LocalParticipant';
+import { LocalParticipant, type LocalParticipantSlots } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -203,6 +203,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private installedExtensions = new Map<symbol, unknown>();
 
+  /** Filled by extensions through `ExtensionContext.setLocalParticipantSlot()`. */
+
+  private readonly localParticipantSlots: LocalParticipantSlots = {};
+
   private extensionDisposers: Array<() => void> = [];
 
   private engineCreatedHooks: Array<(engine: RTCEngine) => void> = [];
@@ -269,7 +273,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
-    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+    this.localParticipant = new LocalParticipant(
+      '',
+      '',
+      this.engine,
+      this.options,
+      this.localParticipantSlots,
+    );
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -374,6 +384,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         }
         return result as any;
       },
+      setLocalParticipantSlot: (slot, value) => {
+        this.localParticipantSlots[slot] = value;
+      },
+      getOrCreateParticipant: (identity, info) => this.getOrCreateParticipant(identity, info),
+      simulateConnected: (roomInfo, localParticipantInfo) =>
+        this.simulateConnected(roomInfo, localParticipantInfo),
     };
     for (const ext of extensions) {
       if (this.installedExtensions.has(ext.key)) {
@@ -2167,8 +2183,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     return participant;
   }
 
-  /** @internal */
-  getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
+  private getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
     if (this.remoteParticipants.has(identity)) {
       const existingParticipant = this.remoteParticipants.get(identity)!;
       if (info) {
@@ -2540,12 +2555,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
 
-  /**
-   * Puts the room into the connected state without a server. For the `simulatedParticipants`
-   * extension.
-   * @internal
-   */
-  simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo) {
+  /** Puts the room into the connected state without a server (`ExtensionContext.simulateConnected`). */
+  private simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo) {
     this.handleDisconnect();
     this.roomInfo = roomInfo;
     this.localParticipant.updateInfo(localParticipantInfo);

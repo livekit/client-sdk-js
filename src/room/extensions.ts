@@ -3,11 +3,13 @@ import type {
   Encryption_Type,
   ParticipantInfo,
   PublishDataTrackResponse,
+  Room as RoomModel,
 } from '@livekit/protocol';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import type { StructuredLogger } from '../logger';
 import type { CoreRoom } from './CoreRoom';
 import type RTCEngine from './RTCEngine';
+import type { LocalParticipantSlots } from './participant/LocalParticipant';
 import type RemoteParticipant from './participant/RemoteParticipant';
 
 /**
@@ -83,6 +85,18 @@ export interface ExtensionContext {
   onE2eeManagerChanged(cb: (manager: BaseE2EEManager) => void): void;
   /** The `install` result of an already installed extension (a hard dependency). */
   get<E extends RoomExtension<any, any>>(ext: E): ReturnType<E['install']>;
+  /**
+   * Fills a slot on the local participant: how to open an outgoing byte stream (`dataStreams`),
+   * how to publish a video track (`video`). Core reads the slots from the publish path.
+   */
+  setLocalParticipantSlot<K extends keyof LocalParticipantSlots>(
+    slot: K,
+    value: NonNullable<LocalParticipantSlots[K]>,
+  ): void;
+  /** Returns the remote participant for an identity, creating it from `info` when new. */
+  getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant;
+  /** Puts the room into the connected state without a server (`simulatedParticipants`). */
+  simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo): void;
 }
 
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void
