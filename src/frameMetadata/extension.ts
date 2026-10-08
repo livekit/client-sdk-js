@@ -7,7 +7,7 @@ import { FrameMetadataManager } from './FrameMetadataManager';
  * Publishing frame metadata is part of the core publish path and needs no extension.
  */
 export const frameMetadata = {
-  key: Symbol('frameMetadata'),
+  key: /* @__PURE__ */ Symbol('frameMetadata'),
   install(
     room: CoreRoom,
     _ctx: ExtensionContext,

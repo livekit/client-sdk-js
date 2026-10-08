@@ -26,7 +26,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   adaptiveStream: false,
   dynacast: false,
   stopLocalTrackOnUnpublish: true,
-  reconnectPolicy: new DefaultReconnectPolicy(),
+  reconnectPolicy: /* @__PURE__ */ new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
   webAudioMix: false,
   singlePeerConnection: true,

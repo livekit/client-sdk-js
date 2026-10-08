@@ -32,7 +32,7 @@ const toInfos = (protos: DataTrackInfoProto[]) => protos.map((proto) => DataTrac
  * `RemoteParticipant.dataTracks`, `RoomEvent.DataTrackPublished`).
  */
 export const dataTracks = {
-  key: Symbol('dataTracks'),
+  key: /* @__PURE__ */ Symbol('dataTracks'),
   install(
     room: CoreRoom,
     ctx: ExtensionContext,

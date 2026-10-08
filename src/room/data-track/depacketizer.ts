@@ -7,7 +7,7 @@ import { DataTrackPacket, FrameMarker } from './packet';
 import { DataTrackExtensions } from './packet/extensions';
 import { U16_MAX_SIZE, WrapAroundUnsignedInt } from './utils';
 
-const log = getLogger(LoggerNames.DataTracks);
+const log = /* @__PURE__ */ getLogger(LoggerNames.DataTracks);
 
 type PartialFrame = {
   /** Sequence of the start packet. */

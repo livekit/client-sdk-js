@@ -39,7 +39,7 @@ import {
   createStreamHeaderPacket,
 } from './header-utils';
 
-const textEncoder = new TextEncoder();
+const textEncoder = /* @__PURE__ */ new TextEncoder();
 
 /**
  * Manages sending custom user data via data channels.

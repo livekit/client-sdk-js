@@ -20,7 +20,7 @@ export interface ChatLocalApi {
  * text streams; the full `Room` keeps it, the core entry does not offer it.
  */
 export const chat = {
-  key: Symbol('chat'),
+  key: /* @__PURE__ */ Symbol('chat'),
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<{}, ChatLocalApi> {
     const participant = room.localParticipant;
 

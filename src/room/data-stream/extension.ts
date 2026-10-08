@@ -77,7 +77,7 @@ export interface DataStreamLocalApi {
  * Text and byte streams (`sendText`, `sendFile`, `registerTextStreamHandler`, ...).
  */
 export const dataStreams = {
-  key: Symbol('dataStreams'),
+  key: /* @__PURE__ */ Symbol('dataStreams'),
   install(
     room: CoreRoom,
     ctx: ExtensionContext,

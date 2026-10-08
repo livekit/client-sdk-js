@@ -19,7 +19,7 @@ export interface E2eeRoomApi {
  * options the extension installs nothing, and `setE2EEEnabled` rejects.
  */
 export const e2ee = {
-  key: Symbol('e2ee'),
+  key: /* @__PURE__ */ Symbol('e2ee'),
   install(
     room: CoreRoom,
     ctx: ExtensionContext,

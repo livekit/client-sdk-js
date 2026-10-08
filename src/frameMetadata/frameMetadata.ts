@@ -1,7 +1,7 @@
 import type { FrameMetadata, FrameMetadataPublishOptions } from './types';
 import { hasFrameMetadataPublishOptions } from './utils';
 
-export const PACKET_TRAILER_MAGIC = Uint8Array.from([
+export const PACKET_TRAILER_MAGIC = /* @__PURE__ */ Uint8Array.from([
   'L'.charCodeAt(0),
   'K'.charCodeAt(0),
   'T'.charCodeAt(0),
