@@ -1,5 +1,6 @@
 // Gate for the core entry: bundling `createRoom` alone must pull in no extension module.
 // Bundles `export { createRoom } from './src/core'` with esbuild and inspects the metafile.
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -55,21 +56,32 @@ const result = await esbuild.build({
 const inputs = Object.keys(Object.values(result.metafile.outputs)[0].inputs);
 const leaked = inputs.filter((file) => EXTENSION_MODULES.some((prefix) => file.includes(prefix)));
 
-// Core must not read an extension's slice of the room options: a configured extension
-// (`e2ee({ ... })`) never writes them. Extensions hand core what it needs through
-// `ExtensionContext` slots instead.
-const OPTION_SLICES =
-  /\b(?:options|roomOptions)\.(?:e2ee|encryption|frameMetadata|packetTrailer|dataStream)\b/;
-const optionReads = inputs
-  .filter((file) => file.startsWith('src/') && !file.endsWith('.d.ts'))
-  .flatMap((file) =>
-    readFileSync(path.join(REPO, file), 'utf8')
-      .split('\n')
-      .map((line, i) => (OPTION_SLICES.test(line) ? `${file}:${i + 1}: ${line.trim()}` : null))
-      .filter(Boolean),
-  );
+// Only an extension reads its own slice of the room options (when listed bare); a configured
+// extension (`e2ee({ ... })`) never writes it, so core and the other extensions must not read it.
+// Extensions hand core what it needs through `ExtensionContext` slots, and other extensions ask
+// the room (`room.hasE2EESetup`) or `ctx.get(extension)`.
+const OWN_SLICE = {
+  'src/e2ee/': /^(e2ee|encryption)$/,
+  'src/frameMetadata/': /^(frameMetadata|packetTrailer)$/,
+  'src/room/data-stream/': /^dataStream$/,
+};
+const OPTION_SLICE =
+  /\b(?:options|roomOptions)\.(e2ee|encryption|frameMetadata|packetTrailer|dataStream)\b/g;
+const sources = execFileSync('git', ['ls-files', 'src/**/*.ts'], { cwd: REPO, encoding: 'utf8' })
+  .split('\n')
+  .filter((file) => file && !file.endsWith('.test.ts') && !file.includes('/worker/'));
+const optionReads = sources.flatMap((file) => {
+  const own = Object.entries(OWN_SLICE).find(([dir]) => file.startsWith(dir))?.[1];
+  return readFileSync(path.join(REPO, file), 'utf8')
+    .split('\n')
+    .flatMap((line, i) =>
+      [...line.matchAll(OPTION_SLICE)]
+        .filter((m) => !own?.test(m[1]))
+        .map(() => `${file}:${i + 1}: ${line.trim()}`),
+    );
+});
 if (optionReads.length > 0) {
-  console.error(`core modules read extension option slices:\n  ${optionReads.join('\n  ')}`);
+  console.error(`modules read another extension's option slice:\n  ${optionReads.join('\n  ')}`);
   process.exit(1);
 }
 const kib = (result.outputFiles[0].contents.length / 1024).toFixed(1);

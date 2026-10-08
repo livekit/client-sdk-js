@@ -54,7 +54,8 @@ export function createVideoPublisher(room: CoreRoom, log: StructuredLogger): Vid
 
   return {
     async prepare(track, opts, req) {
-      if (!isE2EESimulcastSupported() && roomOptions.e2ee) {
+      // read at publish time: the e2ee extension can install after video
+      if (!isE2EESimulcastSupported() && room.hasE2EESetup) {
         log.info(
           `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
         );
