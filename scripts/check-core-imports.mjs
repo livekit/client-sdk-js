@@ -1,5 +1,5 @@
-// Gate for the core entry: bundling `CoreRoom` alone must pull in no extension module.
-// Bundles `export { CoreRoom } from './src/core'` with esbuild and inspects the metafile.
+// Gate for the core entry: bundling `createRoom` alone must pull in no extension module.
+// Bundles `export { createRoom } from './src/core'` with esbuild and inspects the metafile.
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -36,7 +36,7 @@ const EXTENSION_MODULES = [
 
 const result = await esbuild.build({
   stdin: {
-    contents: `export { CoreRoom } from './src/core';`,
+    contents: `export { createRoom } from './src/core';`,
     resolveDir: REPO,
     loader: 'ts',
   },
@@ -56,7 +56,7 @@ const leaked = inputs.filter((file) => EXTENSION_MODULES.some((prefix) => file.i
 const kib = (result.outputFiles[0].contents.length / 1024).toFixed(1);
 
 if (leaked.length > 0) {
-  console.error(`CoreRoom bundle includes extension modules:\n  ${leaked.join('\n  ')}`);
+  console.error(`createRoom bundle includes extension modules:\n  ${leaked.join('\n  ')}`);
   process.exit(1);
 }
-console.log(`CoreRoom bundle: ${kib} KiB minified, ${inputs.length} modules, no extension modules`);
+console.log(`createRoom bundle: ${kib} KiB minified, ${inputs.length} modules, no extension modules`);

@@ -34,10 +34,10 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
+  CoreRoomOptions,
   InternalRoomConnectOptions,
   InternalRoomOptions,
   RoomConnectOptions,
-  RoomOptions,
 } from '../options';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
@@ -64,13 +64,7 @@ import {
   canFailOverToAnotherRegion,
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
-import type {
-  DataPacketCase,
-  ExtendedRoom,
-  ExtensionContext,
-  RoomClass,
-  RoomExtension,
-} from './extensions';
+import type { DataPacketCase, ExtensionContext, RoomExtension } from './extensions';
 import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
@@ -133,43 +127,6 @@ const STATS_LOG_FREQUENCY_MS = 30 * 1000;
  * @noInheritDoc
  */
 export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
-  /** The extensions this room class installs in its constructor. @internal */
-  static extensions: readonly RoomExtension<any, any>[] = [];
-
-  /**
-   * Returns a room class with the given extensions, and their dependencies, installed.
-   * Call it once at module level, not per room instance.
-   *
-   * @example
-   * ```typescript
-   * const AppRoom = CoreRoom.with(rpc); // also installs dataStreams, which rpc requires
-   * const room = new AppRoom(options);
-   * room.registerRpcMethod('greet', handler);
-   * ```
-   */
-  static with<
-    S extends RoomClass & { extensions: readonly RoomExtension<any, any>[] },
-    E extends RoomExtension<any, any>[],
-  >(this: S, ...extensions: E): ExtendedRoom<S, E[number]> {
-    const resolved = [...this.extensions];
-    const add = (ext: RoomExtension<any, any>, stack: RoomExtension<any, any>[]) => {
-      if (stack.includes(ext)) {
-        // @throws-transformer ignore - programmer error
-        throw new Error(`extension '${String(ext.key)}' depends on itself`);
-      }
-      if (resolved.some((installed) => installed.key === ext.key)) {
-        return;
-      }
-      ext.requires?.forEach((dep) => add(dep, [...stack, ext]));
-      resolved.push(ext);
-    };
-    extensions.forEach((ext) => add(ext, []));
-    // @ts-expect-error TS cannot express a class that extends a generic abstract constructor
-    return class extends this {
-      static extensions = resolved;
-    } as any;
-  }
-
   state: ConnectionState = ConnectionState.Disconnected;
 
   /**
@@ -284,7 +241,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: RoomOptions) {
+  constructor(options?: CoreRoomOptions) {
     super();
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
@@ -313,8 +270,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
-
-    this.installExtensions();
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -369,7 +324,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   }
 
-  private installExtensions() {
+  /**
+   * Installs resolved extensions on this room. `installExtensions()` in `extensions.ts` resolves
+   * dependencies and calls this; `createRoom()` and the full `Room` go through it.
+   * @internal
+   */
+  installExtensions(extensions: readonly RoomExtension<any, any>[]) {
     const ctx: ExtensionContext = {
       log: this.log,
       onEngineCreated: (cb) => {
@@ -415,7 +375,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         return result as any;
       },
     };
-    for (const ext of (this.constructor as typeof CoreRoom).extensions) {
+    for (const ext of extensions) {
+      if (this.installedExtensions.has(ext.key)) {
+        // @throws-transformer ignore - programmer error
+        throw new Error(`extension '${String(ext.key)}' is already installed`);
+      }
       const result = ext.install(this, ctx);
       this.installedExtensions.set(ext.key, result);
       defineExtensionApi(this, result.room, ext);

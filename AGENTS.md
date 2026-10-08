@@ -76,10 +76,12 @@ The main demo app (`examples/demo/`) is a comprehensive kitchen-sink UI. Standal
 
 ## Room extensions
 
-`Room` (the main export) is `CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee)`.
+`Room` (the main export) is `CoreRoom` plus every extension, installed in its constructor through
+`installExtensions()`. The core entry's `createRoom(options, [extensions])` does the same with the
+list an app gives it.
 `CoreRoom` (`src/room/CoreRoom.ts`) holds the signal client, engine, participants, media and
 raw data packets. Everything else is a `RoomExtension` (`src/room/extensions.ts`) that
-`CoreRoom.with(...)` installs in the constructor. `src/exports.ts` is the export surface both
+`installExtensions()` installs right after construction. `src/exports.ts` is the export surface both
 entries share; `src/index.ts` adds `Room` and the type augmentations, `src/core.ts` adds
 `CoreRoom` and the extension objects (`livekit-client/core`, experimental). The core entry is
 built per module with dependencies external (`dist/core/`), so a consumer's bundler drops unused
@@ -91,6 +93,11 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
 - `install` returns `{ room, local, dispose }`. `room` and `local` members are copied onto the
   room and its local participant under the SDK's method names (`sendText`, `registerRpcMethod`).
   Extra members (the managers) are visible to dependents through `ctx.get(extension)`.
+- Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are built with
+  `defineExtension()` and are callable: listed bare they read today's `RoomOptions`, called with
+  options they use those, and a function is evaluated per room. Extensions without options are
+  plain objects. The resolver dedupes by key, installs dependencies first, lets an explicitly listed
+  instance win over a dependency's default, and throws when a key is listed twice.
 - `install`, `dispose` and every hook are synchronous. Async setup starts in `install` and is
   awaited in the extension's own methods.
 - Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced

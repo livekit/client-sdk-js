@@ -1,18 +1,19 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { RoomConnectOptions, RoomOptions } from '../../options';
-import { ConnectionState, CoreRoom } from '../../room/CoreRoom';
+import type { CoreRoomOptions } from '../../options';
+import { ConnectionState } from '../../room/CoreRoom';
 import type RTCEngine from '../../room/RTCEngine';
+import { createRoom } from '../../room/createRoom';
 import { dataStreams } from '../../room/data-stream/extension';
 import { RoomEvent } from '../../room/events';
 import type { SimulationScenario } from '../../room/types';
 import { sleep } from '../../room/utils';
 import { video } from '../../room/video/extension';
 
-// The checks need text streams (cloud region) and video publishing. Marked pure so that an app
-// that never runs a check does not bundle the checker's room class or those extensions.
-const CheckRoom = /*#__PURE__*/ CoreRoom.with(dataStreams, video);
-type CheckRoom = InstanceType<typeof CheckRoom>;
+// The checks need text streams (cloud region) and video publishing.
+const createCheckRoom = (options?: CoreRoomOptions) => createRoom(options, [dataStreams, video]);
+type CheckRoom = ReturnType<typeof createCheckRoom>;
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';
@@ -64,7 +65,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     this.url = url;
     this.token = token;
     this.name = this.constructor.name;
-    this.room = new CheckRoom(options.roomOptions);
+    this.room = createCheckRoom(options.roomOptions);
     this.connectOptions = options.connectOptions;
     this.options = options;
   }

@@ -11,16 +11,17 @@ import type RTCEngine from './RTCEngine';
 import type RemoteParticipant from './participant/RemoteParticipant';
 
 /**
- * A feature that `CoreRoom.with(...)` adds to a room class. The methods returned from
- * `install` are copied onto the room (`room`) and its local participant (`local`) under the
- * same names the full SDK uses, so code moves between the light and full builds unchanged.
+ * A feature that `createRoom(options, [...])` (or the full `Room`) installs on a room. The
+ * methods returned from `install` are copied onto the room (`room`) and its local participant
+ * (`local`) under the same names the full SDK uses, so code moves between the light and full
+ * builds unchanged.
  *
- * `install` runs synchronously inside the `Room` constructor, before any user code, so handlers
- * registered there are in place before `connect()`.
+ * `install` runs synchronously right after the room is constructed, before any user code, so
+ * handlers registered there are in place before `connect()`.
  */
 export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
   readonly key: symbol;
-  /** Hard dependencies. `with()` installs them first and dedupes by `key`. */
+  /** Hard dependencies. They install first; an instance the app lists explicitly wins over them. */
   readonly requires?: readonly RoomExtension<any, any>[];
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RoomApi, LocalApi>;
 }
@@ -93,13 +94,86 @@ type LocalOf<E> = E extends RoomExtension<any, infer L> ? L : never;
 type Deps<E> = E extends { requires: readonly (infer D)[] } ? D | Deps<D> : never;
 type All<E> = E | Deps<E>;
 
-export type RoomClass = abstract new (...args: any) => CoreRoom;
-
-/** The class `CoreRoom.with(...)` returns: the base class plus every extension's API. */
-export type ExtendedRoom<S extends RoomClass, E> = Omit<S, 'prototype'> & {
-  new (...args: ConstructorParameters<S>): InstanceType<S> &
-    UnionToIntersection<ApiOf<All<E>>> & {
-      localParticipant: InstanceType<S>['localParticipant'] & UnionToIntersection<LocalOf<All<E>>>;
-    };
-  prototype: InstanceType<S>;
+/** The methods a set of extensions (and their dependencies) adds to a room and its local participant. */
+export type ExtensionApis<E> = UnionToIntersection<ApiOf<All<E>>> & {
+  localParticipant: UnionToIntersection<LocalOf<All<E>>>;
 };
+
+/** An extension with its options bound. */
+export type ConfiguredExtension<
+  Result extends ExtensionResult<any, any>,
+  Requires extends readonly RoomExtension<any, any>[],
+> = {
+  readonly key: symbol;
+  readonly requires: Requires;
+  install(room: CoreRoom, ctx: ExtensionContext): Result;
+};
+
+/**
+ * An extension that takes options. Listed bare (`[e2ee]`) it installs from the room options the
+ * full `Room` uses today; called (`[e2ee(options)]`) it installs with those options. A function
+ * (`e2ee(() => options)`) is evaluated inside each room's constructor, for resources such as
+ * workers that must be per room.
+ */
+export type ConfigurableExtension<
+  Result extends ExtensionResult<any, any>,
+  Options,
+  Requires extends readonly RoomExtension<any, any>[],
+> = ConfiguredExtension<Result, Requires> &
+  ((options: Options | (() => Options)) => ConfiguredExtension<Result, Requires>);
+
+/** Builds a {@link ConfigurableExtension}. The option type comes from the `options` parameter. */
+export function defineExtension<
+  Result extends ExtensionResult<any, any>,
+  Options,
+  const Requires extends readonly RoomExtension<any, any>[] = [],
+>(
+  name: string,
+  requires: Requires,
+  install: (room: CoreRoom, ctx: ExtensionContext, options: Options | undefined) => Result,
+): ConfigurableExtension<Result, Options, Requires> {
+  const key = Symbol(name);
+  const configure = (
+    options?: Options | (() => Options),
+  ): ConfiguredExtension<Result, Requires> => ({
+    key,
+    requires,
+    install: (room, ctx) =>
+      install(room, ctx, typeof options === 'function' ? (options as () => Options)() : options),
+  });
+  return Object.assign((options: Options | (() => Options)) => configure(options), configure());
+}
+
+/**
+ * Installs extensions on a room: dependencies first, each key once. An extension the caller
+ * lists explicitly wins over the default a dependency would pull in, whatever the order.
+ * @internal
+ */
+export function installExtensions(
+  room: CoreRoom,
+  extensions: readonly RoomExtension<any, any>[],
+): void {
+  const explicit = new Map<symbol, RoomExtension<any, any>>();
+  for (const ext of extensions) {
+    if (explicit.has(ext.key)) {
+      // @throws-transformer ignore - programmer error
+      throw new Error(`extension '${String(ext.key)}' is listed twice`);
+    }
+    explicit.set(ext.key, ext);
+  }
+  const resolved: RoomExtension<any, any>[] = [];
+  const add = (ext: RoomExtension<any, any>, stack: symbol[]) => {
+    const chosen = explicit.get(ext.key) ?? ext;
+    if (stack.includes(chosen.key)) {
+      // @throws-transformer ignore - programmer error
+      throw new Error(`extension '${String(chosen.key)}' depends on itself`);
+    }
+    if (resolved.includes(chosen)) {
+      return;
+    }
+    chosen.requires?.forEach((dep) => add(dep, [...stack, chosen.key]));
+    resolved.push(chosen);
+  };
+  extensions.forEach((ext) => add(ext, []));
+  room.installExtensions(resolved);
+}

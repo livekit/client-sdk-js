@@ -1,9 +1,10 @@
 import type { DataPacket, Encryption_Type } from '@livekit/protocol';
+import type { RoomDataStreamOptions } from '../../options';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ConnectionState } from '../CoreRoom';
 import type { CoreRoom } from '../CoreRoom';
 import { RoomEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import { type ExtensionContext, type ExtensionResult, defineExtension } from '../extensions';
 import type {
   ByteStreamInfo,
   SendBytesOptions,
@@ -76,16 +77,20 @@ export interface DataStreamLocalApi {
 /**
  * Text and byte streams (`sendText`, `sendFile`, `registerTextStreamHandler`, ...).
  */
-export const dataStreams = {
-  key: /* @__PURE__ */ Symbol('dataStreams'),
-  install(
+export const dataStreams = /* @__PURE__ */ defineExtension(
+  'dataStreams',
+  [],
+  (
     room: CoreRoom,
     ctx: ExtensionContext,
+    options: RoomDataStreamOptions | undefined,
   ): ExtensionResult<DataStreamRoomApi, DataStreamLocalApi> & {
     incoming: IncomingDataStreamManager;
     outgoing: OutgoingDataStreamManager;
-  } {
-    const incoming = new IncomingDataStreamManager(room.options.dataStream?.maxPayloadByteLength);
+  } => {
+    const incoming = new IncomingDataStreamManager(
+      (options ?? room.options.dataStream)?.maxPayloadByteLength,
+    );
     const outgoing = new OutgoingDataStreamManager(
       room.engine,
       ctx.log,
@@ -134,4 +139,4 @@ export const dataStreams = {
       },
     };
   },
-} satisfies RoomExtension<DataStreamRoomApi, DataStreamLocalApi>;
+);

@@ -90,24 +90,24 @@ For example, `Room` becomes `LivekitClient.Room`.
 
 ### Light build
 
-`livekit-client/core` exports `CoreRoom`, a room without data streams, RPC, data tracks, frame
-metadata, end-to-end encryption or video publishing. Add the features you need at construction
-time; the result has the same method names as `Room`, so code moves between the two builds
+`livekit-client/core` exports `createRoom`, which builds a room without data streams, RPC, data
+tracks, frame metadata, end-to-end encryption or video publishing, plus exactly the extensions you
+list. The result has the same method names as `Room`, so code moves between the two builds
 unchanged.
 
 ```typescript
-import { CoreRoom, rpc } from 'livekit-client/core';
+import { createRoom, e2ee, rpc } from 'livekit-client/core';
 
-const AppRoom = CoreRoom.with(rpc); // also installs dataStreams, which rpc requires
-
-const room = new AppRoom();
+const room = createRoom({ adaptiveStream: true }, [rpc, e2ee({ keyProvider, worker })]);
+// rpc also installs dataStreams, which it requires
 room.registerRpcMethod('greet', async (data) => `Hello, ${data.callerIdentity}!`);
 await room.connect(url, token);
 ```
 
-Extensions: `dataStreams`, `rpc`, `dataTracks`, `frameMetadata`, `e2ee`, `video`. Call `with()`
-once at module level, not per room. The core entry does not import `webrtc-adapter`, and it is
-ESM only. Import one entry per app: each entry is a self-contained bundle, so an app that loads
+Extensions: `dataStreams`, `rpc`, `dataTracks`, `frameMetadata`, `e2ee`, `video`,
+`simulatedParticipants`. Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are
+called with them; pass the others as they are. An extension you list wins over the default a
+dependency would pull in. The core entry does not import `webrtc-adapter`, and it is ESM only. Import one entry per app: each entry is a self-contained bundle, so an app that loads
 both gets two copies of every class. The entry is experimental.
 
 ## Usage

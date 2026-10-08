@@ -1,12 +1,12 @@
-import { CoreRoom, RoomEvent, rpc } from '../../src/core';
+import { RoomEvent, createRoom, rpc } from '../../src/core';
 
-// Build the room class once, at module level. `rpc` requires `dataStreams`, which installs too.
-const LightRoom = CoreRoom.with(rpc);
+// `rpc` requires `dataStreams`, which installs too.
+const makeRoom = () => createRoom(undefined, [rpc]);
 
 const roomName = `core-demo-${Math.floor(Math.random() * 10_000)}`;
 
 async function main() {
-  const [callee, caller] = [new LightRoom(), new LightRoom()];
+  const [callee, caller] = [makeRoom(), makeRoom()];
   callee.registerRpcMethod('greet', async (data) => {
     log(`callee: request from ${data.callerIdentity}: ${data.payload}`);
     return `Hello, ${data.callerIdentity}!`;

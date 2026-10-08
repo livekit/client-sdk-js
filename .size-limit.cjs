@@ -12,7 +12,7 @@ module.exports = [
   {
     // the light entry (livekit-client/core) without any extension
     path: 'dist/core/core.mjs',
-    import: '{ CoreRoom }',
+    import: '{ createRoom }',
     limit: '85 kB',
   },
 ];

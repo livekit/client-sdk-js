@@ -183,3 +183,12 @@ export interface InternalRoomConnectOptions {
  * Options for Room.connect()
  */
 export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {}
+
+/**
+ * The options of a room from `createRoom()`: `RoomOptions` without the slices that the `e2ee`,
+ * `frameMetadata` and `dataStreams` extensions take directly.
+ */
+export type CoreRoomOptions = Omit<
+  RoomOptions,
+  'e2ee' | 'encryption' | 'frameMetadata' | 'packetTrailer' | 'dataStream'
+>;

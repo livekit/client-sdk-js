@@ -13,12 +13,14 @@
  * - Import one entry per app. Each entry is a self-contained bundle, so an app that loads both
  *   gets two copies of every class, and `instanceof` across the two fails.
  *
- * `pnpm check:core` makes sure that `CoreRoom` alone bundles no extension module.
+ * `pnpm check:core` makes sure that `createRoom` alone bundles no extension module.
  *
  * @experimental
  */
 export * from './exports';
 export { CoreRoom } from './room/CoreRoom';
+export { createRoom } from './room/createRoom';
+export { defineExtension, installExtensions } from './room/extensions';
 export type { ExtensionContext } from './room/extensions';
 export { dataStreams } from './room/data-stream/extension';
 export { rpc } from './room/rpc/extension';

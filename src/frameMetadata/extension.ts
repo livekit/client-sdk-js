@@ -1,21 +1,23 @@
 import type { CoreRoom } from '../room/CoreRoom';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../room/extensions';
-import { FrameMetadataManager } from './FrameMetadataManager';
+import { type ExtensionContext, type ExtensionResult, defineExtension } from '../room/extensions';
+import { FrameMetadataManager, type FrameMetadataOptions } from './FrameMetadataManager';
 
 /**
  * Frame metadata extraction on subscribed video tracks (`frameMetadata` room option).
  * Publishing frame metadata is part of the core publish path and needs no extension.
  */
-export const frameMetadata = {
-  key: /* @__PURE__ */ Symbol('frameMetadata'),
-  install(
+export const frameMetadata = /* @__PURE__ */ defineExtension(
+  'frameMetadata',
+  [],
+  (
     room: CoreRoom,
     _ctx: ExtensionContext,
-  ): ExtensionResult & { manager: FrameMetadataManager } {
+    options: FrameMetadataOptions | undefined,
+  ): ExtensionResult & { manager: FrameMetadataManager } => {
     const manager = new FrameMetadataManager(
-      room.options.frameMetadata ?? room.options.packetTrailer,
+      options ?? room.options.frameMetadata ?? room.options.packetTrailer,
     );
     manager.setup(room);
     return { manager };
   },
-} satisfies RoomExtension;
+);
