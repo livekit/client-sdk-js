@@ -81,7 +81,9 @@ export default [
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
-        tsconfigOverride: { compilerOptions: { declaration: false, declarationMap: false } },
+        tsconfigOverride: {
+          compilerOptions: { declaration: false, declarationMap: false, stripInternal: true },
+        },
       }),
       ...commonPlugins,
     ],
