@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
 import { Room } from './Room';
 import { createRoom } from './createRoom';
 import { dataStreams } from './data-stream/extension';
+import { RoomEvent } from './events';
 import { type ExtensionResult, defineExtension } from './extensions';
 import { rpc } from './rpc/extension';
 
@@ -32,10 +33,15 @@ describe('createRoom', () => {
     expect(createRoom(undefined, [probe]).n()).toBe(-1);
   });
 
-  it('configured frameMetadata fills the room option the publish path reads', () => {
-    const worker = { postMessage() {} } as unknown as Worker;
+  it('configured frameMetadata reaches the engine, and dispose terminates the worker', async () => {
+    const worker = { postMessage() {}, terminate: vi.fn() } as unknown as Worker;
     const room = createRoom(undefined, [frameMetadata({ worker })]);
-    expect(room.options.frameMetadata?.worker).toBe(worker);
+    expect(room.engine.frameMetadataOptions?.worker).toBe(worker);
+    expect(room.options.frameMetadata).toBeUndefined();
+    room.emit(RoomEvent.Disconnected);
+    expect(worker.terminate).not.toHaveBeenCalled();
+    await room.dispose();
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
 
   it('the full Room installs every extension', async () => {

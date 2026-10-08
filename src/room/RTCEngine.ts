@@ -55,6 +55,7 @@ import {
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import {
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
@@ -158,6 +159,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   e2eeManager: BaseE2EEManager | undefined;
+
+  /** @internal set by the room from the `frameMetadata` extension */
+  frameMetadataOptions: FrameMetadataOptions | undefined;
 
   get isClosed() {
     return this._isClosed;
@@ -1070,7 +1074,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private get frameMetadataWorker(): Worker | undefined {
-    return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
+    return this.frameMetadataOptions?.worker;
   }
 
   private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
@@ -1094,7 +1098,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (
-      !isFrameMetadataSupported(this.options.frameMetadata ?? this.options.packetTrailer) ||
+      !isFrameMetadataSupported(this.frameMetadataOptions) ||
       !('createEncodedStreams' in sender)
     ) {
       if (hasMetadata) {

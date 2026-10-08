@@ -85,10 +85,8 @@ describe('RTCEngine', () => {
   it('enables encoded insertable streams when a packet trailer worker is configured', () => {
     stubInsertableStreamsSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
 
     expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBe(true);
   });
@@ -97,10 +95,8 @@ describe('RTCEngine', () => {
     stubInsertableStreamsSupport();
     stubScriptTransformSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
 
     expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBeUndefined();
   });
@@ -146,10 +142,8 @@ describe('RTCEngine', () => {
   it('does not create sender passthrough streams for packet trailers when script transforms are supported', () => {
     stubScriptTransformSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
     const createEncodedStreams = vi.fn();
     const sender = {
       createEncodedStreams,
@@ -164,10 +158,8 @@ describe('RTCEngine', () => {
     stubInsertableStreamsSupport();
 
     const worker = { postMessage: vi.fn() } as unknown as Worker;
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker };
     const readable = {} as ReadableStream;
     const writable = {} as WritableStream;
     const createEncodedStreams = vi.fn(() => ({ readable, writable }));
@@ -210,10 +202,8 @@ describe('RTCEngine', () => {
     });
 
     const worker = {} as Worker;
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker };
     const createEncodedStreams = vi.fn();
     const sender = {
       createEncodedStreams,

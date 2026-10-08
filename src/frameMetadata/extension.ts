@@ -22,18 +22,16 @@ export const frameMetadata: FrameMetadataExtension = /* @__PURE__ */ defineExten
   [],
   (
     room: CoreRoom,
-    _ctx: ExtensionContext,
+    ctx: ExtensionContext,
     options: FrameMetadataOptions | undefined,
   ): ExtensionResult & { manager: FrameMetadataManager } => {
-    if (options) {
-      // the engine (worker lookup), the join request (capability) and publishTrack (requested
-      // features) read this slice of the room options, so a configured extension fills it
-      room.options.frameMetadata = options;
+    const resolved = options ?? room.options.frameMetadata ?? room.options.packetTrailer;
+    if (resolved) {
+      // the engine (sender transform), the join request (capability) and publishTrack read it
+      ctx.setFrameMetadataOptions(resolved);
     }
-    const manager = new FrameMetadataManager(
-      options ?? room.options.frameMetadata ?? room.options.packetTrailer,
-    );
+    const manager = new FrameMetadataManager(resolved);
     manager.setup(room);
-    return { manager };
+    return { manager, dispose: () => manager.dispose() };
   },
 );

@@ -6,6 +6,7 @@ import type {
   Room as RoomModel,
 } from '@livekit/protocol';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
+import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import type { StructuredLogger } from '../logger';
 import type { CoreRoom } from './CoreRoom';
 import type RTCEngine from './RTCEngine';
@@ -79,6 +80,11 @@ export interface ExtensionContext {
   onParticipantUpdates(cb: (infos: ParticipantInfo[]) => void): void;
   /** Contributes local data track publications to the sync state the room sends on resume. */
   onSyncState(cb: () => PublishDataTrackResponse[]): void;
+  /**
+   * The frame metadata slot: the engine's sender transform, the join request capability and
+   * `publishTrack` read it. The `frameMetadata` extension fills it.
+   */
+  setFrameMetadataOptions(options: FrameMetadataOptions): void;
   /** The E2EE manager slot. Core owns the slot and reads it; the `e2ee` extension fills it. */
   getE2eeManager(): BaseE2EEManager | undefined;
   setE2eeManager(manager: BaseE2EEManager): void;

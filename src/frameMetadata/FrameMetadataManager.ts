@@ -225,12 +225,18 @@ export class FrameMetadataManager {
     // is no longer reachable from any track.
   }
 
+  /** Drops the per-connection state. The worker stays, because the room can connect again. */
   private cleanup() {
     for (const extractor of this.extractors.values()) {
       extractor.dispose();
     }
     this.extractors.clear();
     this.workerPipelines.clear();
+  }
+
+  /** Terminates the worker. Called from `Room.dispose()`; the room cannot connect afterwards. */
+  dispose() {
+    this.cleanup();
     this.worker?.terminate();
   }
 

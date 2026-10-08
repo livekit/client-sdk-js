@@ -1,5 +1,6 @@
 // Gate for the core entry: bundling `createRoom` alone must pull in no extension module.
 // Bundles `export { createRoom } from './src/core'` with esbuild and inspects the metafile.
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -53,10 +54,30 @@ const result = await esbuild.build({
 
 const inputs = Object.keys(Object.values(result.metafile.outputs)[0].inputs);
 const leaked = inputs.filter((file) => EXTENSION_MODULES.some((prefix) => file.includes(prefix)));
+
+// Core must not read an extension's slice of the room options: a configured extension
+// (`e2ee({ ... })`) never writes them. Extensions hand core what it needs through
+// `ExtensionContext` slots instead.
+const OPTION_SLICES =
+  /\b(?:options|roomOptions)\.(?:e2ee|encryption|frameMetadata|packetTrailer|dataStream)\b/;
+const optionReads = inputs
+  .filter((file) => file.startsWith('src/') && !file.endsWith('.d.ts'))
+  .flatMap((file) =>
+    readFileSync(path.join(REPO, file), 'utf8')
+      .split('\n')
+      .map((line, i) => (OPTION_SLICES.test(line) ? `${file}:${i + 1}: ${line.trim()}` : null))
+      .filter(Boolean),
+  );
+if (optionReads.length > 0) {
+  console.error(`core modules read extension option slices:\n  ${optionReads.join('\n  ')}`);
+  process.exit(1);
+}
 const kib = (result.outputFiles[0].contents.length / 1024).toFixed(1);
 
 if (leaked.length > 0) {
   console.error(`createRoom bundle includes extension modules:\n  ${leaked.join('\n  ')}`);
   process.exit(1);
 }
-console.log(`createRoom bundle: ${kib} KiB minified, ${inputs.length} modules, no extension modules`);
+console.log(
+  `createRoom bundle: ${kib} KiB minified, ${inputs.length} modules, no extension modules`,
+);

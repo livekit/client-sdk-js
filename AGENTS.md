@@ -100,6 +100,13 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   instance win over a dependency's default, and throws when a key is listed twice.
 - `install`, `dispose` and every hook are synchronous. Async setup starts in `install` and is
   awaited in the extension's own methods.
+- Core never reads an extension's slice of the room options (`e2ee`, `encryption`,
+  `frameMetadata`, `packetTrailer`, `dataStream`): a configured extension (`e2ee({ ... })`) does not
+  write them. What core needs comes through a context slot (`setFrameMetadataOptions`,
+  `setE2eeManager`), which the extension fills from its own options or, when listed bare, from
+  `RoomOptions`. `pnpm check:core` greps the core modules for such reads.
+- A worker an app supplies to an extension is terminated in the extension's `dispose`, not on
+  disconnect: the room can connect again after a disconnect.
 - Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced
   after a close, so register engine listeners there), `onDataPacket` (one owner per `DataPacket`
   case), `onDisconnect`, `onParticipantCreated`, `onParticipantUpdates`, `onSyncState`, and the

@@ -31,6 +31,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
+import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
@@ -177,6 +178,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   /** the E2EE manager slot; filled by the `e2ee` extension */
   private e2eeManager: BaseE2EEManager | undefined;
+
+  /** Filled by the `frameMetadata` extension through `ExtensionContext`. */
+  private frameMetadataOptions: FrameMetadataOptions | undefined;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
@@ -369,6 +373,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       onSyncState: (cb) => {
         this.syncStateHooks.push(cb);
       },
+      setFrameMetadataOptions: (options) => {
+        this.frameMetadataOptions = options;
+        this.engine.frameMetadataOptions = options;
+      },
       getE2eeManager: () => this.e2eeManager,
       setE2eeManager: (manager) => {
         this.e2eeManager = manager;
@@ -495,6 +503,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     this.engine = new RTCEngine(this.options);
     this.engine.e2eeManager = this.e2eeManager;
+    this.engine.frameMetadataOptions = this.frameMetadataOptions;
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
@@ -831,7 +840,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         disableIceLite: connectOptions.disableIceLite,
-        clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
+        clientInfoCapabilities: this.getClientInfoCapabilities(),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,
@@ -2335,14 +2344,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   }
 
   /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
-  private getClientInfoCapabilities(
-    roomOptions: InternalRoomOptions,
-  ): Array<ClientInfo_Capability> {
+  private getClientInfoCapabilities(): Array<ClientInfo_Capability> {
     const capabilities: Array<ClientInfo_Capability> = [];
-    if (
-      isFrameMetadataSupported(roomOptions.frameMetadata ?? roomOptions.packetTrailer) ||
-      !!this.e2eeManager
-    ) {
+    if (isFrameMetadataSupported(this.frameMetadataOptions) || !!this.e2eeManager) {
       capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
     }
     // Advertise deflate-raw decompression support so peers know they can send us compressed data

@@ -1147,11 +1147,7 @@ export class LocalParticipant extends Participant {
   }
 
   private canPublishFrameMetadata() {
-    return !!(
-      this.roomOptions.e2ee ||
-      this.roomOptions.encryption ||
-      isFrameMetadataSupported(this.roomOptions.frameMetadata ?? this.roomOptions.packetTrailer)
-    );
+    return !!this.engine.e2eeManager || isFrameMetadataSupported(this.engine.frameMetadataOptions);
   }
 
   /** @internal */
