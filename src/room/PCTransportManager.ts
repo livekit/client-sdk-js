@@ -229,7 +229,9 @@ export class PCTransportManager {
         this.publisher.getConnectionState() !== 'connecting'
       ) {
         this.log.debug('negotiation required, start negotiating');
-        this.publisher.negotiate();
+        this.publisher.negotiate().catch((err) => {
+          this.log.error(err);
+        });
       }
       await Promise.all(
         this.requiredTransports?.map((transport) =>
