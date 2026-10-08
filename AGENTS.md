@@ -106,7 +106,9 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   `setE2eeManager`), which the extension fills from its own options or, when listed bare, from
   `RoomOptions`. `pnpm check:core` greps the core modules for such reads.
 - A worker an app supplies to an extension is terminated in the extension's `dispose`, not on
-  disconnect: the room can connect again after a disconnect.
+  disconnect: the room can connect again after a disconnect. The exception is a manager the app
+  passes in (`e2eeManager`): it can be shared between rooms, so the extension neither disposes
+  nor terminates it.
 - Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced
   after a close, so register engine listeners there), `onDataPacket` (one owner per `DataPacket`
   case), `onDisconnect`, `onParticipantCreated`, `onParticipantUpdates`, `onSyncState`, and the

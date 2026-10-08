@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { BaseE2EEManager } from '../e2ee/E2eeManager';
+import { ExternalE2EEKeyProvider } from '../e2ee/KeyProvider';
+import { e2ee } from '../e2ee/extension';
 import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
 import { Room } from './Room';
@@ -7,6 +10,12 @@ import { dataStreams } from './data-stream/extension';
 import { RoomEvent } from './events';
 import { type ExtensionResult, defineExtension } from './extensions';
 import { rpc } from './rpc/extension';
+
+// E2EEManager refuses to construct where insertable streams are missing (jsdom)
+vi.mock('../e2ee/utils', async (original) => ({
+  ...(await original<typeof import('../e2ee/utils')>()),
+  isE2EESupported: () => true,
+}));
 
 describe('createRoom', () => {
   it('installs dependencies and keeps an explicitly listed instance', () => {
@@ -51,5 +60,40 @@ describe('createRoom', () => {
     expect(typeof room.simulateParticipants).toBe('function');
     await room.dispose();
     await expect(room.connect('ws://localhost', 'token')).rejects.toThrow('disposed');
+  });
+});
+
+describe('e2ee dispose', () => {
+  const worker = () =>
+    ({ postMessage() {}, addEventListener() {}, terminate: vi.fn() }) as unknown as Worker;
+
+  it('terminates the worker the extension created a manager for', async () => {
+    const w = worker();
+    const room = createRoom(undefined, [
+      e2ee({ keyProvider: new ExternalE2EEKeyProvider(), worker: w }),
+    ]);
+    await room.dispose();
+    expect(w.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves an app-supplied manager alone', async () => {
+    // a BaseE2EEManager the app owns; it can serve more than one room
+    const manager = {
+      isEnabled: false,
+      isDataChannelEncryptionEnabled: false,
+      setup() {},
+      setupEngine() {},
+      setParticipantCryptorEnabled() {},
+      setSifTrailer() {},
+      encryptData: async () => ({}) as never,
+      handleEncryptedData: async () => ({}) as never,
+      on() {
+        return this;
+      },
+      dispose: vi.fn(),
+    } as unknown as BaseE2EEManager;
+    const room = createRoom(undefined, [e2ee({ e2eeManager: manager })]);
+    await room.dispose();
+    expect(manager.dispose).not.toHaveBeenCalled();
   });
 });

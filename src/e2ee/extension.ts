@@ -52,12 +52,19 @@ export const e2ee: E2eeExtension = /* @__PURE__ */ defineExtension(
       options ?? (room.options.encryption || room.options.e2ee);
 
     let manager: BaseE2EEManager | undefined;
+    // an app-supplied manager (and its worker) can be shared between rooms; the app owns it
+    let dispose: (() => void) | undefined;
     if (e2eeOptions) {
       if ('e2eeManager' in e2eeOptions) {
         manager = e2eeOptions.e2eeManager;
         manager.isDataChannelEncryptionEnabled = dcEncryptionEnabled;
       } else {
-        manager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
+        const owned = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
+        manager = owned;
+        dispose = () => {
+          owned.dispose();
+          e2eeOptions.worker.terminate();
+        };
       }
       manager.on(EncryptionEvent.ParticipantEncryptionStatusChanged, (enabled, participant) => {
         if (isLocalParticipant(participant)) {
@@ -99,7 +106,7 @@ export const e2ee: E2eeExtension = /* @__PURE__ */ defineExtension(
           }
         },
       },
-      dispose: () => manager?.dispose?.(),
+      dispose,
     };
   },
 );
