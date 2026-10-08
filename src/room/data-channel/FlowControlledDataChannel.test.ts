@@ -16,6 +16,8 @@ class FakeDataChannel extends EventTarget {
   });
 }
 
+const handle = (dc: FakeDataChannel) => dc as unknown as RTCDataChannel;
+
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 // Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)
@@ -69,37 +71,54 @@ describe('FlowControlledDataChannel', () => {
 
   it('reports watermark status against the given channel', () => {
     const { channel, dc } = makeChannel();
-    const handle = dc as unknown as RTCDataChannel;
     dc.bufferedAmount = 0;
-    expect(channel.isBelowHighWaterMark(handle)).toBe(true);
-    expect(channel.isBelowLowWaterMark(handle)).toBe(true);
+    expect(channel.isBelowHighWaterMark(handle(dc))).toBe(true);
+    expect(channel.isBelowLowWaterMark(handle(dc))).toBe(true);
 
     dc.bufferedAmount = 512; // between low (64) and high (1024)
-    expect(channel.isBelowHighWaterMark(handle)).toBe(true);
-    expect(channel.isBelowLowWaterMark(handle)).toBe(false);
+    expect(channel.isBelowHighWaterMark(handle(dc))).toBe(true);
+    expect(channel.isBelowLowWaterMark(handle(dc))).toBe(false);
 
     dc.bufferedAmount = 2048;
-    expect(channel.isBelowHighWaterMark(handle)).toBe(false);
+    expect(channel.isBelowHighWaterMark(handle(dc))).toBe(false);
   });
 
-  it('waiting for headroom without a handle rejects with a connection error', async () => {
-    const { channel } = makeChannel({ dc: null });
-    await expect(channel.waitForHeadroomWithLock()).rejects.toBeInstanceOf(
+  it('rejects a wait on a handle that is not open', async () => {
+    const { channel, dc } = makeChannel();
+    dc.readyState = 'connecting';
+    await expect(channel.waitForHeadroomWithLock(handle(dc))).rejects.toBeInstanceOf(
       UnexpectedConnectionState,
     );
+  });
+
+  it('rejects a wait queued on the lock once its handle is replaced', async () => {
+    const { channel, dc: oldDc } = makeChannel();
+    oldDc.bufferedAmount = 2048;
+    const parked = channel.waitForHeadroomWithLock(handle(oldDc));
+    parked.catch(() => {});
+    // Queued behind the parked waiter, so the abort on replacement doesn't reach it — the closed
+    // handle does, once it gets the lock.
+    const queued = channel.waitForHeadroomWithLock(handle(oldDc));
+    queued.catch(() => {});
+    await tick();
+
+    channel.attach(handle(new FakeDataChannel()));
+
+    await expect(parked).rejects.toBeInstanceOf(UnexpectedConnectionState);
+    await expect(queued).rejects.toBeInstanceOf(UnexpectedConnectionState);
   });
 
   it('resolves immediately while below the high-water mark', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 1024;
-    await expect(channel.waitForHeadroomWithLock()).resolves.toBeUndefined();
+    await expect(channel.waitForHeadroomWithLock(handle(dc))).resolves.toBeUndefined();
   });
 
   it('parks above the high-water mark and resumes on bufferedamountlow', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
     const resolved = vi.fn();
-    const wait = channel.waitForHeadroomWithLock().then(resolved);
+    const wait = channel.waitForHeadroomWithLock(handle(dc)).then(resolved);
     await tick();
     expect(resolved).not.toHaveBeenCalled();
 
@@ -112,7 +131,7 @@ describe('FlowControlledDataChannel', () => {
   it('rejects a parked waiter when the channel closes', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
-    const wait = channel.waitForHeadroomWithLock();
+    const wait = channel.waitForHeadroomWithLock(handle(dc));
     wait.catch(() => {});
     await tick();
 
@@ -123,7 +142,7 @@ describe('FlowControlledDataChannel', () => {
   it('rejects a parked waiter on invalidateWaiters and recovers with a fresh controller', async () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
-    const wait = channel.waitForHeadroomWithLock();
+    const wait = channel.waitForHeadroomWithLock(handle(dc));
     wait.catch(() => {});
     await tick();
 
@@ -132,7 +151,7 @@ describe('FlowControlledDataChannel', () => {
 
     // Fresh controller: the gate is usable again and the lock was released.
     dc.bufferedAmount = 0;
-    await expect(channel.waitForHeadroomWithLock()).resolves.toBeUndefined();
+    await expect(channel.waitForHeadroomWithLock(handle(dc))).resolves.toBeUndefined();
   });
 
   it('closes the handle it lets go of, on replacement and on detach', () => {
@@ -152,9 +171,9 @@ describe('FlowControlledDataChannel', () => {
   });
 
   it('rejects immediately when the engine is closed', async () => {
-    const { channel, state } = makeChannel();
+    const { channel, dc, state } = makeChannel();
     state.engineClosed = true;
-    await expect(channel.waitForHeadroomWithLock()).rejects.toBeInstanceOf(
+    await expect(channel.waitForHeadroomWithLock(handle(dc))).rejects.toBeInstanceOf(
       UnexpectedConnectionState,
     );
   });
@@ -163,8 +182,8 @@ describe('FlowControlledDataChannel', () => {
     const { channel, dc } = makeChannel();
     dc.bufferedAmount = 2048;
     const order: number[] = [];
-    const first = channel.waitForHeadroomWithLock().then(() => order.push(1));
-    const second = channel.waitForHeadroomWithLock().then(() => order.push(2));
+    const first = channel.waitForHeadroomWithLock(handle(dc)).then(() => order.push(1));
+    const second = channel.waitForHeadroomWithLock(handle(dc)).then(() => order.push(2));
     await tick();
 
     // One drain event wakes the head waiter; the second re-checks under the lock and, with the

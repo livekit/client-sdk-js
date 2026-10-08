@@ -30,6 +30,9 @@ class FakeDataChannel extends EventTarget {
   }
 }
 
+const reliableHandle = (manager: DataChannelManager) =>
+  manager.getHandle(DataChannelKind.RELIABLE) as RTCDataChannel;
+
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function makeManager(overrides?: Partial<DataChannelManagerOptions>) {
@@ -100,7 +103,7 @@ describe('DataChannelManager', () => {
 
     // Park a reliable sender on the first-generation channel.
     created._reliable.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroomWithLock();
+    const parked = manager.reliable.waitForHeadroomWithLock(reliableHandle(manager));
     parked.catch(() => {});
     await tick();
 
@@ -116,7 +119,9 @@ describe('DataChannelManager', () => {
     }
     expect(opts.onChannelClose).not.toHaveBeenCalled();
     // The gate recovers against the fresh (empty) channel.
-    await expect(manager.reliable.waitForHeadroomWithLock()).resolves.toBeUndefined();
+    await expect(
+      manager.reliable.waitForHeadroomWithLock(reliableHandle(manager)),
+    ).resolves.toBeUndefined();
 
     manager.lossy.stopThresholdTuning();
   });
@@ -145,7 +150,7 @@ describe('DataChannelManager', () => {
     manager.adoptSubscriberChannel(sub as unknown as RTCDataChannel);
 
     created._reliable.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroomWithLock();
+    const parked = manager.reliable.waitForHeadroomWithLock(reliableHandle(manager));
     parked.catch(() => {});
     await tick();
 

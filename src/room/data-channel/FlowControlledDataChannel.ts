@@ -136,30 +136,33 @@ export class FlowControlledDataChannel {
   }
 
   /**
-   * Resolves once the caller may send on this channel: immediately while the send buffer is at or
-   * below its high-water mark, otherwise once the buffer has drained to the low-water mark (the
+   * Resolves once the caller may send on `dc`: immediately while its send buffer is at or below
+   * the high-water mark, otherwise once the buffer has drained to the low-water mark (the
    * `bufferedamountlow` event). Callers are serialized through the headroom lock so that, when
    * the buffer drains, they refill it one at a time (up to the high-water mark) rather than all
    * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
-   * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
+   * checks run inside the lock so queued callers proceed in FIFO order.
+   *
+   * The caller passes the handle it resolved before queueing, and the wait is against that one
+   * handle throughout: if it was replaced meanwhile, it has been closed, so the wait rejects
+   * rather than letting the caller send on the replacement out of turn.
    */
-  async waitForHeadroomWithLock() {
+  async waitForHeadroomWithLock(dc: RTCDataChannel) {
     const unlock = await this.lockHeadroom();
     try {
-      await this.waitForHeadroomWithoutLock();
+      await this.waitForHeadroomWithoutLock(dc);
     } finally {
       unlock();
     }
   }
 
   /** Core wait of {@link waitForHeadroomWithLock}. The caller must hold the headroom lock. */
-  async waitForHeadroomWithoutLock() {
+  async waitForHeadroomWithoutLock(dc: RTCDataChannel) {
     if (this.isEngineClosed()) {
       throw new UnexpectedConnectionState('engine closed');
     }
-    const dc = this.getChannel();
-    if (!dc) {
-      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+    if (dc.readyState !== 'open') {
+      throw new UnexpectedConnectionState(`DataChannel ${this.kind} is ${dc.readyState}`);
     }
     if (this.isBelowHighWaterMark(dc)) {
       return;

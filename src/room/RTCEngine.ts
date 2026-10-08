@@ -1698,7 +1698,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * {@link FlowControlledDataChannel.waitForHeadroomWithLock}.
    */
   async waitForBufferHeadroom(kind: DataChannelKind) {
-    return this.flowControlFor(kind).waitForHeadroomWithLock();
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
+    }
+    return this.flowControlFor(kind).waitForHeadroomWithLock(dc);
   }
 
   /**
