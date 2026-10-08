@@ -25,6 +25,11 @@ export const frameMetadata: FrameMetadataExtension = /* @__PURE__ */ defineExten
     _ctx: ExtensionContext,
     options: FrameMetadataOptions | undefined,
   ): ExtensionResult & { manager: FrameMetadataManager } => {
+    if (options) {
+      // the engine (worker lookup), the join request (capability) and publishTrack (requested
+      // features) read this slice of the room options, so a configured extension fills it
+      room.options.frameMetadata = options;
+    }
     const manager = new FrameMetadataManager(
       options ?? room.options.frameMetadata ?? room.options.packetTrailer,
     );

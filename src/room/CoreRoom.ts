@@ -140,7 +140,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
    */
   activeSpeakers: Participant[] = [];
 
-  /** @internal */
+  /**
+   * @internal
+   */
   engine!: RTCEngine;
 
   /** the current participant */
@@ -674,6 +676,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
+
+    if (this.disposed) {
+      // dispose() ran while this call waited for a disconnect to finish
+      unlockDisconnect();
+      throw new UnexpectedConnectionState('room has been disposed');
+    }
 
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
