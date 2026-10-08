@@ -1,6 +1,6 @@
 import { type MediaDescription, parse } from 'sdp-transform';
-import { describe, expect, it } from 'vitest';
-import {
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import PCTransport, {
   applyVideoStartBitrate,
   computeConnectionStartBitrate,
   computeTrackStartBitrate,
@@ -154,6 +154,95 @@ describe('video start bitrate', () => {
   it('gives no hint below the 300 kbps target floor', () => {
     expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 299 })).toBeUndefined();
     expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 300 })).toBe(270);
+  });
+
+  it('ramps the cap down with connection setup time', () => {
+    // A 3 Mbps camera target, so only the cap moves.
+    const camera = (ms: number) =>
+      computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 3_000 }, ms);
+
+    expect(camera(0)).toBe(1_000);
+    expect(camera(471)).toBe(1_000); // unshaped baseline
+    expect(camera(1_273)).toBe(1_000); // 1 Mbps link median
+    expect(camera(1_500)).toBe(1_000); // the fast anchor
+    expect(camera(1_724)).toBe(922); // 1 Mbps link slow attempt
+    expect(camera(2_334)).toBe(708); // 500 kbps link median
+    expect(camera(2_500)).toBe(650); // midpoint of the ramp
+    expect(camera(3_093)).toBe(442); // 300 kbps link fastest attempt
+    expect(camera(3_500)).toBe(300); // the slow anchor
+    expect(camera(18_131)).toBe(300); // anything slower stays at the floor
+  });
+
+  it('keeps the 1 Mbps ceiling without a setup time', () => {
+    expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 3_000 }, undefined)).toBe(
+      1_000,
+    );
+  });
+
+  it('still applies 90% of the target under the ramp, and hints at the floor', () => {
+    expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 500 }, 2_500)).toBe(450);
+    expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 300 }, 3_500)).toBe(270);
+  });
+
+  it('leaves screen share uncapped however slow the setup', () => {
+    const screenShare = (ms: number) =>
+      computeTrackStartBitrate({ cid: 's', codec: 'VP8', maxbr: 3_000, isScreenShare: true }, ms);
+
+    expect(screenShare(1_273)).toBe(2_700);
+    expect(screenShare(2_500)).toBe(2_700);
+    expect(screenShare(4_061)).toBe(2_700);
+  });
+
+  it('applies the setup time to the connection-level value', () => {
+    const { media } = parse(TWO_VIDEO_SECTIONS);
+    const camera = { cid: 'camera-cid', codec: 'VP8', maxbr: 3_000 };
+    const screenShare = { cid: 'other-track', codec: 'VP8', maxbr: 3_000, isScreenShare: true };
+
+    expect(computeConnectionStartBitrate(media, [camera], 1_000)).toBe(1_000);
+    expect(computeConnectionStartBitrate(media, [camera], 2_500)).toBe(650);
+    // The uncapped screen share still wins the connection-level max on a slow setup.
+    expect(computeConnectionStartBitrate(media, [camera, screenShare], 2_500)).toBe(2_700);
+  });
+
+  describe('connection setup time while still connecting', () => {
+    beforeEach(() => {
+      // The constructor creates its peer connection eagerly; only its event handlers are set.
+      vi.stubGlobal('RTCPeerConnection', class {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    const estimate = (transport: PCTransport) =>
+      (
+        transport as unknown as { connectionSetupTimeEstimateMs(): number | undefined }
+      ).connectionSetupTimeEstimateMs();
+
+    it('uses the time elapsed since the join started before the setup time is measured', () => {
+      const transport = new PCTransport();
+      vi.spyOn(performance, 'now').mockReturnValue(10_000);
+      transport.setConnectionStartedAt(7_500);
+
+      expect(estimate(transport)).toBe(2_500);
+      expect(
+        computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 3_000 }, estimate(transport)),
+      ).toBe(650);
+    });
+
+    it('prefers the measured setup time once known', () => {
+      const transport = new PCTransport();
+      vi.spyOn(performance, 'now').mockReturnValue(10_000);
+      transport.setConnectionStartedAt(7_500);
+      transport.setConnectionSetupTime(3_600);
+
+      expect(estimate(transport)).toBe(3_600);
+    });
+
+    it('has no estimate without any timing', () => {
+      expect(estimate(new PCTransport())).toBeUndefined();
+    });
   });
 
   it('uses one connection-level value: the largest hint across video sections', () => {
