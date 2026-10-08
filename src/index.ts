@@ -93,6 +93,7 @@ export * from './room/errors';
 export * from './room/events';
 export * from './room/track/Track';
 export * from './room/track/create';
+export { createLocalScreenTracks, createLocalVideoTrack } from './room/video/create';
 export * from './room/token-source/TokenSource';
 export * from './room/token-source/types';
 export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/track/facingMode';
@@ -199,6 +200,7 @@ export type { DataStreamLocalApi, DataStreamRoomApi } from './room/data-stream/e
 export type { RpcLocalApi, RpcRoomApi } from './room/rpc/extension';
 export type { DataTrackLocalApi } from './room/data-track/extension';
 export type { E2eeRoomApi } from './e2ee/extension';
+export type { VideoLocalApi } from './room/video/extension';
 
 export { LocalTrackRecorder } from './room/track/record';
 export {

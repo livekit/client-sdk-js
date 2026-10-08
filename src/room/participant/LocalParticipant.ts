@@ -13,13 +13,10 @@ import {
   ParticipantInfo,
   RequestResponse,
   RequestResponse_Reason,
-  SimulcastCodec,
   SipDTMF,
-  SubscribedQualityUpdate,
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
-  VideoLayer_Mode,
   protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
@@ -36,9 +33,7 @@ import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
 import type { ByteStreamWriter } from '../data-stream/outgoing/StreamWriter';
-import { defaultVideoCodec } from '../defaults';
 import {
-  DeviceUnsupportedError,
   LivekitError,
   NegotiationError,
   PublishTrackError,
@@ -50,24 +45,20 @@ import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import type LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { createLocalTracks } from '../track/create';
+import { createLocalTracks, getVideoCapture } from '../track/create';
 import type {
   AudioCaptureOptions,
-  BackupVideoCodec,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
-import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
   getLogContextFromTrack,
   getTrackSourceFromProto,
   mergeDefaultOptions,
-  mimeTypeToVideoCodecString,
-  screenCaptureToDisplayMediaStreamOptions,
   sourceToKind,
 } from '../track/utils';
 import {
@@ -79,33 +70,50 @@ import {
 import {
   Future,
   isAudioTrack,
-  isE2EESimulcastSupported,
   isFireFox,
   isLocalAudioTrack,
   isLocalTrack,
   isLocalVideoTrack,
-  isSVCCodec,
-  isSVCSimulcast,
-  isSVCSimulcastSupportedByServer,
-  isSafari17Based,
-  isVideoCodec,
   isVideoTrack,
   isWeb,
   sleep,
-  supportsAV1,
-  supportsVP9,
-  usesLegacySVCEncodings,
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type RemoteParticipant from './RemoteParticipant';
-import {
-  computeStartTargetBitrate,
-  computeTrackBackupEncodings,
-  computeVideoEncodings,
-  getDefaultDegradationPreference,
-} from './publishUtils';
+
+/**
+ * The video publish pipeline. The `video` extension sets it on the local participant; without it,
+ * publishing a video track throws.
+ * @internal
+ */
+export interface VideoPublisher {
+  /**
+   * Chooses the codec, settles simulcast and SVC and fills `req` (dimensions, layers, codecs).
+   * Returns the encodings for the sender.
+   */
+  prepare(
+    track: LocalVideoTrack,
+    opts: TrackPublishOptions,
+    req: AddTrackRequest,
+  ): Promise<RTCRtpEncodingParameters[]>;
+  /** Runs once the sender exists: degradation preference and start bitrate. */
+  senderCreated(
+    track: LocalVideoTrack,
+    opts: TrackPublishOptions,
+    encodings: RTCRtpEncodingParameters[] | undefined,
+    req: AddTrackRequest,
+  ): void;
+  /** The server may answer with another primary codec. Returns recomputed encodings when it did. */
+  serverCodecChanged(
+    track: LocalVideoTrack,
+    opts: TrackPublishOptions,
+    info: TrackInfo,
+    req: AddTrackRequest,
+  ): RTCRtpEncodingParameters[] | undefined;
+  createScreenTracks(options?: ScreenShareCaptureOptions): Promise<LocalTrack[]>;
+}
 
 export class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -121,7 +129,8 @@ export class LocalParticipant extends Participant {
   /** @internal */
   activeDeviceMap: Map<MediaDeviceKind, string>;
 
-  private pendingPublishing = new Set<Track.Source>();
+  /** @internal */
+  pendingPublishing = new Set<Track.Source>();
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
 
@@ -166,7 +175,11 @@ export class LocalParticipant extends Participant {
     }
   >;
 
-  private enabledPublishVideoCodecs: Codec[] = [];
+  /** @internal */
+  enabledPublishVideoCodecs: Codec[] = [];
+
+  /** @internal set by the `video` extension */
+  videoPublisher?: VideoPublisher;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -243,7 +256,6 @@ export class LocalParticipant extends Participant {
       .on(EngineEvent.Restarting, this.handleReconnecting)
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
-      .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
   }
@@ -386,20 +398,6 @@ export class LocalParticipant extends Participant {
   }
 
   /**
-   * Enable or disable a participant's camera track.
-   *
-   * If a track has already published, it'll mute or unmute the track.
-   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
-   */
-  setCameraEnabled(
-    enabled: boolean,
-    options?: VideoCaptureOptions,
-    publishOptions?: TrackPublishOptions,
-  ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions);
-  }
-
-  /**
    * Enable or disable a participant's microphone track.
    *
    * If a track has already published, it'll mute or unmute the track.
@@ -411,18 +409,6 @@ export class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
-  }
-
-  /**
-   * Start or stop sharing a participant's screen
-   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
-   */
-  setScreenShareEnabled(
-    enabled: boolean,
-    options?: ScreenShareCaptureOptions,
-    publishOptions?: TrackPublishOptions,
-  ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
   }
 
   /** @internal */
@@ -447,26 +433,27 @@ export class LocalParticipant extends Participant {
    * Enable or disable publishing for a track by source. This serves as a simple
    * way to manage the common tracks (camera, mic, or screen share).
    * Resolves with LocalTrackPublication if successful and void otherwise
+   * @internal
    */
-  private async setTrackEnabled(
+  async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.Camera>,
     enabled: boolean,
     options?: VideoCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
-  private async setTrackEnabled(
+  async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.Microphone>,
     enabled: boolean,
     options?: AudioCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
-  private async setTrackEnabled(
+  async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.ScreenShare>,
     enabled: boolean,
     options?: ScreenShareCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
-  private async setTrackEnabled(
+  async setTrackEnabled(
     source: Track.Source,
     enabled: true,
     options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
@@ -505,7 +492,7 @@ export class LocalParticipant extends Participant {
               });
               break;
             case Track.Source.ScreenShare:
-              localTracks = await this.createScreenTracks({
+              localTracks = await this.requireVideoPublisher().createScreenTracks({
                 ...(options as ScreenShareCaptureOptions | undefined),
               });
               break;
@@ -585,34 +572,6 @@ export class LocalParticipant extends Participant {
   }
 
   /**
-   * Publish both camera and microphone at the same time. This is useful for
-   * displaying a single Permission Dialog box to the end user.
-   */
-  async enableCameraAndMicrophone() {
-    if (
-      this.pendingPublishing.has(Track.Source.Camera) ||
-      this.pendingPublishing.has(Track.Source.Microphone)
-    ) {
-      // no-op it's already been requested
-      return;
-    }
-
-    this.pendingPublishing.add(Track.Source.Camera);
-    this.pendingPublishing.add(Track.Source.Microphone);
-    try {
-      const tracks: LocalTrack[] = await this.createTracks({
-        audio: true,
-        video: true,
-      });
-
-      await Promise.all(tracks.map((track) => this.publishTrack(track)));
-    } finally {
-      this.pendingPublishing.delete(Track.Source.Camera);
-      this.pendingPublishing.delete(Track.Source.Microphone);
-    }
-  }
-
-  /**
    * Create local camera and/or microphone tracks
    * @param options
    * @returns
@@ -659,57 +618,18 @@ export class LocalParticipant extends Participant {
     }
   }
 
-  /**
-   * Creates a screen capture tracks with getDisplayMedia().
-   * A LocalVideoTrack is always created and returned.
-   * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
-   */
-  async createScreenTracks(options?: ScreenShareCaptureOptions): Promise<Array<LocalTrack>> {
-    if (options === undefined) {
-      options = {};
-    }
+  /** @internal logger options for tracks this participant creates */
+  get trackLoggerOptions() {
+    return { loggerName: this.roomOptions.loggerName, loggerContextCb: () => this.logContext };
+  }
 
-    if (navigator.mediaDevices.getDisplayMedia === undefined) {
-      throw new DeviceUnsupportedError('getDisplayMedia not supported');
-    }
-
-    if (options.resolution === undefined && !isSafari17Based()) {
-      // we need to constrain the dimensions, otherwise it could lead to low bitrate
-      // due to encoding a huge video. Encoding such large surfaces is really expensive
-      // unfortunately Safari 17 has a but and cannot be constrained by default
-      options.resolution = ScreenSharePresets.h1080fps30.resolution;
-    }
-
-    const constraints = screenCaptureToDisplayMediaStreamOptions(options);
-    const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
-    const tracks = stream.getVideoTracks();
-    if (tracks.length === 0) {
-      throw new TrackInvalidError('no video track found');
-    }
-    const screenVideo = new LocalVideoTrack(tracks[0], undefined, false, {
-      loggerName: this.roomOptions.loggerName,
-      loggerContextCb: () => this.logContext,
-    });
-    screenVideo.source = Track.Source.ScreenShare;
-    if (options.contentHint) {
-      screenVideo.mediaStreamTrack.contentHint = options.contentHint;
-    }
-
-    const localTracks: Array<LocalTrack> = [screenVideo];
-    if (stream.getAudioTracks().length > 0) {
-      this.emit(ParticipantEvent.AudioStreamAcquired);
-      const screenAudio = new LocalAudioTrack(
-        stream.getAudioTracks()[0],
-        undefined,
-        false,
-        this.audioContext,
-        { loggerName: this.roomOptions.loggerName, loggerContextCb: () => this.logContext },
+  private requireVideoPublisher(): VideoPublisher {
+    if (!this.videoPublisher) {
+      throw new TrackInvalidError(
+        'video publishing is not available in this build, add the video extension',
       );
-      screenAudio.source = Track.Source.ScreenShareAudio;
-      localTracks.push(screenAudio);
     }
-    return localTracks;
+    return this.videoPublisher;
   }
 
   /**
@@ -803,10 +723,12 @@ export class LocalParticipant extends Participant {
           });
           break;
         case 'video':
-          track = new LocalVideoTrack(track, defaultConstraints, true, {
-            loggerName: this.roomOptions.loggerName,
-            loggerContextCb: () => this.logContext,
-          });
+          track = getVideoCapture().createTrack(
+            track,
+            defaultConstraints,
+            true,
+            this.trackLoggerOptions,
+          );
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
@@ -863,13 +785,6 @@ export class LocalParticipant extends Participant {
       }
       opts.dtx ??= false;
       opts.red ??= false;
-    }
-
-    if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
-      this.log.info(
-        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
-      );
-      opts.simulcast = false;
     }
 
     if (opts.source) {
@@ -973,35 +888,6 @@ export class LocalParticipant extends Participant {
       track.stopOnMute = true;
     }
 
-    if (track.source === Track.Source.ScreenShare && isFireFox()) {
-      // Firefox does not work well with simulcasted screen share
-      // we frequently get no data on layer 0 when enabled
-      opts.simulcast = false;
-    }
-
-    // require full AV1/VP9 SVC support prior to using it
-    if (opts.videoCodec === 'av1' && !supportsAV1()) {
-      opts.videoCodec = undefined;
-    }
-    if (opts.videoCodec === 'vp9' && !supportsVP9()) {
-      opts.videoCodec = undefined;
-    }
-    if (opts.videoCodec === undefined) {
-      opts.videoCodec = defaultVideoCodec;
-    }
-    if (this.enabledPublishVideoCodecs.length > 0) {
-      // fallback to a supported codec if it is not supported
-      if (
-        !this.enabledPublishVideoCodecs.some(
-          (c) => opts.videoCodec === mimeTypeToVideoCodecString(c.mime),
-        )
-      ) {
-        opts.videoCodec = mimeTypeToVideoCodecString(this.enabledPublishVideoCodecs[0].mime);
-      }
-    }
-
-    const videoCodec = opts.videoCodec;
-
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
@@ -1056,108 +942,8 @@ export class LocalParticipant extends Participant {
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
-    if (track.kind === Track.Kind.Video) {
-      let dims: Track.Dimensions;
-      try {
-        dims = await track.waitForDimensions();
-      } catch (e) {
-        // use defaults, it's quite painful for congestion control without simulcast
-        // so using default dims according to publish settings
-        const defaultRes =
-          this.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
-        dims = {
-          width: defaultRes.width,
-          height: defaultRes.height,
-        };
-        // log failure
-        this.log.error('could not determine track dimensions, using defaults', {
-          ...getLogContextFromTrack(track),
-          dims,
-        });
-      }
-      // width and height should be defined for video
-      req.width = dims.width;
-      req.height = dims.height;
-      // for svc codecs, disable simulcast and use vp8 for backup codec
-      if (isLocalVideoTrack(track)) {
-        if (
-          isSVCSimulcast(videoCodec, opts) &&
-          (usesLegacySVCEncodings() || !isSVCSimulcastSupportedByServer(this.engine?.serverVersion))
-        ) {
-          opts.simulcast = false;
-          this.log.info(
-            'SVC simulcast is not supported, disabling simulcast.',
-            getLogContextFromTrack(track),
-          );
-        }
-
-        const svcSimulcast = isSVCSimulcast(videoCodec, opts);
-        if (isSVCCodec(videoCodec) && !svcSimulcast) {
-          if (track.source === Track.Source.ScreenShare) {
-            // vp9 svc with screenshare cannot encode multiple spatial layers
-            // doing so reduces publish resolution to minimal resolution
-            opts.scalabilityMode = 'L1T3';
-            // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
-            // It has a different path for screenshare handling and it seems to be untested/buggy
-            // As a workaround, we are setting contentHint to force it to go through the same
-            // path as regular camera video. While this is not optimal, it delivers the performance
-            // that we need
-            if ('contentHint' in track.mediaStreamTrack) {
-              track.mediaStreamTrack.contentHint = 'motion';
-              this.log.debug(
-                'forcing contentHint to motion for screenshare with SVC codecs',
-                getLogContextFromTrack(track),
-              );
-            }
-          }
-          // set scalabilityMode to 'L3T3_KEY' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
-        }
-
-        const primaryCodec = new SimulcastCodec({
-          codec: videoCodec,
-          cid: track.mediaStreamTrack.id,
-        });
-        if (svcSimulcast) {
-          primaryCodec.videoLayerMode = VideoLayer_Mode.ONE_SPATIAL_LAYER_PER_STREAM;
-        }
-        req.simulcastCodecs = [primaryCodec];
-
-        // set up backup
-        if (opts.backupCodec === true) {
-          opts.backupCodec = { codec: defaultVideoCodec };
-        }
-        if (
-          opts.backupCodec &&
-          videoCodec !== opts.backupCodec.codec &&
-          // TODO remove this once e2ee is supported for backup codecs
-          req.encryption === Encryption_Type.NONE
-        ) {
-          // multi-codec simulcast requires dynacast
-          if (!this.roomOptions.dynacast) {
-            this.roomOptions.dynacast = true;
-          }
-          req.simulcastCodecs.push(
-            new SimulcastCodec({
-              codec: opts.backupCodec.codec,
-              cid: '',
-            }),
-          );
-        }
-      }
-
-      encodings = computeVideoEncodings(
-        track.source === Track.Source.ScreenShare,
-        req.width,
-        req.height,
-        opts,
-      );
-      req.layers = videoLayersFromEncodings(
-        req.width,
-        req.height,
-        encodings,
-        isSVCCodec(opts.videoCodec) && !isSVCSimulcast(opts.videoCodec, opts),
-      );
+    if (isLocalVideoTrack(track)) {
+      encodings = await this.requireVideoPublisher().prepare(track, opts, req);
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
@@ -1184,8 +970,7 @@ export class LocalParticipant extends Participant {
       this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
-        opts.degradationPreference ??= getDefaultDegradationPreference(track);
-        track.setDegradationPreference(opts.degradationPreference);
+        this.requireVideoPublisher().senderCreated(track, opts, encodings, req);
       }
 
       if (encodings) {
@@ -1209,18 +994,6 @@ export class LocalParticipant extends Participant {
               transceiver: trackTransceiver,
               codec: 'opus',
               maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-            });
-          }
-        } else if (track.codec && isVideoCodec(track.codec)) {
-          // Apply start bitrate for all video codecs to prevent initial blurriness,
-          // see computeStartTargetBitrate
-          const targetBitrate = computeStartTargetBitrate(track.codec, opts, encodings);
-          if (targetBitrate > 0) {
-            this.engine.pcManager.publisher.setTrackCodecBitrate({
-              cid: req.cid,
-              codec: track.codec,
-              maxbr: targetBitrate / 1000,
-              isScreenShare: track.source === Track.Source.ScreenShare,
             });
           }
         }
@@ -1259,31 +1032,10 @@ export class LocalParticipant extends Participant {
       ti = rets[0];
     } else {
       ti = await addTrackPromise;
-      // server might not support the codec the client has requested, in that case, fallback
-      // to a supported codec
-      let primaryCodecMime: string | undefined;
-      ti.codecs.forEach((codec) => {
-        if (primaryCodecMime === undefined) {
-          primaryCodecMime = codec.mimeType;
-        }
-      });
-      if (primaryCodecMime && track.kind === Track.Kind.Video) {
-        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-        if (updatedCodec !== videoCodec) {
-          this.log.debug('falling back to server selected codec', {
-            ...getLogContextFromTrack(track),
-            codec: updatedCodec,
-          });
-          opts.videoCodec = updatedCodec;
-
-          // recompute encodings since bitrates/etc could have changed
-          encodings = computeVideoEncodings(
-            track.source === Track.Source.ScreenShare,
-            req.width,
-            req.height,
-            opts,
-          );
-        }
+      if (isLocalVideoTrack(track)) {
+        // the server may answer with another primary codec
+        encodings =
+          this.requireVideoPublisher().serverCodecChanged(track, opts, ti, req) ?? encodings;
       }
       await negotiate();
     }
@@ -1398,7 +1150,8 @@ export class LocalParticipant extends Participant {
     );
   }
 
-  private normalizeRequestedFrameMetadataOptions(track: LocalTrack, opts: TrackPublishOptions) {
+  /** @internal */
+  normalizeRequestedFrameMetadataOptions(track: LocalTrack, opts: TrackPublishOptions) {
     const fmOpts = opts.frameMetadata ?? opts.packetTrailer;
     if (track.kind !== Track.Kind.Video || !hasFrameMetadataPublishOptions(fmOpts)) {
       opts.frameMetadata = undefined;
@@ -1425,95 +1178,6 @@ export class LocalParticipant extends Participant {
 
   override get isLocal(): boolean {
     return true;
-  }
-
-  /** @internal
-   * publish additional codec to existing track
-   */
-  async publishAdditionalCodecForTrack(
-    track: LocalTrack | MediaStreamTrack,
-    videoCodec: BackupVideoCodec,
-    options?: TrackPublishOptions,
-  ) {
-    // TODO remove once e2ee is supported for backup tracks
-    if (this.encryptionType !== Encryption_Type.NONE) {
-      return;
-    }
-
-    // is it not published? if so skip
-    let existingPublication: LocalTrackPublication | undefined;
-    this.trackPublications.forEach((publication) => {
-      if (!publication.track) {
-        return;
-      }
-      if (publication.track === track) {
-        existingPublication = <LocalTrackPublication>publication;
-      }
-    });
-    if (!existingPublication) {
-      throw new TrackInvalidError('track is not published');
-    }
-
-    if (!isLocalVideoTrack(track)) {
-      throw new TrackInvalidError('track is not a video track');
-    }
-
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions?.publishDefaults,
-      ...options,
-    };
-
-    const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
-    if (!encodings) {
-      this.log.info(
-        `backup codec has been disabled, ignoring request to add additional codec for track`,
-        getLogContextFromTrack(track),
-      );
-      return;
-    }
-    const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
-    if (!simulcastTrack) {
-      return;
-    }
-    const packetTrailerFeatures = this.normalizeRequestedFrameMetadataOptions(track, opts);
-
-    const req = new AddTrackRequest({
-      cid: simulcastTrack.mediaStreamTrack.id,
-      type: Track.kindToProto(track.kind),
-      muted: track.isMuted,
-      source: Track.sourceToProto(track.source),
-      sid: track.sid,
-      packetTrailerFeatures,
-      simulcastCodecs: [
-        {
-          codec: opts.videoCodec,
-          cid: simulcastTrack.mediaStreamTrack.id,
-        },
-      ],
-    });
-    req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
-
-    if (!this.engine || this.engine.isClosed) {
-      throw new UnexpectedConnectionState('cannot publish track when not connected');
-    }
-
-    const negotiate = async () => {
-      const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-      if (encodings) {
-        transceiverInit.sendEncodings = encodings;
-      }
-      await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
-
-      await this.engine.negotiate();
-    };
-
-    const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
-    const ti = rets[0];
-
-    this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
-      encodings,
-      trackInfo: ti,
-    });
   }
 
   async unpublishTrack(
@@ -1924,29 +1588,6 @@ export class LocalParticipant extends Participant {
   private onTrackCpuConstrained = (track: LocalVideoTrack, publication: LocalTrackPublication) => {
     this.log.debug('track cpu constrained', getLogContextFromTrack(publication));
     this.emit(ParticipantEvent.LocalTrackCpuConstrained, track, publication);
-  };
-
-  private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
-    if (!this.roomOptions?.dynacast) {
-      return;
-    }
-    const pub = this.videoTrackPublications.get(update.trackSid);
-    if (!pub) {
-      this.log.warn('received subscribed quality update for unknown track', {
-        trackSid: update.trackSid,
-      });
-      return;
-    }
-    if (!pub.videoTrack) {
-      return;
-    }
-    const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
-    for await (const codec of newCodecs) {
-      if (isBackupCodec(codec)) {
-        this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, getLogContextFromTrack(pub));
-        await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
-      }
-    }
   };
 
   private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {

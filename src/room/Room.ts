@@ -8,6 +8,8 @@ import {
 } from './data-stream/extension';
 import { type DataTrackLocalApi, dataTracks } from './data-track/extension';
 import { type RpcLocalApi, type RpcRoomApi, rpc } from './rpc/extension';
+import { registerVideoCapture } from './video/create';
+import { type VideoLocalApi, video } from './video/extension';
 
 export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
 
@@ -19,9 +21,12 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  *
  * This is the full-featured room: `CoreRoom` with every extension installed.
  */
-export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee) {}
+export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee, video) {}
 
 export default Room;
+
+// `createLocalTracks({ video })` must work before any Room exists in the full build.
+registerVideoCapture();
 
 // The full build installs every extension, so `CoreRoom` and `LocalParticipant` carry every
 // extension's methods wherever they appear (event callbacks, type guards, processor hooks), not
@@ -31,5 +36,6 @@ declare module './CoreRoom' {
   interface CoreRoom extends DataStreamRoomApi, RpcRoomApi, E2eeRoomApi {}
 }
 declare module './participant/LocalParticipant' {
-  interface LocalParticipant extends DataStreamLocalApi, RpcLocalApi, DataTrackLocalApi {}
+  interface LocalParticipant
+    extends DataStreamLocalApi, RpcLocalApi, DataTrackLocalApi, VideoLocalApi {}
 }

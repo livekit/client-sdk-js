@@ -24,6 +24,10 @@ const EXTENSION_MODULES = [
   'src/room/data-track/extension.ts',
   'src/room/data-track/types.ts',
   'src/room/data-stream/',
+  'src/room/track/LocalVideoTrack.ts',
+  'src/room/track/facingMode.ts',
+  'src/room/participant/publishUtils.ts',
+  'src/room/video/',
   'src/room/rpc/',
   'node_modules/webrtc-adapter/',
 ];

@@ -60,7 +60,6 @@ import {
   publishDefaults,
   roomConnectOptionDefaults,
   roomOptionDefaults,
-  videoDefaults,
 } from './defaults';
 import {
   ConnectionError,
@@ -86,11 +85,11 @@ import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
-import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
+import { getVideoCapture } from './track/create';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
@@ -317,7 +316,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       ...options?.audioCaptureDefaults,
     };
     this.options.videoCaptureDefaults = {
-      ...videoDefaults,
       ...options?.videoCaptureDefaults,
     };
     this.options.publishDefaults = {
@@ -2660,7 +2658,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           type: TrackType.AUDIO,
           name: 'video-dummy',
         }),
-        new LocalVideoTrack(
+        getVideoCapture().createTrack(
           publishOptions.useRealTracks && window.navigator.mediaDevices?.getUserMedia
             ? (
                 await window.navigator.mediaDevices.getUserMedia({ video: true })

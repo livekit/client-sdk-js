@@ -105,6 +105,14 @@ entry; `pnpm check:core` fails if `CoreRoom` alone bundles an extension module.
   preconnect audio buffer in `publishTrack` sends through it.
 - `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
   `devicechange` listener. A disposed room cannot connect again.
+- Video publishing is the `video` extension (`src/room/video/`). Receiving video stays in core.
+  Core keeps type guards (`isLocalVideoTrack`) and instance method calls on video tracks, which
+  cost nothing; it must not import `LocalVideoTrack`, `publishUtils` or `facingMode` as values.
+  Two slots connect them: `LocalParticipant.videoPublisher` (the publish pipeline for a video
+  track: codec, encodings, layers, start bitrate, server codec fallback, screen capture) and
+  `setVideoCapture()` in `track/create.ts` (how `createLocalTracks` builds a video track). The
+  full entry calls `registerVideoCapture()` at module load so `createLocalTracks({ video })` works
+  before any Room exists.
 
 ## Manager pattern
 

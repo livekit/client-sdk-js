@@ -23,3 +23,4 @@ export { type RpcLocalApi, type RpcRoomApi, rpc } from './room/rpc/extension';
 export { type DataTrackLocalApi, dataTracks } from './room/data-track/extension';
 export { frameMetadata } from './frameMetadata/extension';
 export { type E2eeRoomApi, e2ee } from './e2ee/extension';
+export { type VideoLocalApi, video } from './room/video/extension';

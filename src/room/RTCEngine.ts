@@ -87,7 +87,7 @@ import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
-import LocalVideoTrack from './track/LocalVideoTrack';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type { Track } from './track/Track';
