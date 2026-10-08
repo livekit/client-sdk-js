@@ -62,7 +62,8 @@ export default [
   },
   {
     // The light entry: one file per module and dependencies left external, so a consumer's
-    // bundler drops unused modules whole. Types come from the main build (dist/src/core.d.ts).
+    // bundler drops unused modules whole. It emits its own declarations with `@internal` members
+    // stripped (dist/core/types); the main entry keeps them for the packages that use them.
     input: 'src/core.ts',
     // bare specifiers (dependencies) stay external; the entry itself has no importer
     external: (id, importer) => importer !== undefined && !/^[./\0]/.test(id),
@@ -81,8 +82,14 @@ export default [
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
+        useTsconfigDeclarationDir: true,
         tsconfigOverride: {
-          compilerOptions: { declaration: false, declarationMap: false, stripInternal: true },
+          compilerOptions: {
+            declaration: true,
+            declarationMap: false,
+            declarationDir: 'dist/core/types',
+            stripInternal: true,
+          },
         },
       }),
       ...commonPlugins,

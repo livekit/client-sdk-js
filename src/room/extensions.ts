@@ -48,7 +48,7 @@ export type DataPacketValue<C extends DataPacketCase> = Extract<
 /**
  * The hooks core exposes to extensions. Everything else an extension needs (`remoteParticipants`,
  * `localParticipant`, `emit`, `options`, `engine`) is public on the room already.
- * @internal
+ * @experimental
  */
 export interface ExtensionContext {
   log: StructuredLogger;
@@ -161,7 +161,7 @@ export function defineExtension<
 /**
  * Installs extensions on a room: dependencies first, each key once. An extension the caller
  * lists explicitly wins over the default a dependency would pull in, whatever the order.
- * @internal
+ * @experimental
  */
 export function installExtensions(
   room: CoreRoom,

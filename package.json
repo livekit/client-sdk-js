@@ -27,7 +27,7 @@
       "require": "./dist/livekit-client.fm.worker.js"
     },
     "./core": {
-      "types": "./dist/src/core.d.ts",
+      "types": "./dist/core/types/src/core.d.ts",
       "import": "./dist/core/core.mjs"
     }
   },
@@ -47,8 +47,8 @@
       "./dist/src/index.d.ts": [
         "./dist/ts4.2/index.d.ts"
       ],
-      "./dist/src/core.d.ts": [
-        "./dist/ts4.2/core.d.ts"
+      "./dist/core/types/src/core.d.ts": [
+        "./dist/core/ts4.2/core.d.ts"
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
@@ -81,7 +81,7 @@
     "throws:check": "pnpm throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
     "type:check": "tsc --noEmit",
     "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
-    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
+    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2 && downlevel-dts ./dist/core/types/src ./dist/core/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit",
     "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs"

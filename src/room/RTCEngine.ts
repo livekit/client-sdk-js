@@ -135,7 +135,6 @@ export { DataChannelKind };
 // `0` means "no limit".
 const DEFAULT_MAX_MESSAGE_SIZE = 64_000;
 
-/** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   client: SignalClient;
 

@@ -1,12 +1,4 @@
-import {
-  type PerformRpcParams,
-  RPC_REQUEST_DATA_STREAM_TOPIC,
-  RPC_RESPONSE_DATA_STREAM_TOPIC,
-  RpcClientManager,
-  RpcError,
-  type RpcInvocationData,
-  RpcServerManager,
-} from '.';
+import { RpcClientManager, RpcError, type RpcInvocationData, RpcServerManager } from '.';
 import type TypedPromise from '../../utils/TypedPromise';
 import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import type { CoreRoom } from '../CoreRoom';
@@ -14,6 +6,11 @@ import { DataChannelKind } from '../data-channel/types';
 import { dataStreams } from '../data-stream/extension';
 import { RoomEvent } from '../events';
 import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import {
+  type PerformRpcParams,
+  RPC_REQUEST_DATA_STREAM_TOPIC,
+  RPC_RESPONSE_DATA_STREAM_TOPIC,
+} from './utils';
 
 /** Methods the `rpc` extension adds to the room. */
 export interface RpcRoomApi {

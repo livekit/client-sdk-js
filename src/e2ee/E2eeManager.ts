@@ -49,11 +49,14 @@ import type {
 import { isE2EESupported } from './utils';
 
 export interface BaseE2EEManager {
+  /** @internal */
   setup(room: CoreRoom): void;
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
+  /** @internal */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  /** @internal */
   setSifTrailer(trailer: NonSharedUint8Array): void;
   encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
   handleEncryptedData(

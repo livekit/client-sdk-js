@@ -167,7 +167,6 @@ const MAX_WS_CLOSE_TIME = 250;
  */
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
-/** @internal */
 export class SignalClient {
   requestQueue: AsyncQueue;
 

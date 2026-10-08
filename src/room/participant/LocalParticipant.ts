@@ -79,7 +79,7 @@ import type RemoteParticipant from './RemoteParticipant';
 /**
  * What extensions plug into the local participant. The room owns the object and fills it through
  * `ExtensionContext.setLocalParticipantSlot()`; the participant only reads it.
- * @internal
+ * @experimental
  */
 export interface LocalParticipantSlots {
   /** Opens an outgoing byte stream (`dataStreams`). The preconnect audio buffer goes through it. */
@@ -91,7 +91,7 @@ export interface LocalParticipantSlots {
 /**
  * The video publish pipeline. The `video` extension sets it on the local participant; without it,
  * publishing a video track throws.
- * @internal
+ * @experimental
  */
 export interface VideoPublisher {
   /**

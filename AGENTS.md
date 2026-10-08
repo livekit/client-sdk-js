@@ -118,6 +118,12 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   pulls `index.d.ts` and its augmentations into every core consumer, so a `[rpc]` room would type
   as if every extension were installed. `pnpm check:core` compiles a consumer probe against emitted
   declarations and fails on that.
+- The core build emits its own declarations with `stripInternal` (`dist/core/types`); the main
+  entry keeps `@internal` members because components-js and React Native use some of them. Every
+  symbol a public signature names must therefore stay untagged (`ExtensionContext`,
+  `InternalRoomOptions`, the `RTCEngine` class), or the stripped declaration dangles. Tag members,
+  not the classes and interfaces that public types mention. `pnpm check:core` type-checks the
+  stripped declarations with `skipLibCheck` off and fails on a dangling reference.
 - Operations that exist only for extensions live on `ExtensionContext`, not on `CoreRoom`:
   `setLocalParticipantSlot()` (the `dataStreams` byte stream opener for the preconnect audio
   buffer, the `video` publisher), `getOrCreateParticipant()` and `simulateConnected()`. The room
