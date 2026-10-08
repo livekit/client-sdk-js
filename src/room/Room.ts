@@ -1,15 +1,11 @@
-import { type E2eeRoomApi, e2ee } from '../e2ee/extension';
+import { e2ee } from '../e2ee/extension';
 import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
-import {
-  type DataStreamLocalApi,
-  type DataStreamRoomApi,
-  dataStreams,
-} from './data-stream/extension';
-import { type DataTrackLocalApi, dataTracks } from './data-track/extension';
-import { type RpcLocalApi, type RpcRoomApi, rpc } from './rpc/extension';
+import { dataStreams } from './data-stream/extension';
+import { dataTracks } from './data-track/extension';
+import { rpc } from './rpc/extension';
 import { registerVideoCapture } from './video/create';
-import { type VideoLocalApi, video } from './video/extension';
+import { video } from './video/extension';
 
 export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
 
@@ -21,21 +17,10 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
  *
  * This is the full-featured room: `CoreRoom` with every extension installed.
  */
-export class Room extends CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee, video) {}
+export class Room
+  extends /*#__PURE__*/ CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee, video) {}
 
 export default Room;
 
 // `createLocalTracks({ video })` must work before any Room exists in the full build.
 registerVideoCapture();
-
-// The full build installs every extension, so `CoreRoom` and `LocalParticipant` carry every
-// extension's methods wherever they appear (event callbacks, type guards, processor hooks), not
-// only on the `Room` class. The core entry does not load this file, so a light room keeps the
-// narrow types.
-declare module './CoreRoom' {
-  interface CoreRoom extends DataStreamRoomApi, RpcRoomApi, E2eeRoomApi {}
-}
-declare module './participant/LocalParticipant' {
-  interface LocalParticipant
-    extends DataStreamLocalApi, RpcLocalApi, DataTrackLocalApi, VideoLocalApi {}
-}

@@ -10,9 +10,9 @@ module.exports = [
     limit: '130 kB',
   },
   {
-    // the light room without any extension (src/core.ts is not published yet)
-    path: 'dist/livekit-client.core.esm.mjs',
+    // the light entry (livekit-client/core) without any extension
+    path: 'dist/core/core.mjs',
     import: '{ CoreRoom }',
-    limit: '95 kB',
+    limit: '85 kB',
   },
 ];

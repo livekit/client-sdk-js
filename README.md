@@ -11,10 +11,12 @@
 # JavaScript/TypeScript client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
+
 Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
 <!--BEGIN_AGENTS_INFO-->
+
 > [!IMPORTANT]
 > If you're building Voice AI, [LiveKit Agents](https://github.com/livekit/agents) is the SDK for code-first realtime voice agents. STT, LLM, TTS, turn detection, [expressive speech](https://docs.livekit.io/agents/models/tts/expressive/), [keyterm accuracy](https://docs.livekit.io/agents/models/stt/keyterms/), tool usage, and telephony all come bundled in the framework. It's available in both [Python](https://github.com/livekit/agents) and [Node.js](https://github.com/livekit/agents-js).
 >
@@ -47,6 +49,7 @@ Use this SDK to add realtime video, audio and data features to your JavaScript/T
 > Models come from [LiveKit Inference](https://docs.livekit.io/agents/models/) with no per-provider API keys, and LiveKit Cloud handles [deployment](https://docs.livekit.io/deploy/agents/) and [observability](https://docs.livekit.io/deploy/observability/). Visit the docs for more info at [docs.livekit.io/agents](https://docs.livekit.io/agents/).
 >
 > Using a coding agent? Install the LiveKit skill with `npx skills add livekit/agent-skills` and add the docs MCP at `https://docs.livekit.io/mcp/` (see [coding agent support](https://docs.livekit.io/intro/coding-agents/)).
+
 <!--END_AGENTS_INFO-->
 
 ## Docs
@@ -84,6 +87,28 @@ To use the SDK without a package manager, you can include it with a script tag:
 The module will be exported under `LivekitClient` in the global namespace. When
 accessing symbols from the class, you'd need to prefix them with `LivekitClient.`.
 For example, `Room` becomes `LivekitClient.Room`.
+
+### Light build
+
+`livekit-client/core` exports `CoreRoom`, a room without data streams, RPC, data tracks, frame
+metadata, end-to-end encryption or video publishing. Add the features you need at construction
+time; the result has the same method names as `Room`, so code moves between the two builds
+unchanged.
+
+```typescript
+import { CoreRoom, rpc } from 'livekit-client/core';
+
+const AppRoom = CoreRoom.with(rpc); // also installs dataStreams, which rpc requires
+
+const room = new AppRoom();
+room.registerRpcMethod('greet', async (data) => `Hello, ${data.callerIdentity}!`);
+await room.connect(url, token);
+```
+
+Extensions: `dataStreams`, `rpc`, `dataTracks`, `frameMetadata`, `e2ee`, `video`. Call `with()`
+once at module level, not per room. The core entry does not import `webrtc-adapter`, and it is
+ESM only. Import one entry per app: each entry is a self-contained bundle, so an app that loads
+both gets two copies of every class. The entry is experimental.
 
 ## Usage
 
@@ -131,11 +156,11 @@ const room = new Room({
 });
 
 // get your url from livekit's dashboard, or point it at a self hosted livekit deployment
-const url = "ws://localhost:7800";
+const url = 'ws://localhost:7800';
 
 // generate a token by making a request to a endpoint using the livekit server sdk or
 // using a prebuilt TokenSource (documented below)
-const token = "...";
+const token = '...';
 
 // pre-warm connection, this can be called as early as your page is loaded
 room.prepareConnection(url, token);
@@ -368,25 +393,31 @@ const configurableResponse = await configurable.fetch({ agentName: "agent to dis
 room.connect(configurableResponse.serverUrl, configurableResponse.participantToken);
 ```
 
-|Mechanism:   | using pre-generated credentials | via a http request to a url | via fully custom logic |
-|-------------|--|--|--|
-|Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash; | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
-|Configurable | &mdash; | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourcedevelopmenttokenserver)  | [`TokenSource.custom`](#tokensourcecustom) |
+| Mechanism:   | using pre-generated credentials              | via a http request to a url                                                                                                  | via fully custom logic                                                  |
+| ------------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Fixed        | [`TokenSource.literal`](#tokensourceliteral) | &mdash;                                                                                                                      | [`TokenSource.literal(async () => { /* ... */ })`](#tokensourceliteral) |
+| Configurable | &mdash;                                      | [`TokenSource.endpoint`](#tokensourceendpoint) or [`TokenSource.developmentTokenServer`](#tokensourcedevelopmenttokenserver) | [`TokenSource.custom`](#tokensourcecustom)                              |
 
 #### TokenSource.Literal
+
 A fixed token source which returns a static set of credentials or a computed set of credentials
 with no external input required on each call.
 
 Example:
-```ts
-const literal1 = TokenSource.literal({ serverUrl: "ws://localhost:7800", participantToken: "..." });
-await literal1.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
 
-const literal2 = TokenSource.literal(async () => ({ serverUrl: "ws://localhost:7800", participantToken: "..." }));
-await literal2.fetch() // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+```ts
+const literal1 = TokenSource.literal({ serverUrl: 'ws://localhost:7800', participantToken: '...' });
+await literal1.fetch(); // { serverUrl: "ws://localhost:7800", participantToken: "..." }
+
+const literal2 = TokenSource.literal(async () => ({
+  serverUrl: 'ws://localhost:7800',
+  participantToken: '...',
+}));
+await literal2.fetch(); // { serverUrl: "ws://localhost:7800", participantToken: "..." }
 ```
 
 #### TokenSource.Endpoint
+
 A configurable token source which makes a request to an endpoint to generate credentials. By
 default, a `POST` request with a `Content-Type: application/json` header is made, and the request
 body is expected to follow the [standard token format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema). If
@@ -394,21 +425,23 @@ credentials generation is successful, the endpoint returns a 2xx status code wit
 the [standard token response format](https://docs.livekit.io/frontends/build/authentication/endpoint/#endpoint-schema).
 
 Example:
-```ts
-const endpoint1 = TokenSource.endpoint("http://example.com/credentials-endpoint");
-await endpoint1.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 
-const endpoint2 = TokenSource.endpoint("http://example.com/credentials-endpoint", {
+```ts
+const endpoint1 = TokenSource.endpoint('http://example.com/credentials-endpoint');
+await endpoint1.fetch({ agentName: 'agent to dispatch' }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+
+const endpoint2 = TokenSource.endpoint('http://example.com/credentials-endpoint', {
   // For all supported options below, see https://developer.mozilla.org/en-US/docs/Web/API/RequestInit
-  method: "PUT",
+  method: 'PUT',
   headers: {
-    "X-Custom-Header": "custom header value",
+    'X-Custom-Header': 'custom header value',
   },
 });
-await endpoint2.fetch({ agentName: "agent to dispatch" }) // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+await endpoint2.fetch({ agentName: 'agent to dispatch' }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
 #### TokenSource.DevelopmentTokenServer
+
 A configurable token source which makes a request to a
 [development token server endpoint](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/),
 a LiveKit-hosted token generation mechanism.
@@ -420,12 +453,14 @@ One parameter is required - the development token server id from the dashboard. 
 value in `https://token-server-xxxxxx.sandbox.livekit.io`.
 
 Example:
+
 ```ts
-const devTokenSource = TokenSource.developmentTokenServer("token-server-xxxxxx");
-await devTokenSource.fetch({ agentName: "agent to dispatch" }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
+const devTokenSource = TokenSource.developmentTokenServer('token-server-xxxxxx');
+await devTokenSource.fetch({ agentName: 'agent to dispatch' }); // { serverUrl: "...", participantToken: "... token encoding agentName ..." }
 ```
 
 #### TokenSource.Custom
+
 A fully custom configurable token source that allows you to consume any end application-specific
 token generation mechanism. Tokens that are generated are cached and used until they expire or the
 options passed into `fetch` change.
@@ -435,12 +470,13 @@ output token. If you'd rather implement a fixed version of this TokenSource, see
 `TokenSource.literal(async () => { /* ... */ })`.
 
 Example:
+
 ```ts
 const myTokenSource = TokenSource.custom(async (options) => {
   // generate token info via custom means here
-  return { serverUrl: "...", participantToken: "... options encoded in here ..." };
+  return { serverUrl: '...', participantToken: '... options encoded in here ...' };
 });
-await myTokenSource.fetch({ agentName: "agent to dispatch" });
+await myTokenSource.fetch({ agentName: 'agent to dispatch' });
 ```
 
 ### RPC
@@ -495,23 +531,27 @@ You may throw errors of the type `RpcError` with a string `message` in an RPC me
 
 ## Error Codes
 
-| Code  | Name                        | Reason             |
-| ----- | --------------------------- | ------------------ |
-| 1     | `ConnectionError`           | 0: `NotAllowed`<br>1: `ServerUnreachable`<br>2: `InternalError`<br>3: `Cancelled`<br>4:`LeaveRequest` |  
-| 10    | `UnsupportedServer`         |             |
-| 12    | `UnexpectedConnectionState` |             |
-| 13    | `NegotiationError`          |             |
-| 14    | `PublishDataError`          |             |
-| 15    | `SignalRequestError`        |             |
-| 20    | `TrackInvalidError`         |             |
-| 21    | `DeviceUnsupportedError`    |             |
-| 40    | `CryptorError`              |             |
+| Code | Name                        | Reason                                                                                                |
+| ---- | --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1    | `ConnectionError`           | 0: `NotAllowed`<br>1: `ServerUnreachable`<br>2: `InternalError`<br>3: `Cancelled`<br>4:`LeaveRequest` |
+| 10   | `UnsupportedServer`         |                                                                                                       |
+| 12   | `UnexpectedConnectionState` |                                                                                                       |
+| 13   | `NegotiationError`          |                                                                                                       |
+| 14   | `PublishDataError`          |                                                                                                       |
+| 15   | `SignalRequestError`        |                                                                                                       |
+| 20   | `TrackInvalidError`         |                                                                                                       |
+| 21   | `DeviceUnsupportedError`    |                                                                                                       |
+| 40   | `CryptorError`              |                                                                                                       |
 
 ## Examples
 
 ### Demo App
 
 [examples/demo](https://github.com/livekit/client-sdk-js/tree/main/examples/demo/) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm examples:demo`
+
+### Core Demo
+
+[examples/core](https://github.com/livekit/client-sdk-js/tree/main/examples/core/) uses the light `livekit-client/core` entry with the `rpc` extension. Run it with `pnpm install && pnpm dev` from the `examples/core` directory.
 
 ### RPC Demo
 
@@ -538,6 +578,7 @@ If you are targeting legacy browsers, but still want adaptiveStream functionalit
 Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>

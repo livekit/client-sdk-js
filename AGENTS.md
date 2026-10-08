@@ -79,8 +79,12 @@ The main demo app (`examples/demo/`) is a comprehensive kitchen-sink UI. Standal
 `Room` (the main export) is `CoreRoom.with(dataStreams, rpc, dataTracks, frameMetadata, e2ee)`.
 `CoreRoom` (`src/room/CoreRoom.ts`) holds the signal client, engine, participants, media and
 raw data packets. Everything else is a `RoomExtension` (`src/room/extensions.ts`) that
-`CoreRoom.with(...)` installs in the constructor. `src/core.ts` is the (not yet published) light
-entry; `pnpm check:core` fails if `CoreRoom` alone bundles an extension module.
+`CoreRoom.with(...)` installs in the constructor. `src/exports.ts` is the export surface both
+entries share; `src/index.ts` adds `Room` and the type augmentations, `src/core.ts` adds
+`CoreRoom` and the extension objects (`livekit-client/core`, experimental). The core entry is
+built per module with dependencies external (`dist/core/`), so a consumer's bundler drops unused
+modules whole; the main entry stays one self-contained bundle. `pnpm check:core` fails if
+`CoreRoom` alone bundles an extension module, and `pnpm size-limit` tracks both entries.
 
 - An extension is a plain object: `key`, optional `requires` (hard dependencies, installed first,
   deduped by key), and `install(room, ctx)`. It lives in `extension.ts` next to its managers.
