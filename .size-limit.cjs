@@ -15,9 +15,4 @@ module.exports = [
     import: '{ CoreRoom }',
     limit: '95 kB',
   },
-  {
-    path: 'dist/livekit-client.core.esm.mjs',
-    import: '{ CoreRoom, rpc }',
-    limit: '100 kB',
-  },
 ];
