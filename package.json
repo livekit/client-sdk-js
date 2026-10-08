@@ -25,17 +25,30 @@
       "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
       "import": "./dist/livekit-client.fm.worker.mjs",
       "require": "./dist/livekit-client.fm.worker.js"
+    },
+    "./core": {
+      "types": "./dist/core/types/src/core.d.ts",
+      "import": "./dist/core/core.mjs"
     }
   },
   "files": [
     "dist",
     "src"
   ],
+  "sideEffects": [
+    "./dist/livekit-client.e2ee.worker.js",
+    "./dist/livekit-client.e2ee.worker.mjs",
+    "./dist/livekit-client.fm.worker.js",
+    "./dist/livekit-client.fm.worker.mjs"
+  ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
     "<4.8": {
       "./dist/src/index.d.ts": [
         "./dist/ts4.2/index.d.ts"
+      ],
+      "./dist/core/types/src/core.d.ts": [
+        "./dist/core/ts4.2/core.d.ts"
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
@@ -53,6 +66,7 @@
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
+    "size:breakdown": "node scripts/size-breakdown.mjs",
     "build-docs": "typedoc && mkdir -p docs/assets/github && cp .github/*.png docs/assets/github/ && find docs -name '*.html' -type f -exec sed -i.bak 's|=\"/.github/|=\"assets/github/|g' {} + && find docs -name '*.bak' -delete",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "examples:demo": "vite examples/demo -c vite.config.mjs",
@@ -67,9 +81,10 @@
     "throws:check": "pnpm throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
     "type:check": "tsc --noEmit",
     "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
-    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
+    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2 && downlevel-dts ./dist/core/types/src ./dist/core/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
-    "size-limit": "size-limit"
+    "size-limit": "size-limit",
+    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",

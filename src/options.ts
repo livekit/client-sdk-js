@@ -13,9 +13,7 @@ export interface WebAudioSettings {
   audioContext: AudioContext;
 }
 
-/**
- * @internal
- */
+/** The resolved room options. `RoomOptions` is the partial form apps pass in. */
 export interface InternalRoomOptions {
   /**
    * AdaptiveStream lets LiveKit automatically manage quality of subscribed
@@ -151,9 +149,7 @@ export interface RoomDataStreamOptions {
  */
 export interface RoomOptions extends Partial<InternalRoomOptions> {}
 
-/**
- * @internal
- */
+/** The resolved connect options. `RoomConnectOptions` is the partial form apps pass in. */
 export interface InternalRoomConnectOptions {
   /** autosubscribe to room tracks after joining, defaults to true */
   autoSubscribe: boolean;
@@ -183,3 +179,12 @@ export interface InternalRoomConnectOptions {
  * Options for Room.connect()
  */
 export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {}
+
+/**
+ * The options of a room from `createRoom()`: `RoomOptions` without the slices that the `e2ee`,
+ * `frameMetadata` and `dataStreams` extensions take directly.
+ */
+export type CoreRoomOptions = Omit<
+  RoomOptions,
+  'e2ee' | 'encryption' | 'frameMetadata' | 'packetTrailer' | 'dataStream'
+>;

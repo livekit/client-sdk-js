@@ -74,6 +74,85 @@ pnpm dev
 The main demo app (`examples/demo/`) is a comprehensive kitchen-sink UI. Standalone examples
 (`examples/rpc/`, `examples/data-tracks/`) focus on individual features.
 
+## Room extensions
+
+`Room` (the main export) is `CoreRoom` plus every extension, installed in its constructor through
+`installExtensions()`. The core entry's `createRoom(options, [extensions])` does the same with the
+list an app gives it.
+`CoreRoom` (`src/room/CoreRoom.ts`) holds the signal client, engine, participants, media and
+raw data packets. Everything else is a `RoomExtension` (`src/room/extensions.ts`) that
+`installExtensions()` installs right after construction. `src/exports.ts` is the export surface both
+entries share; `src/index.ts` adds `Room` and the type augmentations, `src/core.ts` adds
+`CoreRoom` and the extension objects (`livekit-client/core`, experimental). The core entry is
+built per module with dependencies external (`dist/core/`), so a consumer's bundler drops unused
+modules whole; the main entry stays one self-contained bundle. `pnpm check:core` fails if
+`CoreRoom` alone bundles an extension module, and `pnpm size-limit` tracks both entries.
+
+- An extension is a plain object: `key`, optional `requires` (hard dependencies, installed first,
+  deduped by key), and `install(room, ctx)`. It lives in `extension.ts` next to its managers.
+- `install` returns `{ room, local, dispose }`. `room` and `local` members are copied onto the
+  room and its local participant under the SDK's method names (`sendText`, `registerRpcMethod`).
+  Extra members (the managers) are visible to dependents through `ctx.get(extension)`.
+- Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are built with
+  `defineExtension()` and are callable: listed bare they read today's `RoomOptions`, called with
+  options they use those, and a function is evaluated per room. Extensions without options are
+  plain objects. The resolver dedupes by key, installs dependencies first, lets an explicitly listed
+  instance win over a dependency's default, and throws when a key is listed twice.
+- `install`, `dispose` and every hook are synchronous. Async setup starts in `install` and is
+  awaited in the extension's own methods.
+- Core never reads an extension's slice of the room options (`e2ee`, `encryption`,
+  `frameMetadata`, `packetTrailer`, `dataStream`): a configured extension (`e2ee({ ... })`) does not
+  write them. What core needs comes through a context slot (`setFrameMetadataOptions`,
+  `setE2eeManager`), which the extension fills from its own options or, when listed bare, from
+  `RoomOptions`. `pnpm check:core` greps the core modules for such reads.
+- A worker an app supplies to an extension is terminated in the extension's `dispose`, not on
+  disconnect: the room can connect again after a disconnect.
+- Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced
+  after a close, so register engine listeners there), `onDataPacket` (one owner per `DataPacket`
+  case), `onDisconnect`, `onParticipantCreated`, `onParticipantUpdates`, `onSyncState`, and the
+  E2EE manager slot (`getE2eeManager` / `setE2eeManager` / `onE2eeManagerChanged`). Core owns
+  the slot because `RTCEngine` and the publish path read it. Prefer an existing `RoomEvent` over
+  a new hook.
+- The full entry (`src/room/Room.ts`) augments `CoreRoom` and `LocalParticipant` with the
+  extension API interfaces via `declare module`, so the full build keeps its types wherever those
+  classes appear. Inside the SDK's own compilation this means core code can call extension
+  methods without a type error; `pnpm check:core` is the guard.
+- Extension method bodies must be closures over the managers, never `this`-based: they are
+  copied onto instances with `Object.defineProperties`.
+- Never import types from the index barrel (`'../..'`, `'.'`) inside `src`, and give exported
+  extension objects and anything built from `createRoom` an explicit type (`E2eeExtension`,
+  `CheckRoom`). tsc's declaration emitter otherwise writes `import("../..")` for inferred types, which
+  pulls `index.d.ts` and its augmentations into every core consumer, so a `[rpc]` room would type
+  as if every extension were installed. `pnpm check:core` compiles a consumer probe against emitted
+  declarations and fails on that.
+- The core build emits its own declarations with `stripInternal` (`dist/core/types`); the main
+  entry keeps `@internal` members because components-js and React Native use some of them. Every
+  symbol a public signature names must therefore stay untagged (`ExtensionContext`,
+  `InternalRoomOptions`, the `RTCEngine` class), or the stripped declaration dangles. Tag members,
+  not the classes and interfaces that public types mention. `pnpm check:core` type-checks the
+  stripped declarations with `skipLibCheck` off and fails on a dangling reference.
+- Operations that exist only for extensions live on `ExtensionContext`, not on `CoreRoom`:
+  `setLocalParticipantSlot()` (the `dataStreams` byte stream opener for the preconnect audio
+  buffer, the `video` publisher), `getOrCreateParticipant()` and `simulateConnected()`. The room
+  keeps the slots in one `LocalParticipantSlots` object that it hands to `LocalParticipant`.
+  `installExtensions()` is the only `@internal` member `CoreRoom` has for extensions.
+- `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
+  `devicechange` listener. A disposed room cannot connect again.
+- `simulateParticipants` is the `simulatedParticipants` extension (`src/room/simulated-participants/`);
+  it uses `ctx.simulateConnected()` and `ctx.getOrCreateParticipant()`.
+  `simulateScenario` stays in core. The legacy chat packets (`sendChatMessage`,
+  `RoomEvent.ChatMessage`) are the `chat` extension (`src/room/chat/`): the full `Room` installs it,
+  the core entry does not export it because text streams supersede it.
+- Video publishing is the `video` extension (`src/room/video/`). Receiving video stays in core.
+  Core keeps type guards (`isLocalVideoTrack`) and instance method calls on video tracks, which
+  cost nothing; it must not import `LocalVideoTrack`, `publishUtils` or `facingMode` as values.
+  Two slots connect them: the `videoPublisher` slot on the local participant (the publish
+  pipeline for a video track: codec, encodings, layers, start bitrate, server codec fallback,
+  screen capture, set through `ctx.setLocalParticipantSlot`) and `setVideoCapture()` in
+  `track/create.ts` (how `createLocalTracks` builds a video track). The
+  full entry calls `registerVideoCapture()` at module load so `createLocalTracks({ video })` works
+  before any Room exists.
+
 ## Manager pattern
 
 Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager`,

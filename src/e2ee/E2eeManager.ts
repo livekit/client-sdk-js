@@ -4,9 +4,9 @@ import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
 import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
+import type { CoreRoom } from '../room/CoreRoom';
+import { ConnectionState } from '../room/CoreRoom';
 import type RTCEngine from '../room/RTCEngine';
-import type Room from '../room/Room';
-import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
@@ -49,11 +49,14 @@ import type {
 import { isE2EESupported } from './utils';
 
 export interface BaseE2EEManager {
-  setup(room: Room): void;
+  /** @internal */
+  setup(room: CoreRoom): void;
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
+  /** @internal */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  /** @internal */
   setSifTrailer(trailer: NonSharedUint8Array): void;
   encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
   handleEncryptedData(
@@ -75,7 +78,7 @@ export class E2EEManager
 {
   protected worker: Worker;
 
-  protected room?: Room;
+  protected room?: CoreRoom;
 
   private encryptionEnabled: boolean;
 
@@ -131,7 +134,7 @@ export class E2EEManager
   /**
    * @internal
    */
-  setup(room: Room) {
+  setup(room: CoreRoom) {
     if (!isE2EESupported()) {
       throw new DeviceUnsupportedError(
         'tried to setup end-to-end encryption on an unsupported browser',
@@ -374,7 +377,7 @@ export class E2EEManager
     });
   }
 
-  private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
+  private setupEventListeners(room: CoreRoom, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackPublished, (pub, participant) =>
       this.setParticipantCryptorEnabledForPublication(pub, participant.identity),
     );

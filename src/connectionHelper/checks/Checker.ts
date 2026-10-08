@@ -1,11 +1,25 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import type { RoomConnectOptions, RoomOptions } from '../../options';
+import type { CoreRoomOptions, RoomConnectOptions, RoomOptions } from '../../options';
+import { ConnectionState, type CoreRoom } from '../../room/CoreRoom';
 import type RTCEngine from '../../room/RTCEngine';
-import Room, { ConnectionState } from '../../room/Room';
+import { createRoom } from '../../room/createRoom';
+import {
+  type DataStreamLocalApi,
+  type DataStreamRoomApi,
+  dataStreams,
+} from '../../room/data-stream/extension';
 import { RoomEvent } from '../../room/events';
 import type { SimulationScenario } from '../../room/types';
 import { sleep } from '../../room/utils';
+import { type VideoLocalApi, video } from '../../room/video/extension';
+
+// The checks need text streams (cloud region) and video publishing. The type is spelled out so
+// the emitted .d.ts names these interfaces directly instead of through the full entry.
+type CheckRoom = CoreRoom &
+  DataStreamRoomApi & { localParticipant: DataStreamLocalApi & VideoLocalApi };
+const createCheckRoom = (options?: CoreRoomOptions): CheckRoom =>
+  createRoom(options, [dataStreams, video]);
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';
@@ -40,7 +54,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
 
   protected token: string;
 
-  room: Room;
+  room: CheckRoom;
 
   connectOptions?: RoomConnectOptions;
 
@@ -57,7 +71,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     this.url = url;
     this.token = token;
     this.name = this.constructor.name;
-    this.room = new Room(options.roomOptions);
+    this.room = createCheckRoom(options.roomOptions);
     this.connectOptions = options.connectOptions;
     this.options = options;
   }
@@ -104,7 +118,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     return !this.logs.some((l) => l.level === 'error');
   }
 
-  protected async connect(url?: string): Promise<Room> {
+  protected async connect(url?: string): Promise<CheckRoom> {
     if (this.room.state === ConnectionState.Connected) {
       return this.room;
     }

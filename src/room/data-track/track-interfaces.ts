@@ -4,7 +4,7 @@ function isObject(subject: unknown): subject is object {
   return subject !== null && typeof subject === 'object';
 }
 
-export const TrackSymbol: symbol = Symbol.for('lk.track');
+export const TrackSymbol: symbol = /* @__PURE__ */ Symbol.for('lk.track');
 
 export interface ITrack {
   readonly trackSymbol: typeof TrackSymbol;
@@ -26,7 +26,7 @@ function isLocalTrack(subject: unknown): subject is ILocalTrack {
   return isTrack(subject) && 'isLocal' in subject && subject.isLocal === true;
 }
 
-export const RemoteTrackSymbol: symbol = Symbol.for('lk.remote-track');
+export const RemoteTrackSymbol: symbol = /* @__PURE__ */ Symbol.for('lk.remote-track');
 
 /** An interface representing a track (of any type) which is remote and receiving data from the SFU. */
 export interface IRemoteTrack extends ITrack {
@@ -40,7 +40,7 @@ function isRemoteTrack(subject: unknown): subject is IRemoteTrack {
   );
 }
 
-export const DataTrackSymbol: symbol = Symbol.for('lk.data-track');
+export const DataTrackSymbol: symbol = /* @__PURE__ */ Symbol.for('lk.data-track');
 /** An interface representing a data track, either local or remote. */
 export interface IDataTrack extends ITrack {
   readonly typeSymbol: typeof DataTrackSymbol;

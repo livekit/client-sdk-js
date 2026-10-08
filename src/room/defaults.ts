@@ -1,11 +1,7 @@
 import type { InternalRoomConnectOptions, InternalRoomOptions } from '../options';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
-import type {
-  AudioCaptureOptions,
-  TrackPublishDefaults,
-  VideoCaptureOptions,
-} from './track/options';
-import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
+import type { AudioCaptureOptions, TrackPublishDefaults } from './track/options';
+import { AudioPresets } from './track/options';
 
 export const defaultVideoCodec = 'vp8';
 
@@ -14,11 +10,7 @@ export const publishDefaults: TrackPublishDefaults = {
   dtx: true,
   red: true,
   forceStereo: false,
-  simulcast: true,
-  screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
-  videoCodec: defaultVideoCodec,
-  backupCodec: true,
   preConnectBuffer: false,
 } as const;
 
@@ -30,16 +22,11 @@ export const audioDefaults: AudioCaptureOptions = {
   voiceIsolation: true,
 };
 
-export const videoDefaults: VideoCaptureOptions = {
-  deviceId: { ideal: 'default' },
-  resolution: VideoPresets.h720.resolution,
-};
-
 export const roomOptionDefaults: InternalRoomOptions = {
   adaptiveStream: false,
   dynacast: false,
   stopLocalTrackOnUnpublish: true,
-  reconnectPolicy: new DefaultReconnectPolicy(),
+  reconnectPolicy: /* @__PURE__ */ new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
   webAudioMix: false,
   singlePeerConnection: true,

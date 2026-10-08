@@ -9,7 +9,6 @@ import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
 import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
-/** @internal */
 interface TrackBitrateInfo {
   cid?: string;
   transceiver?: RTCRtpTransceiver;
@@ -183,7 +182,6 @@ export const PCEvents = {
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
-/** @internal */
 export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
