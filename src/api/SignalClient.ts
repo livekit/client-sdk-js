@@ -93,6 +93,7 @@ export interface SignalOptions {
   autoSubscribe: boolean;
   adaptiveStream?: boolean;
   disableIceLite?: boolean;
+  subscriberAllowPause?: boolean;
   clientInfoCapabilities?: ClientInfo_Capability[];
   maxRetries: number;
   e2eeEnabled: boolean;
@@ -1408,6 +1409,10 @@ function createConnectionParams(
     params.set('disable_ice_lite', '1');
   }
 
+  if (typeof opts.subscriberAllowPause !== 'undefined') {
+    params.set('subscriber_allow_pause', opts.subscriberAllowPause ? '1' : '0');
+  }
+
   if (opts.reconnectReason) {
     params.set('reconnect_reason', opts.reconnectReason.toString());
   }
@@ -1436,6 +1441,7 @@ async function createJoinRequestConnectionParams(
       autoSubscribe: !!opts.autoSubscribe,
       adaptiveStream: !!opts.adaptiveStream,
       disableIceLite: !!opts.disableIceLite,
+      subscriberAllowPause: opts.subscriberAllowPause,
     }),
     reconnect: !!opts.reconnect,
     participantSid: opts.sid ? opts.sid : undefined,

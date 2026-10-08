@@ -1001,6 +1001,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         disableIceLite: connectOptions.disableIceLite,
+        subscriberAllowPause: connectOptions.subscriberAllowPause,
         clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,

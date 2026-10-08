@@ -274,6 +274,84 @@ describe('SignalClient.connect', () => {
 
       expect(new URL(capturedUrl).searchParams.get('disable_ice_lite')).toBe('1');
     });
+
+    it('leaves subscriberAllowPause unset by default so the server default applies', async () => {
+      const joinResponse = createJoinResponse();
+      const signalResponse = createSignalResponse('join', joinResponse);
+      const mockReadable = createMockReadableStream([signalResponse]);
+      const mockConnection = createMockConnection(mockReadable);
+      let capturedUrl = '';
+
+      mockWebSocketStream({
+        connection: mockConnection,
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joinRequest.connectionSettings?.subscriberAllowPause).toBeUndefined();
+    });
+
+    it.each([true, false])(
+      'sets subscriberAllowPause=%s in the join request',
+      async (subscriberAllowPause) => {
+        const joinResponse = createJoinResponse();
+        const signalResponse = createSignalResponse('join', joinResponse);
+        const mockReadable = createMockReadableStream([signalResponse]);
+        const mockConnection = createMockConnection(mockReadable);
+        let capturedUrl = '';
+
+        mockWebSocketStream({
+          connection: mockConnection,
+          onUrl: (url) => {
+            capturedUrl = url;
+          },
+        });
+
+        await signalClient.join('wss://test.livekit.io', 'test-token', {
+          ...defaultOptions,
+          subscriberAllowPause,
+        });
+
+        const joinRequest = await decodeJoinRequestFromUrl(capturedUrl);
+        expect(joinRequest.connectionSettings?.subscriberAllowPause).toBe(subscriberAllowPause);
+      },
+    );
+
+    it.each([
+      [undefined, null],
+      [true, '1'],
+      [false, '0'],
+    ])(
+      'sets subscriber_allow_pause on the v0 path when subscriberAllowPause=%s',
+      async (subscriberAllowPause, expected) => {
+        const joinResponse = createJoinResponse();
+        const signalResponse = createSignalResponse('join', joinResponse);
+        const mockReadable = createMockReadableStream([signalResponse]);
+        const mockConnection = createMockConnection(mockReadable);
+        let capturedUrl = '';
+
+        mockWebSocketStream({
+          connection: mockConnection,
+          onUrl: (url) => {
+            capturedUrl = url;
+          },
+        });
+
+        await signalClient.join(
+          'wss://test.livekit.io',
+          'test-token',
+          { ...defaultOptions, subscriberAllowPause },
+          undefined,
+          true,
+        );
+
+        expect(new URL(capturedUrl).searchParams.get('subscriber_allow_pause')).toBe(expected);
+      },
+    );
   });
 
   describe('Happy Path - Reconnect', () => {
