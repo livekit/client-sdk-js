@@ -344,7 +344,9 @@ export function normalizeAnnexBStartCodes(data: NonSharedUint8Array): NonSharedU
 
   let shortStartCodes = 0;
   for (let i = 0; i + 2 < data.length; i++) {
-    if (isShortStartCode(i)) shortStartCodes++;
+    if (isShortStartCode(i)) {
+      shortStartCodes += 1;
+    }
   }
   if (shortStartCodes === 0) {
     return data;
@@ -354,9 +356,11 @@ export function normalizeAnnexBStartCodes(data: NonSharedUint8Array): NonSharedU
   let out = 0;
   for (let i = 0; i < data.length; i++) {
     if (i + 2 < data.length && isShortStartCode(i)) {
-      result[out++] = 0;
+      result[out] = 0;
+      out += 1;
     }
-    result[out++] = data[i];
+    result[out] = data[i];
+    out += 1;
   }
   return result;
 }
