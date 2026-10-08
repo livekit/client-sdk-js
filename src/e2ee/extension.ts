@@ -1,7 +1,12 @@
 import { Mutex } from '@livekit/mutex';
 import type { CoreRoom } from '../room/CoreRoom';
 import { RoomEvent } from '../room/events';
-import { type ExtensionContext, type ExtensionResult, defineExtension } from '../room/extensions';
+import {
+  type ConfigurableExtension,
+  type ExtensionContext,
+  type ExtensionResult,
+  defineExtension,
+} from '../room/extensions';
 import { isLocalParticipant } from '../room/utils';
 import { type BaseE2EEManager, E2EEManager } from './E2eeManager';
 import { EncryptionEvent } from './events';
@@ -27,7 +32,13 @@ export type E2eeExtensionOptions = E2EEOptions & {
   encryptDataChannel?: boolean;
 };
 
-export const e2ee = /* @__PURE__ */ defineExtension(
+export type E2eeExtension = ConfigurableExtension<
+  ExtensionResult<E2eeRoomApi> & { manager: BaseE2EEManager | undefined },
+  E2eeExtensionOptions,
+  readonly []
+>;
+
+export const e2ee: E2eeExtension = /* @__PURE__ */ defineExtension(
   'e2ee',
   [],
   (

@@ -1,18 +1,25 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { CoreRoomOptions, RoomConnectOptions, RoomOptions } from '../../options';
-import { ConnectionState } from '../../room/CoreRoom';
+import { ConnectionState, type CoreRoom } from '../../room/CoreRoom';
 import type RTCEngine from '../../room/RTCEngine';
 import { createRoom } from '../../room/createRoom';
-import { dataStreams } from '../../room/data-stream/extension';
+import {
+  type DataStreamLocalApi,
+  type DataStreamRoomApi,
+  dataStreams,
+} from '../../room/data-stream/extension';
 import { RoomEvent } from '../../room/events';
 import type { SimulationScenario } from '../../room/types';
 import { sleep } from '../../room/utils';
-import { video } from '../../room/video/extension';
+import { type VideoLocalApi, video } from '../../room/video/extension';
 
-// The checks need text streams (cloud region) and video publishing.
-const createCheckRoom = (options?: CoreRoomOptions) => createRoom(options, [dataStreams, video]);
-type CheckRoom = ReturnType<typeof createCheckRoom>;
+// The checks need text streams (cloud region) and video publishing. The type is spelled out so
+// the emitted .d.ts names these interfaces directly instead of through the full entry.
+type CheckRoom = CoreRoom &
+  DataStreamRoomApi & { localParticipant: DataStreamLocalApi & VideoLocalApi };
+const createCheckRoom = (options?: CoreRoomOptions): CheckRoom =>
+  createRoom(options, [dataStreams, video]);
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';

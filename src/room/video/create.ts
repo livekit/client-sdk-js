@@ -9,6 +9,7 @@ import type {
   ScreenShareCaptureOptions,
   TrackPublishDefaults,
   VideoCaptureOptions,
+  VideoEncoding,
 } from '../track/options';
 import { ScreenSharePresets, VideoPresets } from '../track/options';
 import { screenCaptureToDisplayMediaStreamOptions } from '../track/utils';
@@ -22,7 +23,7 @@ export const videoDefaults: VideoCaptureOptions = {
 /** The video part of `publishDefaults`; the `video` extension merges it under the room options. */
 export const videoPublishDefaults = {
   simulcast: true,
-  screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
+  screenShareEncoding: ScreenSharePresets.h1080fps15.encoding as VideoEncoding,
   videoCodec: defaultVideoCodec,
   backupCodec: true,
 } as const satisfies Partial<TrackPublishDefaults>;

@@ -112,6 +112,12 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   methods without a type error; `pnpm check:core` is the guard.
 - Extension method bodies must be closures over the managers, never `this`-based: they are
   copied onto instances with `Object.defineProperties`.
+- Never import types from the index barrel (`'../..'`, `'.'`) inside `src`, and give exported
+  extension objects and anything built from `createRoom` an explicit type (`E2eeExtension`,
+  `CheckRoom`). tsc's declaration emitter otherwise writes `import("../..")` for inferred types, which
+  pulls `index.d.ts` and its augmentations into every core consumer, so a `[rpc]` room would type
+  as if every extension were installed. `pnpm check:core` compiles a consumer probe against emitted
+  declarations and fails on that.
 - `LocalParticipant.openByteStream` is an internal slot the `dataStreams` extension fills; the
   preconnect audio buffer in `publishTrack` sends through it.
 - `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the

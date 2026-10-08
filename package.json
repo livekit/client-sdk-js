@@ -84,7 +84,7 @@
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit",
-    "check:core": "node scripts/check-core-imports.mjs"
+    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",

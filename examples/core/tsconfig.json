@@ -12,9 +12,9 @@
     "skipLibCheck": true /* Skip type checking of declaration files. */,
     "noUnusedLocals": true,
     "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true
   },
-  "include": ["../../src/**/*", "core-demo.ts", "api.ts"],
+  "include": ["core-demo.ts", "api.ts"],
   "exclude": ["**/*.test.ts", "build/**/*"]
 }
