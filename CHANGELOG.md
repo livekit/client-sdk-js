@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.22.5
+
+### Patch Changes
+
+- On Chrome, a disconnected microphone now restarts on the OS default input instead of the first enumerated device. If a restart fails after the user stopped the track, the capture device no longer stays live - [#2138](https://github.com/livekit/client-sdk-js/pull/2138) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.22.4
 
 ### Patch Changes
