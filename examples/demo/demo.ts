@@ -78,6 +78,8 @@ let startTime: number;
 
 let streamReaderAbortController: AbortController | undefined;
 
+let stopLocalVolumeMeter: (() => void) | undefined;
+
 let localDataTracks: Array<LocalDataTrack> = [];
 let remoteDataTracks: Array<RemoteDataTrack> = [];
 
@@ -307,17 +309,26 @@ const appActions = {
         const track = pub.track;
 
         if (isLocalTrack(track) && isAudioTrack(track)) {
-          const { calculateVolume } = createAudioAnalyser(track);
+          const { calculateVolume, cleanup } = createAudioAnalyser(track);
 
-          setInterval(() => {
+          const interval = setInterval(() => {
             $('local-volume')?.setAttribute('value', calculateVolume().toFixed(4));
           }, 200);
+          stopLocalVolumeMeter?.();
+          stopLocalVolumeMeter = () => {
+            clearInterval(interval);
+            cleanup().catch(() => {});
+          };
         }
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
         renderScreenShare(room);
       })
-      .on(RoomEvent.LocalTrackUnpublished, () => {
+      .on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (pub.kind === Track.Kind.Audio) {
+          stopLocalVolumeMeter?.();
+          stopLocalVolumeMeter = undefined;
+        }
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
         renderScreenShare(room);
@@ -1012,6 +1023,9 @@ function handleRoomDisconnect(reason?: DisconnectReason) {
     renderParticipant(p, true);
   });
   renderScreenShare(currentRoom);
+
+  stopLocalVolumeMeter?.();
+  stopLocalVolumeMeter = undefined;
 
   localDataTracks = [];
   renderLocalDataTracks();

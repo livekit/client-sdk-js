@@ -559,6 +559,17 @@ export function createDummyVideoStreamTrack(
 
 let emptyAudioStreamTrack: MediaStreamTrack | undefined;
 
+let emptyAudioStreamContext: AudioContext | undefined;
+
+/** tracks handed out by `getEmptyAudioStreamTrack` that haven't been released yet */
+const outstandingEmptyAudioStreamTracks = new Set<MediaStreamTrack>();
+
+/**
+ * Returns a silent audio track, cloned off a shared `AudioContext` created on first use. Hand the
+ * clone back to `releaseEmptyAudioStreamTrack` rather than stopping it, so the context can close.
+ * A clone that is only stopped stays counted as outstanding, which holds the shared context open
+ * for the lifetime of the page.
+ */
 export function getEmptyAudioStreamTrack() {
   if (!emptyAudioStreamTrack) {
     // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
@@ -572,31 +583,37 @@ export function getEmptyAudioStreamTrack() {
     oscillator.start();
     [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
     if (!emptyAudioStreamTrack) {
+      // don't hold on to a context we can't get a track out of
+      ctx.close().catch(() => {});
       throw Error('Could not get empty media stream audio track');
     }
     emptyAudioStreamTrack.enabled = false;
+    emptyAudioStreamContext = ctx;
   }
-  return emptyAudioStreamTrack.clone();
+  const track = emptyAudioStreamTrack.clone();
+  outstandingEmptyAudioStreamTracks.add(track);
+  return track;
 }
 
-export function getStereoAudioStreamTrack() {
-  const ctx = new AudioContext();
-  const oscLeft = ctx.createOscillator();
-  const oscRight = ctx.createOscillator();
-  oscLeft.frequency.value = 440;
-  oscRight.frequency.value = 220;
-  const merger = ctx.createChannelMerger(2);
-  oscLeft.connect(merger, 0, 0); // left channel
-  oscRight.connect(merger, 0, 1); // right channel
-  const dst = ctx.createMediaStreamDestination();
-  merger.connect(dst);
-  oscLeft.start();
-  oscRight.start();
-  const [stereoTrack] = dst.stream.getAudioTracks();
-  if (!stereoTrack) {
-    throw Error('Could not get stereo media stream audio track');
+/**
+ * Stops a track obtained from `getEmptyAudioStreamTrack` and closes the shared `AudioContext`
+ * backing it once every track it handed out has been released. Does nothing for a track this
+ * module never handed out, or one that has been released already.
+ */
+export async function releaseEmptyAudioStreamTrack(track: MediaStreamTrack) {
+  if (!outstandingEmptyAudioStreamTracks.delete(track)) {
+    // the track wasn't obtained from `getEmptyAudioStreamTrack`, or has been released before
+    return;
   }
-  return stereoTrack;
+  track.stop();
+  if (outstandingEmptyAudioStreamTracks.size > 0) {
+    return;
+  }
+  const context = emptyAudioStreamContext;
+  emptyAudioStreamTrack?.stop();
+  emptyAudioStreamTrack = undefined;
+  emptyAudioStreamContext = undefined;
+  await context?.close();
 }
 
 /** An object that represents a serialized version of a `new Promise((resolve, reject) => {})`
@@ -708,11 +725,20 @@ export function createAudioAnalyser(
     return volume;
   };
 
+  let isCleanedUp = false;
+
   const cleanup = async () => {
-    await audioContext.close();
+    if (isCleanedUp) {
+      // closing an already closed context would reject, make repeated cleanups a no-op instead
+      return;
+    }
+    isCleanedUp = true;
+    mediaStreamSource.disconnect();
+    analyser.disconnect();
     if (opts.cloneTrack) {
       streamTrack.stop();
     }
+    await audioContext.close();
   };
 
   return { calculateVolume, analyser, cleanup };

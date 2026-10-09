@@ -195,6 +195,9 @@ export default abstract class LocalTrack<
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
+        // audio processors need the context they were initialised with in order to rebuild
+        // their graph, omitting it here would leave them without one
+        audioContext: this.audioContext,
         localTrack: this,
       });
       processedTrack = this.processor.processedTrack;
@@ -218,6 +221,17 @@ export default abstract class LocalTrack<
         attachToElement(processedTrack ?? newTrack, el);
       });
     }
+    await this.onMediaStreamTrackChanged();
+  }
+
+  /**
+   * Hook invoked after the underlying MediaStreamTrack has been swapped and the processor has
+   * been restarted around it, so `processor.processedTrack` already holds the new track.
+   * Unlike `onSenderTrackSwapped` this also fires on the restart and unmute paths.
+   */
+  protected async onMediaStreamTrackChanged(): Promise<void> {
+    // base implementation is a no-op; LocalAudioTrack overrides this to move the krisp
+    // feature listeners onto the new processed track.
   }
 
   async waitForDimensions(timeout = DEFAULT_DIMENSIONS_TIMEOUT): Promise<Track.Dimensions> {
@@ -475,7 +489,11 @@ export default abstract class LocalTrack<
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
     this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-    this.processor?.destroy();
+    // `stop` is synchronous, so we can't await the teardown of the processor here.
+    // make sure a failing teardown doesn't surface as an unhandled rejection.
+    this.processor?.destroy().catch((error) => {
+      this.log.error('failed to destroy processor', { ...this.logContext, error });
+    });
     this.processor = undefined;
   }
 

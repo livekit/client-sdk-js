@@ -130,6 +130,7 @@ import {
   isSafariBased,
   isWeb,
   numberToBigInt,
+  releaseEmptyAudioStreamTrack,
   sleep,
   supportsSetSinkId,
   toHttpUrl,
@@ -147,6 +148,30 @@ export enum ConnectionState {
 
 const CONNECTION_RECONCILE_FREQUENCY_MS = 4 * 1000;
 const STATS_LOG_FREQUENCY_MS = 30 * 1000;
+
+const DUMMY_AUDIO_ELEMENT_ID = 'livekit-dummy-audio-el';
+
+/**
+ * One silent audio element serves every room on the page, so it is reference counted: a room
+ * disconnecting must not pull it out from under the rooms still playing through it. The element
+ * and its track go away once the last room hands its reference back.
+ */
+let sharedDummyAudioElement:
+  | { element: HTMLAudioElement; stream: MediaStream; track: MediaStreamTrack; refCount: number }
+  | undefined;
+
+function createSharedDummyAudioElement() {
+  const element = document.createElement('audio');
+  element.id = DUMMY_AUDIO_ELEMENT_ID;
+  element.autoplay = true;
+  element.hidden = true;
+  const track = getEmptyAudioStreamTrack();
+  track.enabled = true;
+  const stream = new MediaStream([track]);
+  element.srcObject = stream;
+  document.body.append(element);
+  return { element, stream, track, refCount: 0 };
+}
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -194,6 +219,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
+
+  /**
+   * whether `audioContext` was created by the SDK and therefore has to be closed by it.
+   * A context handed in through `webAudioMix` is owned by the application instead.
+   */
+  private ownsAudioContext = false;
+
+  /**
+   * set once the audio context has been released as part of a disconnect. Guards against
+   * creating a new context outside of a connection lifecycle, where nothing would close it again.
+   */
+  private audioContextReleased = false;
+
+  /**
+   * serialises `acquireAudioContext` against `releaseAudioContext`. Both await per-track graph
+   * rebuilds, so without it a reconnect landing inside a disconnect's teardown leaves the two
+   * racing to set the participants' context, and the loser's value is the one that sticks.
+   */
+  private audioContextMutex: Mutex = new Mutex();
+
+  /** tears down the iOS dummy audio element, set while one is in place. See `startAudio` */
+  private releaseDummyAudioElement?: () => void;
+
+  /** silent audio tracks this room acquired, handed back to the shared source on disconnect */
+  private acquiredEmptyAudioTracks = new Set<MediaStreamTrack>();
 
   /** used for aborting pending connections to a LiveKit server */
   private abortController?: AbortController;
@@ -1073,7 +1123,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.setRegionStrategy(this.createRegionStrategy());
     }
 
-    this.acquireAudioContext();
+    this.acquireAudioContext(true).catch((error) =>
+      this.log.warn('Could not acquire audio context', { ...this.logContext, error }),
+    );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
@@ -1346,6 +1398,87 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   /**
+   * iOS blocks audio element playback unless some audio source is already playing, so keep an
+   * element with a silent track around. The element is shared with any other room on the page and
+   * handed back on disconnect, so it outlives whichever room happened to create it.
+   */
+  private acquireDummyAudioElement(): HTMLAudioElement {
+    if (!sharedDummyAudioElement) {
+      sharedDummyAudioElement = createSharedDummyAudioElement();
+    }
+    const shared = sharedDummyAudioElement;
+    if (this.releaseDummyAudioElement) {
+      // this room already holds a reference, a second one would never be handed back
+      return shared.element;
+    }
+    shared.refCount += 1;
+
+    // the listener is per room rather than shared, so that the room it resumes playback for is
+    // still connected, and so that it goes away with the room that installed it
+    const handleVisibilityChange = () => {
+      // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
+      shared.element.srcObject = document.hidden ? null : shared.stream;
+      if (!document.hidden) {
+        this.log.debug(
+          'page visible again, triggering startAudio to resume playback and update playback status',
+        );
+        this.startAudio().catch((error) =>
+          this.log.warn('Could not restart audio on page becoming visible', {
+            ...this.logContext,
+            error,
+          }),
+        );
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    this.releaseDummyAudioElement = () => {
+      this.releaseDummyAudioElement = undefined;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      shared.refCount -= 1;
+      if (shared.refCount > 0) {
+        return;
+      }
+      shared.element.srcObject = null;
+      shared.element.remove();
+      sharedDummyAudioElement = undefined;
+      releaseEmptyAudioStreamTrack(shared.track).catch((error) =>
+        this.log.warn('Could not release the dummy audio element track', {
+          ...this.logContext,
+          error,
+        }),
+      );
+    };
+
+    return shared.element;
+  }
+
+  /**
+   * Obtains a silent audio track from the shared source and keeps track of it, so that it can be
+   * handed back on disconnect and the shared `AudioContext` behind it can be closed again.
+   */
+  private acquireEmptyAudioStreamTrack(): MediaStreamTrack {
+    const track = getEmptyAudioStreamTrack();
+    this.acquiredEmptyAudioTracks.add(track);
+    return track;
+  }
+
+  private releaseAcquiredEmptyAudioTrack(track: MediaStreamTrack) {
+    if (!this.acquiredEmptyAudioTracks.delete(track)) {
+      return;
+    }
+    releaseEmptyAudioStreamTrack(track).catch((error) =>
+      this.log.warn('Could not release empty audio stream track', { ...this.logContext, error }),
+    );
+  }
+
+  private releaseAcquiredEmptyAudioTracks() {
+    for (const track of this.acquiredEmptyAudioTracks) {
+      this.releaseAcquiredEmptyAudioTrack(track);
+    }
+  }
+
+  /**
    * Browsers have different policies regarding audio playback. Most requiring
    * some form of user interaction (click/tap/etc).
    * In those cases, audio will be silent until a click/tap triggering one of the following
@@ -1355,46 +1488,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   startAudio = async () => {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
-    if (browser && browser.os === 'iOS') {
-      /**
-       * iOS blocks audio element playback if
-       * - user is not publishing audio themselves and
-       * - no other audio source is playing
-       *
-       * as a workaround, we create an audio element with an empty track, so that
-       * silent audio is always playing
-       */
-      const audioId = 'livekit-dummy-audio-el';
-      let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
-      if (!dummyAudioEl) {
-        dummyAudioEl = document.createElement('audio');
-        dummyAudioEl.id = audioId;
-        dummyAudioEl.autoplay = true;
-        dummyAudioEl.hidden = true;
-        const track = getEmptyAudioStreamTrack();
-        track.enabled = true;
-        const stream = new MediaStream([track]);
-        dummyAudioEl.srcObject = stream;
-        document.addEventListener('visibilitychange', () => {
-          if (!dummyAudioEl) {
-            return;
-          }
-          // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
-          dummyAudioEl.srcObject = document.hidden ? null : stream;
-          if (!document.hidden) {
-            this.log.debug(
-              'page visible again, triggering startAudio to resume playback and update playback status',
-            );
-            this.startAudio();
-          }
-        });
-        document.body.append(dummyAudioEl);
-        this.once(RoomEvent.Disconnected, () => {
-          dummyAudioEl?.remove();
-          dummyAudioEl = null;
-        });
-      }
-      elements.push(dummyAudioEl);
+    if (browser && browser.os === 'iOS' && !this.audioContextReleased) {
+      elements.push(this.acquireDummyAudioElement());
     }
 
     this.remoteParticipants.forEach((p) => {
@@ -1409,7 +1504,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       await Promise.all([
-        this.acquireAudioContext(),
+        // once the audio context has been released as part of a disconnect there is nothing left
+        // to unlock, and creating a new context here would leak it as no disconnect will follow
+        ...(this.audioContextReleased ? [] : [this.acquireAudioContext()]),
         ...elements.map((e) => {
           // when webAudioMix is enabled, attached elements are deliberately kept muted by
           // RemoteAudioTrack.attach() and audio is routed through the web audio graph instead.
@@ -1859,6 +1956,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
+      // audio tracks that outlive this room are about to become unreachable through the local
+      // participant, collect them while we can so they can be detached from the context below
+      const retainedAudioTracks = shouldStopTracks
+        ? []
+        : Array.from(this.localParticipant.audioTrackPublications.values())
+            .map((pub) => pub.track)
+            .filter(isLocalAudioTrack);
+
       this.remoteParticipants.forEach((p) => {
         p.trackPublications.forEach((pub) => {
           p.unpublishTrack(pub.trackSid);
@@ -1901,10 +2006,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.remoteParticipants.clear();
       this.sidToIdentity.clear();
       this.activeSpeakers = [];
-      if (this.audioContext && typeof this.options.webAudioMix === 'boolean') {
-        this.audioContext.close();
-        this.audioContext = undefined;
-      }
+      this.releaseDummyAudioElement?.();
+      this.releaseAcquiredEmptyAudioTracks();
+      // teardown is asynchronous (processors need to release their web audio nodes), but
+      // `handleDisconnect` is not, so let it finish in the background
+      this.releaseAudioContext(retainedAudioTracks).catch((error) =>
+        this.log.warn('Could not release audio context', { ...this.logContext, error }),
+      );
       if (isWeb()) {
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
@@ -2359,38 +2467,132 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
   };
 
-  private async acquireAudioContext() {
-    if (typeof this.options.webAudioMix !== 'boolean' && this.options.webAudioMix.audioContext) {
-      // override audio context with custom audio context if supplied by user
-      this.audioContext = this.options.webAudioMix.audioContext;
-    } else if (!this.audioContext || this.audioContext.state === 'closed') {
-      // by using an AudioContext, it reduces lag on audio elements
-      // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
-      this.audioContext = getNewAudioContext() ?? undefined;
+  /**
+   * @param forConnect whether this acquisition belongs to a connect, which is the only caller
+   * allowed to put a released room back on an audio context.
+   */
+  private async acquireAudioContext(forConnect = false) {
+    const unlock = await this.audioContextMutex.lock();
+    try {
+      if (this.audioContextReleased && !forConnect) {
+        // a disconnect set the flag and took the lock while this call was queued behind it.
+        // Creating a context now would leave one open on a room nothing tears down again
+        return;
+      }
+      this.audioContextReleased = false;
+      const providedAudioContext =
+        typeof this.options.webAudioMix !== 'boolean'
+          ? this.options.webAudioMix.audioContext
+          : undefined;
+      if (providedAudioContext) {
+        // override audio context with custom audio context if supplied by user
+        await this.setRoomAudioContext(providedAudioContext, false);
+      } else if (!this.audioContext || this.audioContext.state === 'closed') {
+        // by using an AudioContext, it reduces lag on audio elements
+        // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
+        await this.setRoomAudioContext(getNewAudioContext() ?? undefined, true);
+      }
+
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        // for iOS a newly created AudioContext is always in `suspended` state.
+        // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+        try {
+          await Promise.race([this.audioContext.resume(), sleep(200)]);
+        } catch (e: any) {
+          this.log.warn('Could not resume audio context', { error: e });
+        }
+      }
+
+      const newContextIsRunning = this.audioContext?.state === 'running';
+      if (newContextIsRunning !== this.canPlaybackAudio) {
+        this.audioEnabled = newContextIsRunning;
+        this.emit(RoomEvent.AudioPlaybackStatusChanged, newContextIsRunning);
+      }
+    } finally {
+      unlock();
     }
+  }
 
-    if (this.options.webAudioMix) {
-      this.remoteParticipants.forEach((participant) =>
-        participant.setAudioContext(this.audioContext),
-      );
+  /**
+   * Points the room and its participants at `audioContext`, rebuilding the web audio graph of
+   * every audio track in it. Closes the previous context if the SDK `owned` it.
+   */
+  private async setRoomAudioContext(audioContext: AudioContext | undefined, owned: boolean) {
+    const ownsAudioContext = !!audioContext && owned;
+    if (this.audioContext === audioContext) {
+      this.ownsAudioContext = ownsAudioContext;
+      return;
     }
+    const contextToClose = this.ownsAudioContext ? this.audioContext : undefined;
+    this.audioContext = audioContext;
+    this.ownsAudioContext = ownsAudioContext;
 
-    this.localParticipant.setAudioContext(this.audioContext);
-
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      // for iOS a newly created AudioContext is always in `suspended` state.
-      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
-      try {
-        await Promise.race([this.audioContext.resume(), sleep(200)]);
-      } catch (e: any) {
-        this.log.warn('Could not resume audio context', { error: e });
+    try {
+      // every audio track rebuilds its nodes in the new context, which has to happen before the
+      // previous one is closed so that processors can move off it while it is still alive
+      if (this.options.webAudioMix) {
+        await Promise.all(
+          Array.from(this.remoteParticipants.values()).map((participant) =>
+            participant.setAudioContext(audioContext),
+          ),
+        );
+      }
+      await this.localParticipant.setAudioContext(audioContext);
+    } catch (error) {
+      // the context is being abandoned either way, so a track that failed to move off it must
+      // not stop us closing it — that would leak the context this whole path exists to release
+      this.log.warn('Could not move audio tracks to the new audio context', {
+        ...this.logContext,
+        error,
+      });
+    } finally {
+      if (contextToClose && contextToClose.state !== 'closed') {
+        try {
+          await contextToClose.close();
+        } catch (error) {
+          this.log.warn('Could not close audio context', { ...this.logContext, error });
+        }
       }
     }
+  }
 
-    const newContextIsRunning = this.audioContext?.state === 'running';
-    if (newContextIsRunning !== this.canPlaybackAudio) {
-      this.audioEnabled = newContextIsRunning;
-      this.emit(RoomEvent.AudioPlaybackStatusChanged, newContextIsRunning);
+  /**
+   * Detaches the web audio graph the SDK built from the current audio context and closes that
+   * context if the SDK created it. A context provided through `webAudioMix` is left untouched.
+   */
+  private async releaseAudioContext(retainedAudioTracks: LocalAudioTrack[] = []) {
+    // both reads happen before the first await, so they describe the room as it was when the
+    // disconnect started rather than after a reconnect has had a chance to run
+    this.audioContextReleased = true;
+    const contextToRelease = this.audioContext;
+    const unlock = await this.audioContextMutex.lock();
+    try {
+      if (!this.audioContextReleased || this.audioContext !== contextToRelease) {
+        // a reconnect acquired a new context while we were waiting, closing it would leave the
+        // reconnected room without one
+        return;
+      }
+      if (!this.ownsAudioContext) {
+        // a provided context stays open, so tracks that outlive the room stay functional on it.
+        // The tracks this room detached have released their nodes during track teardown already.
+        // read under the lock: an acquire queued behind an in-flight release flips this flag
+        return;
+      }
+      try {
+        // tracks that outlive the room aren't reachable through the local participant anymore,
+        // but still hold web audio nodes in the context we're about to close
+        await Promise.all(retainedAudioTracks.map((track) => track.setAudioContext(undefined)));
+      } catch (error) {
+        this.log.warn('Could not detach retained audio tracks from the audio context', {
+          ...this.logContext,
+          error,
+        });
+      }
+      // the participant maps have already been cleared by `handleDisconnect`, so this reaches no
+      // tracks of its own — `retainedAudioTracks` above is what detaches them
+      await this.setRoomAudioContext(undefined, false);
+    } finally {
+      unlock();
     }
   }
 
@@ -2421,7 +2623,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
     if (this.options.webAudioMix) {
-      participant.setAudioContext(this.audioContext);
+      participant
+        .setAudioContext(this.audioContext)
+        .catch((error) =>
+          this.log.warn('Could not set audio context', { ...this.logContext, error }),
+        );
     }
     if (this.options.audioOutput?.deviceId) {
       participant
@@ -2922,7 +3128,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         new LocalAudioTrack(
           publishOptions.useRealTracks && navigator.mediaDevices?.getUserMedia
             ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
-            : getEmptyAudioStreamTrack(),
+            : this.acquireEmptyAudioStreamTrack(),
           undefined,
           false,
           this.audioContext,
@@ -2965,7 +3171,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         info.tracks = [...info.tracks, videoTrack];
       }
       if (participantOptions.audio) {
-        const dummyTrack = getEmptyAudioStreamTrack();
+        const dummyTrack = this.acquireEmptyAudioStreamTrack();
         const audioTrack = new TrackInfo({
           source: TrackSource.MICROPHONE,
           sid: Math.floor(Math.random() * 10_000).toString(),
