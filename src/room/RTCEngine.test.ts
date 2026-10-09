@@ -6,11 +6,14 @@ import {
 } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { roomOptionDefaults } from './defaults';
 import { PublishDataError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
+import CriticalTimers from './timers';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -1001,6 +1004,78 @@ describe('RTCEngine', () => {
       await expect(afterRestart).resolves.toBeUndefined();
       expect(controllers[2].signal.aborted).toBe(true);
       expect(pendingAborts(engine).size).toBe(0);
+    });
+  });
+
+  describe('server-requested reconnect delay', () => {
+    // A RECONNECT or RESUME leave from the server skips any remaining backoff. It must still go
+    // through the reconnect policy, so that clients told to reconnect together spread out.
+    interface DisconnectInternals {
+      _isClosed: boolean;
+      reconnectAttempts: number;
+      handleDisconnect: (connection: string, reason?: number) => void;
+    }
+
+    function scheduledDelay(
+      nextRetryDelayInMs: ReconnectPolicy['nextRetryDelayInMs'],
+      attempts = 0,
+    ) {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: { nextRetryDelayInMs },
+      });
+      const internals = engine as unknown as DisconnectInternals;
+      internals._isClosed = false;
+      internals.reconnectAttempts = attempts;
+      const setTimeoutSpy = vi
+        .spyOn(CriticalTimers, 'setTimeout')
+        .mockReturnValue(0 as unknown as ReturnType<typeof setTimeout>);
+      internals.handleDisconnect('leave-reconnect');
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+      return setTimeoutSpy.mock.calls[0][1];
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('uses the first retry delay of the policy instead of reconnecting immediately', () => {
+      const nextRetryDelayInMs = vi.fn((context: ReconnectContext) =>
+        context.retryCount === 0 ? 321 : 5000,
+      );
+      expect(scheduledDelay(nextRetryDelayInMs)).toBe(321);
+    });
+
+    it('skips the remaining backoff when the request arrives during a later retry', () => {
+      const nextRetryDelayInMs = vi.fn((context: ReconnectContext) =>
+        context.retryCount === 0 ? 321 : 5000,
+      );
+      expect(scheduledDelay(nextRetryDelayInMs, 3)).toBe(321);
+    });
+
+    it('gives up when the policy stops on the first retry delay', () => {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: {
+          nextRetryDelayInMs: (context: ReconnectContext) =>
+            context.retryCount === 0 ? null : 5000,
+        },
+      });
+      const internals = engine as unknown as DisconnectInternals;
+      internals._isClosed = false;
+      internals.reconnectAttempts = 3;
+      const setTimeoutSpy = vi.spyOn(CriticalTimers, 'setTimeout');
+      const disconnected = vi.fn();
+      engine.on(EngineEvent.Disconnected, disconnected);
+      internals.handleDisconnect('leave-reconnect');
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      expect(disconnected).toHaveBeenCalledTimes(1);
+    });
+
+    it('spreads out clients that use the default policy', () => {
+      const defaultPolicy = new DefaultReconnectPolicy();
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      expect(scheduledDelay((context) => defaultPolicy.nextRetryDelayInMs(context))).toBe(250);
     });
   });
 });
