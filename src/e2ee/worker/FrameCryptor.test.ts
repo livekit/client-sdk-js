@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
 import { appendPacketTrailer, extractPacketTrailer } from '../../frameMetadata/frameMetadata';
 import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
+import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
@@ -71,12 +73,14 @@ function prepareParticipantTestEncoder(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
   packetTrailer?: FrameMetadataPublishOptions,
+  codec?: VideoCodec,
 ) {
   return prepareParticipantTest(
     'encode',
     participantIdentity,
     partialKeyProviderOptions,
     packetTrailer,
+    codec,
   );
 }
 
@@ -85,6 +89,7 @@ function prepareParticipantTest(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
   packetTrailer?: FrameMetadataPublishOptions,
+  codec?: VideoCodec,
 ): {
   keys: ParticipantKeyHandler;
   cryptor: FrameCryptor;
@@ -110,7 +115,7 @@ function prepareParticipantTest(
     new ReadableStream(input),
     new WritableStream(output),
     'testTrack',
-    undefined,
+    codec,
     packetTrailer,
   );
 
@@ -229,6 +234,45 @@ describe('FrameCryptor', () => {
         // key index
         expect(frameTrailer[1]).toEqual(1);
       } finally {
+        vitest.useRealTimers();
+      }
+    });
+
+    it('logs the frame bytes once when NALU processing fails', async () => {
+      vitest.useFakeTimers();
+      const warn = vitest.spyOn(workerLogger, 'warn');
+      try {
+        const { keys, input, output } = prepareParticipantTestEncoder(
+          participantIdentity,
+          {},
+          undefined,
+          'h264',
+        );
+
+        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+        // No start code at offset 0, so findNALUIndices throws 'byte stream contains
+        // leading data' and the cryptor falls back to VP8 handling.
+        input.write(mockRTCEncodedVideoFrame(new Uint8Array([9, 9, 9, 9, 1, 2, 3, 4, 5, 6, 7, 8])));
+        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+        expect(warn).toHaveBeenCalledWith(
+          'NALU processing failed, falling back to VP8 handling',
+          expect.objectContaining({
+            detectedCodec: 'h264',
+            frameType: 'key',
+            byteLength: 12,
+            firstBytes: expect.stringMatching(/^09 09 09 09 /),
+          }),
+        );
+
+        // same payload type, so the once-per-tuple guard must suppress the second log
+        input.write(mockRTCEncodedVideoFrame(new Uint8Array([8, 8, 8, 8, 1, 2, 3, 4, 5, 6, 7, 8])));
+        await vitest.waitFor(() => expect(output.chunks).toHaveLength(2));
+
+        expect(warn).toHaveBeenCalledTimes(1);
+      } finally {
+        warn.mockRestore();
         vitest.useRealTimers();
       }
     });
