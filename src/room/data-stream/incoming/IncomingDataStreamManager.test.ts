@@ -679,6 +679,37 @@ describe('IncomingDataStreamManager', () => {
         'Participant alice unexpectedly disconnected in the middle of sending data',
       );
     });
+
+    it('should error in flight streams when the controllers are cleared on room disconnect', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const textReaderPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      const byteReaderPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new Uint8Array([0x68, 0x69])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(headerPacket('byte-1', 'byteHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('byte-1', 0, new Uint8Array([0x01])),
+        Encryption_Type.NONE,
+      );
+
+      // Room#handleDisconnect calls this while the streams are still open
+      manager.clearControllers();
+
+      const textReader = await textReaderPromise;
+      const byteReader = await byteReaderPromise;
+      await expect(textReader.readAll()).rejects.toThrow('Room disconnected');
+      await expect(byteReader.readAll()).rejects.toThrow('Room disconnected');
+    });
   });
 
   describe('Receiving v2 data streams', () => {
