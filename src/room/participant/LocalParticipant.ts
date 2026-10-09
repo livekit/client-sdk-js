@@ -32,6 +32,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
+import DeviceManager from '../DeviceManager';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
@@ -96,11 +97,14 @@ import {
 import {
   Future,
   isAudioTrack,
+  isChromiumBased,
+  isDeviceAcquisitionFailure,
   isE2EESimulcastSupported,
   isFireFox,
   isLocalAudioTrack,
   isLocalTrack,
   isLocalVideoTrack,
+  isPermissionDeniedError,
   isSVCCodec,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
@@ -2140,8 +2144,7 @@ export default class LocalParticipant extends Participant {
             getLogContextFromTrack(track),
           );
           if (isLocalAudioTrack(track)) {
-            // fall back to default device if available
-            await track.restartTrack({ deviceId: 'default' });
+            await this.restartOnDefaultAudioDevice(track);
           } else {
             await track.restartTrack();
           }
@@ -2152,6 +2155,34 @@ export default class LocalParticipant extends Participant {
       }
     }
   };
+
+  /**
+   * @internal
+   */
+  private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
+    try {
+      if (isChromiumBased()) {
+        // only chrome has the notion of a literal `default` device
+        await track.setDeviceId({ exact: 'default' });
+      } else {
+        // just try to restart for other browsers and try to change the device id as a fallback in the catch clause
+        await track.restartTrack();
+      }
+    } catch (e) {
+      // restart() clears the manually-stopped flag on entry, so retrying a track the user stopped
+      // while the first attempt was in flight would re-open the capture device behind their back
+      if (!isDeviceAcquisitionFailure(e) || isPermissionDeniedError(e) || track.isStopped) {
+        throw e;
+      }
+      this.log.debug(
+        'could not reacquire the audio device, retrying with an enumerated device',
+        getLogContextFromTrack(track),
+      );
+      // permission is already granted at this point, so skip the probe that would re-acquire media
+      const allDevices = await DeviceManager.getInstance().getDevices('audioinput', false);
+      await track.setDeviceId(allDevices?.[0]?.deviceId ?? 'default');
+    }
+  }
 
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack,

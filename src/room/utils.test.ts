@@ -13,6 +13,7 @@ import {
   isCompressionStreamSupported,
   isDeflateRawCompressionSupported,
   isIPadOS,
+  isPermissionDeniedError,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
@@ -489,5 +490,33 @@ describe('isDeflateRawCompressionSupported', () => {
     } finally {
       (globalThis as any).CompressionStream = originalCompressionStream;
     }
+  });
+});
+
+describe('isPermissionDeniedError', () => {
+  function errorNamed(name: string) {
+    const e = new Error(name);
+    e.name = name;
+    return e;
+  }
+
+  it('matches the permission denial names and their legacy aliases', () => {
+    expect(isPermissionDeniedError(errorNamed('NotAllowedError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('SecurityError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('PermissionDeniedError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('PermissionDismissedError'))).toBe(true);
+  });
+
+  it('does not match failures that a softer constraint could still satisfy', () => {
+    expect(isPermissionDeniedError(errorNamed('OverconstrainedError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('ConstraintNotSatisfiedError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('NotFoundError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('SomeNameNobodyHasShippedYet'))).toBe(false);
+  });
+
+  it('does not match a plain error, undefined or null', () => {
+    expect(isPermissionDeniedError(new Error('boom'))).toBe(false);
+    expect(isPermissionDeniedError(undefined)).toBe(false);
+    expect(isPermissionDeniedError(null)).toBe(false);
   });
 });

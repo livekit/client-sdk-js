@@ -751,6 +751,43 @@ export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong
   throw Error('could not unwrap constraint');
 }
 
+/**
+ * The getUserMedia rejections that no softer constraint can recover from, because the user or the
+ * document refused capture outright. Retrying one of these would put a second prompt in front of
+ * someone who already said no. The last two names are legacy spellings still reported by older
+ * engines. Matched by `name` rather than with `instanceof`, because these are not reliably distinct
+ * constructors across environments. happy-dom, which the tests run under, aliases them to `Event`.
+ */
+export function isPermissionDeniedError(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'name' in e &&
+    (e.name === 'NotAllowedError' ||
+      e.name === 'SecurityError' ||
+      e.name === 'PermissionDeniedError' ||
+      e.name === 'PermissionDismissedError')
+  );
+}
+
+const deviceAcquisitionFailures = new WeakSet();
+
+/** Records that `e` is the rejection getUserMedia itself produced. */
+export function markDeviceAcquisitionFailure(e: unknown) {
+  if (typeof e === 'object' && e !== null) {
+    deviceAcquisitionFailures.add(e);
+  }
+}
+
+/**
+ * Whether a track restart failed at getUserMedia rather than in the work that adopts the new track.
+ * Recorded on the side rather than by wrapping, because callers of `restartTrack` match on the
+ * rejection's own name.
+ */
+export function isDeviceAcquisitionFailure(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && deviceAcquisitionFailures.has(e);
+}
+
 export function toWebsocketUrl(url: string): string {
   if (url.startsWith('http')) {
     return url.replace(/^(http)/, 'ws');
