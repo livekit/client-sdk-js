@@ -6,14 +6,14 @@ const maxRetryDelay = 7000;
  * Upper bound of the random delay added to the first retry, whose base delay is 0. It keeps a
  * brief network blip recovering quickly while spreading out clients that disconnect together.
  */
-const maxFirstRetryJitterInMs = 1_000;
+const maxFirstRetryJitterInMs = 500;
 
 const DEFAULT_RETRY_DELAYS_IN_MS = [
   0,
-  3_000,
-  5_000,
-  maxRetryDelay,
-  maxRetryDelay,
+  300,
+  2 * 2 * 300,
+  3 * 3 * 300,
+  4 * 4 * 300,
   maxRetryDelay,
   maxRetryDelay,
   maxRetryDelay,

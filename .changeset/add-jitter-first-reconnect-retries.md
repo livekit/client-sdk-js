@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Add jitter to the first reconnect retry and scale it with the delay on later retries in the default reconnect policy, so clients that disconnect together do not reconnect at the same time. The second and third retries now wait about 3 and 5 seconds instead of 0.3 and 1.2 seconds.
+Add jitter to reconnect retries in the default reconnect policy, including the first retry and reconnects requested by the server, so clients that disconnect together don't reconnect at the same time. The first retry waits a random 0 to 500 ms, and later retries scale their existing base delays by a random factor between 0.5 and 1.5.

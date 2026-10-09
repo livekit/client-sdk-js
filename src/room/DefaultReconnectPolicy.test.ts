@@ -14,17 +14,17 @@ describe('DefaultReconnectPolicy', () => {
   it('spreads the first retry over a window instead of retrying immediately', () => {
     const policy = new DefaultReconnectPolicy();
     expect(delayFor(policy, 0, 0)).toBe(0);
-    expect(delayFor(policy, 0, 0.5)).toBe(500);
-    expect(delayFor(policy, 0, 0.999)).toBeGreaterThan(900);
-    expect(delayFor(policy, 0, 0.999)).toBeLessThan(1000);
+    expect(delayFor(policy, 0, 0.5)).toBe(250);
+    expect(delayFor(policy, 0, 0.999)).toBeGreaterThan(450);
+    expect(delayFor(policy, 0, 0.999)).toBeLessThan(500);
   });
 
   it('scales the jitter of later retries with the delay', () => {
     const policy = new DefaultReconnectPolicy();
-    expect(delayFor(policy, 1, 0)).toBe(1500);
-    expect(delayFor(policy, 1, 0.5)).toBe(3000);
-    expect(delayFor(policy, 2, 0)).toBe(2500);
-    expect(delayFor(policy, 2, 0.5)).toBe(5000);
+    expect(delayFor(policy, 1, 0)).toBe(150);
+    expect(delayFor(policy, 1, 0.5)).toBe(300);
+    expect(delayFor(policy, 2, 0)).toBe(600);
+    expect(delayFor(policy, 2, 0.5)).toBe(1200);
     expect(delayFor(policy, 9, 0)).toBe(3500);
     expect(delayFor(policy, 9, 0.999)).toBeLessThan(10500);
   });
