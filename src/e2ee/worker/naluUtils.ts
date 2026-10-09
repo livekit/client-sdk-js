@@ -323,8 +323,10 @@ export function processNALUsForEncryption(
   // The bytes outrank knownCodec, which can be the codec the client asked for rather than the
   // one that was negotiated. Parsing the wrong one mis-slices without raising anything: the
   // offset lands before the real slice header, so the header itself gets encrypted.
-  const codecFromNALUs = detectCodecFromNALUs(data, naluIndices);
-  const detectedCodec = codecFromNALUs === 'unknown' ? (knownCodec ?? 'unknown') : codecFromNALUs;
+  let detectedCodecs = detectCodecFromNALUs(data, naluIndices);
+  if (detectedCodecs === 'unknown') {
+    detectedCodecs = knownCodec ?? 'unknown';
+  }
 
   if (detectedCodec === 'unknown') {
     return { unencryptedBytes: 0, detectedCodec, requiresNALUProcessing: false };
