@@ -1551,7 +1551,63 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    // A full reconnect (e.g. a server leave with action RECONNECT) closes the transports polled
+    // here; follow its outcome instead of timing out on them and failing a recovered connection.
+    const transportWait = new AbortController();
+    const stopTransportWait = () => transportWait.abort();
+    let restart: Promise<void> | undefined;
+    const onRestarting = () => {
+      restart = this.waitForRestartOutcome(abortController);
+      // Awaited only once the transport wait settles; keep an earlier failure from going unhandled.
+      restart.catch(() => {});
+      stopTransportWait();
+    };
+    if (abortController?.signal.aborted) {
+      stopTransportWait();
+    }
+    abortController?.signal.addEventListener('abort', stopTransportWait);
+    this.once(EngineEvent.Restarting, onRestarting);
+    try {
+      await this.pcManager.ensurePCTransportConnection(transportWait, timeout);
+    } catch (e) {
+      if (!restart) {
+        throw e;
+      }
+    } finally {
+      abortController?.signal.removeEventListener('abort', stopTransportWait);
+      this.off(EngineEvent.Restarting, onRestarting);
+    }
+    await restart;
+  }
+
+  private waitForRestartOutcome(abortController?: AbortController) {
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        this.off(EngineEvent.Restarted, onRestarted);
+        this.off(EngineEvent.Disconnected, onFailed);
+        this.off(EngineEvent.Closing, onFailed);
+        abortController?.signal.removeEventListener('abort', onAbort);
+      };
+      const onRestarted = () => {
+        cleanup();
+        resolve();
+      };
+      const onFailed = () => {
+        cleanup();
+        reject(ConnectionError.internal('could not establish pc connection'));
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(ConnectionError.cancelled('room connection has been cancelled'));
+      };
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Disconnected, onFailed);
+      this.once(EngineEvent.Closing, onFailed);
+      abortController?.signal.addEventListener('abort', onAbort);
+      if (abortController?.signal.aborted) {
+        onAbort();
+      }
+    });
   }
 
   private async waitForPCReconnected() {
