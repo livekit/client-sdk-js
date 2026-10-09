@@ -55,7 +55,16 @@ export class LossyDataChannel extends FlowControlledDataChannel {
     switch (this.bufferFullBehavior) {
       case 'wait':
         if (!this.isBelowHighWaterMark(dc)) {
-          await this.waitForHeadroomWithLock();
+          try {
+            await this.waitForHeadroomWithLock(dc);
+          } catch (error) {
+            if (this.isEngineClosed()) {
+              throw error;
+            }
+            // The channel closed or was replaced while this send waited. The replacement may
+            // still be connecting, so drop the packet, as sends during a reconnect are.
+            return;
+          }
         }
         break;
       case 'drop':

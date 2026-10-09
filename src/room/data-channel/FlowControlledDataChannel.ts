@@ -30,7 +30,8 @@ export interface FlowControlledDataChannelOptions {
  * Waiters are parked on the channel object captured at wait entry. If that object stops being
  * current — replaced or torn down — its events may never fire again, so the owner must call
  * {@link invalidateWaiters}, which aborts parked waiters (releasing the gate); the next waiter
- * gets a fresh controller.
+ * gets a fresh controller. {@link attach} and {@link detach} do this, and close the released
+ * handle, as part of handle turnover.
  */
 export class FlowControlledDataChannel {
   readonly kind: DataChannelKind;
@@ -67,25 +68,39 @@ export class FlowControlledDataChannel {
   }
 
   /**
-   * Attaches the channel handle this wrapper controls. Replacing an existing handle rejects
-   * parked waiters — their events would never fire again on the abandoned object — and installs a
-   * fresh controller, so queued senders re-check against the new channel. Wrappers outlive their
-   * handles: this is the one place handle turnover happens, which is what makes stranding a
-   * waiter structurally impossible.
+   * Attaches the channel handle this wrapper controls. Replacing an existing handle closes it and
+   * rejects parked waiters — their events would never fire again on the abandoned object — and
+   * installs a fresh controller. Wrappers outlive their handles: this is the one place handle
+   * turnover happens, so a handle the wrapper lets go of is never left open, and stranding a
+   * waiter is structurally impossible.
    */
   attach(dc: RTCDataChannel) {
-    if (this.handle && this.handle !== dc) {
-      this.invalidateWaiters('data channel replaced');
-    }
+    const old = this.handle;
     this.handle = dc;
+    if (old && old !== dc) {
+      this.release(old, 'data channel replaced');
+    }
   }
 
-  /** Detaches the handle on teardown, rejecting parked waiters. */
+  /** Detaches and closes the handle on teardown, rejecting parked waiters. */
   detach(reason: string = 'data channel torn down') {
-    if (this.handle) {
-      this.invalidateWaiters(reason);
-    }
+    const old = this.handle;
     this.handle = undefined;
+    if (old) {
+      this.release(old, reason);
+    }
+  }
+
+  /**
+   * Closes a handle the wrapper no longer controls. `close()` moves it to `closing` synchronously,
+   * so senders still holding it (queued on the headroom lock) fail the open check once they get
+   * the lock. Parked waiters are aborted directly instead of relying on the `close` event, which
+   * fires asynchronously, if at all (the spec lets `pc.close()` skip it). Strip any handlers that
+   * must not observe the close before calling this.
+   */
+  private release(dc: RTCDataChannel, reason: string) {
+    this.invalidateWaiters(reason);
+    dc.close();
   }
 
   protected getChannel(): RTCDataChannel | undefined {
@@ -121,30 +136,33 @@ export class FlowControlledDataChannel {
   }
 
   /**
-   * Resolves once the caller may send on this channel: immediately while the send buffer is at or
-   * below its high-water mark, otherwise once the buffer has drained to the low-water mark (the
+   * Resolves once the caller may send on `dc`: immediately while its send buffer is at or below
+   * the high-water mark, otherwise once the buffer has drained to the low-water mark (the
    * `bufferedamountlow` event). Callers are serialized through the headroom lock so that, when
    * the buffer drains, they refill it one at a time (up to the high-water mark) rather than all
    * sending at once and overflowing the SCTP send buffer (see livekit/client-sdk-js#1995). The
-   * closed/buffer checks run inside the lock so queued callers proceed in FIFO order.
+   * checks run inside the lock so queued callers proceed in FIFO order.
+   *
+   * The caller passes the handle it resolved before queueing, and the wait is against that one
+   * handle throughout: if it was replaced meanwhile, it has been closed, so the wait rejects
+   * rather than letting the caller send on the replacement out of turn.
    */
-  async waitForHeadroomWithLock() {
+  async waitForHeadroomWithLock(dc: RTCDataChannel) {
     const unlock = await this.lockHeadroom();
     try {
-      await this.waitForHeadroomWithoutLock();
+      await this.waitForHeadroomWithoutLock(dc);
     } finally {
       unlock();
     }
   }
 
   /** Core wait of {@link waitForHeadroomWithLock}. The caller must hold the headroom lock. */
-  async waitForHeadroomWithoutLock() {
+  async waitForHeadroomWithoutLock(dc: RTCDataChannel) {
     if (this.isEngineClosed()) {
       throw new UnexpectedConnectionState('engine closed');
     }
-    const dc = this.getChannel();
-    if (!dc) {
-      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+    if (dc.readyState !== 'open') {
+      throw new UnexpectedConnectionState(`DataChannel ${this.kind} is ${dc.readyState}`);
     }
     if (this.isBelowHighWaterMark(dc)) {
       return;

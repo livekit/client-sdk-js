@@ -899,6 +899,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
+    if (this.dataChannels.hasPublisherChannels) {
+      // Replacing live channels (the Safari null-id path in resumeConnection): the new ones start
+      // out connecting, so drop the memoized readiness check and make the next sender wait for
+      // them to open.
+      this.publisherConnectionPromise = undefined;
+    }
     this.dataChannels.createPublisherChannels(this.pcManager);
   }
 
@@ -1693,7 +1699,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * {@link FlowControlledDataChannel.waitForHeadroomWithLock}.
    */
   async waitForBufferHeadroom(kind: DataChannelKind) {
-    return this.flowControlFor(kind).waitForHeadroomWithLock();
+    const dc = this.dataChannelForKind(kind);
+    if (!dc) {
+      throw new UnexpectedConnectionState(`DataChannel not found, kind: ${kind}`);
+    }
+    return this.flowControlFor(kind).waitForHeadroomWithLock(dc);
   }
 
   /**
