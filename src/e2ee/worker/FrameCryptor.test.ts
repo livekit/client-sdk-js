@@ -233,6 +233,81 @@ describe('FrameCryptor', () => {
       }
     });
 
+    describe('H.264 start codes (#2140)', () => {
+      const sps = [0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9];
+      const pps = [0x68, 0xee, 0x3c, 0xb0];
+      const idr = [0x65, 0x88, 0x84, 0x21, 0x43, 0x55, 0x66, 0x77];
+
+      async function encryptAndDecrypt(plainTextData: NonSharedUint8Array) {
+        const encoder = prepareParticipantTestEncoder(participantIdentity, {});
+        await encoder.keys.setKey(await createKeyMaterialFromString('key1'), 1);
+        const encrypted = mockRTCEncodedVideoFrame(plainTextData);
+        encoder.input.write(encrypted);
+        await vitest.waitFor(() => expect(encoder.output.chunks).toHaveLength(1));
+        const encryptedData = new Uint8Array(encrypted.data.slice(0));
+
+        const decoder = prepareParticipantTestDecoder(participantIdentity, {});
+        await decoder.keys.setKey(await createKeyMaterialFromString('key1'), 1);
+        const decrypted = mockRTCEncodedVideoFrame(new Uint8Array(encryptedData));
+        decoder.input.write(decrypted);
+        await vitest.waitFor(() => expect(decoder.output.chunks).toHaveLength(1));
+
+        return { encryptedData, decryptedData: new Uint8Array(decrypted.data) };
+      }
+
+      it('rewrites 3-byte start codes in the unencrypted header to 4-byte start codes', async () => {
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array([0, 0, 1, ...sps, 0, 0, 1, ...pps, 0, 0, 1, ...idr]),
+        );
+
+        // The unencrypted header runs through the first 2 bytes of the slice NALU.
+        const expectedHeader = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, 0x65, 0x88];
+        expect(Array.from(encryptedData.subarray(0, expectedHeader.length))).toEqual(
+          expectedHeader,
+        );
+        expect(Array.from(decryptedData)).toEqual([
+          0,
+          0,
+          0,
+          1,
+          ...sps,
+          0,
+          0,
+          0,
+          1,
+          ...pps,
+          0,
+          0,
+          0,
+          1,
+          ...idr,
+        ]);
+      });
+
+      it('rewrites a 3-byte start code on a delta frame', async () => {
+        const pSlice = [0x41, 0x9a, 0x21, 0x43, 0x55, 0x66];
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array([0, 0, 1, ...pSlice]),
+        );
+
+        expect(Array.from(encryptedData.subarray(0, 6))).toEqual([0, 0, 0, 1, 0x41, 0x9a]);
+        expect(Array.from(decryptedData)).toEqual([0, 0, 0, 1, ...pSlice]);
+      });
+
+      it('leaves 4-byte start codes in the unencrypted header unchanged', async () => {
+        const plainTextData = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, ...idr];
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array(plainTextData),
+        );
+
+        const expectedHeader = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, 0x65, 0x88];
+        expect(Array.from(encryptedData.subarray(0, expectedHeader.length))).toEqual(
+          expectedHeader,
+        );
+        expect(Array.from(decryptedData)).toEqual(plainTextData);
+      });
+    });
+
     it('appends packet trailer after encryption', async () => {
       vitest.useFakeTimers();
       const now = new Date('2025-04-10T12:00:00.123Z');

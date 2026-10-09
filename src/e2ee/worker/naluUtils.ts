@@ -327,3 +327,40 @@ export function processNALUsForEncryption(
 
   return { unencryptedBytes, detectedCodec, requiresNALUProcessing: true };
 }
+
+/**
+ * Rewrite every 3-byte Annex B start code (00 00 01) in `data` to the 4-byte form (00 00 00 01).
+ *
+ * WebRTC's H.264/H.265 depacketizer always reconstructs NALUs with 4-byte start codes, regardless
+ * of what the encoder emitted. Some encoders (e.g. Intel Quick Sync) emit 3-byte start codes, so
+ * the unencrypted header a receiver sees would differ from what the sender authenticated as
+ * AES-GCM additionalData. Normalizing on the sender makes both sides agree.
+ *
+ * Returns `data` unchanged (same instance) when it contains no 3-byte start codes.
+ */
+export function normalizeAnnexBStartCodes(data: NonSharedUint8Array): NonSharedUint8Array {
+  const isShortStartCode = (i: number) =>
+    data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1 && (i === 0 || data[i - 1] !== 0);
+
+  let shortStartCodes = 0;
+  for (let i = 0; i + 2 < data.length; i++) {
+    if (isShortStartCode(i)) {
+      shortStartCodes += 1;
+    }
+  }
+  if (shortStartCodes === 0) {
+    return data;
+  }
+
+  const result = new Uint8Array(data.length + shortStartCodes);
+  let out = 0;
+  for (let i = 0; i < data.length; i++) {
+    if (i + 2 < data.length && isShortStartCode(i)) {
+      result[out] = 0;
+      out += 1;
+    }
+    result[out] = data[i];
+    out += 1;
+  }
+  return result;
+}
