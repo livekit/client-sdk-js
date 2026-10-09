@@ -1223,7 +1223,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // The server asked for a reconnect, so skip any remaining backoff. Use the policy's first
       // retry delay instead of 0 so that clients told to reconnect together don't all reconnect
       // at the same instant.
-      delay = this.getNextRetryDelay({ elapsedMs: duration, retryCount: 0 }) ?? 0;
+      delay = this.getNextRetryDelay({ elapsedMs: duration, retryCount: 0 });
+      if (delay === null) {
+        disconnect(duration);
+        return;
+      }
     }
 
     this.log.debug(`reconnecting in ${delay}ms`);

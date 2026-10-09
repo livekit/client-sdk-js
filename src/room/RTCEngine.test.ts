@@ -1053,6 +1053,25 @@ describe('RTCEngine', () => {
       expect(scheduledDelay(nextRetryDelayInMs, 3)).toBe(321);
     });
 
+    it('gives up when the policy stops on the first retry delay', () => {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: {
+          nextRetryDelayInMs: (context: ReconnectContext) =>
+            context.retryCount === 0 ? null : 5000,
+        },
+      });
+      const internals = engine as unknown as DisconnectInternals;
+      internals._isClosed = false;
+      internals.reconnectAttempts = 3;
+      const setTimeoutSpy = vi.spyOn(CriticalTimers, 'setTimeout');
+      const disconnected = vi.fn();
+      engine.on(EngineEvent.Disconnected, disconnected);
+      internals.handleDisconnect('leave-reconnect');
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      expect(disconnected).toHaveBeenCalledTimes(1);
+    });
+
     it('spreads out clients that use the default policy', () => {
       const defaultPolicy = new DefaultReconnectPolicy();
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
