@@ -214,5 +214,12 @@ export function truncateBytes(str: string, maxBytes: number): string {
     }
   }
 
+  // Never end on the first half of a surrogate pair: it would be encoded as a replacement
+  // character, and the truncated string would no longer round trip.
+  const lastCode = low > 0 ? str.charCodeAt(low - 1) : 0;
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+    low -= 1;
+  }
+
   return str.slice(0, low);
 }
