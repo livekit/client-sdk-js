@@ -583,11 +583,11 @@ export default class LocalParticipant extends Participant {
           throw e;
         }
 
+        const opts: TrackPublishOptions = {
+          ...this.roomOptions.publishDefaults,
+          ...publishOptions,
+        };
         for (const localTrack of localTracks) {
-          const opts: TrackPublishOptions = {
-            ...this.roomOptions.publishDefaults,
-            ...options,
-          };
           if (
             source === Track.Source.Microphone &&
             isAudioTrack(localTrack) &&
