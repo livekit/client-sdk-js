@@ -91,11 +91,6 @@ export function supportsVP9(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
   }
-  if (isFireFox()) {
-    // technically speaking FireFox supports VP9, but SVC publishing is broken
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
-    return false;
-  }
   if (isSafari()) {
     const browser = getBrowser();
     if (browser?.version && compareVersions(browser.version, '16') < 0) {
