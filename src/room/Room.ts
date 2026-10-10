@@ -227,6 +227,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private isResuming: boolean = false;
 
+  /**
+   * Identities seen in participant updates since the current resume started, or `undefined` when
+   * no resume is in progress. A resume — unlike a full reconnect — never rebuilds the roster from
+   * a `JoinResponse`, and `DISCONNECTED` updates for participants who left while the signal link
+   * was down went to a socket we no longer had. The server replays the roster after the
+   * `ReconnectResponse`, but it can interleave batched updates around it, so no single update is
+   * identifiable as the snapshot — we accumulate the union and reconcile once the resume settles.
+   */
+  private resumeSeenIdentities?: Set<string>;
+
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
 
   /**
@@ -636,6 +646,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
         this.isResuming = true;
+        this.resumeSeenIdentities = new Set();
         this.log.debug('Resuming signal connection');
         if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
           this.emit(RoomEvent.SignalReconnecting);
@@ -645,6 +656,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.registerConnectionReconcile();
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
+        this.reconcileParticipantsAfterResume();
         this.updateSubscriptions();
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
@@ -1795,6 +1807,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.clearConnectionReconcile();
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
+    // a full reconnect rebuilds the roster from the JoinResponse, so the abandoned resume's
+    // partial view of it must not be applied afterwards
+    this.resumeSeenIdentities = undefined;
 
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
@@ -1842,6 +1857,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
     this.isResuming = false;
+    this.resumeSeenIdentities = undefined;
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
     this.incomingDataStreamManager.clearControllers();
@@ -1931,6 +1947,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         info.identity = this.sidToIdentity.get(info.sid) ?? '';
       }
 
+      this.resumeSeenIdentities?.add(info.identity);
+
       let remoteParticipant = this.remoteParticipants.get(info.identity);
 
       // when it's disconnected, send updates
@@ -1958,6 +1976,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
     this.incomingDataTrackManager.receiveSfuPublicationUpdates(mapped);
   };
+
+  /**
+   * Synthesizes disconnects for remote participants that the server didn't mention in any
+   * participant update during a resume — they left while the signal connection was down, so their
+   * `DISCONNECTED` update never reached us. Called before `RoomEvent.Reconnected` is emitted so
+   * consumers never observe a reconnected room with a stale roster.
+   */
+  private reconcileParticipantsAfterResume() {
+    const seenIdentities = this.resumeSeenIdentities;
+    this.resumeSeenIdentities = undefined;
+    if (!seenIdentities) {
+      return;
+    }
+
+    for (const [identity, participant] of [...this.remoteParticipants]) {
+      if (!seenIdentities.has(identity)) {
+        this.log.debug(
+          `removing participant ${identity} absent from the roster replayed after resume`,
+          this.logContext,
+        );
+        this.handleParticipantDisconnected(identity, participant);
+      }
+    }
+  }
 
   private handleParticipantDisconnected(
     identity: string,
