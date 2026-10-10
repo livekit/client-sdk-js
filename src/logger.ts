@@ -50,6 +50,80 @@ livekitLogger.setDefaultLevel(LogLevel.info);
 export default livekitLogger as StructuredLogger;
 
 /**
+ * @internal Receives every warn/error line of the SDK's loggers whatever their console level
+ * (telemetry). The console gets what it got before; the devtools call site becomes the forwarder.
+ */
+export type LogCapture = (
+  level: LogLevel,
+  msg: unknown,
+  context?: object,
+  loggerName?: string,
+) => void;
+
+let logCapture: LogCapture | undefined;
+
+/**
+ * @internal The object a line is about (a Room's telemetry scope), carried through the structured
+ * context without being enumerable: the console and log extensions see the context as before.
+ */
+export const LOG_OWNER: unique symbol = Symbol('livekit.logOwner');
+
+/** @internal */
+export function setLogCapture(capture?: LogCapture) {
+  logCapture = capture;
+}
+
+const captured = new WeakSet<log.Logger>();
+
+type CapturedMethod = ((...args: unknown[]) => void) & { lkForwards?: boolean };
+
+function forwarder(logger: log.Logger, method: 'warn' | 'error'): CapturedMethod {
+  const real = logger[method] as CapturedMethod;
+  if (real.lkForwards) return real;
+  const name = (logger as { name?: string }).name;
+  const forward: CapturedMethod = (...args) => {
+    try {
+      const context = typeof args[1] === 'object' && args[1] !== null ? args[1] : undefined;
+      // Whatever path a context took here, the console never lists the owner.
+      if (context && Object.getOwnPropertyDescriptor(context, LOG_OWNER)?.enumerable) {
+        Object.defineProperty(context, LOG_OWNER, { enumerable: false });
+      }
+      logCapture?.(LogLevel[method], args[0], context, name);
+    } catch {
+      // telemetry never breaks logging
+    }
+    real(...args); // the original call, argument for argument
+  };
+  forward.lkForwards = true;
+  return forward;
+}
+
+// loglevel assigns `warn`/`error` anew on every `setLevel` (a noop below the level), so the
+// forwarder is re-applied after each `setLevel` and runs before whatever loglevel assigned.
+function captureWarnings(logger: log.Logger) {
+  if (captured.has(logger)) return;
+  captured.add(logger);
+  const wrap = () => {
+    logger.warn = forwarder(logger, 'warn');
+    logger.error = forwarder(logger, 'error');
+  };
+  // `setLevel`, `resetLevel` and `rebuild` all reassign the methods.
+  const target = logger as unknown as Record<string, (...args: unknown[]) => unknown>;
+  for (const name of ['setLevel', 'resetLevel', 'rebuild']) {
+    const original = target[name];
+    if (typeof original !== 'function') continue;
+    target[name] = (...args: unknown[]) => {
+      const result = original.apply(logger, args);
+      wrap();
+      return result;
+    };
+  }
+  wrap();
+}
+
+livekitLoggers.forEach(captureWarnings);
+
+/**
  * @internal
  *
  * Get a named logger. When `ctxFn` is supplied, every log call
@@ -64,6 +138,7 @@ export default livekitLogger as StructuredLogger;
 export function getLogger(name: string, ctxFn?: ContextProvider) {
   const logger = log.getLogger(name);
   logger.setDefaultLevel(livekitLogger.getLevel());
+  captureWarnings(logger);
   if (!ctxFn) {
     return logger as StructuredLogger;
   }
@@ -78,6 +153,9 @@ function wrapWithContext(base: StructuredLogger, ctxFn: ContextProvider): Struct
   const wrap = (method: LogMethod) => (msg: string, extra?: object) => {
     const ctx = ctxFn();
     const merged = ctx || extra ? { ...ctx, ...extra } : undefined;
+    const owner = (ctx as Record<symbol, unknown> | undefined)?.[LOG_OWNER];
+    if (merged && owner)
+      Object.defineProperty(merged, LOG_OWNER, { value: owner, enumerable: false });
     base[method](msg, merged);
   };
 

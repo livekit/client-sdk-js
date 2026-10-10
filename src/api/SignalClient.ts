@@ -225,6 +225,9 @@ export class SignalClient {
 
   onTokenRefresh?: (token: string) => void;
 
+  /** @internal The WebSocket upgrade completed (telemetry's `ws_open` checkpoint). */
+  onWebSocketOpen?: () => void;
+
   onLeave?: (leave: LeaveRequest) => void;
 
   onRequestResponse?: (response: RequestResponse) => void;
@@ -579,6 +582,7 @@ export class SignalClient {
           if (!connection) {
             return;
           }
+          this.onWebSocketOpen?.();
           const signalReader = connection.readable.getReader();
           this.streamWriter = connection.writable.getWriter();
 

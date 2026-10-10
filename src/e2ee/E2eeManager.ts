@@ -3,7 +3,14 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
 import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
-import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
+import {
+  LOG_OWNER,
+  LogLevel,
+  LoggerNames,
+  getLogger,
+  onWorkerLogLevelChanged,
+  workerLogger,
+} from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -22,6 +29,7 @@ import {
   isScriptTransformSupportedForWorker,
   isVideoTrack,
 } from '../room/utils';
+import { telemetry } from '../telemetry';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG, E2EE_TRACK_ID } from './constants';
@@ -97,6 +105,7 @@ export class E2EEManager
     return {
       room: this.room?.name,
       participant: this.room?.localParticipant.identity,
+      [LOG_OWNER]: this.room ? telemetry.carrier(telemetry.scopeOf(this.room)) : undefined,
     };
   }
 
