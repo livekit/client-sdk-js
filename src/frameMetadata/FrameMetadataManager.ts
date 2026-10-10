@@ -5,6 +5,7 @@ import { RoomEvent } from '../room/events';
 import { FrameMetadataExtractor } from '../room/track/FrameMetadataExtractor';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import RemoteVideoTrack from '../room/track/RemoteVideoTrack';
+import { WeakRefPolyfill } from '../utils/weak-ref-polyfill';
 import type { PTDecodeMessage, PTUpdateTrackIdMessage, PTWorkerMessage } from './types';
 import { isFrameMetadataSupported, shouldUseFrameMetadataScriptTransform } from './utils';
 
@@ -37,7 +38,17 @@ export interface FrameMetadataOptions {
 export class FrameMetadataManager {
   private worker?: Worker;
 
-  private room?: Room;
+  /**
+   * Held as a weak reference to break the reference cycle between Room and this
+   * manager (`Room.frameMetadataManager` -> FrameMetadataManager -> Room).
+   * Without this, a Room could not be garbage collected once it constructed
+   * a FrameMetadataManager. Access via the `room` getter.
+   */
+  private roomRef?: WeakRefPolyfill<Room>;
+
+  private get room(): Room | undefined {
+    return this.roomRef?.deref();
+  }
 
   private extractors = new Map<string, FrameMetadataExtractor>();
 
@@ -58,7 +69,7 @@ export class FrameMetadataManager {
     if (room === this.room) {
       return;
     }
-    this.room = room;
+    this.roomRef = new WeakRefPolyfill(room);
 
     if (this.worker) {
       this.worker.onmessage = this.onWorkerMessage;
