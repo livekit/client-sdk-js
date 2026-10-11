@@ -87,6 +87,17 @@ export default class IncomingDataStreamManager {
   }
 
   clearControllers() {
+    // Error any in flight streams so readers do not wait forever for chunks that can no longer arrive.
+    const abnormalEndError = new DataStreamError(
+      'Room disconnected in the middle of receiving data',
+      DataStreamErrorReason.AbnormalEnd,
+    );
+    for (const { controller } of this.byteStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
+    for (const { controller } of this.textStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
     this.bufferedPackets = [];
