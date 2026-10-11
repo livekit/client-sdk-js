@@ -339,28 +339,23 @@ export function processNALUsForEncryption(
  * Returns `data` unchanged (same instance) when it contains no 3-byte start codes.
  */
 export function normalizeAnnexBStartCodes(data: NonSharedUint8Array): NonSharedUint8Array {
-  const isShortStartCode = (i: number) =>
-    data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1 && (i === 0 || data[i - 1] !== 0);
+const shortStartCodes: number[] = [];
+for (let i = 0; i + 2 < data.length; ) {
+  if (data[i + 2] === 0) { i += 1; continue; }
+  if (data[i + 2] === 1 && data[i] === 0 && data[i + 1] === 0 && (i === 0 || data[i - 1] !== 0)) {
+    shortStartCodes.push(i);
+  }
+  // data[i + 2] is non-zero, so no start code can begin at i + 1 or i + 2 either.
+  i += 3;
+}
+if (shortStartCodes.length === 0) return data;
 
-  let shortStartCodes = 0;
-  for (let i = 0; i + 2 < data.length; i++) {
-    if (isShortStartCode(i)) {
-      shortStartCodes += 1;
-    }
-  }
-  if (shortStartCodes === 0) {
-    return data;
-  }
-
-  const result = new Uint8Array(data.length + shortStartCodes);
-  let out = 0;
-  for (let i = 0; i < data.length; i++) {
-    if (i + 2 < data.length && isShortStartCode(i)) {
-      result[out] = 0;
-      out += 1;
-    }
-    result[out] = data[i];
-    out += 1;
-  }
-  return result;
+const result = new Uint8Array(data.length + shortStartCodes.length);
+let from = 0;
+shortStartCodes.forEach((to, inserted) => {
+  result.set(data.subarray(from, to), from + inserted);
+  from = to;
+});
+result.set(data.subarray(from), from + shortStartCodes.length);
+return result;
 }
