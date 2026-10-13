@@ -63,6 +63,7 @@ import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { abortSignalTimeout } from '../utils/abort-signal-polyfill';
 import { announceMachine } from '../utils/machineInspector';
 import {
   type SignalLifecycleState,
@@ -434,15 +435,23 @@ export class SignalClient {
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
-    this.connectOptions = opts;
-    this.useV0SignalPath = useV0Path;
+    let rtcUrl: string;
+    let validateUrl: string;
+    try {
+      this.connectOptions = opts;
+      this.useV0SignalPath = useV0Path;
 
-    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
-    const params = useV0Path
-      ? createConnectionParams(token, clientInfo, opts)
-      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
-    const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
-    const validateUrl = createValidateUrl(rtcUrl).toString();
+      const clientInfo = getClientInfo(opts.clientInfoCapabilities);
+      const params = useV0Path
+        ? createConnectionParams(token, clientInfo, opts)
+        : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
+      rtcUrl = createRtcUrl(url, params, useV0Path).toString();
+      validateUrl = createValidateUrl(rtcUrl).toString();
+    } catch (e) {
+      // the executor below owns the lock from here on
+      unlock();
+      throw e;
+    }
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
@@ -1294,7 +1303,7 @@ export class SignalClient {
     validateUrl: string,
   ): Promise<ConnectionError> {
     try {
-      const resp = await fetch(validateUrl);
+      const resp = await fetch(validateUrl, { signal: abortSignalTimeout(3000) });
 
       switch (resp.status) {
         case 404:
@@ -1323,11 +1332,13 @@ export class SignalClient {
         );
       }
     } catch (e) {
-      return e instanceof ConnectionError
-        ? e
-        : ConnectionError.serverUnreachable(
-            e instanceof Error ? e.message : 'server was not reachable',
-          );
+      if (e instanceof ConnectionError) {
+        return e;
+      } else {
+        return ConnectionError.serverUnreachable(
+          e instanceof Error ? e.message : 'server was not reachable',
+        );
+      }
     }
   }
 }

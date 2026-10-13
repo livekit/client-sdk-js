@@ -162,6 +162,19 @@ describe('SignalClient.connect', () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
+    it('releases the connection lock when the url is malformed', async () => {
+      await expect(
+        signalClient.join('not a url', 'test-token', defaultOptions),
+      ).rejects.toThrow();
+
+      const joinResponse = createJoinResponse();
+      const mockReadable = createMockReadableStream([createSignalResponse('join', joinResponse)]);
+      mockWebSocketStream({ connection: createMockConnection(mockReadable) });
+
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(result).toEqual(joinResponse);
+    });
+
     it('does not advertise packet trailer capability by default', async () => {
       const joinResponse = createJoinResponse();
       const signalResponse = createSignalResponse('join', joinResponse);
