@@ -204,6 +204,59 @@ describe('video start bitrate', () => {
     expect(computeConnectionStartBitrate(media, [camera, screenShare], 2_500)).toBe(2_700);
   });
 
+  describe('browser effective connection type', () => {
+    const withEffectiveType = (effectiveType: string | undefined) =>
+      vi.stubGlobal('navigator', { connection: effectiveType ? { effectiveType } : undefined });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    // A 3 Mbps camera target, so only the cap moves.
+    const camera = (setupTimeMs?: number) =>
+      computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 3_000 }, setupTimeMs);
+
+    it('caps 2g and slow-2g at 300 kbps and 3g at 500 kbps', () => {
+      withEffectiveType('slow-2g');
+      expect(camera(500)).toBe(300);
+      withEffectiveType('2g');
+      expect(camera(500)).toBe(300);
+      withEffectiveType('3g');
+      expect(camera(500)).toBe(500);
+    });
+
+    it('gives no cap for 4g or without the API', () => {
+      withEffectiveType('4g');
+      expect(camera(500)).toBe(1_000);
+      withEffectiveType(undefined);
+      expect(camera(500)).toBe(1_000);
+      vi.stubGlobal('navigator', undefined);
+      expect(camera(500)).toBe(1_000);
+    });
+
+    it('takes the lower of the setup time cap and the effective type cap', () => {
+      withEffectiveType('3g');
+      expect(camera(2_500)).toBe(500); // setup time alone allows 650
+      expect(camera(3_093)).toBe(442); // setup time is lower
+      expect(camera()).toBe(500);
+    });
+
+    it('still applies 90% of a target below the cap', () => {
+      withEffectiveType('3g');
+      expect(computeTrackStartBitrate({ cid: 'c', codec: 'VP8', maxbr: 450 }, 500)).toBe(405);
+    });
+
+    it('leaves screen share uncapped', () => {
+      withEffectiveType('slow-2g');
+      expect(
+        computeTrackStartBitrate(
+          { cid: 's', codec: 'VP8', maxbr: 3_000, isScreenShare: true },
+          500,
+        ),
+      ).toBe(2_700);
+    });
+  });
+
   describe('connection setup time while still connecting', () => {
     beforeEach(() => {
       // The constructor creates its peer connection eagerly; only its event handlers are set.
