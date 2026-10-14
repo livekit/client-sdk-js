@@ -162,6 +162,17 @@ describe('SignalClient.connect', () => {
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
     });
 
+    it('releases the connection lock when the url is malformed', async () => {
+      await expect(signalClient.join('not a url', 'test-token', defaultOptions)).rejects.toThrow();
+
+      const joinResponse = createJoinResponse();
+      const mockReadable = createMockReadableStream([createSignalResponse('join', joinResponse)]);
+      mockWebSocketStream({ connection: createMockConnection(mockReadable) });
+
+      const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(result).toEqual(joinResponse);
+    });
+
     it('does not advertise packet trailer capability by default', async () => {
       const joinResponse = createJoinResponse();
       const signalResponse = createSignalResponse('join', joinResponse);
@@ -890,6 +901,61 @@ describe('SignalClient.connect', () => {
         reason: ConnectionErrorReason.NotAllowed,
         status: 401,
       });
+    });
+  });
+
+  describe('Failure Case - Validate Request Hangs', () => {
+    // A socket that never opens on its own (a lossy network) and whose `opened` rejects once the
+    // client closes it, like a real WebSocketStream aborted during the handshake.
+    function mockHangingWebSocket() {
+      vi.mocked(WebSocketStream).mockImplementationOnce(function () {
+        let rejectOpened!: (e: unknown) => void;
+        let resolveClosed!: (info: WebSocketCloseInfo) => void;
+        return {
+          url: 'wss://test.livekit.io',
+          opened: new Promise((_, reject) => (rejectOpened = reject)),
+          closed: new Promise((resolve) => (resolveClosed = resolve)),
+          close: vi.fn(() => {
+            rejectOpened(new Error('aborted during handshake'));
+            resolveClosed({ closeCode: 1006, reason: '' });
+          }),
+          readyState: 0,
+        } as any;
+      });
+    }
+
+    it('does not let a timed-out attempt block the next one', async () => {
+      // A validate request on a dead pooled connection only settles once its abort signal fires.
+      // Without a deadline it held the connection lock, so the next attempt never started.
+      vi.useFakeTimers();
+      try {
+        const hangingFetch = (_url: unknown, init?: RequestInit) =>
+          new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+          });
+        vi.mocked(fetch).mockImplementationOnce(hangingFetch).mockImplementationOnce(hangingFetch);
+        mockHangingWebSocket();
+        mockHangingWebSocket();
+
+        // building the join request finishes on real I/O, so wait for each socket before advancing
+        const first = expect(
+          signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+        ).rejects.toMatchObject({ reason: ConnectionErrorReason.Timeout });
+        await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalledTimes(1));
+        await vi.advanceTimersByTimeAsync(defaultOptions.websocketTimeout);
+        await first;
+
+        const second = expect(
+          signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+        ).rejects.toMatchObject({ reason: ConnectionErrorReason.Timeout });
+        // past the validate deadline, which is what releases the lock the first attempt holds
+        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalledTimes(2));
+        await vi.advanceTimersByTimeAsync(defaultOptions.websocketTimeout);
+        await second;
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

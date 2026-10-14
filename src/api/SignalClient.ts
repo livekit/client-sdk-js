@@ -63,6 +63,7 @@ import type { LoggerOptions } from '../room/types';
 import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { abortSignalTimeout } from '../utils/abort-signal-polyfill';
 import { announceMachine } from '../utils/machineInspector';
 import {
   type SignalLifecycleState,
@@ -434,15 +435,23 @@ export class SignalClient {
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
-    this.connectOptions = opts;
-    this.useV0SignalPath = useV0Path;
+    let rtcUrl: string;
+    let validateUrl: string;
+    try {
+      this.connectOptions = opts;
+      this.useV0SignalPath = useV0Path;
 
-    const clientInfo = getClientInfo(opts.clientInfoCapabilities);
-    const params = useV0Path
-      ? createConnectionParams(token, clientInfo, opts)
-      : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
-    const rtcUrl = createRtcUrl(url, params, useV0Path).toString();
-    const validateUrl = createValidateUrl(rtcUrl).toString();
+      const clientInfo = getClientInfo(opts.clientInfoCapabilities);
+      const params = useV0Path
+        ? createConnectionParams(token, clientInfo, opts)
+        : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
+      rtcUrl = createRtcUrl(url, params, useV0Path).toString();
+      validateUrl = createValidateUrl(rtcUrl).toString();
+    } catch (e) {
+      // the executor below owns the lock from here on
+      unlock();
+      throw e;
+    }
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
@@ -457,13 +466,13 @@ export class SignalClient {
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
             this.sendLeave()
-              .then(() => this.close(reason))
+              .then(() => this.close(true, reason))
               .catch((e) => {
                 this.log.error(e);
-                this.close();
+                this.close(true, reason);
               });
           } else {
-            this.close();
+            this.close(true, reason);
           }
           cleanupAbortHandlers();
           // The caller may already have classified this failure: the connect timeout hands us a
@@ -741,14 +750,15 @@ export class SignalClient {
   private async teardownTransport(reason: string) {
     try {
       this.clearPingInterval();
-      if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason });
-
-        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = this.ws.closed;
+      const ws = this.ws;
+      if (ws) {
+        // released before closing, so a close that throws cannot leave the transport attached
         this.ws = undefined;
         this.streamWriter = undefined;
-        await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
+        ws.close({ closeCode: 1000, reason });
+
+        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+        await Promise.race([ws.closed, sleep(MAX_WS_CLOSE_TIME)]);
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { error: e });
@@ -1294,7 +1304,7 @@ export class SignalClient {
     validateUrl: string,
   ): Promise<ConnectionError> {
     try {
-      const resp = await fetch(validateUrl);
+      const resp = await fetch(validateUrl, { signal: abortSignalTimeout(3000) });
 
       switch (resp.status) {
         case 404:
@@ -1323,11 +1333,13 @@ export class SignalClient {
         );
       }
     } catch (e) {
-      return e instanceof ConnectionError
-        ? e
-        : ConnectionError.serverUnreachable(
-            e instanceof Error ? e.message : 'server was not reachable',
-          );
+      if (e instanceof ConnectionError) {
+        return e;
+      } else {
+        return ConnectionError.serverUnreachable(
+          e instanceof Error ? e.message : 'server was not reachable',
+        );
+      }
     }
   }
 }
