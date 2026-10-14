@@ -753,6 +753,7 @@ describe('RTCEngine', () => {
       attemptReconnect: () => Promise<void>;
       configure: () => Promise<void>;
       waitForPCReconnected: () => Promise<void>;
+      reconnectAbortController?: AbortController;
     }
 
     function primeEngine() {
@@ -782,10 +783,15 @@ describe('RTCEngine', () => {
 
       const reconnect = internals.attemptReconnect();
       await cleanupStarted.promise;
+      const controller = internals.reconnectAbortController;
+      expect(controller).toBeDefined();
       await engine.close();
+      expect(controller?.signal.aborted).toBe(true);
+      expect(internals.reconnectAbortController).toBeUndefined();
       finishCleanup.resolve?.();
       await reconnect;
 
+      expect(internals.reconnectAbortController).toBeUndefined();
       expect(join).not.toHaveBeenCalled();
       expect(engine.isClosed).toBe(true);
     });

@@ -487,6 +487,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   async close(reason?: string) {
     this.reconnectAbortController?.abort();
+    this.reconnectAbortController = undefined;
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -1428,7 +1429,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         );
       }
     } finally {
-      this.reconnectAbortController = undefined;
+      // close() may already have cleared this (or a later attempt replaced it); only release our own
+      if (this.reconnectAbortController === abortController) {
+        this.reconnectAbortController = undefined;
+      }
       this.attemptingReconnect = false;
 
       // A full reconnect requested while this attempt was running (e.g. a `RECONNECT` leave
