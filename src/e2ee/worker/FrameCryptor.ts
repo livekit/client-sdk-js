@@ -915,7 +915,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         };
       }
     } catch (e) {
-      this.logNALUFallbackOnce(fallbackKey, payloadType, e);
+      this.logNALUFallbackOnce(fallbackKey, frame, payloadType, detectedCodec, e);
     }
 
     // Fallback to VP8 handling
@@ -928,7 +928,9 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private logNALUFallbackOnce(
     fallbackKey: string,
+    frame: RTCEncodedVideoFrame,
     payloadType: number | undefined,
+    detectedCodec: VideoCodec | undefined,
     error: unknown,
   ) {
     if (this.loggedNALUFallbacks.has(fallbackKey)) {
@@ -938,6 +940,12 @@ export class FrameCryptor extends BaseFrameCryptor {
     workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
       error,
       payloadType,
+      detectedCodec,
+      frameType: frame.type,
+      byteLength: frame.data.byteLength,
+      firstBytes: Array.from(new Uint8Array(frame.data, 0, Math.min(16, frame.data.byteLength)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join(' '),
       ...this.logContext,
     });
   }
