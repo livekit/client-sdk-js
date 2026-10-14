@@ -227,6 +227,87 @@ describe('SignalClient.connect', () => {
         vi.mocked(WebSocketStream).mockReset();
       }
     });
+    it('does not validate the url when aborted while the websocket is opening', async () => {
+      const abortController = new AbortController();
+      const internals = signalClient as unknown as { connectionLock: Mutex };
+      const opened = new Future<WebSocketConnection, Error>();
+      opened.promise.catch(() => {});
+      mockWebSocketStream({ opened: opened.promise, readyState: 0 });
+      vi.mocked(global.fetch).mockClear();
+
+      const joining = signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        abortController.signal,
+      );
+      const cancelled = expect(joining).rejects.toMatchObject({
+        reason: ConnectionErrorReason.Cancelled,
+      });
+      await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalled());
+      abortController.abort();
+      opened.reject?.(new Error('closed by abort'));
+      await cancelled;
+      // let the attempt's continuation run to completion
+      const unlock = await internals.connectionLock.lock();
+      unlock();
+
+      try {
+        expect(global.fetch).not.toHaveBeenCalled();
+      } finally {
+        await signalClient.close();
+        vi.mocked(WebSocketStream).mockReset();
+      }
+    });
+
+    it('does not report a join that arrives after the attempt was aborted', async () => {
+      const abortController = new AbortController();
+      const internals = signalClient as unknown as { connectionLock: Mutex };
+      let enqueue: ((chunk: ArrayBuffer) => void) | undefined;
+      const readable = new ReadableStream<ArrayBuffer>({
+        start(controller) {
+          enqueue = (chunk) => controller.enqueue(chunk);
+        },
+      });
+      const writerReady = new Future<void, Error>();
+      const writable = new WritableStream();
+      const getWriter = writable.getWriter.bind(writable);
+      writable.getWriter = () => {
+        const writer = getWriter();
+        writerReady.resolve?.();
+        return writer;
+      };
+      mockWebSocketStream({
+        connection: { readable, writable, protocol: '', extensions: '' },
+      });
+      const onJoined = vi.fn();
+      signalClient.onJoined = onJoined;
+
+      const joining = signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        abortController.signal,
+      );
+      const cancelled = expect(joining).rejects.toMatchObject({
+        reason: ConnectionErrorReason.Cancelled,
+      });
+      await writerReady.promise;
+      abortController.abort();
+      enqueue?.(
+        createSignalResponse('join', createJoinResponse()).toBinary().buffer as ArrayBuffer,
+      );
+      await cancelled;
+      const unlock = await internals.connectionLock.lock();
+      unlock();
+
+      try {
+        expect(onJoined).not.toHaveBeenCalled();
+      } finally {
+        await signalClient.close();
+        vi.mocked(WebSocketStream).mockReset();
+      }
+    });
   });
 
   describe('Happy Path - Initial Join', () => {
