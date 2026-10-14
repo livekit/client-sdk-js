@@ -236,6 +236,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** keeps track of how often an initial join connection has been tried */
   private joinAttempts: number = 0;
 
+  /**
+   * When the current join attempt began (`performance.now()`), taken at the top of `join` before
+   * the signal connection or the peer connections exist. Every attempt (a join retry, or the join
+   * inside a full restart) times itself from scratch. Consumed when the primary transport first
+   * connects, to hand the publisher its connection setup time; resumes never set it.
+   */
+  private joinStartedAt?: number;
+
   /** specifies how often an initial join connection is allowed to retry */
   private maxJoinAttempts: number = 1;
 
@@ -352,6 +360,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.maxJoinAttempts = opts.maxRetries;
     try {
       this.joinAttempts += 1;
+      this.joinStartedAt = performance.now();
 
       this.setupSignalClientCallbacks();
       // Whether the initial publisher offer is bundled with the join request. Computed once and
@@ -420,6 +429,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
       }
 
+      if (this.joinStartedAt !== undefined) {
+        // Lets a video published before the transports connect be seeded from the time elapsed
+        // so far, rather than delaying its offer until the setup time is measured.
+        this.pcManager?.publisher.setConnectionStartedAt(this.joinStartedAt);
+      }
+
       this.registerOnLineListener();
       this.clientConfiguration = joinResponse.clientConfiguration;
       this.emit(EngineEvent.SignalConnected, joinResponse);
@@ -471,6 +486,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       this._isClosed = true;
       this.joinAttempts = 0;
+      this.joinStartedAt = undefined;
       this.emit(EngineEvent.Closing);
       this.removeAllListeners();
       this.deregisterOnLineListener();
@@ -629,6 +645,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.publisherConnectionPromise = undefined;
       }
       if (connectionState === PCTransportState.CONNECTED) {
+        if (this.joinStartedAt !== undefined) {
+          // Connection setup time is the only network signal there is before the first video
+          // offer. Set synchronously, so it is in place before `room.connect()` resolves and the
+          // app can publish. A full restart joins again and builds new transports, so it is
+          // measured again; a resume keeps its estimator and never restarts the timer.
+          const setupTimeMs = Math.round(performance.now() - this.joinStartedAt);
+          this.joinStartedAt = undefined;
+          this.log.info(`connection setup took ${setupTimeMs} ms`);
+          this.pcManager?.publisher.setConnectionSetupTime(setupTimeMs);
+        }
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {

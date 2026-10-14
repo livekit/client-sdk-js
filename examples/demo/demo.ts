@@ -317,7 +317,9 @@ const appActions = {
           stopLocalVolumeMeter?.();
           stopLocalVolumeMeter = () => {
             clearInterval(interval);
-            cleanup().catch(() => {});
+            cleanup().catch((err) => {
+              console.error('local volume meter cleanup failed:', err);
+            });
           };
         }
         renderParticipant(room.localParticipant);

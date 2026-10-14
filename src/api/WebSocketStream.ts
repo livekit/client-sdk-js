@@ -55,7 +55,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     this.ws = ws;
 
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
-      ws.close(code, reason);
+      ws.close(code, reason === undefined ? undefined : truncateCloseReason(reason));
 
     this.opened = new TypedPromise<WebSocketConnection<T>, WebsocketError>((resolve, reject) => {
       const rejectHandler = () => {
@@ -139,4 +139,25 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
     this.close = closeWithInfo;
   }
+}
+
+/** `WebSocket.close` throws a `SyntaxError` for a reason longer than this many UTF-8 bytes. */
+const MAX_CLOSE_REASON_BYTES = 123;
+
+export function truncateCloseReason(reason: string): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(reason).length <= MAX_CLOSE_REASON_BYTES) {
+    return reason;
+  }
+  // cut on code point boundaries, so a multi-byte character is never split
+  let truncated = '';
+  let bytes = 0;
+  for (const char of reason) {
+    bytes += encoder.encode(char).length;
+    if (bytes > MAX_CLOSE_REASON_BYTES) {
+      break;
+    }
+    truncated += char;
+  }
+  return truncated;
 }

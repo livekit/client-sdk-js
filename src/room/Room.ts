@@ -1051,6 +1051,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         disableIceLite: connectOptions.disableIceLite,
+        subscriberAllowPause: connectOptions.subscriberAllowPause,
         clientInfoCapabilities: this.getClientInfoCapabilities(roomOptions),
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
@@ -1397,9 +1398,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   /**
-   * iOS blocks audio element playback unless some audio source is already playing, so keep an
-   * element with a silent track around. The element is shared with any other room on the page and
-   * handed back on disconnect, so it outlives whichever room happened to create it.
+   * iOS blocks audio element playback if
+   * - user is not publishing audio themselves and
+   * - no other audio source is playing
+   *
+   * as a workaround, we create an audio element with an empty track, so that
+   * silent audio is always playing
+   *
+   * The element is shared with any other room on the page and handed back on disconnect, so it
+   * outlives whichever room happened to create it.
    */
   private acquireDummyAudioElement(): HTMLAudioElement {
     if (!sharedDummyAudioElement) {
