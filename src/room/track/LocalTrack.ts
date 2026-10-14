@@ -597,6 +597,11 @@ export default abstract class LocalTrack<
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
+   * The processor lives on the track, so stopping the track destroys it. Unpublishing and
+   * disconnecting both stop the track by default, which means a processor has to be set again on
+   * the track published after a reconnect. See {@link TrackProcessor} for the full lifecycle,
+   * including what `stopLocalTrackOnUnpublish: false` changes.
+   *
    * @param processor
    * @param showProcessedStreamLocally
    * @returns
@@ -663,6 +668,10 @@ export default abstract class LocalTrack<
     await this.onSenderTrackSwapped();
   }
 
+  /**
+   * Returns the processor currently set on this track, or `undefined` if there is none. A track
+   * that was stopped by an unpublish or a disconnect has none. See {@link TrackProcessor}.
+   */
   getProcessor() {
     return this.processor;
   }
@@ -671,6 +680,8 @@ export default abstract class LocalTrack<
    * Stops the track processor
    * See https://github.com/livekit/track-processors-js for example usage
    *
+   * Only needed to remove a processor from a track that stays published. Unpublishing or
+   * disconnecting already destroys it. See {@link TrackProcessor}.
    */
   async stopProcessor(keepElement = true) {
     const unlock = await this.trackChangeLock.lock();

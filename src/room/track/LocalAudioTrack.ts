@@ -228,6 +228,13 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     this.observedProcessedTrack = processedTrack;
   }
 
+  /**
+   * Sets a processor on this track.
+   *
+   * The processor is destroyed when the track is stopped, and also when the audio context goes
+   * away, so a disconnect ends it on both counts and it has to be set again after reconnecting.
+   * See {@link TrackProcessor} for the full lifecycle.
+   */
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.trackChangeLock.lock();
     try {
