@@ -466,13 +466,13 @@ export class SignalClient {
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
             this.sendLeave()
-              .then(() => this.close(reason))
+              .then(() => this.close(true, reason))
               .catch((e) => {
                 this.log.error(e);
-                this.close();
+                this.close(true, reason);
               });
           } else {
-            this.close();
+            this.close(true, reason);
           }
           cleanupAbortHandlers();
           // The caller may already have classified this failure: the connect timeout hands us a
