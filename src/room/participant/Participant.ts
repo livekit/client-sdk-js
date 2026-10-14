@@ -363,10 +363,13 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /**
    * @internal
    */
-  setAudioContext(ctx: AudioContext | undefined) {
+  async setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
-    this.audioTrackPublications.forEach(
-      (track) => isAudioTrack(track.track) && track.track.setAudioContext(ctx),
+    await Promise.all(
+      Array.from(this.audioTrackPublications.values())
+        .map((publication) => publication.track)
+        .filter(isAudioTrack)
+        .map((track) => track.setAudioContext(ctx)),
     );
   }
 
