@@ -750,14 +750,15 @@ export class SignalClient {
   private async teardownTransport(reason: string) {
     try {
       this.clearPingInterval();
-      if (this.ws) {
-        this.ws.close({ closeCode: 1000, reason });
-
-        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = this.ws.closed;
+      const ws = this.ws;
+      if (ws) {
+        // released before closing, so a close that throws cannot leave the transport attached
         this.ws = undefined;
         this.streamWriter = undefined;
-        await Promise.race([closePromise, sleep(MAX_WS_CLOSE_TIME)]);
+        ws.close({ closeCode: 1000, reason });
+
+        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+        await Promise.race([ws.closed, sleep(MAX_WS_CLOSE_TIME)]);
       }
     } catch (e) {
       this.log.debug('websocket error while closing', { error: e });
