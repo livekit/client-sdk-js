@@ -1089,7 +1089,8 @@ describe('SignalClient.connect', () => {
 
     it('does not let a timed-out attempt block the next one', async () => {
       // A validate request on a dead pooled connection only settles once its abort signal fires.
-      // Without a deadline it held the connection lock, so the next attempt never started.
+      // Without a deadline it held the connection lock, so the next attempt never started. A
+      // timed-out attempt now skips validation entirely, since its caller has already been rejected.
       vi.useFakeTimers();
       try {
         const hangingFetch = (_url: unknown, init?: RequestInit) =>
@@ -1116,8 +1117,12 @@ describe('SignalClient.connect', () => {
         await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalledTimes(2));
         await vi.advanceTimersByTimeAsync(defaultOptions.websocketTimeout);
         await second;
+
+        expect(fetch).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
+        // drop the unused hanging fetches so they don't leak into later tests
+        vi.mocked(fetch).mockReset();
       }
     });
   });
