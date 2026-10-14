@@ -323,6 +323,9 @@ export function processNALUsForEncryption(
   // The bytes outrank knownCodec, which can be the codec the client asked for rather than the
   // one that was negotiated. Parsing the wrong one mis-slices without raising anything: the
   // offset lands before the real slice header, so the header itself gets encrypted.
+  // That holds in one direction only. An h264 access unit carrying no slice NALU but carrying
+  // an AUD or SEI that reads as an h265 slice now slices there instead of throwing. No real
+  // WebRTC access unit can reach it, because every one of them carries a type 1 or 5 slice.
   let detectedCodec = detectCodecFromNALUs(data, naluIndices);
   if (detectedCodec === 'unknown') {
     detectedCodec = knownCodec ?? 'unknown';

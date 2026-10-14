@@ -8,9 +8,14 @@ function annexB(...nalus: number[][]) {
 
 // h264: 0x06 SEI, 0x65 IDR slice, 0x67 SPS. h265: 0x26 IDR_W_RADL slice.
 // An h264 SEI byte (0x06) reads as h265 TSA_R, which is why the SEI leads here.
+// findNALUIndices stops at stream.length - 3. A trailing NALU with fewer than 4 payload
+// bytes is never indexed, so its fixture tests nothing. Interior NALUs are fine at any
+// length, because the next start code ends them.
 const h264KeyFrame = annexB([0x06, 0x11, 0x22], [0x65, 0x33, 0x44, 0x55, 0x66]);
 const h265KeyFrame = annexB([0x26, 0x11, 0x22], [0x02, 0x33, 0x44, 0x55, 0x66]);
-const noSliceFrame = annexB([0x67, 0x11, 0x22]);
+const noSliceFrame = annexB([0x67, 0x11, 0x22, 0x33, 0x44, 0x55]);
+// 0x25 is a slice under both: h264 &0x1f = 5 IDR, h265 (b >> 1) & 0x3f = 18 BLA_W_RADL.
+const ambiguousFrame = annexB([0x25, 0x11, 0x22, 0x33, 0x44, 0x55]);
 
 describe('normalizeAnnexBStartCodes', () => {
   it('rewrites 3-byte start codes to 4-byte start codes', () => {
@@ -94,6 +99,15 @@ describe('processNALUsForEncryption', () => {
     expect(processNALUsForEncryption(h265KeyFrame, 'h264')).toEqual({
       unencryptedBytes: 6,
       detectedCodec: 'h265',
+      requiresNALUProcessing: true,
+    });
+  });
+
+  it('resolves a byte that is a slice under both codecs as h264', () => {
+    // Only the h264-first ordering decides this one. Swap the two loops back and it reads h265.
+    expect(processNALUsForEncryption(ambiguousFrame)).toEqual({
+      unencryptedBytes: 6,
+      detectedCodec: 'h264',
       requiresNALUProcessing: true,
     });
   });
