@@ -17,14 +17,21 @@ class FakeDataChannel extends EventTarget {
 
   onbufferedamountlow: (() => void) | null = null;
 
+  readyState: RTCDataChannelState = 'open';
+
   send = vi.fn();
 
-  close = vi.fn();
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 
   constructor(public label: string) {
     super();
   }
 }
+
+const reliableHandle = (manager: DataChannelManager) =>
+  manager.getHandle(DataChannelKind.RELIABLE) as RTCDataChannel;
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -89,22 +96,32 @@ describe('DataChannelManager', () => {
     manager.lossy.stopThresholdTuning();
   });
 
-  it('recreating channels rejects waiters parked on the replaced handles', async () => {
-    const { manager, pcManager, created } = makeManager();
+  it('recreating channels closes the replaced handles and rejects waiters parked on them', async () => {
+    const { manager, opts, pcManager, created } = makeManager();
     manager.createPublisherChannels(pcManager);
+    const firstGeneration = { ...created };
 
     // Park a reliable sender on the first-generation channel.
     created._reliable.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroomWithLock();
+    const parked = manager.reliable.waitForHeadroomWithLock(reliableHandle(manager));
     parked.catch(() => {});
     await tick();
 
-    // Safari null-id path: channels recreated without closing the old ones.
+    // Safari null-id path: channels recreated while the old ones are still open.
     manager.createPublisherChannels(pcManager);
 
     await expect(parked).rejects.toBeInstanceOf(UnexpectedConnectionState);
+    for (const dc of Object.values(firstGeneration)) {
+      expect(dc.close).toHaveBeenCalled();
+      // Unhooked before closing, so the deliberate close isn't reported as an unexpected one.
+      expect(dc.onclose).toBeNull();
+      expect(dc.onbufferedamountlow).toBeNull();
+    }
+    expect(opts.onChannelClose).not.toHaveBeenCalled();
     // The gate recovers against the fresh (empty) channel.
-    await expect(manager.reliable.waitForHeadroomWithLock()).resolves.toBeUndefined();
+    await expect(
+      manager.reliable.waitForHeadroomWithLock(reliableHandle(manager)),
+    ).resolves.toBeUndefined();
 
     manager.lossy.stopThresholdTuning();
   });
@@ -133,7 +150,7 @@ describe('DataChannelManager', () => {
     manager.adoptSubscriberChannel(sub as unknown as RTCDataChannel);
 
     created._reliable.bufferedAmount = 2 * 1024 * 1024;
-    const parked = manager.reliable.waitForHeadroomWithLock();
+    const parked = manager.reliable.waitForHeadroomWithLock(reliableHandle(manager));
     parked.catch(() => {});
     await tick();
 

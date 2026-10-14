@@ -1,5 +1,6 @@
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { DataPacketBuffer } from '../../utils/dataPacketBuffer';
+import { UnexpectedConnectionState } from '../errors';
 import {
   FlowControlledDataChannel,
   type FlowControlledDataChannelOptions,
@@ -64,7 +65,7 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
     }
 
     try {
-      await this.waitForHeadroomWithLock();
+      await this.waitForHeadroomWithLock(dc);
     } catch (error) {
       if (this.isEngineClosed()) {
         // No replay is coming after an engine close — surface the failure.
@@ -72,7 +73,9 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       }
       // Transient teardown (the channel closed or was replaced while we waited): the reliable
       // channel promises delivery across resume, so queue the packet for the replay instead of
-      // rejecting a send the app can't meaningfully retry.
+      // rejecting a send the app can't meaningfully retry. This also keeps the order: a send
+      // queued behind one aborted by a replacement fails the same way (the old handle is closed),
+      // so it can't reach the replacement ahead of the lower sequence the replay will deliver.
       this.messageBuffer.push({ data: msg, sequence, sent: false });
       return;
     }
@@ -96,13 +99,18 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
    * receivers would then discard the remaining lower-sequence resent messages as duplicates.
    */
   async replay(lastMessageSeq: number) {
-    const dc = this.getChannel();
-    if (!dc) {
+    if (!this.getChannel()) {
       return;
     }
     this.messageBuffer.popToSequence(lastMessageSeq);
     const unlock = await this.lockHeadroom();
     try {
+      // Resolved only once the lock is held: the handle can be replaced while the replay waits
+      // for it.
+      const dc = this.getChannel();
+      if (!dc) {
+        throw new UnexpectedConnectionState(`DataChannel not found, kind: ${this.kind}`);
+      }
       // Everything left after the ack cutoff must be re-handed to the current channel.
       this.messageBuffer.markAllUnsent();
       // Drain in passes, re-scanning the live buffer each time: a send that arrives (deferred,
@@ -118,7 +126,10 @@ export class ReliableDataChannel extends FlowControlledDataChannel {
       ) {
         for (const item of batch) {
           // Respect flow control on resume too, so a large resend doesn't overflow the buffer.
-          await this.waitForHeadroomWithoutLock();
+          // Against the handle resolved under the lock: if it is replaced mid-replay (another
+          // resume), it has been closed, so this throws and that resume's replay picks up the
+          // entries still flagged unsent.
+          await this.waitForHeadroomWithoutLock(dc);
           dc.send(item.data);
           this.messageBuffer.markSent(item);
         }

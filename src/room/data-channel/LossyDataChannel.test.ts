@@ -8,6 +8,13 @@ class FakeDataChannel extends EventTarget {
   bufferedAmountLowThreshold = 64;
 
   send = vi.fn();
+
+  readyState: RTCDataChannelState = 'open';
+
+  // Like the real thing, close() moves to 'closing' synchronously.
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 }
 
 // Pass `dc: null` for a handle-less channel; omit it to get a fresh one. `null` (not `undefined`)
@@ -74,6 +81,37 @@ describe('LossyDataChannel', () => {
     dc.dispatchEvent(new Event('bufferedamountlow'));
     await send;
     expect(dc.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('wait policy: drops waiting sends when the channel is replaced', async () => {
+    const { channel, dc: oldDc } = makeChannel('wait');
+    oldDc.bufferedAmount = 2048;
+    const parked = channel.send(new Uint8Array([1]));
+    const queued = channel.send(new Uint8Array([2]));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+
+    // Both resolve: a dropped frame mustn't reject (the room doesn't handle frame send failures).
+    await expect(parked).resolves.toBeUndefined();
+    await expect(queued).resolves.toBeUndefined();
+    // Not on the abandoned channel, and not on the replacement, which may still be connecting.
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).not.toHaveBeenCalled();
+  });
+
+  it('wait policy: rejects a waiting send when the engine closes', async () => {
+    const { channel, dc, state } = makeChannel('wait');
+    dc.bufferedAmount = 2048;
+    const send = channel.send(new Uint8Array([1]));
+    send.catch(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    state.engineClosed = true;
+    channel.detach();
+
+    await expect(send).rejects.toThrow();
   });
 
   it('skips sends while a reconnect is underway', async () => {

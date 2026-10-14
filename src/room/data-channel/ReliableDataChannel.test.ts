@@ -9,6 +9,13 @@ class FakeDataChannel extends EventTarget {
   bufferedAmountLowThreshold = 64;
 
   send = vi.fn();
+
+  readyState: RTCDataChannelState = 'open';
+
+  // Like the real thing, close() moves to 'closing' synchronously.
+  close = vi.fn(() => {
+    this.readyState = 'closing';
+  });
 }
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -77,6 +84,33 @@ describe('ReliableDataChannel', () => {
     expect(buffer.getAll()[0].sent).toBe(false);
   });
 
+  it('defers a send queued on the lock to the replay when the channel is replaced, preserving order', async () => {
+    const { channel, dc: oldDc, buffer } = makeChannel();
+    oldDc.bufferedAmount = 2048; // above high mark → the first send parks
+    const parked = channel.send(new Uint8Array([1]), channel.nextSequence());
+    // Queues behind the parked send on the headroom lock; replacing the handle rejects only the
+    // parked waiter, so this one gets the lock afterwards.
+    const queued = channel.send(new Uint8Array([2]), channel.nextSequence());
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+
+    await expect(parked).resolves.toBeUndefined();
+    await expect(queued).resolves.toBeUndefined();
+    // Neither goes out ahead of the replay: sending seq 2 now would make receivers discard seq 1
+    // once the replay delivers it.
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).not.toHaveBeenCalled();
+    expect(buffer.getAll().map(({ sequence, sent }) => ({ sequence, sent }))).toEqual([
+      { sequence: 1, sent: false },
+      { sequence: 2, sent: false },
+    ]);
+
+    await channel.replay(0);
+    expect(newDc.send.mock.calls.map(([data]) => data[0])).toEqual([1, 2]);
+  });
+
   it('rejects when the engine is closed while waiting', async () => {
     const { channel, dc, state } = makeChannel();
     dc.bufferedAmount = 2048;
@@ -133,6 +167,44 @@ describe('ReliableDataChannel', () => {
     // sent without sending it, and a later align would then strand it.
     expect(dc.send.mock.calls.map(([d]) => d[0])).toEqual([1, 2]);
     expect(buffer.getAll().filter((i) => !i.sent)).toHaveLength(0);
+  });
+
+  it('replays on the replacement handle when the channel is replaced while replay waits for the lock', async () => {
+    const { channel, dc: oldDc } = makeChannel();
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    oldDc.send.mockClear();
+
+    const unlock = await channel.lockHeadroom();
+    const replay = channel.replay(0);
+    await tick();
+
+    const newDc = new FakeDataChannel();
+    channel.attach(newDc as unknown as RTCDataChannel);
+    unlock();
+    await replay;
+
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(newDc.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops the replay, keeping the rest unsent, when the channel is replaced mid-replay', async () => {
+    const { channel, dc: oldDc, state, buffer } = makeChannel();
+    state.deferring = true;
+    await channel.send(new Uint8Array([1]), channel.nextSequence());
+    await channel.send(new Uint8Array([2]), channel.nextSequence());
+    state.deferring = false;
+
+    oldDc.bufferedAmount = 2048; // the replay parks before its first send
+    const replay = channel.replay(0);
+    replay.catch(() => {});
+    await tick();
+
+    // A second replacement belongs to another resume, whose replay delivers the backlog.
+    channel.attach(new FakeDataChannel() as unknown as RTCDataChannel);
+
+    await expect(replay).rejects.toBeInstanceOf(UnexpectedConnectionState);
+    expect(oldDc.send).not.toHaveBeenCalled();
+    expect(buffer.getAll().every((item) => !item.sent)).toBe(true);
   });
 
   it('holds the headroom lock across the whole replay so new sends cannot interleave', async () => {
