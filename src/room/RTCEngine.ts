@@ -1465,16 +1465,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async restartConnection(abortSignal: AbortSignal, regionUrl?: string) {
-    // Each bail-out names its stage so a cancelled reconnect can be traced in the logs.
-    const cancelled = (stage: string) => {
-      if (!abortSignal.aborted) {
-        return false;
-      }
-      this.log.info(`full reconnect cancelled ${stage}`, { regionUrl });
-      return true;
-    };
     try {
-      if (cancelled('before starting')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled before starting', { regionUrl });
+        return;
+      }
       if (!this.url || !this.token) {
         // permanent failure, don't attempt reconnection
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -1488,7 +1483,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       await this.cleanupPeerConnections();
       await this.cleanupClient();
-      if (cancelled('after cleaning up the previous session')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled after cleaning up the previous session', {
+          regionUrl,
+        });
+        return;
+      }
 
       let joinResponse: JoinResponse;
       try {
@@ -1512,7 +1512,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         throw new SignalReconnectError();
       }
-      if (cancelled('after the signal join response')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled after the signal join response', { regionUrl });
+        return;
+      }
 
       if (this.shouldFailNext) {
         this.shouldFailNext = false;
@@ -1523,7 +1526,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
-      if (cancelled('after peer connections reconnected')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled after peer connections reconnected', { regionUrl });
+        return;
+      }
 
       // re-check signal connection state before setting engine as resumed
       if (this.client.currentState !== SignalConnectionState.CONNECTED) {
@@ -1534,9 +1540,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // reconnect success
       this.emit(EngineEvent.Restarted);
     } catch (error) {
-      if (cancelled('after a failed attempt')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled after a failed attempt', { regionUrl });
+        return;
+      }
       const nextRegionUrl = await this.regionStrategy?.getNextUrl(abortSignal);
-      if (cancelled('during region selection')) return;
+      if (abortSignal.aborted) {
+        this.log.info('full reconnect cancelled during region selection', { regionUrl });
+        return;
+      }
       if (nextRegionUrl) {
         await this.restartConnection(abortSignal, nextRegionUrl);
         return;
