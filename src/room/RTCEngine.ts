@@ -404,6 +404,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         offerProto,
       );
       if (abortSignal?.aborted) {
+        this.log.info('join cancelled after the signal join response');
         throw ConnectionError.cancelled('Connection aborted');
       }
       this._isClosed = false;
@@ -420,6 +421,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // the offer with the join.
           await this.configure(joinResponse, !useV0Path);
           if (abortSignal?.aborted) {
+            this.log.info('join cancelled after configuring peer connections');
             throw ConnectionError.cancelled('Connection aborted');
           }
           if (!useV0Path) {
@@ -1396,11 +1398,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         await this.resumeConnection(reason);
       }
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted) {
+        this.log.info('reconnect attempt cancelled, not marking it as succeeded');
+        return;
+      }
       this.clearPendingReconnect();
       succeeded = true;
     } catch (e) {
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted) {
+        this.log.info('reconnect attempt cancelled, not retrying', { error: e });
+        return;
+      }
       this.reconnectAttempts += 1;
       let recoverable = true;
       if (e instanceof UnexpectedConnectionState) {
@@ -1457,8 +1465,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async restartConnection(abortSignal: AbortSignal, regionUrl?: string) {
+    // Each bail-out names its stage so a cancelled reconnect can be traced in the logs.
+    const cancelled = (stage: string) => {
+      if (!abortSignal.aborted) {
+        return false;
+      }
+      this.log.info(`full reconnect cancelled ${stage}`, { regionUrl });
+      return true;
+    };
     try {
-      if (abortSignal.aborted) return;
+      if (cancelled('before starting')) return;
       if (!this.url || !this.token) {
         // permanent failure, don't attempt reconnection
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -1472,7 +1488,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       await this.cleanupPeerConnections();
       await this.cleanupClient();
-      if (abortSignal.aborted) return;
+      if (cancelled('after cleaning up the previous session')) return;
 
       let joinResponse: JoinResponse;
       try {
@@ -1496,7 +1512,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         throw new SignalReconnectError();
       }
-      if (abortSignal.aborted) return;
+      if (cancelled('after the signal join response')) return;
 
       if (this.shouldFailNext) {
         this.shouldFailNext = false;
@@ -1507,7 +1523,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
-      if (abortSignal.aborted) return;
+      if (cancelled('after peer connections reconnected')) return;
 
       // re-check signal connection state before setting engine as resumed
       if (this.client.currentState !== SignalConnectionState.CONNECTED) {
@@ -1518,9 +1534,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // reconnect success
       this.emit(EngineEvent.Restarted);
     } catch (error) {
-      if (abortSignal.aborted) return;
+      if (cancelled('after a failed attempt')) return;
       const nextRegionUrl = await this.regionStrategy?.getNextUrl(abortSignal);
-      if (abortSignal.aborted) return;
+      if (cancelled('during region selection')) return;
       if (nextRegionUrl) {
         await this.restartConnection(abortSignal, nextRegionUrl);
         return;
