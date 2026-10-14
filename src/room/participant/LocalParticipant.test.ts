@@ -97,10 +97,10 @@ function makeAudioTrackWithBufferSpy() {
   return track;
 }
 
-function makePreConnectParticipant(track: LocalTrack) {
+function makePreConnectParticipant(track: LocalTrack, publishDefaults: TrackPublishOptions = {}) {
   const participant = Object.create(LocalParticipant.prototype) as PreConnectBufferTestParticipant;
   participant.log = { debug: vi.fn(), info: vi.fn() };
-  participant.roomOptions = { publishDefaults: {} };
+  participant.roomOptions = { publishDefaults };
   participant.pendingPublishing = new Set();
   participant.getTrackPublication = vi.fn().mockReturnValue(undefined);
   participant.createTracks = vi.fn().mockResolvedValue([track]);
@@ -122,10 +122,21 @@ describe('LocalParticipant preconnect buffer', () => {
     const track = makeAudioTrackWithBufferSpy();
     const participant = makePreConnectParticipant(track);
 
+    // The cast is deliberate: preConnectBuffer is not declared on AudioCaptureOptions, so only
+    // untyped JavaScript callers can reach this.
     await participant.setMicrophoneEnabled(true, {
       preConnectBuffer: true,
     } as AudioCaptureOptions);
 
     expect(track.startPreConnectBuffer).not.toHaveBeenCalled();
+  });
+
+  it('starts the preconnect buffer when preConnectBuffer is set in the room publish defaults', async () => {
+    const track = makeAudioTrackWithBufferSpy();
+    const participant = makePreConnectParticipant(track, { preConnectBuffer: true });
+
+    await participant.setMicrophoneEnabled(true);
+
+    expect(track.startPreConnectBuffer).toHaveBeenCalledOnce();
   });
 });
