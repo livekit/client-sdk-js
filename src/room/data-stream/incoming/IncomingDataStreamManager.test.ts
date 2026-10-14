@@ -9,6 +9,10 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import { describe, expect, it } from 'vitest';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
@@ -675,6 +679,37 @@ describe('IncomingDataStreamManager', () => {
         'Participant alice unexpectedly disconnected in the middle of sending data',
       );
     });
+
+    it('should error in flight streams when the controllers are cleared on room disconnect', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const textReaderPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      const byteReaderPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new Uint8Array([0x68, 0x69])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(headerPacket('byte-1', 'byteHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('byte-1', 0, new Uint8Array([0x01])),
+        Encryption_Type.NONE,
+      );
+
+      // Room#handleDisconnect calls this while the streams are still open
+      manager.clearControllers();
+
+      const textReader = await textReaderPromise;
+      const byteReader = await byteReaderPromise;
+      await expect(textReader.readAll()).rejects.toThrow('Room disconnected');
+      await expect(byteReader.readAll()).rejects.toThrow('Room disconnected');
+    });
   });
 
   describe('Receiving v2 data streams', () => {
@@ -907,18 +942,15 @@ describe('IncomingDataStreamManager', () => {
       expect(await reader.readAll()).toStrictEqual(text);
     });
 
-    it(`should ignore a v2 TEXT data stream with compression if DecompressionStream doesn't exist`, async () => {
+    it.each([
+      [`DecompressionStream doesn't exist`, stubMissingCompressionStreams],
+      [`deflate-raw isn't a supported format`, stubMissingDeflateRawSupport],
+    ])(`should ignore a v2 TEXT data stream with compression if %s`, async (_label, stub) => {
       const text = 'hello world';
       const compressed = await deflateRawCompress(new TextEncoder().encode(text));
 
-      let originalCompressionStream: typeof CompressionStream,
-        originalDecompressionStream: typeof DecompressionStream;
+      const restoreCompressionStreams = stub();
       try {
-        originalCompressionStream = CompressionStream;
-        (globalThis as any).CompressionStream = undefined;
-        originalDecompressionStream = DecompressionStream;
-        (globalThis as any).DecompressionStream = undefined;
-
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
 
@@ -977,23 +1009,19 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream!;
-        (globalThis as any).DecompressionStream = originalDecompressionStream!;
+        restoreCompressionStreams();
       }
     });
 
-    it(`should ignore a v2 BYTES data stream with compression if DecompressionStream doesn't exist`, async () => {
+    it.each([
+      [`DecompressionStream doesn't exist`, stubMissingCompressionStreams],
+      [`deflate-raw isn't a supported format`, stubMissingDeflateRawSupport],
+    ])(`should ignore a v2 BYTES data stream with compression if %s`, async (_label, stub) => {
       const bytes = new Uint8Array([0x01, 0x02, 0x03]);
       const compressed = await deflateRawCompress(bytes);
 
-      let originalCompressionStream: typeof CompressionStream,
-        originalDecompressionStream: typeof DecompressionStream;
+      const restoreCompressionStreams = stub();
       try {
-        originalCompressionStream = CompressionStream;
-        (globalThis as any).CompressionStream = undefined;
-        originalDecompressionStream = DecompressionStream;
-        (globalThis as any).DecompressionStream = undefined;
-
         const manager = new IncomingDataStreamManager();
         manager.setConnected(true);
 
@@ -1052,8 +1080,7 @@ describe('IncomingDataStreamManager', () => {
           Promise.race([readerPromise, Promise.resolve('still pending')]),
         ).resolves.toStrictEqual('still pending');
       } finally {
-        (globalThis as any).CompressionStream = originalCompressionStream!;
-        (globalThis as any).DecompressionStream = originalDecompressionStream!;
+        restoreCompressionStreams();
       }
     });
 

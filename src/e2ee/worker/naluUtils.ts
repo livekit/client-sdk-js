@@ -202,8 +202,14 @@ export interface NALUProcessingResult {
  * @returns Detected codec type
  */
 function detectCodecFromNALUs(data: NonSharedUint8Array, naluIndices: number[]): DetectedCodec {
+  // h264 runs to completion first. Several non-slice h264 NALUs read as h265 slice types
+  // (AUD 0x09 -> STSA_N, SEI 0x06 -> TSA_R), so interleaving the two checks lets one of
+  // those outrank the real h264 slice that follows it. The reverse cannot happen: h265
+  // header bytes are even at nuh_layer_id 0, so they never mask to an h264 slice type.
   for (const naluIndex of naluIndices) {
     if (isH264SliceNALU(parseH264NALUType(data[naluIndex]))) return 'h264';
+  }
+  for (const naluIndex of naluIndices) {
     if (isH265SliceNALU(parseH265NALUType(data[naluIndex]))) return 'h265';
   }
   return 'unknown';
@@ -306,7 +312,7 @@ function findNALUIndices(stream: NonSharedUint8Array): number[] {
 /**
  * Process NALU data for frame encryption, detecting codec and finding unencrypted bytes
  * @param data Frame data
- * @param knownCodec Known codec from other sources (optional)
+ * @param knownCodec Codec from other sources, used only when the bytes are inconclusive (optional)
  * @returns NALU processing result
  */
 export function processNALUsForEncryption(
@@ -314,7 +320,16 @@ export function processNALUsForEncryption(
   knownCodec?: 'h264' | 'h265',
 ): NALUProcessingResult {
   const naluIndices = findNALUIndices(data);
-  const detectedCodec = knownCodec ?? detectCodecFromNALUs(data, naluIndices);
+  // The bytes outrank knownCodec, which can be the codec the client asked for rather than the
+  // one that was negotiated. Parsing the wrong one mis-slices without raising anything: the
+  // offset lands before the real slice header, so the header itself gets encrypted.
+  // That holds in one direction only. An h264 access unit carrying no slice NALU but carrying
+  // an AUD or SEI that reads as an h265 slice now slices there instead of throwing. No real
+  // WebRTC access unit can reach it, because every one of them carries a type 1 or 5 slice.
+  let detectedCodec = detectCodecFromNALUs(data, naluIndices);
+  if (detectedCodec === 'unknown') {
+    detectedCodec = knownCodec ?? 'unknown';
+  }
 
   if (detectedCodec === 'unknown') {
     return { unencryptedBytes: 0, detectedCodec, requiresNALUProcessing: false };
@@ -326,4 +341,44 @@ export function processNALUsForEncryption(
   }
 
   return { unencryptedBytes, detectedCodec, requiresNALUProcessing: true };
+}
+
+/**
+ * Rewrite every 3-byte Annex B start code (00 00 01) in `data` to the 4-byte form (00 00 00 01).
+ *
+ * WebRTC's H.264/H.265 depacketizer always reconstructs NALUs with 4-byte start codes, regardless
+ * of what the encoder emitted. Some encoders (e.g. Intel Quick Sync) emit 3-byte start codes, so
+ * the unencrypted header a receiver sees would differ from what the sender authenticated as
+ * AES-GCM additionalData. Normalizing on the sender makes both sides agree.
+ *
+ * Returns `data` unchanged (same instance) when it contains no 3-byte start codes.
+ */
+export function normalizeAnnexBStartCodes(data: NonSharedUint8Array): NonSharedUint8Array {
+  const shortStartCodes: number[] = [];
+  for (let i = 0; i + 2 < data.length;) {
+    if (data[i + 2] === 0) {
+      i += 1;
+      continue;
+    }
+    if (data[i + 2] === 1 && data[i] === 0 && data[i + 1] === 0 && (i === 0 || data[i - 1] !== 0)) {
+      shortStartCodes.push(i);
+    }
+    // data[i + 2] is non-zero, so no start code can begin at i + 1 or i + 2 either.
+    i += 3;
+  }
+  if (shortStartCodes.length === 0) {
+    return data;
+  }
+
+  // The new array is zero-filled, so the one-byte gap left before each short start code becomes
+  // the inserted leading 00.
+  const result = new Uint8Array(data.length + shortStartCodes.length);
+  let from = 0;
+  for (let inserted = 0; inserted < shortStartCodes.length; inserted++) {
+    const to = shortStartCodes[inserted];
+    result.set(data.subarray(from, to), from + inserted);
+    from = to;
+  }
+  result.set(data.subarray(from), from + shortStartCodes.length);
+  return result;
 }

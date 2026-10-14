@@ -1,15 +1,23 @@
 import { ClientInfo_Capability } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  stubMissingCompressionStreams,
+  stubMissingDeflateRawSupport,
+} from '../test/compressionStreamStubs';
 import { getBrowser } from '../utils/browserParser';
 import {
   ddExtensionURI,
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isAppleMobile,
+  isCompressionStreamSupported,
+  isDeflateRawCompressionSupported,
   isIPadOS,
+  isPermissionDeniedError,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
+  resetDeflateRawCompressionSupportCache,
   splitUtf8,
   supportsAdaptiveStream,
   toWebsocketUrl,
@@ -439,5 +447,76 @@ describe('isIPadOS / isAppleMobile', () => {
   it('does not fire on a desktop safari reporting no touch support', () => {
     stub(MAC_SAFARI_UA, 1);
     expect(isIPadOS()).toBe(false);
+  });
+});
+
+describe('isDeflateRawCompressionSupported', () => {
+  afterEach(() => {
+    resetDeflateRawCompressionSupportCache();
+  });
+
+  it('is true in a runtime that supports the deflate-raw format', () => {
+    expect(isDeflateRawCompressionSupported()).toBe(true);
+  });
+
+  it('is false without the compression streams api at all', () => {
+    const restoreCompressionStreams = stubMissingCompressionStreams();
+    try {
+      expect(isDeflateRawCompressionSupported()).toBe(false);
+      expect(isCompressionStreamSupported()).toBe(false);
+    } finally {
+      restoreCompressionStreams();
+    }
+  });
+
+  it('is false when the api exists but deflate-raw is not a supported format', () => {
+    const restoreCompressionStreams = stubMissingDeflateRawSupport();
+    try {
+      expect(isDeflateRawCompressionSupported()).toBe(false);
+      // Chromium 80-102 still compresses gzip, which is all the wrapped join request needs.
+      expect(isCompressionStreamSupported()).toBe(true);
+    } finally {
+      restoreCompressionStreams();
+    }
+  });
+
+  it('probes the runtime only once', () => {
+    expect(isDeflateRawCompressionSupported()).toBe(true);
+
+    const originalCompressionStream = globalThis.CompressionStream;
+    try {
+      (globalThis as any).CompressionStream = undefined;
+      expect(isDeflateRawCompressionSupported()).toBe(true);
+    } finally {
+      (globalThis as any).CompressionStream = originalCompressionStream;
+    }
+  });
+});
+
+describe('isPermissionDeniedError', () => {
+  function errorNamed(name: string) {
+    const e = new Error(name);
+    e.name = name;
+    return e;
+  }
+
+  it('matches the permission denial names and their legacy aliases', () => {
+    expect(isPermissionDeniedError(errorNamed('NotAllowedError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('SecurityError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('PermissionDeniedError'))).toBe(true);
+    expect(isPermissionDeniedError(errorNamed('PermissionDismissedError'))).toBe(true);
+  });
+
+  it('does not match failures that a softer constraint could still satisfy', () => {
+    expect(isPermissionDeniedError(errorNamed('OverconstrainedError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('ConstraintNotSatisfiedError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('NotFoundError'))).toBe(false);
+    expect(isPermissionDeniedError(errorNamed('SomeNameNobodyHasShippedYet'))).toBe(false);
+  });
+
+  it('does not match a plain error, undefined or null', () => {
+    expect(isPermissionDeniedError(new Error('boom'))).toBe(false);
+    expect(isPermissionDeniedError(undefined)).toBe(false);
+    expect(isPermissionDeniedError(null)).toBe(false);
   });
 });

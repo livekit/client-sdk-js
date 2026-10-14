@@ -10,7 +10,7 @@ import log from '../../../logger';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber, isCompressionStreamSupported, numberToBigInt } from '../../utils';
+import { bigIntToNumber, isDeflateRawCompressionSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
 import {
@@ -87,6 +87,17 @@ export default class IncomingDataStreamManager {
   }
 
   clearControllers() {
+    // Error any in flight streams so readers do not wait forever for chunks that can no longer arrive.
+    const abnormalEndError = new DataStreamError(
+      'Room disconnected in the middle of receiving data',
+      DataStreamErrorReason.AbnormalEnd,
+    );
+    for (const { controller } of this.byteStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
+    for (const { controller } of this.textStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
     this.bufferedPackets = [];
@@ -174,11 +185,11 @@ export default class IncomingDataStreamManager {
         let compressed;
         switch (streamHeader.compression) {
           case DataStream_CompressionType.DEFLATE_RAW:
-            if (!isCompressionStreamSupported()) {
+            if (!isDeflateRawCompressionSupported()) {
               // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
               // isn't properly abiding by the data streams v2 protocol.
               log.warn(
-                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not support deflate-raw decompression. Dropping...`,
               );
               return;
             }
@@ -279,11 +290,11 @@ export default class IncomingDataStreamManager {
         let compressed;
         switch (streamHeader.compression) {
           case DataStream_CompressionType.DEFLATE_RAW:
-            if (!isCompressionStreamSupported()) {
+            if (!isDeflateRawCompressionSupported()) {
               // NOTE: this shouldn't really ever happen, if this warning is logged then the sender
               // isn't properly abiding by the data streams v2 protocol.
               log.warn(
-                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not have support for DecompressionStream. Dropping...`,
+                `Data stream ${streamHeader.streamId} received with deflate-raw compression, but this browser does not support deflate-raw decompression. Dropping...`,
               );
               return;
             }

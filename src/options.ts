@@ -172,6 +172,16 @@ export interface InternalRoomConnectOptions {
    */
   disableIceLite: boolean;
 
+  /**
+   * whether the SFU may pause subscribed video tracks when this participant's downstream
+   * connection is congested, so that other tracks can continue to stream smoothly.
+   * paused tracks resume automatically when conditions allow, and `RoomEvent.TrackStreamStateChanged`
+   * fires on each transition.
+   * when left undefined, the server's default applies (the project setting on LiveKit Cloud,
+   * or `rtc.congestion_control.allow_pause` when self-hosting)
+   */
+  subscriberAllowPause?: boolean;
+
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
 

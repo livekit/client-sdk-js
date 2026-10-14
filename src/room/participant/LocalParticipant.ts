@@ -32,6 +32,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
+import DeviceManager from '../DeviceManager';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
@@ -96,11 +97,14 @@ import {
 import {
   Future,
   isAudioTrack,
+  isChromiumBased,
+  isDeviceAcquisitionFailure,
   isE2EESimulcastSupported,
   isFireFox,
   isLocalAudioTrack,
   isLocalTrack,
   isLocalVideoTrack,
+  isPermissionDeniedError,
   isSVCCodec,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
@@ -1532,21 +1536,37 @@ export default class LocalParticipant extends Participant {
     }
     const packetTrailerFeatures = this.normalizeRequestedFrameMetadataOptions(track, opts);
 
+    // the backup sender encodes the processed track, not the raw capture track.dimensions reports
+    const { width, height } = track.mediaStreamTrack.getSettings();
+    const dims = width && height ? { width, height } : undefined;
+    if (!dims) {
+      this.log.warn(
+        'could not determine track dimensions, publishing backup codec without layers',
+        getLogContextFromTrack(track),
+      );
+    }
+    // the server reads the layers off the codec entry for a request that carries a sid, and
+    // falls back to the top level ones when it predates per codec layers
+    const layers = dims ? videoLayersFromEncodings(dims.width, dims.height, encodings) : [];
+
     const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       sid: track.sid,
+      width: dims?.width,
+      height: dims?.height,
       packetTrailerFeatures,
+      layers,
       simulcastCodecs: [
         {
           codec: opts.videoCodec,
           cid: simulcastTrack.mediaStreamTrack.id,
+          layers,
         },
       ],
     });
-    req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
 
     if (!this.engine || this.engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
@@ -2140,8 +2160,7 @@ export default class LocalParticipant extends Participant {
             getLogContextFromTrack(track),
           );
           if (isLocalAudioTrack(track)) {
-            // fall back to default device if available
-            await track.restartTrack({ deviceId: 'default' });
+            await this.restartOnDefaultAudioDevice(track);
           } else {
             await track.restartTrack();
           }
@@ -2152,6 +2171,34 @@ export default class LocalParticipant extends Participant {
       }
     }
   };
+
+  /**
+   * @internal
+   */
+  private async restartOnDefaultAudioDevice(track: LocalAudioTrack) {
+    try {
+      if (isChromiumBased()) {
+        // only chrome has the notion of a literal `default` device
+        await track.setDeviceId({ exact: 'default' });
+      } else {
+        // just try to restart for other browsers and try to change the device id as a fallback in the catch clause
+        await track.restartTrack();
+      }
+    } catch (e) {
+      // restart() clears the manually-stopped flag on entry, so retrying a track the user stopped
+      // while the first attempt was in flight would re-open the capture device behind their back
+      if (!isDeviceAcquisitionFailure(e) || isPermissionDeniedError(e) || track.isStopped) {
+        throw e;
+      }
+      this.log.debug(
+        'could not reacquire the audio device, retrying with an enumerated device',
+        getLogContextFromTrack(track),
+      );
+      // permission is already granted at this point, so skip the probe that would re-acquire media
+      const allDevices = await DeviceManager.getInstance().getDevices('audioinput', false);
+      await track.setDeviceId(allDevices?.[0]?.deviceId ?? 'default');
+    }
+  }
 
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack,

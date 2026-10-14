@@ -751,6 +751,43 @@ export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong
   throw Error('could not unwrap constraint');
 }
 
+/**
+ * The getUserMedia rejections that no softer constraint can recover from, because the user or the
+ * document refused capture outright. Retrying one of these would put a second prompt in front of
+ * someone who already said no. The last two names are legacy spellings still reported by older
+ * engines. Matched by `name` rather than with `instanceof`, because these are not reliably distinct
+ * constructors across environments. happy-dom, which the tests run under, aliases them to `Event`.
+ */
+export function isPermissionDeniedError(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'name' in e &&
+    (e.name === 'NotAllowedError' ||
+      e.name === 'SecurityError' ||
+      e.name === 'PermissionDeniedError' ||
+      e.name === 'PermissionDismissedError')
+  );
+}
+
+const deviceAcquisitionFailures = new WeakSet();
+
+/** Records that `e` is the rejection getUserMedia itself produced. */
+export function markDeviceAcquisitionFailure(e: unknown) {
+  if (typeof e === 'object' && e !== null) {
+    deviceAcquisitionFailures.add(e);
+  }
+}
+
+/**
+ * Whether a track restart failed at getUserMedia rather than in the work that adopts the new track.
+ * Recorded on the side rather than by wrapping, because callers of `restartTrack` match on the
+ * rejection's own name.
+ */
+export function isDeviceAcquisitionFailure(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && deviceAcquisitionFailures.has(e);
+}
+
 export function toWebsocketUrl(url: string): string {
   if (url.startsWith('http')) {
     return url.replace(/^(http)/, 'ws');
@@ -986,6 +1023,49 @@ export function extractMaxAgeFromRequestHeaders(headers: Headers): number | unde
 
 export function isCompressionStreamSupported() {
   return typeof CompressionStream !== 'undefined';
+}
+
+let deflateRawCompressionSupported: boolean | null = null;
+
+/**
+ * Whether this runtime can compress AND decompress the `deflate-raw` format, which is a stricter
+ * requirement than {@link isCompressionStreamSupported}: Chromium 80-102 included
+ * `CompressionStream` supporting only `gzip` / `deflate`, and `deflate-raw` was added in Chromium
+ * 103 (Firefox 113, Safari 16.4).
+ */
+export function isDeflateRawCompressionSupported(): boolean {
+  if (typeof deflateRawCompressionSupported !== 'boolean') {
+    deflateRawCompressionSupported = probeDeflateRawCompressionSupport();
+  }
+  return deflateRawCompressionSupported;
+}
+
+function probeDeflateRawCompressionSupport(): boolean {
+  if (typeof CompressionStream === 'undefined' || typeof DecompressionStream === 'undefined') {
+    return false;
+  }
+  try {
+    // There is no api to query format support, and constructing with an unsupported format throws
+    // synchronously, so constructing one of each is the probe. Both are checked because the
+    // deflate-raw capability advertised to peers is as much about decompressing what they send us
+    // as it is about compressing what we send them.
+    new CompressionStream('deflate-raw');
+    new DecompressionStream('deflate-raw');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clears the memoized {@link isDeflateRawCompressionSupported} probe result. A runtime doesn't
+ * gain or lose compression formats while it is running, so this only exists for tests that swap
+ * the global `CompressionStream` / `DecompressionStream`.
+ *
+ * @internal
+ */
+export function resetDeflateRawCompressionSupportCache() {
+  deflateRawCompressionSupported = null;
 }
 
 export function isPublisherOfferWithJoinSupported() {

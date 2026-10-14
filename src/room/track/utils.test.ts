@@ -105,6 +105,11 @@ describe('constraintsForOptions', () => {
     expect(videoOpts.frameRate).toEqual(VideoPresets.h720.resolution.frameRate);
     expect(videoOpts.aspectRatio).toEqual(VideoPresets.h720.resolution.aspectRatio);
   });
+
+  it('leaves an explicitly set exact deviceId untouched', () => {
+    const constraints = constraintsForOptions({ audio: { deviceId: { exact: 'default' } } });
+    expect((constraints.audio as MediaTrackConstraints).deviceId).toEqual({ exact: 'default' });
+  });
 });
 
 describe('diffAttributes', () => {
