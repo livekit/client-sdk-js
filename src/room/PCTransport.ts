@@ -59,6 +59,14 @@ const setupTimeForMinStartBitrateMs = 3500;
 /** Cap on the start bitrate hint, in kbps, when the browser reports a `3g` connection. */
 const effectiveType3gStartBitrateKbps = 500;
 
+/**
+ * The part of the Network Information API (`navigator.connection`) read here. It is Chromium
+ * only, so TypeScript's DOM typings do not declare it.
+ */
+interface NetworkInformation {
+  readonly effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
+}
+
 const debounceInterval = 20;
 
 /**
@@ -126,9 +134,12 @@ export function computeTrackStartBitrate(
  * time already reflects latency.
  */
 function connectionEffectiveTypeStartBitrateCap(): number {
-  // `navigator.connection` is missing from the DOM typings, being Chromium only.
-  const connection = (globalThis.navigator as { connection?: { effectiveType?: string } })
-    ?.connection;
+  // A `typeof` guard, since `globalThis` is missing from some supported browsers (Chrome < 71,
+  // Firefox < 65, Safari < 12.1) and the build does not polyfill it.
+  const connection =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { connection?: NetworkInformation }).connection
+      : undefined;
   switch (connection?.effectiveType) {
     case 'slow-2g':
     case '2g':
