@@ -126,10 +126,9 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   not in it. That is the guard against the augmentations reaching a core consumer: tsc's
   declaration emitter writes `import("../..")` for an inferred type whenever the index barrel is
   in its program, and that import would type a `[rpc]` room as if every extension were installed.
-  Still, never import types from the barrel (`'../..'`, `'.'`) inside `src`, and prefer explicit
-  types on exported extension objects (`E2eeExtension`, `CheckRoom`): the main build's
-  declarations are emitted from the full program. `pnpm check:core` compiles a consumer probe
-  against declarations emitted the same way and fails on a leak or a dangling reference.
+  Still, never import types from the barrel (`'../..'`, `'.'`) inside `src`. Inferred types on
+  exported values are fine. `pnpm check:core` compiles a consumer probe against declarations
+  emitted the same way and fails on a leak or a dangling reference.
 - The core build emits its own declarations with `stripInternal` (`dist/core/types`); the main
   entry keeps `@internal` members because components-js and React Native use some of them. Every
   symbol a public signature names must therefore stay untagged (`ExtensionContext`,

@@ -4,12 +4,7 @@ import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ConnectionState } from '../CoreRoom';
 import type { CoreRoom } from '../CoreRoom';
 import { RoomEvent } from '../events';
-import {
-  type ConfigurableExtension,
-  type ExtensionContext,
-  type ExtensionResult,
-  defineExtension,
-} from '../extensions';
+import { type ExtensionContext, type ExtensionResult, defineExtension } from '../extensions';
 import type {
   ByteStreamInfo,
   SendBytesOptions,
@@ -82,16 +77,7 @@ export interface DataStreamLocalApi {
 /**
  * Text and byte streams (`sendText`, `sendFile`, `registerTextStreamHandler`, ...).
  */
-export type DataStreamsExtension = ConfigurableExtension<
-  ExtensionResult<DataStreamRoomApi, DataStreamLocalApi> & {
-    incoming: IncomingDataStreamManager;
-    outgoing: OutgoingDataStreamManager;
-  },
-  RoomDataStreamOptions,
-  readonly []
->;
-
-export const dataStreams: DataStreamsExtension = /* @__PURE__ */ defineExtension(
+export const dataStreams = /* @__PURE__ */ defineExtension(
   'dataStreams',
   [],
   (
