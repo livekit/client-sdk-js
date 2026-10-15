@@ -60,7 +60,7 @@ describe('Room signaling options', () => {
 
     (
       room as unknown as {
-        e2eeManager: unknown;
+        slots: { e2eeManager: unknown };
         connectSignal: (
           url: string,
           token: string,
@@ -70,7 +70,7 @@ describe('Room signaling options', () => {
           abortController: AbortController,
         ) => Promise<JoinResponse>;
       }
-    ).e2eeManager = {};
+    ).slots.e2eeManager = {};
 
     await (
       room as unknown as {

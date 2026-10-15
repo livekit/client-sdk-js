@@ -10,8 +10,10 @@ import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager
 import type { StructuredLogger } from '../logger';
 import type { CoreRoom } from './CoreRoom';
 import type RTCEngine from './RTCEngine';
-import type { LocalParticipantSlots } from './participant/LocalParticipant';
+import type { ByteStreamWriter } from './data-stream/outgoing/StreamWriter';
+import type { VideoPublisher } from './participant/LocalParticipant';
 import type RemoteParticipant from './participant/RemoteParticipant';
+import type { StreamBytesOptions } from './types';
 
 /**
  * A feature that `createRoom(options, [...])` (or the full `Room`) installs on a room. The
@@ -30,14 +32,59 @@ export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
 }
 
 /**
- * What `install` returns. Extra members (beyond `room`/`local`/`dispose`) are not copied
+ * What `install` returns: the APIs to copy onto the room and its local participant, and what the
+ * extension contributes to core (slots, packet ownership, hooks). Extra members are not copied
  * anywhere; dependent extensions read them through `ctx.get(extension)`.
  */
 export interface ExtensionResult<RoomApi = {}, LocalApi = {}> {
   room?: RoomApi;
-  local?: LocalApi;
+  localParticipant?: LocalApi;
   /** Called from `Room.dispose()`, in reverse install order. Must be synchronous. */
   dispose?(): void;
+  /** Values core reads; see {@link CoreSlots}. */
+  slots?: Partial<CoreSlots>;
+  /** The `DataPacket` oneof cases this extension owns. A second owner throws at install. */
+  dataPackets?: { [C in DataPacketCase]?: DataPacketHandler<C> };
+  /** Local data track publications for the sync state the room sends on resume. */
+  syncState?(): PublishDataTrackResponse[];
+  /**
+   * Runs once every extension of the list is installed, with the current engine, and again
+   * whenever the room replaces it (after a close). The room's own engine listeners are registered
+   * first, so a listener on the same engine event sees room state already updated.
+   */
+  onEngineCreated?(engine: RTCEngine): void;
+  /**
+   * Runs at the start of every disconnect, including one that reaches an already disconnected
+   * room, before the room emits `RoomEvent.Disconnected`.
+   */
+  onDisconnect?(): void;
+  /** Runs after the room creates a remote participant from a `ParticipantInfo`. */
+  onParticipantCreated?(participant: RemoteParticipant, info: ParticipantInfo): void;
+  /** Runs after the room applied a participant update (join, update, reconnect). */
+  onParticipantUpdates?(infos: ParticipantInfo[]): void;
+}
+
+export type DataPacketHandler<C extends DataPacketCase> = (
+  value: DataPacketValue<C>,
+  packet: DataPacket,
+  encryptionType: Encryption_Type,
+  participant: RemoteParticipant | undefined,
+) => void;
+
+/**
+ * The values core reads from extensions. An extension fills a slot through the `slots` of its
+ * install result; core and the local participant read it. Adding one is a key here plus the read.
+ * @experimental
+ */
+export interface CoreSlots {
+  /** `RTCEngine` and the publish path encrypt through it (`e2ee`). */
+  e2eeManager: BaseE2EEManager;
+  /** The engine's sender transform, the join capability and `publishTrack` read it (`frameMetadata`). */
+  frameMetadataOptions: FrameMetadataOptions;
+  /** Opens an outgoing byte stream (`dataStreams`). The preconnect audio buffer goes through it. */
+  byteStreamOpener: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
+  /** The video publish pipeline (`video`). Without it, publishing a video track throws. */
+  videoPublisher: VideoPublisher;
 }
 
 export type DataPacketCase = NonNullable<DataPacket['value']['case']>;
@@ -47,58 +94,17 @@ export type DataPacketValue<C extends DataPacketCase> = Extract<
 >['value'];
 
 /**
- * The hooks core exposes to extensions. Everything else an extension needs (`remoteParticipants`,
+ * What core exposes to an extension at install time. Everything the extension contributes goes
+ * through its install result instead. Everything else it needs (`remoteParticipants`,
  * `localParticipant`, `emit`, `options`, `engine`) is public on the room already.
  * @experimental
  */
 export interface ExtensionContext {
   log: StructuredLogger;
-  /**
-   * Runs now with the current engine and again whenever the room replaces it (after a close).
-   * The room's own engine listeners are registered before this runs, so a hook that listens to
-   * the same engine event sees room state already updated.
-   */
-  onEngineCreated(cb: (engine: RTCEngine) => void): void;
-  /** Claims a `DataPacket` oneof case. Throws if another extension already owns it. */
-  onDataPacket<C extends DataPacketCase>(
-    kind: C,
-    handler: (
-      value: DataPacketValue<C>,
-      packet: DataPacket,
-      encryptionType: Encryption_Type,
-      participant: RemoteParticipant | undefined,
-    ) => void,
-  ): void;
-  /**
-   * Runs at the start of every disconnect, including one that reaches an already disconnected
-   * room, before the room emits `RoomEvent.Disconnected`.
-   */
-  onDisconnect(cb: () => void): void;
-  /** Runs after the room creates a remote participant from a `ParticipantInfo`. */
-  onParticipantCreated(cb: (participant: RemoteParticipant, info: ParticipantInfo) => void): void;
-  /** Runs after the room applied a participant update (join, update, reconnect). */
-  onParticipantUpdates(cb: (infos: ParticipantInfo[]) => void): void;
-  /** Contributes local data track publications to the sync state the room sends on resume. */
-  onSyncState(cb: () => PublishDataTrackResponse[]): void;
-  /**
-   * The frame metadata slot: the engine's sender transform, the join request capability and
-   * `publishTrack` read it. The `frameMetadata` extension fills it.
-   */
-  setFrameMetadataOptions(options: FrameMetadataOptions): void;
-  /** The E2EE manager slot. Core owns the slot and reads it; the `e2ee` extension fills it. */
-  getE2eeManager(): BaseE2EEManager | undefined;
-  setE2eeManager(manager: BaseE2EEManager): void;
-  onE2eeManagerChanged(cb: (manager: BaseE2EEManager) => void): void;
   /** The `install` result of an already installed extension (a hard dependency). */
   get<E extends RoomExtension<any, any>>(ext: E): ReturnType<E['install']>;
-  /**
-   * Fills a slot on the local participant: how to open an outgoing byte stream (`dataStreams`),
-   * how to publish a video track (`video`). Core reads the slots from the publish path.
-   */
-  setLocalParticipantSlot<K extends keyof LocalParticipantSlots>(
-    slot: K,
-    value: NonNullable<LocalParticipantSlots[K]>,
-  ): void;
+  /** Reads a slot. Slots of the whole list are filled before any `onEngineCreated` runs. */
+  slot<K extends keyof CoreSlots>(slot: K): CoreSlots[K] | undefined;
   /** Returns the remote participant for an identity, creating it from `info` when new. */
   getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant;
   /** Puts the room into the connected state without a server (`simulatedParticipants`). */

@@ -30,7 +30,6 @@ import TypedPromise from '../../utils/TypedPromise';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
-import type { ByteStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import {
   LivekitError,
   NegotiationError,
@@ -40,6 +39,7 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
+import type { CoreSlots } from '../extensions';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -59,7 +59,7 @@ import {
   mergeDefaultOptions,
   sourceToKind,
 } from '../track/utils';
-import { type DataPublishOptions, type StreamBytesOptions } from '../types';
+import type { DataPublishOptions } from '../types';
 import {
   Future,
   isAudioTrack,
@@ -75,18 +75,6 @@ import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type RemoteParticipant from './RemoteParticipant';
-
-/**
- * What extensions plug into the local participant. The room owns the object and fills it through
- * `ExtensionContext.setLocalParticipantSlot()`; the participant only reads it.
- * @experimental
- */
-export interface LocalParticipantSlots {
-  /** Opens an outgoing byte stream (`dataStreams`). The preconnect audio buffer goes through it. */
-  openByteStream?: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
-  /** The video publish pipeline (`video`). Without it, publishing a video track throws. */
-  videoPublisher?: VideoPublisher;
-}
 
 /**
  * The video publish pipeline. The `video` extension sets it on the local participant; without it,
@@ -176,7 +164,8 @@ export class LocalParticipant extends Participant {
   /** @internal */
   enabledPublishVideoCodecs: Codec[] = [];
 
-  private readonly slots: LocalParticipantSlots;
+  /** The room's extension slots; the install result of an extension fills them. */
+  private readonly slots: Partial<CoreSlots>;
 
   /** @internal */
   constructor(
@@ -184,7 +173,7 @@ export class LocalParticipant extends Participant {
     identity: string,
     engine: RTCEngine,
     options: InternalRoomOptions,
-    slots: LocalParticipantSlots = {},
+    slots: Partial<CoreSlots> = {},
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -1106,12 +1095,12 @@ export class LocalParticipant extends Participant {
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
             this.log.debug('sending preconnect buffer', getLogContextFromTrack(track));
-            if (!this.slots.openByteStream) {
+            if (!this.slots.byteStreamOpener) {
               throw new Error(
                 'the dataStreams extension is required to send the preconnect buffer',
               );
             }
-            const writer = await this.slots.openByteStream({
+            const writer = await this.slots.byteStreamOpener({
               name: 'preconnect-buffer',
               mimeType,
               topic: 'lk.agent.pre-connect-audio-buffer',

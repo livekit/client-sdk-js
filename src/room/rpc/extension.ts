@@ -109,27 +109,6 @@ export const rpc = {
       },
     );
 
-    ctx.onDataPacket('rpcRequest', (request, packet) => {
-      server.handleIncomingRpcRequest(packet.participantIdentity, request);
-    });
-    ctx.onDataPacket('rpcResponse', (response) => {
-      switch (response.value.case) {
-        case 'payload':
-          client.handleIncomingRpcResponseSuccess(response.requestId, response.value.value);
-          break;
-        case 'error':
-          client.handleIncomingRpcResponseFailure(
-            response.requestId,
-            RpcError.fromProto(response.value.value),
-          );
-          break;
-        default:
-          ctx.log.warn(`Unknown rpcResponse.value.case: ${response.value.case}`);
-          break;
-      }
-    });
-    ctx.onDataPacket('rpcAck', (ack) => client.handleIncomingRpcAck(ack.requestId));
-
     room.on(RoomEvent.ParticipantDisconnected, (participant) =>
       client.handleParticipantDisconnected(participant.identity),
     );
@@ -140,8 +119,30 @@ export const rpc = {
       server.unregisterRpcMethod(method);
 
     return {
+      dataPackets: {
+        rpcRequest: (request, packet) => {
+          server.handleIncomingRpcRequest(packet.participantIdentity, request);
+        },
+        rpcResponse: (response) => {
+          switch (response.value.case) {
+            case 'payload':
+              client.handleIncomingRpcResponseSuccess(response.requestId, response.value.value);
+              break;
+            case 'error':
+              client.handleIncomingRpcResponseFailure(
+                response.requestId,
+                RpcError.fromProto(response.value.value),
+              );
+              break;
+            default:
+              ctx.log.warn(`Unknown rpcResponse.value.case: ${response.value.case}`);
+              break;
+          }
+        },
+        rpcAck: (ack) => client.handleIncomingRpcAck(ack.requestId),
+      },
       room: { registerRpcMethod, unregisterRpcMethod },
-      local: {
+      localParticipant: {
         performRpc: (params) =>
           client.performRpc(params).then(([_id, completionPromise]) => completionPromise),
         registerRpcMethod,

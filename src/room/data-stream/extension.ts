@@ -99,14 +99,9 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
       (identity) => room.remoteParticipants.get(identity)?.capabilities ?? [],
       () => Array.from(room.remoteParticipants.keys()),
     );
-    ctx.onEngineCreated((engine) => outgoing.setupEngine(engine));
 
     const onStreamPacket = (_value: unknown, packet: DataPacket, encryptionType: Encryption_Type) =>
       incoming.handleDataStreamPacket(packet, encryptionType);
-    ctx.onDataPacket('streamHeader', onStreamPacket);
-    ctx.onDataPacket('streamChunk', onStreamPacket);
-    ctx.onDataPacket('streamTrailer', onStreamPacket);
-    ctx.onDisconnect(() => incoming.clearControllers());
 
     room
       .on(RoomEvent.ConnectionStateChanged, (state) =>
@@ -116,12 +111,18 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
         incoming.validateParticipantHasNoActiveDataStreams(participant.identity),
       );
 
-    // The preconnect audio buffer is sent as a byte stream from inside the core publish path.
-    ctx.setLocalParticipantSlot('openByteStream', (options) => outgoing.streamBytes(options));
-
     return {
       incoming,
       outgoing,
+      // The preconnect audio buffer is sent as a byte stream from inside the core publish path.
+      slots: { byteStreamOpener: (options) => outgoing.streamBytes(options) },
+      dataPackets: {
+        streamHeader: onStreamPacket,
+        streamChunk: onStreamPacket,
+        streamTrailer: onStreamPacket,
+      },
+      onEngineCreated: (engine) => outgoing.setupEngine(engine),
+      onDisconnect: () => incoming.clearControllers(),
       room: {
         registerTextStreamHandler: (topic, callback) =>
           incoming.registerTextStreamHandler(topic, callback),
@@ -130,7 +131,7 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
           incoming.registerByteStreamHandler(topic, callback),
         unregisterByteStreamHandler: (topic) => incoming.unregisterByteStreamHandler(topic),
       },
-      local: {
+      localParticipant: {
         sendText: (text, options) => outgoing.sendText(text, options),
         streamText: (options) => outgoing.streamText(options),
         sendFile: (file, options) => outgoing.sendFile(file, options),

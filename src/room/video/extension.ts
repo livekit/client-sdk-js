@@ -78,16 +78,14 @@ export const video = {
     room.options.publishDefaults = { ...videoPublishDefaults, ...room.options.publishDefaults };
 
     const participant = room.localParticipant;
-    ctx.setLocalParticipantSlot('videoPublisher', createVideoPublisher(room, ctx.log));
-
-    ctx.onEngineCreated((engine) => {
-      engine.on(EngineEvent.SubscribedQualityUpdate, (update) =>
-        handleSubscribedQualityUpdate(room, ctx.log, update),
-      );
-    });
-
     return {
-      local: {
+      slots: { videoPublisher: createVideoPublisher(room, ctx.log) },
+      onEngineCreated: (engine) => {
+        engine.on(EngineEvent.SubscribedQualityUpdate, (update) =>
+          handleSubscribedQualityUpdate(room, ctx.log, update),
+        );
+      },
+      localParticipant: {
         setCameraEnabled: (enabled, options, publishOptions) =>
           participant.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions),
         setScreenShareEnabled: (enabled, options, publishOptions) =>

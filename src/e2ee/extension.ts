@@ -32,7 +32,7 @@ export const e2ee = /* @__PURE__ */ defineExtension(
   [],
   (
     room: CoreRoom,
-    ctx: ExtensionContext,
+    _ctx: ExtensionContext,
     options: E2eeExtensionOptions | undefined,
   ): ExtensionResult<E2eeRoomApi> & { manager: BaseE2EEManager | undefined } => {
     // when encryption is enabled via `options.encryption`, we enable data channel encryption
@@ -67,7 +67,6 @@ export const e2ee = /* @__PURE__ */ defineExtension(
           : undefined;
         room.emit(RoomEvent.EncryptionError, error, participant);
       });
-      ctx.setE2eeManager(manager);
       manager.setup(room);
       manager.setupEngine(room.engine);
     }
@@ -75,6 +74,7 @@ export const e2ee = /* @__PURE__ */ defineExtension(
     const stateMutex = new Mutex();
     return {
       manager,
+      slots: manager ? { e2eeManager: manager } : undefined,
       room: {
         setE2EEEnabled: async (enabled) => {
           const unlock = await stateMutex.lock();

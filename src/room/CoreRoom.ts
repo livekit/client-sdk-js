@@ -30,8 +30,6 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { ensureTrailingSlash } from '../api/utils';
-import type { BaseE2EEManager } from '../e2ee/E2eeManager';
-import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import { isFrameMetadataSupported } from '../frameMetadata/utils';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
@@ -65,8 +63,14 @@ import {
   canFailOverToAnotherRegion,
 } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
-import type { DataPacketCase, ExtensionContext, RoomExtension } from './extensions';
-import { LocalParticipant, type LocalParticipantSlots } from './participant/LocalParticipant';
+import type {
+  CoreSlots,
+  DataPacketCase,
+  ExtensionContext,
+  ExtensionResult,
+  RoomExtension,
+} from './extensions';
+import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -177,10 +181,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private disconnectLock: Mutex;
 
   /** the E2EE manager slot; filled by the `e2ee` extension */
-  private e2eeManager: BaseE2EEManager | undefined;
-
-  /** Filled by the `frameMetadata` extension through `ExtensionContext`. */
-  private frameMetadataOptions: FrameMetadataOptions | undefined;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
@@ -207,27 +207,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
-  private installedExtensions = new Map<symbol, unknown>();
+  private installedExtensions = new Map<symbol, ExtensionResult<any, any>>();
 
-  /** Filled by extensions through `ExtensionContext.setLocalParticipantSlot()`. */
+  /** Values extensions hand to core (`ExtensionResult.slots`); shared with the local participant. */
 
-  private readonly localParticipantSlots: LocalParticipantSlots = {};
+  private readonly slots: Partial<CoreSlots> = {};
 
   private extensionDisposers: Array<() => void> = [];
-
-  private engineCreatedHooks: Array<(engine: RTCEngine) => void> = [];
-
-  private disconnectHooks: Array<() => void> = [];
-
-  private participantCreatedHooks: Array<
-    (participant: RemoteParticipant, info: ParticipantInfo) => void
-  > = [];
-
-  private participantUpdateHooks: Array<(infos: ParticipantInfo[]) => void> = [];
-
-  private syncStateHooks: Array<() => PublishDataTrackResponse[]> = [];
-
-  private e2eeManagerHooks: Array<(manager: BaseE2EEManager) => void> = [];
 
   private dataPacketHandlers = new Map<
     DataPacketCase,
@@ -244,7 +230,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private disposed = false;
 
   get hasE2EESetup(): boolean {
-    return this.e2eeManager !== undefined;
+    return this.slots.e2eeManager !== undefined;
   }
 
   /**
@@ -279,13 +265,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
-    this.localParticipant = new LocalParticipant(
-      '',
-      '',
-      this.engine,
-      this.options,
-      this.localParticipantSlots,
-    );
+    this.localParticipant = new LocalParticipant('', '', this.engine, this.options, this.slots);
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -348,44 +328,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   installExtensions(extensions: readonly RoomExtension<any, any>[]) {
     const ctx: ExtensionContext = {
       log: this.log,
-      onEngineCreated: (cb) => {
-        this.engineCreatedHooks.push(cb);
-        cb(this.engine);
-      },
-      onDataPacket: (kind, handler) => {
-        if (this.dataPacketHandlers.has(kind)) {
-          // @throws-transformer ignore - programmer error
-          throw new Error(`data packet case '${kind}' is already handled by another extension`);
-        }
-        this.dataPacketHandlers.set(kind, (packet, encryptionType, participant) =>
-          handler(packet.value.value as any, packet, encryptionType, participant),
-        );
-      },
-      onDisconnect: (cb) => {
-        this.disconnectHooks.push(cb);
-      },
-      onParticipantCreated: (cb) => {
-        this.participantCreatedHooks.push(cb);
-      },
-      onParticipantUpdates: (cb) => {
-        this.participantUpdateHooks.push(cb);
-      },
-      onSyncState: (cb) => {
-        this.syncStateHooks.push(cb);
-      },
-      setFrameMetadataOptions: (options) => {
-        this.frameMetadataOptions = options;
-        this.engine.frameMetadataOptions = options;
-      },
-      getE2eeManager: () => this.e2eeManager,
-      setE2eeManager: (manager) => {
-        this.e2eeManager = manager;
-        this.engine.e2eeManager = manager;
-        this.e2eeManagerHooks.forEach((hook) => hook(manager));
-      },
-      onE2eeManagerChanged: (cb) => {
-        this.e2eeManagerHooks.push(cb);
-      },
       get: (ext) => {
         const result = this.installedExtensions.get(ext.key);
         if (!result) {
@@ -394,13 +336,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         }
         return result as any;
       },
-      setLocalParticipantSlot: (slot, value) => {
-        this.localParticipantSlots[slot] = value;
-      },
+      slot: (slot) => this.slots[slot],
       getOrCreateParticipant: (identity, info) => this.getOrCreateParticipant(identity, info),
       simulateConnected: (roomInfo, localParticipantInfo) =>
         this.simulateConnected(roomInfo, localParticipantInfo),
     };
+    const results: ExtensionResult<any, any>[] = [];
     for (const ext of extensions) {
       if (this.installedExtensions.has(ext.key)) {
         // @throws-transformer ignore - programmer error
@@ -408,12 +349,36 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
       const result = ext.install(this, ctx);
       this.installedExtensions.set(ext.key, result);
+      results.push(result);
+      for (const [kind, handler] of Object.entries(result.dataPackets ?? {})) {
+        if (this.dataPacketHandlers.has(kind as DataPacketCase)) {
+          // @throws-transformer ignore - programmer error
+          throw new Error(`data packet case '${kind}' is already handled by another extension`);
+        }
+        this.dataPacketHandlers.set(kind as DataPacketCase, (packet, encryptionType, participant) =>
+          (handler as any)(packet.value.value, packet, encryptionType, participant),
+        );
+      }
+      Object.assign(this.slots, result.slots);
       defineExtensionApi(this, result.room, ext);
-      defineExtensionApi(this.localParticipant, result.local, ext);
+      defineExtensionApi(this.localParticipant, result.localParticipant, ext);
       if (result.dispose) {
         this.extensionDisposers.push(result.dispose);
       }
     }
+    this.applySlotsToEngine();
+    // every slot of the list is filled before the first hook runs
+    results.forEach((result) => result.onEngineCreated?.(this.engine));
+  }
+
+  /** The engine keeps its own copy of the slots it reads on the hot path. */
+  private applySlotsToEngine() {
+    this.engine.e2eeManager = this.slots.e2eeManager;
+    this.engine.frameMetadataOptions = this.slots.frameMetadataOptions;
+  }
+
+  private get extensionResults() {
+    return Array.from(this.installedExtensions.values());
   }
 
   /**
@@ -502,8 +467,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     this.engine = new RTCEngine(this.options);
-    this.engine.e2eeManager = this.e2eeManager;
-    this.engine.frameMetadataOptions = this.frameMetadataOptions;
+    this.applySlotsToEngine();
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
@@ -601,10 +565,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
     }
-    if (this.e2eeManager) {
-      this.e2eeManager.setupEngine(this.engine);
+    if (this.slots.e2eeManager) {
+      this.slots.e2eeManager.setupEngine(this.engine);
     }
-    this.engineCreatedHooks.forEach((hook) => hook(this.engine));
+    this.extensionResults.forEach((result) => result.onEngineCreated?.(this.engine));
   }
 
   private createRegionStrategy(): RegionStrategy {
@@ -842,7 +806,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         disableIceLite: connectOptions.disableIceLite,
         clientInfoCapabilities: this.getClientInfoCapabilities(),
         maxRetries: connectOptions.maxRetries,
-        e2eeEnabled: !!this.e2eeManager,
+        e2eeEnabled: !!this.slots.e2eeManager,
         websocketTimeout: connectOptions.websocketTimeout,
       },
       abortController.signal,
@@ -871,9 +835,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.localParticipant.identity = pi.identity;
     this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
-    if (this.e2eeManager) {
+    if (this.slots.e2eeManager) {
       try {
-        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer as NonSharedUint8Array);
+        this.slots.e2eeManager.setSifTrailer(joinResponse.sifTrailer as NonSharedUint8Array);
       } catch (e: any) {
         this.log.error(e instanceof Error ? e.message : 'Could not set SifTrailer', {
           error: e,
@@ -1556,7 +1520,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       adaptiveStreamSettings,
     );
 
-    if (publication?.isEncrypted && !this.e2eeManager) {
+    if (publication?.isEncrypted && !this.slots.e2eeManager) {
       this.emit(
         RoomEvent.EncryptionError,
         new Error(
@@ -1676,7 +1640,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.isResuming = false;
     this.bufferedEvents = [];
     this.transcriptionReceivedTimes.clear();
-    this.disconnectHooks.forEach((hook) => hook());
+    this.extensionResults.forEach((result) => result.onDisconnect?.());
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
@@ -1777,7 +1741,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
     }
 
-    this.participantUpdateHooks.forEach((hook) => hook(participantInfos));
+    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(participantInfos));
   };
 
   private handleParticipantDisconnected(
@@ -2174,7 +2138,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         loggerContextCb: () => this.logContext,
         loggerName: this.options.loggerName,
       });
-      this.participantCreatedHooks.forEach((hook) => hook(participant, info));
+      this.extensionResults.forEach((result) => result.onParticipantCreated?.(participant, info));
     } else {
       participant = new RemoteParticipant(
         this.engine.client,
@@ -2317,7 +2281,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }, [] as RemoteTrackPublication[]);
     const localTracks = this.localParticipant.getTrackPublications() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
     const publishDataTracks = ([] as PublishDataTrackResponse[]).concat(
-      ...this.syncStateHooks.map((hook) => hook()),
+      ...this.extensionResults.map((result) => result.syncState?.() ?? []),
     );
     this.engine.sendSyncState(remoteTracks, localTracks, publishDataTracks);
   }
@@ -2346,7 +2310,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   /** The client capabilities this SDK advertises to other participants in its `ClientInfo`. */
   private getClientInfoCapabilities(): Array<ClientInfo_Capability> {
     const capabilities: Array<ClientInfo_Capability> = [];
-    if (isFrameMetadataSupported(this.frameMetadataOptions) || !!this.e2eeManager) {
+    if (isFrameMetadataSupported(this.slots.frameMetadataOptions) || !!this.slots.e2eeManager) {
       capabilities.push(ClientInfo_Capability.CAP_PACKET_TRAILER);
     }
     // Advertise deflate-raw decompression support so peers know they can send us compressed data

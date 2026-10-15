@@ -21,12 +21,9 @@ export interface ChatLocalApi {
  */
 export const chat = {
   key: /* @__PURE__ */ Symbol('lk.extension.chat'),
-  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<{}, ChatLocalApi> {
+  install(room: CoreRoom, _ctx: ExtensionContext): ExtensionResult<{}, ChatLocalApi> {
     const participant = room.localParticipant;
 
-    ctx.onDataPacket('chatMessage', (chatMessage, _packet, _encryptionType, sender) => {
-      room.emit(RoomEvent.ChatMessage, extractChatMessage(chatMessage), sender);
-    });
     participant.on(ParticipantEvent.ChatMessage, (msg) => {
       room.emit(RoomEvent.ChatMessage, msg, participant);
     });
@@ -49,7 +46,12 @@ export const chat = {
     };
 
     return {
-      local: {
+      dataPackets: {
+        chatMessage: (chatMessage, _packet, _encryptionType, sender) => {
+          room.emit(RoomEvent.ChatMessage, extractChatMessage(chatMessage), sender);
+        },
+      },
+      localParticipant: {
         sendChatMessage: (text, options) =>
           send({
             id: crypto.randomUUID(),

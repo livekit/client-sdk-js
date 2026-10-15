@@ -1,12 +1,15 @@
 import {
   type DataTrackInfo as DataTrackInfoProto,
   Encryption_Type,
+  type ParticipantInfo,
   PublishDataTrackResponse,
   RequestResponse_Reason,
 } from '@livekit/protocol';
 import type { CoreRoom } from '../CoreRoom';
+import type RTCEngine from '../RTCEngine';
 import { EngineEvent, RoomEvent } from '../events';
 import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type RemoteParticipant from '../participant/RemoteParticipant';
 import LocalDataTrack from './LocalDataTrack';
 import RemoteDataTrack from './RemoteDataTrack';
 import IncomingDataTrackManager from './incoming/IncomingDataTrackManager';
@@ -40,12 +43,8 @@ export const dataTracks = {
     incoming: IncomingDataTrackManager;
     outgoing: OutgoingDataTrackManager;
   } {
-    const incoming = new IncomingDataTrackManager({ e2eeManager: ctx.getE2eeManager() });
-    const outgoing = new OutgoingDataTrackManager({ e2eeManager: ctx.getE2eeManager() });
-    ctx.onE2eeManagerChanged((manager) => {
-      incoming.updateE2eeManager(manager);
-      outgoing.updateE2eeManager(manager);
-    });
+    const incoming = new IncomingDataTrackManager();
+    const outgoing = new OutgoingDataTrackManager();
 
     incoming
       .on('sfuUpdateSubscription', (event) => {
@@ -87,7 +86,11 @@ export const dataTracks = {
           .finally(() => outgoing.handlePacketSendComplete(handle));
       });
 
-    ctx.onEngineCreated((engine) => {
+    const onEngineCreated = (engine: RTCEngine) => {
+      // the e2ee extension may sit after this one in the list; every slot is filled by now
+      const e2eeManager = ctx.slot('e2eeManager') ?? null;
+      incoming.updateE2eeManager(e2eeManager);
+      outgoing.updateE2eeManager(e2eeManager);
       engine
         .on(EngineEvent.PublishDataTrackResponse, (event) => {
           if (!event.info) {
@@ -173,13 +176,13 @@ export const dataTracks = {
             error,
           });
         });
-    });
+    };
 
-    ctx.onDisconnect(() => {
+    const onDisconnect = () => {
       incoming.reset();
       outgoing.reset();
-    });
-    ctx.onParticipantCreated((participant, info) => {
+    };
+    const onParticipantCreated = (participant: RemoteParticipant, info: ParticipantInfo) => {
       for (const proto of info.dataTracks) {
         participant.addRemoteDataTrack(
           new RemoteDataTrack(DataTrackInfo.from(proto), incoming, {
@@ -187,8 +190,8 @@ export const dataTracks = {
           }),
         );
       }
-    });
-    ctx.onParticipantUpdates((infos) => {
+    };
+    const onParticipantUpdates = (infos: ParticipantInfo[]) => {
       incoming.receiveSfuPublicationUpdates(
         new Map(
           infos
@@ -196,12 +199,11 @@ export const dataTracks = {
             .map((info) => [info.identity, toInfos(info.dataTracks)]),
         ),
       );
-    });
-    ctx.onSyncState(() =>
+    };
+    const syncState = () =>
       outgoing
         .queryPublished()
-        .map((info) => new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) })),
-    );
+        .map((info) => new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) }));
     room.on(RoomEvent.ParticipantDisconnected, (participant) =>
       incoming.handleRemoteParticipantDisconnected(participant.identity),
     );
@@ -209,7 +211,12 @@ export const dataTracks = {
     return {
       incoming,
       outgoing,
-      local: {
+      onEngineCreated,
+      onDisconnect,
+      onParticipantCreated,
+      onParticipantUpdates,
+      syncState,
+      localParticipant: {
         publishDataTrack: async (options) => {
           const track = new LocalDataTrack(options, outgoing);
           await track.publish();

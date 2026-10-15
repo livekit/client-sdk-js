@@ -11,16 +11,17 @@ export const frameMetadata = /* @__PURE__ */ defineExtension(
   [],
   (
     room: CoreRoom,
-    ctx: ExtensionContext,
+    _ctx: ExtensionContext,
     options: FrameMetadataOptions | undefined,
   ): ExtensionResult & { manager: FrameMetadataManager } => {
     const resolved = options ?? room.options.frameMetadata ?? room.options.packetTrailer;
-    if (resolved) {
-      // the engine (sender transform), the join request (capability) and publishTrack read it
-      ctx.setFrameMetadataOptions(resolved);
-    }
     const manager = new FrameMetadataManager(resolved);
     manager.setup(room);
-    return { manager, dispose: () => manager.dispose() };
+    // the engine (sender transform), the join request capability and publishTrack read the slot
+    return {
+      manager,
+      slots: resolved ? { frameMetadataOptions: resolved } : undefined,
+      dispose: () => manager.dispose(),
+    };
   },
 );
