@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PCEvents } from './PCTransport';
-import { PCTransportManager } from './PCTransportManager';
+import { PCTransportManager, PCTransportState } from './PCTransportManager';
+import { ConnectionErrorReason } from './errors';
 
 /**
  * Yield to the microtask queue so any then/catch handlers chained to a promise
@@ -312,5 +313,53 @@ describe('PCTransportManager.triggerIceRestart', () => {
     await manager.triggerIceRestart();
 
     expect(manager.subscriber?.restartingIce).toBe(false);
+  });
+});
+
+describe('PCTransportManager.ensurePCTransportConnection', () => {
+  let originalRTCPeerConnection: unknown;
+
+  beforeEach(() => {
+    originalRTCPeerConnection = (globalThis as unknown as { RTCPeerConnection?: unknown })
+      .RTCPeerConnection;
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = StubPC;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection =
+      originalRTCPeerConnection;
+  });
+
+  /** A manager whose publisher never connects; counts the poll loop's reads of its state. */
+  function makeConnectingManager() {
+    const manager = new PCTransportManager('publisher-only', {});
+    (manager as unknown as { publisher: unknown }).publisher = {
+      getConnectionState: () => 'connecting',
+    };
+    let stateReads = 0;
+    Object.defineProperty(manager, 'state', {
+      get: () => {
+        stateReads += 1;
+        return PCTransportState.CONNECTING;
+      },
+    });
+    return { manager, stateReads: () => stateReads };
+  }
+
+  it('stops polling once the connection timeout fires', async () => {
+    const { manager, stateReads } = makeConnectingManager();
+    const wait = manager.ensurePCTransportConnection(undefined, 1_000);
+    const timedOut = expect(wait).rejects.toMatchObject({
+      reason: ConnectionErrorReason.InternalError,
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await timedOut;
+    const readsAtTimeout = stateReads();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(stateReads()).toBe(readsAtTimeout);
   });
 });
