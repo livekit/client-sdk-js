@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Room } from '../Room';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { ExternalE2EEKeyProvider } from '../e2ee/KeyProvider';
 import { e2ee } from '../e2ee/extension';
 import { frameMetadata } from '../frameMetadata/extension';
 import { CoreRoom } from './CoreRoom';
-import { Room } from './Room';
 import { createRoom } from './createRoom';
 import { dataStreams } from './data-stream/extension';
 import { RoomEvent } from './events';

@@ -1,6 +1,6 @@
 import { Encryption_Type, ParticipantInfo, TrackInfo, TrackType } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConnectionState, Room } from '../room/Room';
+import { ConnectionState, Room } from '../Room';
 import { EngineEvent, RoomEvent } from '../room/events';
 import type RemoteParticipant from '../room/participant/RemoteParticipant';
 import RemoteTrackPublication from '../room/track/RemoteTrackPublication';

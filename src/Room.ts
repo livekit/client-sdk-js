@@ -1,17 +1,17 @@
-import { e2ee } from '../e2ee/extension';
-import { frameMetadata } from '../frameMetadata/extension';
-import type { RoomOptions } from '../options';
-import { CoreRoom } from './CoreRoom';
-import { chat } from './chat/extension';
-import { dataStreams } from './data-stream/extension';
-import { dataTracks } from './data-track/extension';
-import { installExtensions } from './extensions';
-import { rpc } from './rpc/extension';
-import { simulatedParticipants } from './simulated-participants/extension';
-import { registerVideoCapture } from './video/create';
-import { video } from './video/extension';
+import { e2ee } from './e2ee/extension';
+import { frameMetadata } from './frameMetadata/extension';
+import type { RoomOptions } from './options';
+import { CoreRoom } from './room/CoreRoom';
+import { chat } from './room/chat/extension';
+import { dataStreams } from './room/data-stream/extension';
+import { dataTracks } from './room/data-track/extension';
+import { installExtensions } from './room/extensions';
+import { rpc } from './room/rpc/extension';
+import { simulatedParticipants } from './room/simulated-participants/extension';
+import { registerVideoCapture } from './room/video/create';
+import { video } from './room/video/extension';
 
-export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
+export { ConnectionState, type RoomEventCallbacks } from './room/CoreRoom';
 
 /** Every extension, listed bare: each one reads its options from `RoomOptions`, as today. */
 const fullExtensions = [

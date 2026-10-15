@@ -8,7 +8,7 @@ import type { SimulatedParticipantsRoomApi } from './room/simulated-participants
 import type { VideoLocalApi } from './room/video/extension';
 
 export * from './exports';
-export { Room } from './room/Room';
+export { Room } from './Room';
 export type { CoreRoom } from './room/CoreRoom';
 
 // The full build installs every extension, so `CoreRoom` and `LocalParticipant` carry every

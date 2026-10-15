@@ -81,7 +81,7 @@ room.engine;
   const check = run(['-p', path.join(tmp, 'tsconfig.json'), '--listFiles']);
   const leaked = check.out
     .split('\n')
-    .filter((line) => /[\\/]src[\\/](index|room[\\/]Room)\.d\.ts$/.test(line.trim()));
+    .filter((line) => /[\\/]src[\\/](index|Room)\.d\.ts$/.test(line.trim()));
   const errors = check.out
     .split('\n')
     .filter((line) => /error TS\d+/.test(line))

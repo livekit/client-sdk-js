@@ -44,7 +44,7 @@ const GROUPS = [
   ['@bufbuild/protobuf', (p) => p.includes('node_modules/@bufbuild/')],
   ...Object.entries(FEATURES),
   ['other node_modules', (p) => p.includes('node_modules/')],
-  ['Room.ts', (p) => p === 'src/room/Room.ts'],
+  ['Room.ts', (p) => p === 'src/Room.ts'],
   ['RTCEngine.ts', (p) => p === 'src/room/RTCEngine.ts'],
   ['LocalParticipant.ts', (p) => p === 'src/room/participant/LocalParticipant.ts'],
   ['SignalClient + api/', (p) => p.startsWith('src/api/')],

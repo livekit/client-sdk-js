@@ -9,9 +9,9 @@ import {
   TrackType,
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ConnectionState, Room } from '../Room';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
-import { ConnectionState, Room } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';

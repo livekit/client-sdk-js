@@ -115,7 +115,7 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   E2EE manager slot (`getE2eeManager` / `setE2eeManager` / `onE2eeManagerChanged`). Core owns
   the slot because `RTCEngine` and the publish path read it. Prefer an existing `RoomEvent` over
   a new hook.
-- The full entry (`src/room/Room.ts`) augments `CoreRoom` and `LocalParticipant` with the
+- The full entry (`src/Room.ts`, next to `index.ts`; `src/room/Room.ts` became `CoreRoom.ts`) augments `CoreRoom` and `LocalParticipant` with the
   extension API interfaces via `declare module`, so the full build keeps its types wherever those
   classes appear. Inside the SDK's own compilation this means core code can call extension
   methods without a type error; `pnpm check:core` is the guard.
