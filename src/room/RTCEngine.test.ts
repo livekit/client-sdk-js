@@ -11,7 +11,12 @@ import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { roomOptionDefaults } from './defaults';
-import { PublishDataError, UnexpectedConnectionState } from './errors';
+import {
+  ConnectionError,
+  ConnectionErrorReason,
+  PublishDataError,
+  UnexpectedConnectionState,
+} from './errors';
 import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 
@@ -847,6 +852,112 @@ describe('RTCEngine', () => {
 
       // exactly one dispatch (from the catch), not a second one from the finally
       expect(handleDisconnect).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('waitForPCInitialConnection across a full reconnect', () => {
+    // A full reconnect during the initial join (e.g. the server moving a client off dead UDP)
+    // closes the transports the initial wait polls; they never connect, so only abort or timeout end it.
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const ensurePCTransportConnection = (abortController?: AbortController, timeout?: number) =>
+        new Promise<void>((_, reject) => {
+          setTimeout(
+            () => reject(ConnectionError.internal('could not establish pc connection')),
+            timeout,
+          );
+          abortController?.signal.addEventListener('abort', () =>
+            reject(ConnectionError.cancelled('room connection has been cancelled')),
+          );
+        });
+      (engine as unknown as { pcManager: unknown }).pcManager = { ensurePCTransportConnection };
+      return engine;
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('resolves when the full reconnect succeeds', async () => {
+      const engine = primeEngine();
+      const wait = engine.waitForPCInitialConnection(15_000, new AbortController());
+
+      engine.emit(EngineEvent.Restarting);
+      engine.emit(EngineEvent.Restarted);
+
+      await expect(wait).resolves.toBeUndefined();
+    });
+
+    it('rejects when the engine gives up or closes during the full reconnect', async () => {
+      const engine = primeEngine();
+      const wait = engine.waitForPCInitialConnection(15_000);
+
+      engine.emit(EngineEvent.Restarting);
+      engine.emit(EngineEvent.Closing);
+
+      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
+    });
+
+    it('follows the full reconnect when the original transports connect after it began', async () => {
+      const engine = primeEngine();
+      let connectOriginalTransports!: () => void;
+      (engine as unknown as { pcManager: unknown }).pcManager = {
+        ensurePCTransportConnection: () =>
+          new Promise<void>((resolve) => {
+            connectOriginalTransports = resolve;
+          }),
+      };
+      const wait = engine.waitForPCInitialConnection(15_000);
+      const failed = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      connectOriginalTransports();
+      await vi.advanceTimersByTimeAsync(0);
+      engine.emit(EngineEvent.Closing);
+
+      await failed;
+    });
+
+    it('rejects when the timeout runs out during the full reconnect', async () => {
+      const engine = primeEngine();
+      const wait = engine.waitForPCInitialConnection(15_000);
+      const timedOut = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await timedOut;
+    });
+
+    it('rejects as cancelled when the attempt is aborted during the full reconnect', async () => {
+      const engine = primeEngine();
+      const abortController = new AbortController();
+      const wait = engine.waitForPCInitialConnection(15_000, abortController);
+
+      engine.emit(EngineEvent.Restarting);
+      abortController.abort();
+
+      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    });
+
+    it('rejects as cancelled when the attempt was aborted before the full reconnect', async () => {
+      const engine = primeEngine();
+      const abortController = new AbortController();
+      const wait = engine.waitForPCInitialConnection(15_000, abortController);
+
+      abortController.abort();
+      engine.emit(EngineEvent.Restarting);
+      engine.emit(EngineEvent.Restarted);
+
+      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
     });
   });
 
