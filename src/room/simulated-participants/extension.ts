@@ -9,7 +9,7 @@ import {
 } from '@livekit/protocol';
 import type { CoreRoom } from '../CoreRoom';
 import { ParticipantEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type { ExtensionContext, RoomApiProvider, RoomExtension } from '../extensions';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import { Track } from '../track/Track';
@@ -33,7 +33,7 @@ export interface SimulatedParticipantsRoomApi {
  */
 export const simulatedParticipants = {
   key: /* @__PURE__ */ Symbol('lk.extension.simulatedParticipants'),
-  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<SimulatedParticipantsRoomApi> {
+  install(room: CoreRoom, ctx: ExtensionContext): RoomApiProvider<SimulatedParticipantsRoomApi> {
     return {
       room: {
         simulateParticipants: (options) => simulateParticipants(room, ctx, options),

@@ -70,6 +70,7 @@ import type {
   ExtensionResult,
   RoomExtension,
 } from './extensions';
+import { SLOT_KEYS } from './extensions';
 import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
@@ -209,7 +210,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private installedExtensions = new Map<symbol, ExtensionResult<any, any>>();
 
-  /** Values extensions hand to core (`ExtensionResult.slots`); shared with the local participant. */
+  /** Values extensions hand to core (the `*Provider` members of an install result); shared with the local participant. */
 
   private readonly slots: Partial<CoreSlots> = {};
 
@@ -359,7 +360,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           (handler as any)(packet.value.value, packet, encryptionType, participant),
         );
       }
-      Object.assign(this.slots, result.slots);
+      for (const key of SLOT_KEYS) {
+        if (result[key] !== undefined) {
+          (this.slots as Record<string, unknown>)[key] = result[key];
+        }
+      }
       defineExtensionApi(this, result.room, ext);
       defineExtensionApi(this.localParticipant, result.localParticipant, ext);
       if (result.dispose) {

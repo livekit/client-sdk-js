@@ -31,38 +31,78 @@ export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RoomApi, LocalApi>;
 }
 
-/**
- * What `install` returns: the APIs to copy onto the room and its local participant, and what the
- * extension contributes to core (slots, packet ownership, hooks). Extra members are not copied
- * anywhere; dependent extensions read them through `ctx.get(extension)`.
- */
-export interface ExtensionResult<RoomApi = {}, LocalApi = {}> {
-  room?: RoomApi;
-  localParticipant?: LocalApi;
-  /** Called from `Room.dispose()`, in reverse install order. Must be synchronous. */
-  dispose?(): void;
-  /** Values core reads; see {@link CoreSlots}. */
-  slots?: Partial<CoreSlots>;
-  /** The `DataPacket` oneof cases this extension owns. A second owner throws at install. */
-  dataPackets?: { [C in DataPacketCase]?: DataPacketHandler<C> };
-  /** Local data track publications for the sync state the room sends on resume. */
-  syncState?(): PublishDataTrackResponse[];
+/** What an extension contributes to the engine. */
+export interface EngineHooks {
   /**
    * Runs once every extension of the list is installed, with the current engine, and again
    * whenever the room replaces it (after a close). The room's own engine listeners are registered
    * first, so a listener on the same engine event sees room state already updated.
    */
   onEngineCreated?(engine: RTCEngine): void;
+}
+
+/** What an extension contributes to the connection lifecycle. */
+export interface ConnectionHooks {
   /**
    * Runs at the start of every disconnect, including one that reaches an already disconnected
    * room, before the room emits `RoomEvent.Disconnected`.
    */
   onDisconnect?(): void;
+}
+
+/** What an extension contributes to remote participant bookkeeping. */
+export interface ParticipantHooks {
   /** Runs after the room creates a remote participant from a `ParticipantInfo`. */
   onParticipantCreated?(participant: RemoteParticipant, info: ParticipantInfo): void;
   /** Runs after the room applied a participant update (join, update, reconnect). */
   onParticipantUpdates?(infos: ParticipantInfo[]): void;
 }
+
+/** An extension that owns `DataPacket` oneof cases. A second owner of a case throws at install. */
+export interface DataPacketOwner {
+  dataPackets?: { [C in DataPacketCase]?: DataPacketHandler<C> };
+}
+
+/** An extension that contributes to the sync state the room sends on resume. */
+export interface SyncStateProvider {
+  /** Local data track publications. */
+  syncState?(): PublishDataTrackResponse[];
+}
+
+/** An extension that adds methods to the room, copied onto it under the SDK's method names. */
+export interface RoomApiProvider<RoomApi = {}> {
+  room: RoomApi;
+}
+
+/** An extension that adds methods to the local participant, copied onto it. */
+export interface LocalApiProvider<LocalApi = {}> {
+  localParticipant: LocalApi;
+}
+
+/** An extension with something to release. */
+export interface Disposable {
+  /** Called from `Room.dispose()`, in reverse install order. Must be synchronous. */
+  dispose(): void;
+}
+
+/**
+ * What `install` returns: the APIs plus every contribution to core an extension can opt into,
+ * all optional. An extension declares the narrower type it uses, such as
+ * `RoomApiProvider<RpcRoomApi> & LocalApiProvider<RpcLocalApi> & DataPacketOwner`, so a missing
+ * API or an undeclared contribution is a type error. Extra members are not copied anywhere;
+ * dependent extensions read them through `ctx.get(extension)`. The room's own typing
+ * (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalApi>` generics, which each
+ * extension pins with `satisfies`.
+ */
+export type ExtensionResult<RoomApi = {}, LocalApi = {}> = Partial<
+  RoomApiProvider<RoomApi> & LocalApiProvider<LocalApi> & Disposable
+> &
+  EngineHooks &
+  ConnectionHooks &
+  ParticipantHooks &
+  DataPacketOwner &
+  Partial<CoreSlots> &
+  SyncStateProvider;
 
 export type DataPacketHandler<C extends DataPacketCase> = (
   value: DataPacketValue<C>,
@@ -72,20 +112,38 @@ export type DataPacketHandler<C extends DataPacketCase> = (
 ) => void;
 
 /**
- * The values core reads from extensions. An extension fills a slot through the `slots` of its
- * install result; core and the local participant read it. Adding one is a key here plus the read.
+ * The values core reads from extensions. Core copies them off every install result into one
+ * store that it and the local participant read; `ctx.slot()` reads it too. Adding one is a
+ * member here, its key in `SLOT_KEYS`, and the read in core.
  * @experimental
  */
 export interface CoreSlots {
-  /** `RTCEngine` and the publish path encrypt through it (`e2ee`). */
+  /** The E2EE manager `RTCEngine` and the publish path encrypt through (`e2ee`). */
   e2eeManager: BaseE2EEManager;
-  /** The engine's sender transform, the join capability and `publishTrack` read it (`frameMetadata`). */
+  /**
+   * The frame metadata options the engine's sender transform, the join capability and
+   * `publishTrack` read (`frameMetadata`).
+   */
   frameMetadataOptions: FrameMetadataOptions;
-  /** Opens an outgoing byte stream (`dataStreams`). The preconnect audio buffer goes through it. */
+  /** Opens an outgoing byte stream (`dataStreams`); the preconnect audio buffer goes through it. */
   byteStreamOpener: (options?: StreamBytesOptions) => Promise<ByteStreamWriter>;
-  /** The video publish pipeline (`video`). Without it, publishing a video track throws. */
+  /** The video publish pipeline (`video`). Without one, publishing a video track throws. */
   videoPublisher: VideoPublisher;
 }
+
+/**
+ * An extension that supplies the named slots: `SlotProvider<'byteStreamOpener'>`. A provider
+ * whose value is conditional declares `Partial<SlotProvider<...>>`.
+ */
+export type SlotProvider<K extends keyof CoreSlots> = Pick<CoreSlots, K>;
+
+/** @internal the keys core copies off an install result */
+export const SLOT_KEYS = [
+  'e2eeManager',
+  'frameMetadataOptions',
+  'byteStreamOpener',
+  'videoPublisher',
+] as const satisfies readonly (keyof CoreSlots)[];
 
 export type DataPacketCase = NonNullable<DataPacket['value']['case']>;
 export type DataPacketValue<C extends DataPacketCase> = Extract<

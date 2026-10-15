@@ -1,7 +1,13 @@
 import { Mutex } from '@livekit/mutex';
 import type { CoreRoom } from '../room/CoreRoom';
 import { RoomEvent } from '../room/events';
-import { type ExtensionContext, type ExtensionResult, defineExtension } from '../room/extensions';
+import {
+  type Disposable,
+  type ExtensionContext,
+  type RoomApiProvider,
+  type SlotProvider,
+  defineExtension,
+} from '../room/extensions';
 import { isLocalParticipant } from '../room/utils';
 import { type BaseE2EEManager, E2EEManager } from './E2eeManager';
 import { EncryptionEvent } from './events';
@@ -34,7 +40,9 @@ export const e2ee = /* @__PURE__ */ defineExtension(
     room: CoreRoom,
     _ctx: ExtensionContext,
     options: E2eeExtensionOptions | undefined,
-  ): ExtensionResult<E2eeRoomApi> & { manager: BaseE2EEManager | undefined } => {
+  ): RoomApiProvider<E2eeRoomApi> &
+    Partial<SlotProvider<'e2eeManager'>> &
+    Disposable & { manager: BaseE2EEManager | undefined } => {
     // when encryption is enabled via `options.encryption`, we enable data channel encryption
     const dcEncryptionEnabled = options ? !!options.encryptDataChannel : !!room.options.encryption;
     const e2eeOptions: E2EEOptions | undefined =
@@ -42,7 +50,7 @@ export const e2ee = /* @__PURE__ */ defineExtension(
 
     let manager: BaseE2EEManager | undefined;
     // an app-supplied manager (and its worker) can be shared between rooms; the app owns it
-    let dispose: (() => void) | undefined;
+    let dispose = () => {};
     if (e2eeOptions) {
       if ('e2eeManager' in e2eeOptions) {
         manager = e2eeOptions.e2eeManager;
@@ -74,7 +82,7 @@ export const e2ee = /* @__PURE__ */ defineExtension(
     const stateMutex = new Mutex();
     return {
       manager,
-      slots: manager ? { e2eeManager: manager } : undefined,
+      e2eeManager: manager,
       room: {
         setE2EEEnabled: async (enabled) => {
           const unlock = await stateMutex.lock();

@@ -200,7 +200,16 @@ export type { CoreRoomOptions } from './options';
 export type {
   ConfigurableExtension,
   ConfiguredExtension,
+  ConnectionHooks,
+  DataPacketOwner,
+  Disposable,
+  EngineHooks,
   ExtensionApis,
+  LocalApiProvider,
+  ParticipantHooks,
+  RoomApiProvider,
+  SlotProvider,
+  SyncStateProvider,
   ExtensionResult,
   RoomExtension,
 } from './room/extensions';

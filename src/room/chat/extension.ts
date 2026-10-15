@@ -2,7 +2,12 @@ import { ChatMessage as ChatMessageModel, DataPacket, protoInt64 } from '@liveki
 import type { CoreRoom } from '../CoreRoom';
 import { DataChannelKind } from '../data-channel/types';
 import { ParticipantEvent, RoomEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type {
+  DataPacketOwner,
+  ExtensionContext,
+  LocalApiProvider,
+  RoomExtension,
+} from '../extensions';
 import type { ChatMessage, SendTextOptions } from '../types';
 import { extractChatMessage } from '../utils';
 
@@ -21,7 +26,10 @@ export interface ChatLocalApi {
  */
 export const chat = {
   key: /* @__PURE__ */ Symbol('lk.extension.chat'),
-  install(room: CoreRoom, _ctx: ExtensionContext): ExtensionResult<{}, ChatLocalApi> {
+  install(
+    room: CoreRoom,
+    _ctx: ExtensionContext,
+  ): LocalApiProvider<ChatLocalApi> & DataPacketOwner {
     const participant = room.localParticipant;
 
     participant.on(ParticipantEvent.ChatMessage, (msg) => {

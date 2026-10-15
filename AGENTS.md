@@ -90,9 +90,22 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
 
 - An extension is a plain object: `key`, optional `requires` (hard dependencies, installed first,
   deduped by key), and `install(room, ctx)`. It lives in `extension.ts` next to its managers.
-- `install` returns `{ room, local, dispose }`. `room` and `local` members are copied onto the
-  room and its local participant under the SDK's method names (`sendText`, `registerRpcMethod`).
-  Extra members (the managers) are visible to dependents through `ctx.get(extension)`.
+- `install` returns an intersection of small interfaces, and each extension declares exactly the
+  ones it uses as its return type, so a missing API or an undeclared contribution is a type
+  error: `RoomApiProvider<RoomApi>` (`room`, copied onto the room), `LocalApiProvider<LocalApi>`
+  (`localParticipant`, copied onto the local participant), `Disposable`, `EngineHooks`
+  (`onEngineCreated`), `ConnectionHooks` (`onDisconnect`), `ParticipantHooks`, `DataPacketOwner`
+  (`dataPackets`, one owner per case), `SyncStateProvider`, and `SlotProvider<K>` for the values
+  core reads (`Pick<CoreSlots, K>`; `dataStreams` is a `SlotProvider<'byteStreamOpener'>`). The
+  slots are one keyed store: a new one is a documented member of `CoreSlots`, its key in
+  `SLOT_KEYS` (core copies those off every result), and the read in core. A provider whose value
+  is conditional declares `Partial<SlotProvider<...>>` (`e2ee` without options). Rule for a new
+  interface: one per capability, named for what core does with it, `*Provider` for a value core
+  reads, `*Hooks` for a moment core calls, `*Owner` for an exclusive claim. `ExtensionResult` is the union of all of them, optional, for the resolver.
+  Extra members (the managers) are visible to dependents through `ctx.get(extension)`. The
+  room's typing (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalApi>` generics
+  pinned with `satisfies`, not from the result. Nothing registers on `ExtensionContext`; it
+  offers `log`, `get`, `slot` and the two privileged operations.
 - Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are built with
   `defineExtension()` and are callable: listed bare they read today's `RoomOptions`, called with
   options they use those, and a function is evaluated per room. Extensions without options are
@@ -102,19 +115,19 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   awaited in the extension's own methods.
 - Core never reads an extension's slice of the room options (`e2ee`, `encryption`,
   `frameMetadata`, `packetTrailer`, `dataStream`): a configured extension (`e2ee({ ... })`) does not
-  write them. What core needs comes through a context slot (`setFrameMetadataOptions`,
-  `setE2eeManager`), which the extension fills from its own options or, when listed bare, from
-  `RoomOptions`. `pnpm check:core` greps the core modules for such reads.
+  write them. What core needs comes through a provider member of the install result
+  (`e2eeManager: manager`), which the extension fills from its own options or, when listed bare, from
+  `RoomOptions`. Every slot of the list is filled before the first `onEngineCreated` runs, so an
+  extension that depends on another's slot reads `ctx.slot()` there. `pnpm check:core` greps the
+  modules for reads of another extension's slice.
 - A worker an app supplies to an extension is terminated in the extension's `dispose`, not on
   disconnect: the room can connect again after a disconnect. The exception is a manager the app
   passes in (`e2eeManager`): it can be shared between rooms, so the extension neither disposes
   nor terminates it.
-- Core calls out through `ExtensionContext` hooks only: `onEngineCreated` (the engine is replaced
-  after a close, so register engine listeners there), `onDataPacket` (one owner per `DataPacket`
-  case), `onDisconnect`, `onParticipantCreated`, `onParticipantUpdates`, `onSyncState`, and the
-  E2EE manager slot (`getE2eeManager` / `setE2eeManager` / `onE2eeManagerChanged`). Core owns
-  the slot because `RTCEngine` and the publish path read it. Prefer an existing `RoomEvent` over
-  a new hook.
+- Core calls out through the install result's hooks only. The engine is replaced after a close,
+  so register engine listeners in `onEngineCreated`. Prefer an existing `RoomEvent` over a new
+  hook; a new hook is an optional member on one of the small interfaces plus a loop over
+  `extensionResults` in `CoreRoom`.
 - The full entry (`src/Room.ts`, next to `index.ts`; `src/room/Room.ts` became `CoreRoom.ts`) augments `CoreRoom` and `LocalParticipant` with the
   extension API interfaces via `declare module`, so the full build keeps its types wherever those
   classes appear. Inside the SDK's own compilation this means core code can call extension
@@ -136,10 +149,10 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   not the classes and interfaces that public types mention. `pnpm check:core` type-checks the
   stripped declarations with `skipLibCheck` off and fails on a dangling reference.
 - Operations that exist only for extensions live on `ExtensionContext`, not on `CoreRoom`:
-  `setLocalParticipantSlot()` (the `dataStreams` byte stream opener for the preconnect audio
-  buffer, the `video` publisher), `getOrCreateParticipant()` and `simulateConnected()`. The room
-  keeps the slots in one `LocalParticipantSlots` object that it hands to `LocalParticipant`.
-  `installExtensions()` is the only `@internal` member `CoreRoom` has for extensions.
+  `getOrCreateParticipant()` and `simulateConnected()`. The room keeps the slots in one
+  `Partial<CoreSlots>` object that it hands to `LocalParticipant` (the `byteStreamOpener` for the
+  preconnect audio buffer, the `videoPublisher`). `installExtensions()` is the only `@internal`
+  member `CoreRoom` has for extensions.
 - `Room.dispose()` disconnects, runs extension `dispose` in reverse order and removes the
   `devicechange` listener. A disposed room cannot connect again.
 - `simulateParticipants` is the `simulatedParticipants` extension (`src/room/simulated-participants/`);
@@ -152,7 +165,7 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   cost nothing; it must not import `LocalVideoTrack`, `publishUtils` or `facingMode` as values.
   Two slots connect them: the `videoPublisher` slot on the local participant (the publish
   pipeline for a video track: codec, encodings, layers, start bitrate, server codec fallback,
-  screen capture, set through `ctx.setLocalParticipantSlot`) and `setVideoCapture()` in
+  screen capture, the `videoPublisher` slot of the install result) and `setVideoCapture()` in
   `track/create.ts` (how `createLocalTracks` builds a video track). The
   full entry calls `registerVideoCapture()` at module load so `createLocalTracks({ video })` works
   before any Room exists.

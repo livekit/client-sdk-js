@@ -4,7 +4,16 @@ import { CLIENT_PROTOCOL_DEFAULT } from '../../version';
 import { ConnectionState } from '../CoreRoom';
 import type { CoreRoom } from '../CoreRoom';
 import { RoomEvent } from '../events';
-import { type ExtensionContext, type ExtensionResult, defineExtension } from '../extensions';
+import {
+  type ConnectionHooks,
+  type DataPacketOwner,
+  type EngineHooks,
+  type ExtensionContext,
+  type LocalApiProvider,
+  type RoomApiProvider,
+  type SlotProvider,
+  defineExtension,
+} from '../extensions';
 import type {
   ByteStreamInfo,
   SendBytesOptions,
@@ -84,10 +93,15 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
     room: CoreRoom,
     ctx: ExtensionContext,
     streamOptions: RoomDataStreamOptions | undefined,
-  ): ExtensionResult<DataStreamRoomApi, DataStreamLocalApi> & {
-    incoming: IncomingDataStreamManager;
-    outgoing: OutgoingDataStreamManager;
-  } => {
+  ): RoomApiProvider<DataStreamRoomApi> &
+    LocalApiProvider<DataStreamLocalApi> &
+    SlotProvider<'byteStreamOpener'> &
+    DataPacketOwner &
+    EngineHooks &
+    ConnectionHooks & {
+      incoming: IncomingDataStreamManager;
+      outgoing: OutgoingDataStreamManager;
+    } => {
     const incoming = new IncomingDataStreamManager(
       (streamOptions ?? room.options.dataStream)?.maxPayloadByteLength,
     );
@@ -115,7 +129,7 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
       incoming,
       outgoing,
       // The preconnect audio buffer is sent as a byte stream from inside the core publish path.
-      slots: { byteStreamOpener: (options) => outgoing.streamBytes(options) },
+      byteStreamOpener: (options) => outgoing.streamBytes(options),
       dataPackets: {
         streamHeader: onStreamPacket,
         streamChunk: onStreamPacket,

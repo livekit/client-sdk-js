@@ -5,7 +5,13 @@ import type { CoreRoom } from '../CoreRoom';
 import { DataChannelKind } from '../data-channel/types';
 import { dataStreams } from '../data-stream/extension';
 import { RoomEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type {
+  DataPacketOwner,
+  ExtensionContext,
+  LocalApiProvider,
+  RoomApiProvider,
+  RoomExtension,
+} from '../extensions';
 import {
   type PerformRpcParams,
   RPC_REQUEST_DATA_STREAM_TOPIC,
@@ -77,7 +83,10 @@ export interface RpcLocalApi {
 export const rpc = {
   key: /* @__PURE__ */ Symbol('lk.extension.rpc'),
   requires: [dataStreams] as const,
-  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RpcRoomApi, RpcLocalApi> {
+  install(
+    room: CoreRoom,
+    ctx: ExtensionContext,
+  ): RoomApiProvider<RpcRoomApi> & LocalApiProvider<RpcLocalApi> & DataPacketOwner {
     const { incoming, outgoing } = ctx.get(dataStreams);
     const clientProtocol = (identity: string) =>
       room.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;

@@ -1,5 +1,10 @@
 import type { CoreRoom } from '../room/CoreRoom';
-import { type ExtensionContext, type ExtensionResult, defineExtension } from '../room/extensions';
+import {
+  type Disposable,
+  type ExtensionContext,
+  type SlotProvider,
+  defineExtension,
+} from '../room/extensions';
 import { FrameMetadataManager, type FrameMetadataOptions } from './FrameMetadataManager';
 
 /**
@@ -13,14 +18,15 @@ export const frameMetadata = /* @__PURE__ */ defineExtension(
     room: CoreRoom,
     _ctx: ExtensionContext,
     options: FrameMetadataOptions | undefined,
-  ): ExtensionResult & { manager: FrameMetadataManager } => {
+  ): Partial<SlotProvider<'frameMetadataOptions'>> &
+    Disposable & { manager: FrameMetadataManager } => {
     const resolved = options ?? room.options.frameMetadata ?? room.options.packetTrailer;
     const manager = new FrameMetadataManager(resolved);
     manager.setup(room);
     // the engine (sender transform), the join request capability and publishTrack read the slot
     return {
       manager,
-      slots: resolved ? { frameMetadataOptions: resolved } : undefined,
+      frameMetadataOptions: resolved,
       dispose: () => manager.dispose(),
     };
   },

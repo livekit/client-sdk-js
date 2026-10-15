@@ -1,6 +1,12 @@
 import type { CoreRoom } from '../CoreRoom';
 import { EngineEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type {
+  EngineHooks,
+  ExtensionContext,
+  LocalApiProvider,
+  RoomExtension,
+  SlotProvider,
+} from '../extensions';
 import type LocalTrack from '../track/LocalTrack';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import { Track } from '../track/Track';
@@ -72,14 +78,17 @@ export interface VideoLocalApi {
  */
 export const video = {
   key: /* @__PURE__ */ Symbol('lk.extension.video'),
-  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<{}, VideoLocalApi> {
+  install(
+    room: CoreRoom,
+    ctx: ExtensionContext,
+  ): LocalApiProvider<VideoLocalApi> & SlotProvider<'videoPublisher'> & EngineHooks {
     registerVideoCapture();
     room.options.videoCaptureDefaults = { ...videoDefaults, ...room.options.videoCaptureDefaults };
     room.options.publishDefaults = { ...videoPublishDefaults, ...room.options.publishDefaults };
 
     const participant = room.localParticipant;
     return {
-      slots: { videoPublisher: createVideoPublisher(room, ctx.log) },
+      videoPublisher: createVideoPublisher(room, ctx.log),
       onEngineCreated: (engine) => {
         engine.on(EngineEvent.SubscribedQualityUpdate, (update) =>
           handleSubscribedQualityUpdate(room, ctx.log, update),

@@ -8,7 +8,15 @@ import {
 import type { CoreRoom } from '../CoreRoom';
 import type RTCEngine from '../RTCEngine';
 import { EngineEvent, RoomEvent } from '../events';
-import type { ExtensionContext, ExtensionResult, RoomExtension } from '../extensions';
+import type {
+  ConnectionHooks,
+  EngineHooks,
+  ExtensionContext,
+  LocalApiProvider,
+  ParticipantHooks,
+  RoomExtension,
+  SyncStateProvider,
+} from '../extensions';
 import type RemoteParticipant from '../participant/RemoteParticipant';
 import LocalDataTrack from './LocalDataTrack';
 import RemoteDataTrack from './RemoteDataTrack';
@@ -39,10 +47,14 @@ export const dataTracks = {
   install(
     room: CoreRoom,
     ctx: ExtensionContext,
-  ): ExtensionResult<{}, DataTrackLocalApi> & {
-    incoming: IncomingDataTrackManager;
-    outgoing: OutgoingDataTrackManager;
-  } {
+  ): LocalApiProvider<DataTrackLocalApi> &
+    EngineHooks &
+    ConnectionHooks &
+    ParticipantHooks &
+    SyncStateProvider & {
+      incoming: IncomingDataTrackManager;
+      outgoing: OutgoingDataTrackManager;
+    } {
     const incoming = new IncomingDataTrackManager();
     const outgoing = new OutgoingDataTrackManager();
 
