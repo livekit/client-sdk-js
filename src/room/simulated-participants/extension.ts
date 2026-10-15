@@ -32,7 +32,7 @@ export interface SimulatedParticipantsRoomApi {
  * the `video` extension must be installed when simulated participants publish video.
  */
 export const simulatedParticipants = {
-  key: /* @__PURE__ */ Symbol('simulatedParticipants'),
+  key: /* @__PURE__ */ Symbol('lk.extension.simulatedParticipants'),
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<SimulatedParticipantsRoomApi> {
     return {
       room: {

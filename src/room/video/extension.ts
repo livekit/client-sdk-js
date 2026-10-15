@@ -71,7 +71,7 @@ export interface VideoLocalApi {
  * Receiving video is part of core and needs no extension.
  */
 export const video = {
-  key: /* @__PURE__ */ Symbol('video'),
+  key: /* @__PURE__ */ Symbol('lk.extension.video'),
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<{}, VideoLocalApi> {
     registerVideoCapture();
     room.options.videoCaptureDefaults = { ...videoDefaults, ...room.options.videoCaptureDefaults };

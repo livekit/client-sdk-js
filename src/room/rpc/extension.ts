@@ -75,7 +75,7 @@ export interface RpcLocalApi {
  * RPC over the room (`performRpc`, `registerRpcMethod`). Requires {@link dataStreams}.
  */
 export const rpc = {
-  key: /* @__PURE__ */ Symbol('rpc'),
+  key: /* @__PURE__ */ Symbol('lk.extension.rpc'),
   requires: [dataStreams] as const,
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RpcRoomApi, RpcLocalApi> {
     const { incoming, outgoing } = ctx.get(dataStreams);

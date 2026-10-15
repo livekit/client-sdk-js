@@ -152,7 +152,7 @@ export function defineExtension<
   requires: Requires,
   install: (room: CoreRoom, ctx: ExtensionContext, options: Options | undefined) => Result,
 ): ConfigurableExtension<Result, Options, Requires> {
-  const key = Symbol(name);
+  const key = Symbol(`lk.extension.${name}`);
   const configure = (
     options?: Options | (() => Options),
   ): ConfiguredExtension<Result, Requires> => ({
