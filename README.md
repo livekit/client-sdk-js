@@ -88,27 +88,6 @@ The module will be exported under `LivekitClient` in the global namespace. When
 accessing symbols from the class, you'd need to prefix them with `LivekitClient.`.
 For example, `Room` becomes `LivekitClient.Room`.
 
-### Light build
-
-`livekit-client/core` exports `createRoom`, which builds a room without data streams, RPC, data
-tracks, frame metadata, end-to-end encryption or video publishing, plus exactly the extensions you
-list. The result has the same method names as `Room`, so code moves between the two builds
-unchanged.
-
-```typescript
-import { createRoom, e2ee, rpc } from 'livekit-client/core';
-
-const room = createRoom({ adaptiveStream: true }, [rpc, e2ee({ keyProvider, worker })]);
-// rpc also installs dataStreams, which it requires
-room.registerRpcMethod('greet', async (data) => `Hello, ${data.callerIdentity}!`);
-await room.connect(url, token);
-```
-
-Extensions: `dataStreams`, `rpc`, `dataTracks`, `frameMetadata`, `e2ee`, `video`,
-`simulatedParticipants`. Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are
-called with them; pass the others as they are. An extension you list wins over the default a
-dependency would pull in. The core entry does not import `webrtc-adapter`, and it is ESM only. Import one entry per app: each entry is a self-contained bundle, so an app that loads
-both gets two copies of every class. The entry is experimental.
 
 ## Usage
 
@@ -548,10 +527,6 @@ You may throw errors of the type `RpcError` with a string `message` in an RPC me
 ### Demo App
 
 [examples/demo](https://github.com/livekit/client-sdk-js/tree/main/examples/demo/) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm examples:demo`
-
-### Core Demo
-
-[examples/core](https://github.com/livekit/client-sdk-js/tree/main/examples/core/) uses the light `livekit-client/core` entry with the `rpc` extension. Run it with `pnpm install && pnpm dev` from the `examples/core` directory.
 
 ### RPC Demo
 
