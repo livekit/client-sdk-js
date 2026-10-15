@@ -862,6 +862,28 @@ describe('RTCEngine', () => {
       await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
     });
 
+    it('follows the full reconnect when the original transports connect after it began', async () => {
+      const engine = primeEngine();
+      let connectOriginalTransports!: () => void;
+      (engine as unknown as { pcManager: unknown }).pcManager = {
+        ensurePCTransportConnection: () =>
+          new Promise<void>((resolve) => {
+            connectOriginalTransports = resolve;
+          }),
+      };
+      const wait = engine.waitForPCInitialConnection(15_000);
+      const failed = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      connectOriginalTransports();
+      await vi.advanceTimersByTimeAsync(0);
+      engine.emit(EngineEvent.Closing);
+
+      await failed;
+    });
+
     it('rejects when the timeout runs out during the full reconnect', async () => {
       const engine = primeEngine();
       const wait = engine.waitForPCInitialConnection(15_000);

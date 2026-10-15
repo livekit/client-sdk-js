@@ -1553,6 +1553,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // A full reconnect during the initial connection replaces the transports polled below, so its
     // `Restarted` completes the initial connection too. The engine closing (e.g. giving up) fails it.
+    let restarting = false;
+    const onRestarting = () => {
+      restarting = true;
+    };
     let onRestarted!: () => void;
     let onClosing!: () => void;
     const engineOutcome = new Promise<void>((resolve, reject) => {
@@ -1561,12 +1565,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Closing, onClosing);
     });
+    this.once(EngineEvent.Restarting, onRestarting);
     try {
       await Promise.race([
         this.pcManager.ensurePCTransportConnection(abortController, timeout),
         engineOutcome,
       ]);
+      if (restarting) {
+        // Transports that connected once a restart had begun are about to be closed; follow it.
+        await engineOutcome;
+      }
     } finally {
+      this.off(EngineEvent.Restarting, onRestarting);
       this.off(EngineEvent.Restarted, onRestarted);
       this.off(EngineEvent.Closing, onClosing);
     }
