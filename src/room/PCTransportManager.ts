@@ -407,10 +407,6 @@ export class PCTransportManager {
 
         reject(ConnectionError.cancelled('room connection has been cancelled'));
       };
-      if (abortController?.signal.aborted) {
-        abortHandler();
-      }
-      abortController?.signal.addEventListener('abort', abortHandler);
 
       let timedOut = false;
       const connectTimeout = CriticalTimers.setTimeout(() => {
@@ -418,6 +414,10 @@ export class PCTransportManager {
         abortController?.signal.removeEventListener('abort', abortHandler);
         reject(ConnectionError.internal('could not establish pc connection'));
       }, timeout);
+      if (abortController?.signal.aborted) {
+        abortHandler();
+      }
+      abortController?.signal.addEventListener('abort', abortHandler);
 
       while (this.state !== PCTransportState.CONNECTED) {
         await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations

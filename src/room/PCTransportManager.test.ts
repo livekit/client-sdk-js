@@ -362,4 +362,18 @@ describe('PCTransportManager.ensurePCTransportConnection', () => {
 
     expect(stateReads()).toBe(readsAtTimeout);
   });
+
+  it('rejects as cancelled when the abort signal fired before the call', async () => {
+    const { manager } = makeConnectingManager();
+    const abortController = new AbortController();
+    abortController.abort();
+
+    const wait = manager.ensurePCTransportConnection(abortController, 1_000);
+    const cancelled = expect(wait).rejects.toMatchObject({
+      reason: ConnectionErrorReason.Cancelled,
+    });
+    await vi.advanceTimersByTimeAsync(50);
+
+    await cancelled;
+  });
 });
