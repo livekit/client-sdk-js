@@ -64,6 +64,8 @@ export default [
     // The light entry: one file per module and dependencies left external, so a consumer's
     // bundler drops unused modules whole. It emits its own declarations with `@internal` members
     // stripped (dist/core/types); the main entry keeps them for the packages that use them.
+    // The declaration program is rooted at core.ts, so index.ts (with the `declare module`
+    // augmentations of the full entry) is not in it and tsc cannot write `import("../..")`.
     input: 'src/core.ts',
     // bare specifiers (dependencies) stay external; the entry itself has no importer
     external: (id, importer) => importer !== undefined && !/^[./\0]/.test(id),
@@ -90,6 +92,8 @@ export default [
             declarationDir: 'dist/core/types',
             stripInternal: true,
           },
+          include: ['src/type-polyfills/*.d.ts'],
+          files: ['src/core.ts'],
         },
       }),
       ...commonPlugins,

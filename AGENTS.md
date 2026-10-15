@@ -121,12 +121,15 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   methods without a type error; `pnpm check:core` is the guard.
 - Extension method bodies must be closures over the managers, never `this`-based: they are
   copied onto instances with `Object.defineProperties`.
-- Never import types from the index barrel (`'../..'`, `'.'`) inside `src`, and give exported
-  extension objects and anything built from `createRoom` an explicit type (`E2eeExtension`,
-  `CheckRoom`). tsc's declaration emitter otherwise writes `import("../..")` for inferred types, which
-  pulls `index.d.ts` and its augmentations into every core consumer, so a `[rpc]` room would type
-  as if every extension were installed. `pnpm check:core` compiles a consumer probe against emitted
-  declarations and fails on that.
+- The core declarations (`dist/core/types`) come from a program rooted at `src/core.ts`
+  (rollup `files: ['src/core.ts']`), so `src/index.ts` and its `declare module` augmentations are
+  not in it. That is the guard against the augmentations reaching a core consumer: tsc's
+  declaration emitter writes `import("../..")` for an inferred type whenever the index barrel is
+  in its program, and that import would type a `[rpc]` room as if every extension were installed.
+  Still, never import types from the barrel (`'../..'`, `'.'`) inside `src`, and prefer explicit
+  types on exported extension objects (`E2eeExtension`, `CheckRoom`): the main build's
+  declarations are emitted from the full program. `pnpm check:core` compiles a consumer probe
+  against declarations emitted the same way and fails on a leak or a dangling reference.
 - The core build emits its own declarations with `stripInternal` (`dist/core/types`); the main
   entry keeps `@internal` members because components-js and React Native use some of them. Every
   symbol a public signature names must therefore stay untagged (`ExtensionContext`,

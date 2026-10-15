@@ -1,11 +1,12 @@
-// Gate for the core entry's types. Emits the declarations the way the core build does (with
-// `@internal` members stripped) and type-checks them plus a consumer probe, with `skipLibCheck`
-// off. That catches two things:
+// Gate for the core entry's types. Emits the declarations the way the core build does (a
+// program rooted at core.ts, `@internal` members stripped) and type-checks them plus a consumer
+// probe, with `skipLibCheck` off. That catches two things:
 // - a public signature that names a stripped `@internal` symbol (the declaration then dangles);
 // - the `declare module` augmentations of the full entry reaching a core consumer. tsc writes
-//   `import("../..")` whenever an inferred type names a symbol it can reach through the index
-//   barrel, and that import pulls `index.d.ts` into the consumer's program, so a `[rpc]` room
-//   would type as if every extension were installed.
+//   `import("../..")` for an inferred type when the index barrel is in its program, and that
+//   import pulls `index.d.ts` into the consumer's program, so a `[rpc]` room would type as if
+//   every extension were installed. Rooting the program at core.ts prevents it; the probe
+//   confirms it.
 // The temp dir sits inside the repo so bare imports (`@livekit/protocol`) resolve.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -25,15 +26,22 @@ const run = (args) => {
 };
 
 try {
-  const emit = run([
-    '--declaration',
-    '--emitDeclarationOnly',
-    '--noEmit',
-    'false',
-    '--stripInternal',
-    '--outDir',
-    tmp,
-  ]);
+  writeFileSync(
+    path.join(tmp, 'tsconfig.emit.json'),
+    JSON.stringify({
+      extends: '../tsconfig.json',
+      compilerOptions: {
+        noEmit: false,
+        declaration: true,
+        emitDeclarationOnly: true,
+        stripInternal: true,
+        outDir: tmp,
+      },
+      include: ['../src/type-polyfills/*.d.ts'],
+      files: ['../src/core.ts'],
+    }),
+  );
+  const emit = run(['-p', path.join(tmp, 'tsconfig.emit.json')]);
   if (!emit.ok) {
     console.error(emit.out);
     process.exit(1);
