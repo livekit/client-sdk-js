@@ -39,6 +39,7 @@ export default class RemoteParticipant extends Participant {
    * const track = await remoteParticipant.dataTracks.getDeferred("data track name"); */
   dataTracks: DeferrableMap<RemoteDataTrack['info']['name'], RemoteDataTrack>;
 
+  /** @internal */
   signalClient: SignalClient;
 
   /** A version number indicating the set of features that the report participant's client supports.
