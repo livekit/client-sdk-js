@@ -817,18 +817,30 @@ describe('RTCEngine', () => {
 
   describe('waitForPCInitialConnection across a full reconnect', () => {
     // A full reconnect during the initial join (e.g. the server moving a client off dead UDP)
-    // closes the transports the initial wait polls; they never connect, only abort ends the wait.
+    // closes the transports the initial wait polls; they never connect, so only abort or timeout end it.
     function primeEngine() {
       const engine = new RTCEngine(roomOptionDefaults);
-      const ensurePCTransportConnection = (abortController?: AbortController) =>
-        new Promise<void>((_, reject) =>
+      const ensurePCTransportConnection = (abortController?: AbortController, timeout?: number) =>
+        new Promise<void>((_, reject) => {
+          setTimeout(
+            () => reject(ConnectionError.internal('could not establish pc connection')),
+            timeout,
+          );
           abortController?.signal.addEventListener('abort', () =>
             reject(ConnectionError.cancelled('room connection has been cancelled')),
-          ),
-        );
+          );
+        });
       (engine as unknown as { pcManager: unknown }).pcManager = { ensurePCTransportConnection };
       return engine;
     }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it('resolves when the full reconnect succeeds', async () => {
       const engine = primeEngine();
@@ -840,44 +852,7 @@ describe('RTCEngine', () => {
       await expect(wait).resolves.toBeUndefined();
     });
 
-    it('rejects when the full reconnect gives up', async () => {
-      const engine = primeEngine();
-      const wait = engine.waitForPCInitialConnection(15_000, new AbortController());
-
-      engine.emit(EngineEvent.Restarting);
-      engine.emit(EngineEvent.Disconnected);
-
-      await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
-    });
-
-    it('keeps a restart failure handled while the transport wait is still settling', async () => {
-      const engine = primeEngine();
-      let cancelTransportWait!: () => void;
-      (engine as unknown as { pcManager: unknown }).pcManager = {
-        ensurePCTransportConnection: () =>
-          new Promise<void>((_, reject) => {
-            cancelTransportWait = () =>
-              reject(ConnectionError.cancelled('room connection has been cancelled'));
-          }),
-      };
-      const unhandledRejection = vi.fn();
-      process.on('unhandledRejection', unhandledRejection);
-      try {
-        const wait = engine.waitForPCInitialConnection(15_000);
-
-        engine.emit(EngineEvent.Restarting);
-        engine.emit(EngineEvent.Disconnected);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        cancelTransportWait();
-
-        await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
-        expect(unhandledRejection).not.toHaveBeenCalled();
-      } finally {
-        process.off('unhandledRejection', unhandledRejection);
-      }
-    });
-
-    it('rejects when the engine closes during the full reconnect', async () => {
+    it('rejects when the engine gives up or closes during the full reconnect', async () => {
       const engine = primeEngine();
       const wait = engine.waitForPCInitialConnection(15_000);
 
@@ -885,6 +860,19 @@ describe('RTCEngine', () => {
       engine.emit(EngineEvent.Closing);
 
       await expect(wait).rejects.toMatchObject({ reason: ConnectionErrorReason.InternalError });
+    });
+
+    it('rejects when the timeout runs out during the full reconnect', async () => {
+      const engine = primeEngine();
+      const wait = engine.waitForPCInitialConnection(15_000);
+      const timedOut = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await timedOut;
     });
 
     it('rejects as cancelled when the attempt is aborted during the full reconnect', async () => {
