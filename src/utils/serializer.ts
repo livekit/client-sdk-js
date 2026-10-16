@@ -1,4 +1,4 @@
-const SerializerSymbol = Symbol.for('lk.serializer');
+const SerializerSymbol = /* @__PURE__ */ Symbol.for('lk.serializer');
 
 /**
  * A bidirectional data format descriptor for message payloads.

@@ -26,7 +26,7 @@ import {
   type SfuPublishResponseResult,
 } from './types';
 
-const log = getLogger(LoggerNames.DataTracks);
+const log = /* @__PURE__ */ getLogger(LoggerNames.DataTracks);
 
 export type PendingDescriptor = {
   type: 'pending';

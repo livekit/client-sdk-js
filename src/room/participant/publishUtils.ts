@@ -38,13 +38,13 @@ export function mediaTrackToLocalTrack(
 }
 
 /* @internal */
-export const presets169 = Object.values(VideoPresets);
+export const presets169 = /* @__PURE__ */ Object.values(VideoPresets);
 
 /* @internal */
-export const presets43 = Object.values(VideoPresets43);
+export const presets43 = /* @__PURE__ */ Object.values(VideoPresets43);
 
 /* @internal */
-export const presetsScreenShare = Object.values(ScreenSharePresets);
+export const presetsScreenShare = /* @__PURE__ */ Object.values(ScreenSharePresets);
 
 /* @internal */
 export const defaultSimulcastPresets169 = [VideoPresets.h180, VideoPresets.h360];

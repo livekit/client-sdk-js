@@ -66,10 +66,13 @@ export function facingModeFromLocalTrack(
   return result;
 }
 
-const knownDeviceLabels = new Map<string, FacingModeFromLocalTrackReturnValue>([
+const knownDeviceLabels = /* @__PURE__ */ new Map<string, FacingModeFromLocalTrackReturnValue>([
   ['obs virtual camera', { facingMode: 'environment', confidence: 'medium' }],
 ]);
-const knownDeviceLabelSections = new Map<string, FacingModeFromLocalTrackReturnValue>([
+const knownDeviceLabelSections = /* @__PURE__ */ new Map<
+  string,
+  FacingModeFromLocalTrackReturnValue
+>([
   ['iphone', { facingMode: 'environment', confidence: 'medium' }],
   ['ipad', { facingMode: 'environment', confidence: 'medium' }],
 ]);
