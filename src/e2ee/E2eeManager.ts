@@ -66,6 +66,7 @@ export interface BaseE2EEManager {
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+  off<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
   dispose?(): void;
 }
 

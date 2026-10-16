@@ -8,6 +8,7 @@ import {
   type SlotProvider,
   defineExtension,
 } from '../room/extensions';
+import type Participant from '../room/participant/Participant';
 import { isLocalParticipant } from '../room/utils';
 import { type BaseE2EEManager, E2EEManager } from './E2eeManager';
 import { EncryptionEvent } from './events';
@@ -68,18 +69,28 @@ export const e2ee = /* @__PURE__ */ defineExtension(
           e2eeOptions.worker.terminate();
         };
       }
-      manager.on(EncryptionEvent.ParticipantEncryptionStatusChanged, (enabled, participant) => {
+      const onStatusChanged = (enabled: boolean, participant: Participant) => {
         if (isLocalParticipant(participant)) {
           room.isE2EEEnabled = enabled;
         }
         room.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
-      });
-      manager.on(EncryptionEvent.EncryptionError, (error, participantIdentity) => {
+      };
+      const onError = (error: Error, participantIdentity?: string) => {
         const participant = participantIdentity
           ? room.getParticipantByIdentity(participantIdentity)
           : undefined;
         room.emit(RoomEvent.EncryptionError, error, participant);
-      });
+      };
+      manager.on(EncryptionEvent.ParticipantEncryptionStatusChanged, onStatusChanged);
+      manager.on(EncryptionEvent.EncryptionError, onError);
+      if ('e2eeManager' in e2eeOptions) {
+        // the app's manager outlives this room: take this room's listeners off it
+        const shared = manager;
+        dispose = () => {
+          shared.off(EncryptionEvent.ParticipantEncryptionStatusChanged, onStatusChanged);
+          shared.off(EncryptionEvent.EncryptionError, onError);
+        };
+      }
       manager.setup(room);
       manager.setupEngine(room.engine);
     }

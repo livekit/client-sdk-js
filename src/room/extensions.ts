@@ -288,15 +288,17 @@ export function installExtensions(
     explicit.set(ext.key, ext);
   }
   const resolved: RoomExtension<any, any>[] = [];
+  const resolvedKeys = new Set<symbol>();
   const add = (ext: RoomExtension<any, any>, stack: symbol[]) => {
     const chosen = explicit.get(ext.key) ?? ext;
     if (stack.includes(chosen.key)) {
       // @throws-transformer ignore - programmer error
       throw new Error(`extension '${String(chosen.key)}' depends on itself`);
     }
-    if (resolved.includes(chosen)) {
+    if (resolvedKeys.has(chosen.key)) {
       return;
     }
+    resolvedKeys.add(chosen.key);
     chosen.requires?.forEach((dep) => add(dep, [...stack, chosen.key]));
     resolved.push(chosen);
   };

@@ -4,10 +4,10 @@ import {
   type EncryptDataResponseMessage,
   LocalDataTrack,
 } from '../../..';
-import { Room } from '../../../Room';
 import { type BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import RTCEngine from '../../RTCEngine';
+import { Room } from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {

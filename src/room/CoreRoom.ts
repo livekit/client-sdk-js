@@ -418,8 +418,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           (this.slots as Record<string, unknown>)[key] = result[key];
         }
       }
-      defineExtensionApi(this, result.room, ext);
-      defineExtensionApi(this.localParticipant, result.localParticipant, ext);
+      defineExtensionApi(this, CoreRoom.prototype, result.room, ext);
+      defineExtensionApi(
+        this.localParticipant,
+        LocalParticipant.prototype,
+        result.localParticipant,
+        ext,
+      );
       if (result.dispose) {
         this.extensionDisposers.push(result.dispose);
       }
@@ -2797,18 +2802,33 @@ function mapArgs(args: unknown[]): any {
 }
 
 /** Copies an extension's API onto `target`. Refuses to redefine an existing member. */
-function defineExtensionApi(target: object, api: object | undefined, ext: RoomExtension<any, any>) {
+/**
+ * Copies an extension's API onto `target`. A name that core (`base`) or an earlier extension
+ * already defines is a collision. A name a subclass of `base` defines is an override: the
+ * subclass method stays and the extension's is not installed, so `Room` subclasses that
+ * override a moved method keep working (there is no `super` to call, the override replaces it).
+ */
+function defineExtensionApi(
+  target: object,
+  base: object,
+  api: object | undefined,
+  ext: RoomExtension<any, any>,
+) {
   if (!api) {
     return;
   }
-  for (const name of Object.keys(api)) {
-    if (name in target) {
+  const descriptors = Object.getOwnPropertyDescriptors(api);
+  for (const name of Object.keys(descriptors)) {
+    if (Object.getOwnPropertyDescriptor(target, name) || name in base) {
       // @throws-transformer ignore - programmer error
       throw new Error(`extension '${String(ext.key)}' redefines '${name}'`);
     }
+    if (name in target) {
+      delete descriptors[name];
+    }
   }
   // defineProperties (not Object.assign) keeps getters intact
-  Object.defineProperties(target, Object.getOwnPropertyDescriptors(api));
+  Object.defineProperties(target, descriptors);
 }
 
 export default CoreRoom;

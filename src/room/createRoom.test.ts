@@ -27,6 +27,24 @@ describe('createRoom', () => {
     expect(() => createRoom(undefined, [dataStreams, dataStreams({})])).toThrow('listed twice');
   });
 
+  it('dedupes a key that two dependency lists name with different instances', () => {
+    const a = defineExtension('shared', [], (): ExtensionResult => ({}));
+    const needsA = { key: Symbol('needsA'), requires: [a({})] as const, install: () => ({}) };
+    const needsAToo = { key: Symbol('needsAToo'), requires: [a({})] as const, install: () => ({}) };
+    expect(() => createRoom(undefined, [needsA, needsAToo])).not.toThrow();
+  });
+
+  it('lets a subclass override an extension method', () => {
+    class CustomRoom extends Room {
+      registerRpcMethod() {
+        return 'overridden' as unknown as void;
+      }
+    }
+    const room = new CustomRoom();
+    expect(room.registerRpcMethod('x', async () => '')).toBe('overridden');
+    expect(typeof room.unregisterRpcMethod).toBe('function');
+  });
+
   it('evaluates an option function per room', () => {
     let calls = 0;
     const probe = defineExtension(
@@ -90,10 +108,39 @@ describe('e2ee dispose', () => {
       on() {
         return this;
       },
+      off() {
+        return this;
+      },
       dispose: vi.fn(),
     } as unknown as BaseE2EEManager;
     const room = createRoom(undefined, [e2ee({ e2eeManager: manager })]);
     await room.dispose();
     expect(manager.dispose).not.toHaveBeenCalled();
+  });
+
+  it('takes its listeners off an app-supplied manager on dispose', async () => {
+    const listeners = new Map<string, Set<unknown>>();
+    const manager = {
+      isEnabled: false,
+      isDataChannelEncryptionEnabled: false,
+      setup() {},
+      setupEngine() {},
+      setParticipantCryptorEnabled() {},
+      setSifTrailer() {},
+      encryptData: async () => ({}) as never,
+      handleEncryptedData: async () => ({}) as never,
+      on(event: string, cb: unknown) {
+        listeners.set(event, (listeners.get(event) ?? new Set()).add(cb));
+        return this;
+      },
+      off(event: string, cb: unknown) {
+        listeners.get(event)?.delete(cb);
+        return this;
+      },
+    } as unknown as BaseE2EEManager;
+    const room = createRoom(undefined, [e2ee({ e2eeManager: manager })]);
+    expect([...listeners.values()].reduce((n, s) => n + s.size, 0)).toBe(2);
+    await room.dispose();
+    expect([...listeners.values()].reduce((n, s) => n + s.size, 0)).toBe(0);
   });
 });
