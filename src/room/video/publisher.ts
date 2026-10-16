@@ -27,7 +27,7 @@ import type {
   ScreenShareCaptureOptions,
   TrackPublishOptions,
 } from '../track/options';
-import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
+import { ScreenSharePresets, VideoPresets, isBackupVideoCodec } from '../track/options';
 import {
   getLogContextFromTrack,
   mimeTypeToVideoCodecString,
@@ -464,7 +464,7 @@ export async function handleSubscribedQualityUpdate(
   }
   const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
   for await (const codec of newCodecs) {
-    if (isBackupCodec(codec)) {
+    if (isBackupVideoCodec(codec)) {
       log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, getLogContextFromTrack(pub));
       await publishAdditionalCodecForTrack(room, log, pub.videoTrack, codec, pub.options);
     }

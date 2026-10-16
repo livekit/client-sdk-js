@@ -21,8 +21,10 @@ import { SignalConnectionState } from '../../api/SignalClient';
 import {
   getFrameMetadataFeatures,
   getFrameMetadataPublishOptions,
+  getPublishFrameMetadata,
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
+  setPublishFrameMetadata,
 } from '../../frameMetadata/utils';
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
@@ -1147,10 +1149,9 @@ export class LocalParticipant extends Participant {
 
   /** @internal */
   normalizeRequestedFrameMetadataOptions(track: LocalTrack, opts: TrackPublishOptions) {
-    const fmOpts = opts.frameMetadata ?? opts.packetTrailer;
+    const fmOpts = getPublishFrameMetadata(opts);
     if (track.kind !== Track.Kind.Video || !hasFrameMetadataPublishOptions(fmOpts)) {
-      opts.frameMetadata = undefined;
-      opts.packetTrailer = undefined;
+      setPublishFrameMetadata(opts, undefined);
       return [];
     }
 
@@ -1159,15 +1160,13 @@ export class LocalParticipant extends Participant {
         ...this.logContext,
         ...getLogContextFromTrack(track),
       });
-      opts.frameMetadata = undefined;
-      opts.packetTrailer = undefined;
+      setPublishFrameMetadata(opts, undefined);
       return [];
     }
 
     const features = getFrameMetadataFeatures(fmOpts);
     const normalized = getFrameMetadataPublishOptions(features);
-    opts.frameMetadata = normalized;
-    opts.packetTrailer = normalized;
+    setPublishFrameMetadata(opts, normalized);
     return features;
   }
 

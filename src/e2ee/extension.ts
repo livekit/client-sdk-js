@@ -36,8 +36,7 @@ export const e2ee = /* @__PURE__ */ defineExtension(
   ): RoomApiProvider<E2eeRoomApi> &
     Partial<SlotProvider<'e2eeManager'>> &
     Disposable & { manager: BaseE2EEManager | undefined } => {
-    // when encryption is enabled via `options.encryption`, we enable data channel encryption
-    const dcEncryptionEnabled = options ? true : !!room.options.encryption;
+    const dcEncryptionEnabled = !room.options.e2ee;
     const e2eeOptions: E2EEOptions | undefined =
       options ?? (room.options.encryption || room.options.e2ee);
 

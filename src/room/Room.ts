@@ -7,6 +7,7 @@ import { dataStreams } from './data-stream/extension';
 import { dataTracks } from './data-track/extension';
 import { installExtensions } from './extensions';
 import { rpc } from './rpc/extension';
+import { rpcLegacy } from './rpc/legacyExtension';
 import { simulatedParticipants } from './simulated-participants/extension';
 import { registerVideoCapture } from './video/create';
 import { video } from './video/extension';
@@ -17,6 +18,7 @@ export { ConnectionState, type RoomEventCallbacks } from './CoreRoom';
 const fullExtensions = [
   dataStreams,
   rpc,
+  rpcLegacy,
   dataTracks,
   frameMetadata,
   e2ee,

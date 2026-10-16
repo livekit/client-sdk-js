@@ -71,16 +71,6 @@ export interface RpcLocalApi {
    * @throws Error on failure. Details in `message`.
    */
   performRpc(params: PerformRpcParams): TypedPromise<string, RpcError>;
-
-  /**
-   * @deprecated use `room.registerRpcMethod` instead
-   */
-  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>): void;
-
-  /**
-   * @deprecated use `room.unregisterRpcMethod` instead
-   */
-  unregisterRpcMethod(method: string): void;
 }
 
 /**
@@ -161,8 +151,6 @@ export const rpc = {
       localParticipant: {
         performRpc: (params) =>
           client.performRpc(params).then(([_id, completionPromise]) => completionPromise),
-        registerRpcMethod,
-        unregisterRpcMethod,
       },
     };
   },

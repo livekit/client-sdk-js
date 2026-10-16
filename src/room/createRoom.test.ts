@@ -24,6 +24,8 @@ describe('createRoom', () => {
     expect(typeof room.registerRpcMethod).toBe('function');
     expect(typeof room.registerTextStreamHandler).toBe('function');
     expect(typeof room.localParticipant.sendText).toBe('function');
+    // the deprecated participant rpc methods come with the full Room only
+    expect('registerRpcMethod' in room.localParticipant).toBe(false);
     expect(() => createRoom(undefined, [dataStreams, dataStreams({})])).toThrow('listed twice');
   });
 
@@ -75,6 +77,7 @@ describe('createRoom', () => {
     const room = new Room();
     expect(typeof room.registerRpcMethod).toBe('function');
     expect(typeof room.localParticipant.sendChatMessage).toBe('function');
+    expect(typeof room.localParticipant.registerRpcMethod).toBe('function');
     expect(typeof room.simulateParticipants).toBe('function');
     await room.dispose();
     await expect(room.connect('ws://localhost', 'token')).rejects.toThrow('disposed');

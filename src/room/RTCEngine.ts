@@ -57,6 +57,7 @@ import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
 import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import {
+  getPublishFrameMetadata,
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
   shouldUseFrameMetadataScriptTransform,
@@ -1128,7 +1129,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    const frameMetadata = opts.frameMetadata ?? opts.packetTrailer;
+    const frameMetadata = getPublishFrameMetadata(opts);
     const hasMetadata = hasFrameMetadataPublishOptions(frameMetadata);
 
     if (shouldUseFrameMetadataScriptTransform()) {

@@ -2,7 +2,7 @@ import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
-import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
+import { getPublishFrameMetadata, hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
 import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
 import type { CoreRoom } from '../room/CoreRoom';
 import { ConnectionState } from '../room/CoreRoom';
@@ -632,9 +632,7 @@ export class E2EEManager
       sender,
       track.mediaStreamID,
       publishedCodec === 'h264' || publishedCodec === 'h265' ? publishedCodec : undefined,
-      isVideo
-        ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
-        : undefined,
+      isVideo ? getPublishFrameMetadata(track.publishOptions) : undefined,
     );
   }
 
