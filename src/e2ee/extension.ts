@@ -25,19 +25,6 @@ export interface E2eeRoomApi {
   setE2EEEnabled(enabled: boolean): Promise<void>;
 }
 
-/**
- * End-to-end encryption (`e2ee` / `encryption` room options, `setE2EEEnabled`). Without the
- * options the extension installs nothing, and `setE2EEEnabled` rejects.
- * @experimental
- */
-export type E2eeExtensionOptions = E2EEOptions & {
-  /**
-   * Also encrypt data packets. This is what the `encryption` room option enables and the
-   * deprecated `e2ee` room option does not.
-   */
-  encryptDataChannel?: boolean;
-};
-
 /** @experimental */
 export const e2ee = /* @__PURE__ */ defineExtension(
   'e2ee',
@@ -45,12 +32,12 @@ export const e2ee = /* @__PURE__ */ defineExtension(
   (
     room: CoreRoom,
     _ctx: ExtensionContext,
-    options: E2eeExtensionOptions | undefined,
+    options: E2EEOptions | undefined,
   ): RoomApiProvider<E2eeRoomApi> &
     Partial<SlotProvider<'e2eeManager'>> &
     Disposable & { manager: BaseE2EEManager | undefined } => {
     // when encryption is enabled via `options.encryption`, we enable data channel encryption
-    const dcEncryptionEnabled = options ? !!options.encryptDataChannel : !!room.options.encryption;
+    const dcEncryptionEnabled = options ? true : !!room.options.encryption;
     const e2eeOptions: E2EEOptions | undefined =
       options ?? (room.options.encryption || room.options.e2ee);
 
