@@ -28,7 +28,10 @@ import type { ByteStreamHandler, TextStreamHandler } from './incoming/StreamRead
 import OutgoingDataStreamManager from './outgoing/OutgoingDataStreamManager';
 import type { ByteStreamWriter, TextStreamWriter } from './outgoing/StreamWriter';
 
-/** Methods the `dataStreams` extension adds to the room. */
+/**
+ * Methods the `dataStreams` extension adds to the room.
+ * @experimental
+ */
 export interface DataStreamRoomApi {
   registerTextStreamHandler(topic: string, callback: TextStreamHandler): void;
   unregisterTextStreamHandler(topic: string): void;
@@ -36,7 +39,10 @@ export interface DataStreamRoomApi {
   unregisterByteStreamHandler(topic: string): void;
 }
 
-/** Methods the `dataStreams` extension adds to the local participant. */
+/**
+ * Methods the `dataStreams` extension adds to the local participant.
+ * @experimental
+ */
 export interface DataStreamLocalApi {
   /**
    * Sends the given string to participants in the room via the data channel.
@@ -85,6 +91,7 @@ export interface DataStreamLocalApi {
 
 /**
  * Text and byte streams (`sendText`, `sendFile`, `registerTextStreamHandler`, ...).
+ * @experimental
  */
 export const dataStreams = /* @__PURE__ */ defineExtension(
   'dataStreams',

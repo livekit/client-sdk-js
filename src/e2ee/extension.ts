@@ -13,7 +13,10 @@ import { type BaseE2EEManager, E2EEManager } from './E2eeManager';
 import { EncryptionEvent } from './events';
 import type { E2EEOptions } from './types';
 
-/** Methods the `e2ee` extension adds to the room. */
+/**
+ * Methods the `e2ee` extension adds to the room.
+ * @experimental
+ */
 export interface E2eeRoomApi {
   /**
    * @experimental
@@ -24,6 +27,7 @@ export interface E2eeRoomApi {
 /**
  * End-to-end encryption (`e2ee` / `encryption` room options, `setE2EEEnabled`). Without the
  * options the extension installs nothing, and `setE2EEEnabled` rejects.
+ * @experimental
  */
 export type E2eeExtensionOptions = E2EEOptions & {
   /**
@@ -33,6 +37,7 @@ export type E2eeExtensionOptions = E2EEOptions & {
   encryptDataChannel?: boolean;
 };
 
+/** @experimental */
 export const e2ee = /* @__PURE__ */ defineExtension(
   'e2ee',
   [],

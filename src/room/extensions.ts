@@ -23,6 +23,7 @@ import type { StreamBytesOptions } from './types';
  *
  * `install` runs synchronously right after the room is constructed, before any user code, so
  * handlers registered there are in place before `connect()`.
+ * @experimental
  */
 export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
   readonly key: symbol;
@@ -31,7 +32,10 @@ export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
   install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RoomApi, LocalApi>;
 }
 
-/** What an extension contributes to the engine. */
+/**
+ * What an extension contributes to the engine.
+ * @experimental
+ */
 export interface EngineHooks {
   /**
    * Runs once every extension of the list is installed, with the current engine, and again
@@ -41,7 +45,10 @@ export interface EngineHooks {
   onEngineCreated?(engine: RTCEngine): void;
 }
 
-/** What an extension contributes to the connection lifecycle. */
+/**
+ * What an extension contributes to the connection lifecycle.
+ * @experimental
+ */
 export interface ConnectionHooks {
   /**
    * Runs at the start of every disconnect, including one that reaches an already disconnected
@@ -50,7 +57,10 @@ export interface ConnectionHooks {
   onDisconnect?(): void;
 }
 
-/** What an extension contributes to remote participant bookkeeping. */
+/**
+ * What an extension contributes to remote participant bookkeeping.
+ * @experimental
+ */
 export interface ParticipantHooks {
   /** Runs after the room creates a remote participant from a `ParticipantInfo`. */
   onParticipantCreated?(participant: RemoteParticipant, info: ParticipantInfo): void;
@@ -58,28 +68,43 @@ export interface ParticipantHooks {
   onParticipantUpdates?(infos: ParticipantInfo[]): void;
 }
 
-/** An extension that owns `DataPacket` oneof cases. A second owner of a case throws at install. */
+/**
+ * An extension that owns `DataPacket` oneof cases. A second owner of a case throws at install.
+ * @experimental
+ */
 export interface DataPacketOwner {
   dataPackets?: { [C in DataPacketCase]?: DataPacketHandler<C> };
 }
 
-/** An extension that contributes to the sync state the room sends on resume. */
+/**
+ * An extension that contributes to the sync state the room sends on resume.
+ * @experimental
+ */
 export interface SyncStateProvider {
   /** Local data track publications. */
   syncState?(): PublishDataTrackResponse[];
 }
 
-/** An extension that adds methods to the room, copied onto it under the SDK's method names. */
+/**
+ * An extension that adds methods to the room, copied onto it under the SDK's method names.
+ * @experimental
+ */
 export interface RoomApiProvider<RoomApi = {}> {
   room: RoomApi;
 }
 
-/** An extension that adds methods to the local participant, copied onto it. */
+/**
+ * An extension that adds methods to the local participant, copied onto it.
+ * @experimental
+ */
 export interface LocalApiProvider<LocalApi = {}> {
   localParticipant: LocalApi;
 }
 
-/** An extension with something to release. */
+/**
+ * An extension with something to release.
+ * @experimental
+ */
 export interface Disposable {
   /** Called from `Room.dispose()`, in reverse install order. Must be synchronous. */
   dispose(): void;
@@ -93,6 +118,7 @@ export interface Disposable {
  * dependent extensions read them through `ctx.get(extension)`. The room's own typing
  * (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalApi>` generics, which each
  * extension pins with `satisfies`.
+ * @experimental
  */
 export type ExtensionResult<RoomApi = {}, LocalApi = {}> = Partial<
   RoomApiProvider<RoomApi> & LocalApiProvider<LocalApi> & Disposable
@@ -104,6 +130,7 @@ export type ExtensionResult<RoomApi = {}, LocalApi = {}> = Partial<
   Partial<CoreSlots> &
   SyncStateProvider;
 
+/** @experimental */
 export type DataPacketHandler<C extends DataPacketCase> = (
   value: DataPacketValue<C>,
   packet: DataPacket,
@@ -134,6 +161,7 @@ export interface CoreSlots {
 /**
  * An extension that supplies the named slots: `SlotProvider<'byteStreamOpener'>`. A provider
  * whose value is conditional declares `Partial<SlotProvider<...>>`.
+ * @experimental
  */
 export type SlotProvider<K extends keyof CoreSlots> = Pick<CoreSlots, K>;
 
@@ -145,7 +173,9 @@ export const SLOT_KEYS = [
   'videoPublisher',
 ] as const satisfies readonly (keyof CoreSlots)[];
 
+/** @experimental */
 export type DataPacketCase = NonNullable<DataPacket['value']['case']>;
+/** @experimental */
 export type DataPacketValue<C extends DataPacketCase> = Extract<
   DataPacket['value'],
   { case: C }
@@ -178,12 +208,18 @@ type LocalOf<E> = E extends RoomExtension<any, infer L> ? L : never;
 type Deps<E> = E extends { requires: readonly (infer D)[] } ? D | Deps<D> : never;
 type All<E> = E | Deps<E>;
 
-/** The methods a set of extensions (and their dependencies) adds to a room and its local participant. */
+/**
+ * The methods a set of extensions (and their dependencies) adds to a room and its local participant.
+ * @experimental
+ */
 export type ExtensionApis<E> = UnionToIntersection<ApiOf<All<E>>> & {
   localParticipant: UnionToIntersection<LocalOf<All<E>>>;
 };
 
-/** An extension with its options bound. */
+/**
+ * An extension with its options bound.
+ * @experimental
+ */
 export type ConfiguredExtension<
   Result extends ExtensionResult<any, any>,
   Requires extends readonly RoomExtension<any, any>[],
@@ -198,6 +234,7 @@ export type ConfiguredExtension<
  * full `Room` uses today; called (`[e2ee(options)]`) it installs with those options. A function
  * (`e2ee(() => options)`) is evaluated inside each room's constructor, for resources such as
  * workers that must be per room.
+ * @experimental
  */
 export type ConfigurableExtension<
   Result extends ExtensionResult<any, any>,
@@ -206,7 +243,10 @@ export type ConfigurableExtension<
 > = ConfiguredExtension<Result, Requires> &
   ((options: Options | (() => Options)) => ConfiguredExtension<Result, Requires>);
 
-/** Builds a {@link ConfigurableExtension}. The option type comes from the `options` parameter. */
+/**
+ * Builds a {@link ConfigurableExtension}. The option type comes from the `options` parameter.
+ * @experimental
+ */
 export function defineExtension<
   Result extends ExtensionResult<any, any>,
   Options,

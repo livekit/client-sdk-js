@@ -131,6 +131,7 @@ const STATS_LOG_FREQUENCY_MS = 30 * 1000;
  * a Room fires [[RoomEvent | RoomEvents]].
  *
  * @noInheritDoc
+ * @experimental
  */
 export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;

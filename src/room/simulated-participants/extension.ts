@@ -17,7 +17,10 @@ import { getVideoCapture } from '../track/create';
 import type { SimulationOptions } from '../types';
 import { createDummyVideoStreamTrack, getEmptyAudioStreamTrack } from '../utils';
 
-/** Methods the `simulatedParticipants` extension adds to the room. */
+/**
+ * Methods the `simulatedParticipants` extension adds to the room.
+ * @experimental
+ */
 export interface SimulatedParticipantsRoomApi {
   /**
    * Allows to populate a room with simulated participants.
@@ -30,6 +33,7 @@ export interface SimulatedParticipantsRoomApi {
 /**
  * Fills a room with fake participants and dummy media without a server. A development tool;
  * the `video` extension must be installed when simulated participants publish video.
+ * @experimental
  */
 export const simulatedParticipants = {
   key: /* @__PURE__ */ Symbol('lk.extension.simulatedParticipants'),

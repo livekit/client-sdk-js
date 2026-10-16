@@ -26,7 +26,10 @@ import { DataTrackPublishError } from './outgoing/errors';
 import type { DataTrackOptions } from './outgoing/types';
 import { DataTrackInfo } from './types';
 
-/** Methods the `dataTracks` extension adds to the local participant. */
+/**
+ * Methods the `dataTracks` extension adds to the local participant.
+ * @experimental
+ */
 export interface DataTrackLocalApi {
   /** Publishes a data track.
    *
@@ -41,6 +44,7 @@ const toInfos = (protos: DataTrackInfoProto[]) => protos.map((proto) => DataTrac
 /**
  * Data tracks: continuous unreliable streams for real-time data (`publishDataTrack`,
  * `RemoteParticipant.dataTracks`, `RoomEvent.DataTrackPublished`).
+ * @experimental
  */
 export const dataTracks = {
   key: /* @__PURE__ */ Symbol('lk.extension.dataTracks'),

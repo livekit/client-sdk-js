@@ -10,6 +10,7 @@ import { FrameMetadataManager, type FrameMetadataOptions } from './FrameMetadata
 /**
  * Frame metadata extraction on subscribed video tracks (`frameMetadata` room option).
  * Publishing frame metadata is part of the core publish path and needs no extension.
+ * @experimental
  */
 export const frameMetadata = /* @__PURE__ */ defineExtension(
   'frameMetadata',

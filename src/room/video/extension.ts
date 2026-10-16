@@ -25,7 +25,10 @@ import {
   publishAdditionalCodecForTrack,
 } from './publisher';
 
-/** Methods the `video` extension adds to the local participant. */
+/**
+ * Methods the `video` extension adds to the local participant.
+ * @experimental
+ */
 export interface VideoLocalApi {
   /**
    * Enable or disable a participant's camera track.
@@ -75,6 +78,7 @@ export interface VideoLocalApi {
 /**
  * Video publishing: camera and screen share capture, simulcast, SVC and backup codecs.
  * Receiving video is part of core and needs no extension.
+ * @experimental
  */
 export const video = {
   key: /* @__PURE__ */ Symbol('lk.extension.video'),

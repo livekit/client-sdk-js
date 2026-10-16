@@ -18,7 +18,10 @@ import {
   RPC_RESPONSE_DATA_STREAM_TOPIC,
 } from './utils';
 
-/** Methods the `rpc` extension adds to the room. */
+/**
+ * Methods the `rpc` extension adds to the room.
+ * @experimental
+ */
 export interface RpcRoomApi {
   /**
    * Establishes the participant as a receiver for calls of the specified RPC method.
@@ -56,7 +59,10 @@ export interface RpcRoomApi {
   unregisterRpcMethod(method: string): void;
 }
 
-/** Methods the `rpc` extension adds to the local participant. */
+/**
+ * Methods the `rpc` extension adds to the local participant.
+ * @experimental
+ */
 export interface RpcLocalApi {
   /**
    * Initiate an RPC call to a remote participant
@@ -79,6 +85,7 @@ export interface RpcLocalApi {
 
 /**
  * RPC over the room (`performRpc`, `registerRpcMethod`). Requires {@link dataStreams}.
+ * @experimental
  */
 export const rpc = {
   key: /* @__PURE__ */ Symbol('lk.extension.rpc'),

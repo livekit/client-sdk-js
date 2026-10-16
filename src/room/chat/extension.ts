@@ -11,7 +11,10 @@ import type {
 import type { ChatMessage, SendTextOptions } from '../types';
 import { extractChatMessage } from '../utils';
 
-/** Methods the legacy `chat` extension adds to the local participant. */
+/**
+ * Methods the legacy `chat` extension adds to the local participant.
+ * @experimental
+ */
 export interface ChatLocalApi {
   /** @deprecated Consider migrating to {@link sendText} */
   sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage>;

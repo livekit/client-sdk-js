@@ -14,6 +14,7 @@ import { type ExtensionApis, type RoomExtension, installExtensions } from './ext
  * room.registerRpcMethod('greet', handler);
  * await room.connect(url, token);
  * ```
+ * @experimental
  */
 export function createRoom<const E extends readonly RoomExtension<any, any>[] = []>(
   options?: CoreRoomOptions,

@@ -34,7 +34,10 @@ const videoCapture: VideoCapture = {
     new LocalVideoTrack(mediaStreamTrack, constraints, userProvidedTrack, loggerOptions),
 };
 
-/** Lets `createLocalTracks` and `publishTrack` produce video tracks. Safe to call repeatedly. */
+/**
+ * Lets `createLocalTracks` and `publishTrack` produce video tracks. Safe to call repeatedly.
+ * @experimental
+ */
 export function registerVideoCapture() {
   setVideoCapture(videoCapture);
 }
