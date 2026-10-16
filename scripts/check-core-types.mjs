@@ -49,10 +49,26 @@ try {
 
   writeFileSync(
     path.join(tmp, 'probe.ts'),
-    `import { createRoom, rpc } from 'livekit-client/core';
+    `import * as core from 'livekit-client/core';
+import { createRoom, e2ee, frameMetadata, rpc, type TrackPublishDefaults } from 'livekit-client/core';
+// @ts-expect-error deprecated aliases are exported from the full entry only
+core.isBackupCodec;
+// @ts-expect-error deprecated aliases are exported from the full entry only
+core.PacketTrailerManager;
+// @ts-expect-error deprecated aliases are exported from the full entry only
+export type PacketTrailerOptions = core.PacketTrailerOptions;
 const room = createRoom(undefined, [rpc]);
 room.registerRpcMethod('x', async () => '');
 room.localParticipant.sendText('hi'); // dataStreams comes with rpc
+// an extension without a participant (e2ee) or room API (frameMetadata) keeps the others' types
+const mixed = createRoom(undefined, [rpc, e2ee({} as never), frameMetadata({} as never)]);
+mixed.localParticipant.sendText('hi');
+mixed.registerRpcMethod('x', async () => '');
+mixed.setE2EEEnabled(true);
+// @ts-expect-error the deprecated participant rpc methods are full build only
+room.localParticipant.registerRpcMethod('x', async () => '');
+// @ts-expect-error the deprecated packetTrailer publish option is full build only
+export const publishDefaults: TrackPublishDefaults = { packetTrailer: {} };
 // @ts-expect-error e2ee is not listed
 room.setE2EEEnabled(true);
 // @ts-expect-error dataTracks is not listed

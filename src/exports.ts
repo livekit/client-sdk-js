@@ -196,7 +196,7 @@ export type {
   Disposable,
   EngineHooks,
   ExtensionApis,
-  LocalParticipantApiProvider as LocalParticipantApiProvider,
+  LocalParticipantApiProvider,
   ParticipantHooks,
   RoomApiProvider,
   SlotProvider,
