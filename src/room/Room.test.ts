@@ -11,8 +11,10 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
+import RTCEngine from './RTCEngine';
 import { ConnectionState, Room } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
@@ -461,5 +463,69 @@ describe('audio context ownership', () => {
     await room.releaseAudioContext();
 
     expect(created[0].closed).toBe(true);
+  });
+});
+
+describe('connection attempt racing disconnect (#2150)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  type AttemptConnection = (
+    url: string,
+    token: string,
+    opts: undefined,
+    abortController: AbortController,
+  ) => Promise<void>;
+
+  /** Starts a connection attempt whose signal join stays pending until `failJoin` is called. */
+  async function startAttempt(room: Room) {
+    let failJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join').mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+        }),
+    );
+    const engine = room.engine;
+    const abortController = new AbortController();
+    (room as unknown as { abortController: AbortController }).abortController = abortController;
+    room.state = ConnectionState.Connecting;
+    const attempt = (room as unknown as { attemptConnection: AttemptConnection }).attemptConnection(
+      'ws://localhost:7880',
+      'token',
+      undefined,
+      abortController,
+    );
+    await vi.waitFor(() => expect(failJoin).toBeDefined());
+    return { attempt, engine, failJoin };
+  }
+
+  it('rejects as cancelled when disconnect() clears the engine mid-join', async () => {
+    const room = new Room();
+    const { attempt, engine, failJoin } = await startAttempt(room);
+    const close = vi.spyOn(engine, 'close');
+
+    await room.disconnect();
+    expect(room.engine).toBeUndefined();
+    failJoin();
+
+    await expect(attempt).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('leaves a newer engine alone when a stale join fails', async () => {
+    const room = new Room();
+    const { attempt, failJoin } = await startAttempt(room);
+
+    await room.disconnect();
+    (room as unknown as { maybeCreateEngine(): void }).maybeCreateEngine();
+    const newerEngine = room.engine;
+    const close = vi.spyOn(newerEngine, 'close');
+    failJoin();
+
+    await expect(attempt).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    expect(room.engine).toBe(newerEngine);
+    expect(close).not.toHaveBeenCalled();
   });
 });
