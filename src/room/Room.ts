@@ -211,6 +211,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private roomInfo?: RoomModel;
 
+  /** last non-empty session ID, updates can carry an empty one */
+  private knownSid?: string;
+
   private sidToIdentity: Map<string, string>;
 
   /** connect options of room */
@@ -2455,6 +2458,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (oldRoom && oldRoom.metadata !== room.metadata) {
       this.emitWhenConnected(RoomEvent.RoomMetadataChanged, room.metadata);
     }
+    if (room.sid && room.sid !== this.knownSid) {
+      const hadSid = !!this.knownSid;
+      this.knownSid = room.sid;
+      if (hadSid) {
+        this.emitWhenConnected(RoomEvent.RoomSidChanged, room.sid);
+      }
+    }
     if (oldRoom?.activeRecording !== room.activeRecording) {
       this.emitWhenConnected(RoomEvent.RecordingStatusChanged, room.activeRecording);
     }
@@ -3285,6 +3295,7 @@ export type RoomEventCallbacks = {
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
   roomMetadataChanged: (metadata: string) => void;
+  roomSidChanged: (sid: string) => void;
   dataReceived: (
     payload: NonSharedUint8Array,
     participant?: RemoteParticipant,
