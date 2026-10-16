@@ -1119,8 +1119,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // create engine if previously disconnected
       this.maybeCreateEngine();
     }
+    // a concurrent disconnect() or connect() can replace or clear `this.engine` while we await below
+    const engine = this.engine;
     if (this.regionUrlProvider?.isCloud()) {
-      this.engine.setRegionStrategy(this.createRegionStrategy());
+      engine.setRegionStrategy(this.createRegionStrategy());
     }
 
     this.acquireAudioContext(true).catch((error) =>
@@ -1130,17 +1132,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
     if (this.connOptions.rtcConfig) {
-      this.engine.rtcConfig = this.connOptions.rtcConfig;
+      engine.rtcConfig = this.connOptions.rtcConfig;
     }
     if (this.connOptions.peerConnectionTimeout) {
-      this.engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
+      engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
     }
 
     try {
       const joinResponse = await this.connectSignal(
         url,
         token,
-        this.engine,
+        engine,
         this.connOptions,
         this.options,
         abortController,
@@ -1151,8 +1153,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      if (this.engine === engine) {
+        this.recreateEngine();
+      }
 
       const resultingError = abortController.signal.aborted
         ? ConnectionError.cancelled('Signal connection aborted')
@@ -1172,19 +1176,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      if (this.engine === engine) {
+        this.recreateEngine();
+      }
       throw ConnectionError.cancelled(`Connection attempt aborted`);
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(
+      await engine.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
     } catch (e) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      if (this.engine === engine) {
+        this.recreateEngine();
+      }
       throw e;
     }
 
