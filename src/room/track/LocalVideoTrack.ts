@@ -307,10 +307,14 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     for (const sc of this.simulcastCodecs.values()) {
       const previousTrack = sc.mediaStreamTrack;
       sc.mediaStreamTrack = this.mediaStreamTrack.clone();
-      if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
-        await sc.sender.replaceTrack(sc.mediaStreamTrack);
+      try {
+        if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
+          await sc.sender.replaceTrack(sc.mediaStreamTrack);
+        }
+      } finally {
+        // even when the swap failed: nothing references the previous clone anymore to stop it later
+        previousTrack.stop();
       }
-      previousTrack.stop();
     }
   }
 
