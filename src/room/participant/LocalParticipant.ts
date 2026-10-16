@@ -1664,6 +1664,9 @@ export default class LocalParticipant extends Participant {
 
         if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
+            // the clone is dropped with the map below, so it has to be stopped even when the
+            // track itself is kept for republishing
+            trackInfo.mediaStreamTrack.stop();
             if (trackInfo.sender) {
               try {
                 negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
