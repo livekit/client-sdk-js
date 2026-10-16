@@ -469,6 +469,7 @@ describe('audio context ownership', () => {
 describe('connection attempt racing disconnect (#2150)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   type AttemptConnection = (
@@ -514,18 +515,43 @@ describe('connection attempt racing disconnect (#2150)', () => {
     expect(close).toHaveBeenCalled();
   });
 
-  it('leaves a newer engine alone when a stale join fails', async () => {
+  it('leaves a newer connect() alone when a stale join fails', async () => {
+    // connect() bails out unless the runtime looks like it supports WebRTC
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTrack() {}
+      },
+    );
+    let failStaleJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join')
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failStaleJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+          }),
+      )
+      .mockImplementationOnce(() => new Promise(() => {}));
     const room = new Room();
-    const { attempt, failJoin } = await startAttempt(room);
 
+    const stale = room.connect('ws://localhost:7880', 'token');
+    await vi.waitFor(() => expect(failStaleJoin).toBeDefined());
     await room.disconnect();
-    (room as unknown as { maybeCreateEngine(): void }).maybeCreateEngine();
+    await expect(stale).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+
+    room.connect('ws://localhost:7880', 'token').catch(() => {});
+    await vi.waitFor(() => expect(RTCEngine.prototype.join).toHaveBeenCalledTimes(2));
     const newerEngine = room.engine;
     const close = vi.spyOn(newerEngine, 'close');
-    failJoin();
+    const disconnected = vi.fn();
+    room.on(RoomEvent.Disconnected, disconnected);
 
-    await expect(attempt).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    failStaleJoin();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(room.state).toBe(ConnectionState.Connecting);
     expect(room.engine).toBe(newerEngine);
     expect(close).not.toHaveBeenCalled();
+    expect(disconnected).not.toHaveBeenCalled();
   });
 });

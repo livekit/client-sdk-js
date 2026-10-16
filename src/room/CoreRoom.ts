@@ -771,6 +771,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
       unlockDisconnect?.();
 
+      const failAttempt = (error: unknown, reason?: DisconnectReason) => {
+        // once a newer connect() replaced this attempt's controller, the room's state belongs to it
+        if (this.abortController === abortController) {
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
+        }
+        reject(error);
+      };
+
       try {
         await BackOffStrategy.getInstance().getBackOffPromise(url);
         if (abortController.signal.aborted) {
@@ -788,17 +796,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           let nextUrl: string | null = null;
           try {
             this.log.debug('Fetching next region');
-            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
-              this.abortController?.signal,
-            );
+            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(abortController.signal);
           } catch (regionFetchError) {
             if (
               regionFetchError instanceof ConnectionError &&
               (regionFetchError.status === 401 ||
                 regionFetchError.reason === ConnectionErrorReason.Cancelled)
             ) {
-              this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
-              reject(regionFetchError);
+              failAttempt(regionFetchError);
               return;
             }
           }
@@ -813,26 +818,21 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
             this.log.debug('Adding failed connection attempt to back off');
             BackOffStrategy.getInstance().addFailedConnectionAttempt(url);
           }
-          if (nextUrl && !this.abortController?.signal.aborted) {
+          if (nextUrl && !abortController.signal.aborted) {
             this.log.info(
               `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
             );
             this.recreateEngine(true);
             await connectFn(resolve, reject, nextUrl);
           } else {
-            this.handleDisconnect(
-              this.options.stopLocalTrackOnUnpublish,
-              getDisconnectReasonFromConnectionError(error),
-            );
-            reject(error);
+            failAttempt(error, getDisconnectReasonFromConnectionError(error));
           }
         } else {
           let disconnectReason = DisconnectReason.UNKNOWN_REASON;
           if (error instanceof ConnectionError) {
             disconnectReason = getDisconnectReasonFromConnectionError(error);
           }
-          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
-          reject(error);
+          failAttempt(error, disconnectReason);
         }
       }
     };
