@@ -387,21 +387,37 @@ export async function publishAdditionalCodecForTrack(
   }
   const packetTrailerFeatures = participant.normalizeRequestedFrameMetadataOptions(track, opts);
 
+  // the backup sender encodes the processed track, not the raw capture track.dimensions reports
+  const { width, height } = track.mediaStreamTrack.getSettings();
+  const dims = width && height ? { width, height } : undefined;
+  if (!dims) {
+    log.warn(
+      'could not determine track dimensions, publishing backup codec without layers',
+      getLogContextFromTrack(track),
+    );
+  }
+  // the server reads the layers off the codec entry for a request that carries a sid, and
+  // falls back to the top level ones when it predates per codec layers
+  const layers = dims ? videoLayersFromEncodings(dims.width, dims.height, encodings) : [];
+
   const req = new AddTrackRequest({
     cid: simulcastTrack.mediaStreamTrack.id,
     type: Track.kindToProto(track.kind),
     muted: track.isMuted,
     source: Track.sourceToProto(track.source),
     sid: track.sid,
+    width: dims?.width,
+    height: dims?.height,
     packetTrailerFeatures,
+    layers,
     simulcastCodecs: [
       {
         codec: opts.videoCodec,
         cid: simulcastTrack.mediaStreamTrack.id,
+        layers,
       },
     ],
   });
-  req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
 
   const engine = room.engine;
   if (!engine || engine.isClosed) {

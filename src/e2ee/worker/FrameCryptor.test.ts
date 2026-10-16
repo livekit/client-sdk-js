@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
 import { appendPacketTrailer, extractPacketTrailer } from '../../frameMetadata/frameMetadata';
 import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
+import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
@@ -71,12 +73,14 @@ function prepareParticipantTestEncoder(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
   packetTrailer?: FrameMetadataPublishOptions,
+  codec?: VideoCodec,
 ) {
   return prepareParticipantTest(
     'encode',
     participantIdentity,
     partialKeyProviderOptions,
     packetTrailer,
+    codec,
   );
 }
 
@@ -85,6 +89,7 @@ function prepareParticipantTest(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
   packetTrailer?: FrameMetadataPublishOptions,
+  codec?: VideoCodec,
 ): {
   keys: ParticipantKeyHandler;
   cryptor: FrameCryptor;
@@ -110,7 +115,7 @@ function prepareParticipantTest(
     new ReadableStream(input),
     new WritableStream(output),
     'testTrack',
-    undefined,
+    codec,
     packetTrailer,
   );
 
@@ -233,15 +238,224 @@ describe('FrameCryptor', () => {
       }
     });
 
-    it('appends packet trailer after encryption', async () => {
-      vitest.useFakeTimers();
-      const now = new Date('2025-04-10T12:00:00.123Z');
-      vitest.setSystemTime(now);
-      try {
+    describe('H.264 start codes (#2140)', () => {
+      const sps = [0x67, 0x64, 0x00, 0x1f, 0xac, 0xd9];
+      const pps = [0x68, 0xee, 0x3c, 0xb0];
+      const idr = [0x65, 0x88, 0x84, 0x21, 0x43, 0x55, 0x66, 0x77];
+
+      async function encryptAndDecrypt(plainTextData: NonSharedUint8Array) {
+        const encoder = prepareParticipantTestEncoder(participantIdentity, {});
+        await encoder.keys.setKey(await createKeyMaterialFromString('key1'), 1);
+        const encrypted = mockRTCEncodedVideoFrame(plainTextData);
+        encoder.input.write(encrypted);
+        await vitest.waitFor(() => expect(encoder.output.chunks).toHaveLength(1));
+        const encryptedData = new Uint8Array(encrypted.data.slice(0));
+
+        const decoder = prepareParticipantTestDecoder(participantIdentity, {});
+        await decoder.keys.setKey(await createKeyMaterialFromString('key1'), 1);
+        const decrypted = mockRTCEncodedVideoFrame(new Uint8Array(encryptedData));
+        decoder.input.write(decrypted);
+        await vitest.waitFor(() => expect(decoder.output.chunks).toHaveLength(1));
+
+        return { encryptedData, decryptedData: new Uint8Array(decrypted.data) };
+      }
+
+      it('rewrites 3-byte start codes in the unencrypted header to 4-byte start codes', async () => {
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array([0, 0, 1, ...sps, 0, 0, 1, ...pps, 0, 0, 1, ...idr]),
+        );
+
+        // The unencrypted header runs through the first 2 bytes of the slice NALU.
+        const expectedHeader = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, 0x65, 0x88];
+        expect(Array.from(encryptedData.subarray(0, expectedHeader.length))).toEqual(
+          expectedHeader,
+        );
+        expect(Array.from(decryptedData)).toEqual([
+          0,
+          0,
+          0,
+          1,
+          ...sps,
+          0,
+          0,
+          0,
+          1,
+          ...pps,
+          0,
+          0,
+          0,
+          1,
+          ...idr,
+        ]);
+      });
+
+      it('rewrites a 3-byte start code on a delta frame', async () => {
+        const pSlice = [0x41, 0x9a, 0x21, 0x43, 0x55, 0x66];
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array([0, 0, 1, ...pSlice]),
+        );
+
+        expect(Array.from(encryptedData.subarray(0, 6))).toEqual([0, 0, 0, 1, 0x41, 0x9a]);
+        expect(Array.from(decryptedData)).toEqual([0, 0, 0, 1, ...pSlice]);
+      });
+
+      it('leaves 4-byte start codes in the unencrypted header unchanged', async () => {
+        const plainTextData = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, ...idr];
+        const { encryptedData, decryptedData } = await encryptAndDecrypt(
+          new Uint8Array(plainTextData),
+        );
+
+        const expectedHeader = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, 0x65, 0x88];
+        expect(Array.from(encryptedData.subarray(0, expectedHeader.length))).toEqual(
+          expectedHeader,
+        );
+        expect(Array.from(decryptedData)).toEqual(plainTextData);
+      });
+      it('logs the frame bytes once when NALU processing fails', async () => {
+        vitest.useFakeTimers();
+        const warn = vitest.spyOn(workerLogger, 'warn');
+        try {
+          const { keys, input, output } = prepareParticipantTestEncoder(
+            participantIdentity,
+            {},
+            undefined,
+            'h264',
+          );
+
+          await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+          // No start code at offset 0, so findNALUIndices throws 'byte stream contains
+          // leading data' and the cryptor falls back to VP8 handling.
+          input.write(
+            mockRTCEncodedVideoFrame(new Uint8Array([9, 9, 9, 9, 1, 2, 3, 4, 5, 6, 7, 8])),
+          );
+          await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+          expect(warn).toHaveBeenCalledWith(
+            'NALU processing failed, falling back to VP8 handling',
+            expect.objectContaining({
+              detectedCodec: 'h264',
+              frameType: 'key',
+              byteLength: 12,
+              firstBytes: expect.stringMatching(/^09 09 09 09 /),
+            }),
+          );
+
+          // same payload type, so the once-per-tuple guard must suppress the second log
+          input.write(
+            mockRTCEncodedVideoFrame(new Uint8Array([8, 8, 8, 8, 1, 2, 3, 4, 5, 6, 7, 8])),
+          );
+          await vitest.waitFor(() => expect(output.chunks).toHaveLength(2));
+
+          expect(warn).toHaveBeenCalledTimes(1);
+        } finally {
+          warn.mockRestore();
+          vitest.useRealTimers();
+        }
+      });
+
+      it('appends packet trailer after encryption', async () => {
+        vitest.useFakeTimers();
+        const now = new Date('2025-04-10T12:00:00.123Z');
+        vitest.setSystemTime(now);
+        try {
+          const { keys, input, output } = prepareParticipantTestEncoder(
+            participantIdentity,
+            {},
+            { timestamp: true, frameId: true },
+          );
+
+          await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+          const frame = mockRTCEncodedVideoFrame(
+            new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+          );
+
+          input.write(frame);
+          await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+          const extracted = extractPacketTrailer(frame.data);
+          expect(extracted.metadata?.userTimestamp).toBeGreaterThanOrEqual(
+            BigInt(now.getTime()) * BigInt(1000),
+          );
+          expect(extracted.metadata?.frameId).toBe(1);
+
+          const frameTrailer = new Uint8Array(
+            extracted.data.buffer.slice(extracted.data.byteLength - 2),
+          );
+          expect(frameTrailer[0]).toEqual(IV_LENGTH);
+          expect(frameTrailer[1]).toEqual(1);
+        } finally {
+          vitest.useRealTimers();
+        }
+      });
+
+      it('does not append packet trailer after encryption when no trailer features are enabled', async () => {
+        vitest.useFakeTimers();
+        try {
+          const { keys, input, output } = prepareParticipantTestEncoder(
+            participantIdentity,
+            {},
+            { timestamp: false, frameId: false },
+          );
+
+          await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+          const frame = mockRTCEncodedVideoFrame(
+            new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+          );
+
+          input.write(frame);
+          await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+          const extracted = extractPacketTrailer(frame.data);
+          expect(extracted.metadata).toBeUndefined();
+          expect(extracted.data.byteLength).toBe(frame.data.byteLength);
+
+          const frameTrailer = new Uint8Array(frame.data.slice(frame.data.byteLength - 2));
+          expect(frameTrailer[0]).toEqual(IV_LENGTH);
+          expect(frameTrailer[1]).toEqual(1);
+        } finally {
+          vitest.useRealTimers();
+        }
+      });
+
+      it('appends only timestamp packet trailer metadata after encryption', async () => {
+        vitest.useFakeTimers();
+        const now = new Date('2025-04-10T12:00:00.123Z');
+        vitest.setSystemTime(now);
+        try {
+          const { keys, input, output } = prepareParticipantTestEncoder(
+            participantIdentity,
+            {},
+            { timestamp: true },
+          );
+
+          await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+          const frame = mockRTCEncodedVideoFrame(
+            new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+          );
+
+          input.write(frame);
+          await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+          const extracted = extractPacketTrailer(frame.data);
+          expect(frame.data.byteLength - extracted.data.byteLength).toBe(15);
+          expect(extracted.metadata?.userTimestamp).toBeGreaterThanOrEqual(
+            BigInt(now.getTime()) * BigInt(1000),
+          );
+          expect(extracted.metadata?.frameId).toBe(0);
+        } finally {
+          vitest.useRealTimers();
+        }
+      });
+
+      it('appends only frame id packet trailer metadata after encryption', async () => {
         const { keys, input, output } = prepareParticipantTestEncoder(
           participantIdentity,
           {},
-          { timestamp: true, frameId: true },
+          { frameId: true },
         );
 
         await keys.setKey(await createKeyMaterialFromString('key1'), 1);
@@ -254,103 +468,11 @@ describe('FrameCryptor', () => {
         await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
 
         const extracted = extractPacketTrailer(frame.data);
-        expect(extracted.metadata?.userTimestamp).toBeGreaterThanOrEqual(
-          BigInt(now.getTime()) * BigInt(1000),
-        );
-        expect(extracted.metadata?.frameId).toBe(1);
-
-        const frameTrailer = new Uint8Array(
-          extracted.data.buffer.slice(extracted.data.byteLength - 2),
-        );
-        expect(frameTrailer[0]).toEqual(IV_LENGTH);
-        expect(frameTrailer[1]).toEqual(1);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('does not append packet trailer after encryption when no trailer features are enabled', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { keys, input, output } = prepareParticipantTestEncoder(
-          participantIdentity,
-          {},
-          { timestamp: false, frameId: false },
-        );
-
-        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-
-        const frame = mockRTCEncodedVideoFrame(
-          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
-        );
-
-        input.write(frame);
-        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
-
-        const extracted = extractPacketTrailer(frame.data);
-        expect(extracted.metadata).toBeUndefined();
-        expect(extracted.data.byteLength).toBe(frame.data.byteLength);
-
-        const frameTrailer = new Uint8Array(frame.data.slice(frame.data.byteLength - 2));
-        expect(frameTrailer[0]).toEqual(IV_LENGTH);
-        expect(frameTrailer[1]).toEqual(1);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('appends only timestamp packet trailer metadata after encryption', async () => {
-      vitest.useFakeTimers();
-      const now = new Date('2025-04-10T12:00:00.123Z');
-      vitest.setSystemTime(now);
-      try {
-        const { keys, input, output } = prepareParticipantTestEncoder(
-          participantIdentity,
-          {},
-          { timestamp: true },
-        );
-
-        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-
-        const frame = mockRTCEncodedVideoFrame(
-          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
-        );
-
-        input.write(frame);
-        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
-
-        const extracted = extractPacketTrailer(frame.data);
-        expect(frame.data.byteLength - extracted.data.byteLength).toBe(15);
-        expect(extracted.metadata?.userTimestamp).toBeGreaterThanOrEqual(
-          BigInt(now.getTime()) * BigInt(1000),
-        );
-        expect(extracted.metadata?.frameId).toBe(0);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('appends only frame id packet trailer metadata after encryption', async () => {
-      const { keys, input, output } = prepareParticipantTestEncoder(
-        participantIdentity,
-        {},
-        { frameId: true },
-      );
-
-      await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-
-      const frame = mockRTCEncodedVideoFrame(
-        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
-      );
-
-      input.write(frame);
-      await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
-
-      const extracted = extractPacketTrailer(frame.data);
-      expect(frame.data.byteLength - extracted.data.byteLength).toBe(11);
-      expect(extracted.metadata).toEqual({
-        userTimestamp: BigInt(0),
-        frameId: 1,
+        expect(frame.data.byteLength - extracted.data.byteLength).toBe(11);
+        expect(extracted.metadata).toEqual({
+          userTimestamp: BigInt(0),
+          frameId: 1,
+        });
       });
     });
   });

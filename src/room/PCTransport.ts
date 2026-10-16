@@ -27,6 +27,9 @@ interface TrackBitrateInfo {
  * Why same for all codecs: Target bitrate already accounts for codec efficiency
  * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
  * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
+ * The cap is lowered further for connections that were slow to set up, see
+ * `computeStartBitrateCap`, or that the browser reports as slow, see
+ * `connectionEffectiveTypeStartBitrateCap`.
  */
 const startBitrateMultiplier = 0.9;
 
@@ -34,10 +37,34 @@ const startBitrateMultiplier = 0.9;
 const maxStartBitrateKbps = 1000;
 
 /**
- * Minimum target bitrate in kbps for the start bitrate hint. Below this, seeding above the
- * real capacity costs more than the ramp it saves, so libwebrtc's default is left in place.
+ * Minimum x-google-start-bitrate in kbps: libwebrtc's own default starting estimate. A target
+ * below this gets no hint, since seeding above the real capacity costs more than the ramp it
+ * saves, and a slow connection is seeded no higher than this.
  */
 const minTargetBitrateKbps = 300;
+
+/**
+ * Connection setup times (ms) bounding the ramp in `computeStartBitrateCap`: at or below the
+ * first the hint is capped at `maxStartBitrateKbps`, at or above the second at
+ * `minTargetBitrateKbps`. Measured on shaped links (CLT-3380): healthy links set up in under
+ * 860 ms, a 1 Mbps link with 150 ms RTT took 1.1–1.7 s, a 500 kbps link ~2.3 s at the median,
+ * and a 300 kbps link never under 3 s. The first sits above the 1 Mbps link, which a lower seed
+ * only slows down, and the second above the 500 kbps link's median, so only links that cannot
+ * carry more land at the floor.
+ */
+const setupTimeForMaxStartBitrateMs = 1500;
+const setupTimeForMinStartBitrateMs = 3500;
+
+/** Cap on the start bitrate hint, in kbps, when the browser reports a `3g` connection. */
+const effectiveType3gStartBitrateKbps = 500;
+
+/**
+ * The part of the Network Information API (`navigator.connection`) read here. It is Chromium
+ * only, so TypeScript's DOM typings do not declare it.
+ */
+interface NetworkInformation {
+  readonly effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
+}
 
 const debounceInterval = 20;
 
@@ -70,17 +97,84 @@ export function findTrackCodecPayload(
  * high-bitrate track; screen share is exempt, because its content needs the bitrate
  * immediately to stay legible.
  *
- * TODO: adjust dynamically from network conditions (e.g. a previous BWE estimate) rather
- * than a fixed cap.
+ * The cap is lowered for a connection that was slow to set up (`computeStartBitrateCap`), and
+ * for one the browser reports as slow (`connectionEffectiveTypeStartBitrateCap`), whichever is
+ * lower. Screen share is exempt from both, however slow the connection.
  *
  * @internal
  */
-export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | undefined {
+export function computeTrackStartBitrate(
+  trackbr: TrackBitrateInfo,
+  connectionSetupTimeMs?: number,
+): number | undefined {
   if (trackbr.maxbr < minTargetBitrateKbps) {
     return undefined;
   }
-  const calculated = Math.round(trackbr.maxbr * startBitrateMultiplier);
-  return trackbr.isScreenShare ? calculated : Math.min(calculated, maxStartBitrateKbps);
+  const calculated = Math.min(Math.round(trackbr.maxbr * startBitrateMultiplier), trackbr.maxbr);
+  if (trackbr.isScreenShare) {
+    return calculated;
+  }
+  const cap = Math.min(
+    computeStartBitrateCap(connectionSetupTimeMs),
+    connectionEffectiveTypeStartBitrateCap(),
+  );
+  return Math.min(calculated, cap);
+}
+
+/**
+ * Cap on the start bitrate hint, in kbps, from the browser's effective connection type
+ * (`navigator.connection.effectiveType`, Chromium only): `slow-2g` and `2g` cap at
+ * `minTargetBitrateKbps`, `3g` at `effectiveType3gStartBitrateKbps`.
+ *
+ * It catches links that have low bandwidth but low latency, which set up quickly and so slip
+ * past the setup time ramp. `4g`, and browsers without the API, give no guidance and stay at the
+ * `maxStartBitrateKbps` ceiling, as `computeStartBitrateCap` does without a setup time. The
+ * connection RTT the API also reports is not used: it lags behind network changes, and the setup
+ * time already reflects latency.
+ */
+function connectionEffectiveTypeStartBitrateCap(): number {
+  // A `typeof` guard, since `globalThis` is missing from some supported browsers (Chrome < 71,
+  // Firefox < 65, Safari < 12.1) and the build does not polyfill it.
+  const connection =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { connection?: NetworkInformation }).connection
+      : undefined;
+  switch (connection?.effectiveType) {
+    case 'slow-2g':
+    case '2g':
+      return minTargetBitrateKbps;
+    case '3g':
+      return effectiveType3gStartBitrateKbps;
+    default:
+      return maxStartBitrateKbps;
+  }
+}
+
+/**
+ * Cap on the start bitrate hint, in kbps, from how long the connection took to set up.
+ *
+ * Connection setup time (signaling join plus ICE/DTLS) is the network signal every platform has
+ * before the first video offer, since libwebrtc cannot probe the path until a video sender
+ * exists. It grows with round-trip time and loss, which also mark the links where a 1 Mbps
+ * seed overshoots, so the cap ramps linearly from `maxStartBitrateKbps` at
+ * `setupTimeForMaxStartBitrateMs` down to `minTargetBitrateKbps` at
+ * `setupTimeForMinStartBitrateMs`. A video offer built while the connection is still being set
+ * up (publishing during connect) passes the time elapsed so far, a lower bound on the setup time.
+ * Without any timing the cap stays at the 1 Mbps ceiling.
+ */
+function computeStartBitrateCap(connectionSetupTimeMs?: number): number {
+  if (connectionSetupTimeMs === undefined) {
+    return maxStartBitrateKbps;
+  }
+  const ramp = Math.min(
+    Math.max(
+      (connectionSetupTimeMs - setupTimeForMaxStartBitrateMs) /
+        (setupTimeForMinStartBitrateMs - setupTimeForMaxStartBitrateMs),
+      0,
+    ),
+    1,
+  );
+  return Math.round(maxStartBitrateKbps - ramp * (maxStartBitrateKbps - minTargetBitrateKbps));
 }
 
 /**
@@ -113,6 +207,7 @@ export function computeTrackStartBitrate(trackbr: TrackBitrateInfo): number | un
 export function computeConnectionStartBitrate(
   media: MediaDescription[],
   trackBitrates: TrackBitrateInfo[],
+  connectionSetupTimeMs?: number,
 ): number | undefined {
   let connectionStartBitrate: number | undefined;
   for (const m of media) {
@@ -127,7 +222,8 @@ export function computeConnectionStartBitrate(
       if (codecPayload === undefined) {
         continue;
       }
-      const startBitrate = codecPayload > 0 ? computeTrackStartBitrate(trackbr) : undefined;
+      const startBitrate =
+        codecPayload > 0 ? computeTrackStartBitrate(trackbr, connectionSetupTimeMs) : undefined;
       if (
         startBitrate !== undefined &&
         (connectionStartBitrate === undefined || startBitrate > connectionStartBitrate)
@@ -231,6 +327,20 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * bandwidth estimator. A new peer connection (full reconnect) seeds a new estimator.
    */
   private hasAppliedVideoStartBitrate = false;
+
+  /**
+   * How long this peer connection took to set up, in ms, recorded once the initial connect
+   * succeeds. Lowers the start bitrate hint for a slow connection; see `computeStartBitrateCap`.
+   */
+  private connectionSetupTimeMs?: number;
+
+  /**
+   * When the connection attempt that built this peer connection began (`performance.now()`).
+   * Until `connectionSetupTimeMs` is known, the time elapsed since then is used as a lower bound
+   * on the setup time, so a video published during connect is still seeded from it rather than
+   * waiting for the connection, which would delay the offer.
+   */
+  private connectionStartedAt?: number;
 
   remoteStereoMids: string[] = [];
 
@@ -582,7 +692,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       // published (data channel or audio only) find no target and leave the latch unset.
       const connectionStartBitrate = this.hasAppliedVideoStartBitrate
         ? undefined
-        : computeConnectionStartBitrate(sdpParsed.media, this.trackBitrates);
+        : computeConnectionStartBitrate(
+            sdpParsed.media,
+            this.trackBitrates,
+            this.connectionSetupTimeEstimateMs(),
+          );
       let appliedVideoStartBitrate = false;
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
@@ -639,6 +753,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       // one-shot hint once the SDP carrying it has been accepted locally.
       if (appliedVideoStartBitrate && offer.sdp === mungedSdp) {
         this.hasAppliedVideoStartBitrate = true;
+        this.log.info('applied x-google-start-bitrate', {
+          startBitrateKbps: connectionStartBitrate,
+          connectionSetupTimeMs: this.connectionSetupTimeEstimateMs(),
+        });
       }
       this.onOffer(offer, this.latestOfferId);
     } finally {
@@ -691,6 +809,30 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   setTrackCodecBitrate(info: TrackBitrateInfo) {
     this.trackBitrates.push(info);
+  }
+
+  /**
+   * Record how long this peer connection took to set up. Called once, when the initial connect
+   * succeeds; resumes and ICE restarts keep the estimator they have and never call this.
+   */
+  setConnectionSetupTime(ms: number) {
+    this.connectionSetupTimeMs = ms;
+  }
+
+  /** Record when the connection attempt that built this peer connection began. */
+  setConnectionStartedAt(startedAt: number) {
+    this.connectionStartedAt = startedAt;
+  }
+
+  /** The measured setup time, or while still connecting, the time elapsed so far. */
+  private connectionSetupTimeEstimateMs(): number | undefined {
+    if (this.connectionSetupTimeMs !== undefined) {
+      return this.connectionSetupTimeMs;
+    }
+    if (this.connectionStartedAt === undefined) {
+      return undefined;
+    }
+    return Math.round(performance.now() - this.connectionStartedAt);
   }
 
   setConfiguration(rtcConfig: RTCConfiguration) {

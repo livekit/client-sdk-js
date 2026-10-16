@@ -15,7 +15,7 @@ import LocalTrackPublication from '../track/LocalTrackPublication';
 import { Track } from '../track/Track';
 import { getVideoCapture } from '../track/create';
 import type { SimulationOptions } from '../types';
-import { createDummyVideoStreamTrack, getEmptyAudioStreamTrack } from '../utils';
+import { createDummyVideoStreamTrack } from '../utils';
 
 /**
  * Methods the `simulatedParticipants` extension adds to the room.
@@ -126,7 +126,7 @@ async function simulateParticipants(
       new LocalAudioTrack(
         publishOptions.useRealTracks && navigator.mediaDevices?.getUserMedia
           ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
-          : getEmptyAudioStreamTrack(),
+          : ctx.acquireEmptyAudioStreamTrack(),
         undefined,
         false,
         participant.audioContext,
@@ -169,7 +169,7 @@ async function simulateParticipants(
       info.tracks = [...info.tracks, videoTrack];
     }
     if (participantOptions.audio) {
-      const dummyTrack = getEmptyAudioStreamTrack();
+      const dummyTrack = ctx.acquireEmptyAudioStreamTrack();
       const audioTrack = new TrackInfo({
         source: TrackSource.MICROPHONE,
         sid: Math.floor(Math.random() * 10_000).toString(),

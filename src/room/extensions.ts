@@ -197,6 +197,8 @@ export interface ExtensionContext {
   getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant;
   /** Puts the room into the connected state without a server (`simulatedParticipants`). */
   simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo): void;
+  /** A silent audio track the room hands back to the shared source on disconnect. */
+  acquireEmptyAudioStreamTrack(): MediaStreamTrack;
 }
 
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void
