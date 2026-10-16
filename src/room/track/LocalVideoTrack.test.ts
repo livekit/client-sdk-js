@@ -325,6 +325,27 @@ describe('backup codec tracks', () => {
     expect(backup.track).toBe(newCamera.clones[0]);
   });
 
+  it('keeps the previous clone when the backup sender rejects the new one', async () => {
+    const camera = makeMediaStreamTrack('camera');
+    const { track, info, backup } = await publishWithBackupCodec(camera);
+    const oldClone = info.mediaStreamTrack;
+    backup.replaceTrack.mockImplementation(async (next: MediaStreamTrack | null) => {
+      if (next?.id.startsWith('new-camera')) {
+        throw new Error('rejected');
+      }
+      backup.track = next;
+    });
+
+    const newCamera = makeMediaStreamTrack('new-camera');
+    await expect(track.replaceTrack(newCamera)).rejects.toThrow('rejected');
+
+    // the sender still sends the previous clone, which stays owned so that it is stopped later
+    expect(backup.track).toBe(oldClone);
+    expect(info.mediaStreamTrack).toBe(oldClone);
+    expect(oldClone.readyState).toBe('live');
+    expect(newCamera.clones[0].readyState).toBe('ended');
+  });
+
   it('stops the backup codec clone when an SDK managed camera is muted', async () => {
     const camera = makeMediaStreamTrack('camera');
     const { track, info } = await publishWithBackupCodec(camera, false);
