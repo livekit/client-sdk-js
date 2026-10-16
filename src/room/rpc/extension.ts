@@ -8,7 +8,7 @@ import { RoomEvent } from '../events';
 import type {
   DataPacketOwner,
   ExtensionContext,
-  LocalApiProvider,
+  LocalParticipantApiProvider,
   RoomApiProvider,
   RoomExtension,
 } from '../extensions';
@@ -63,7 +63,7 @@ export interface RpcRoomApi {
  * Methods the `rpc` extension adds to the local participant.
  * @experimental
  */
-export interface RpcLocalApi {
+export interface RpcLocalParticipantApi {
   /**
    * Initiate an RPC call to a remote participant
    * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
@@ -83,7 +83,9 @@ export const rpc = {
   install(
     room: CoreRoom,
     ctx: ExtensionContext,
-  ): RoomApiProvider<RpcRoomApi> & LocalApiProvider<RpcLocalApi> & DataPacketOwner {
+  ): RoomApiProvider<RpcRoomApi> &
+    LocalParticipantApiProvider<RpcLocalParticipantApi> &
+    DataPacketOwner {
     const { incoming, outgoing } = ctx.get(dataStreams);
     const clientProtocol = (identity: string) =>
       room.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
@@ -154,4 +156,4 @@ export const rpc = {
       },
     };
   },
-} satisfies RoomExtension<RpcRoomApi, RpcLocalApi>;
+} satisfies RoomExtension<RpcRoomApi, RpcLocalParticipantApi>;

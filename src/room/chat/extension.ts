@@ -5,7 +5,7 @@ import { ParticipantEvent, RoomEvent } from '../events';
 import type {
   DataPacketOwner,
   ExtensionContext,
-  LocalApiProvider,
+  LocalParticipantApiProvider,
   RoomExtension,
 } from '../extensions';
 import type { ChatMessage, SendTextOptions } from '../types';
@@ -15,7 +15,7 @@ import { extractChatMessage } from '../utils';
  * Methods the legacy `chat` extension adds to the local participant.
  * @experimental
  */
-export interface ChatLocalApi {
+export interface ChatLocalParticipantApi {
   /** @deprecated Consider migrating to {@link sendText} */
   sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage>;
 
@@ -32,7 +32,7 @@ export const chat = {
   install(
     room: CoreRoom,
     _ctx: ExtensionContext,
-  ): LocalApiProvider<ChatLocalApi> & DataPacketOwner {
+  ): LocalParticipantApiProvider<ChatLocalParticipantApi> & DataPacketOwner {
     const participant = room.localParticipant;
 
     participant.on(ParticipantEvent.ChatMessage, (msg) => {
@@ -75,4 +75,4 @@ export const chat = {
       },
     };
   },
-} satisfies RoomExtension<{}, ChatLocalApi>;
+} satisfies RoomExtension<{}, ChatLocalParticipantApi>;

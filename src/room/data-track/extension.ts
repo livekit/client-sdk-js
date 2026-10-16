@@ -12,7 +12,7 @@ import type {
   ConnectionHooks,
   EngineHooks,
   ExtensionContext,
-  LocalApiProvider,
+  LocalParticipantApiProvider,
   ParticipantHooks,
   RoomExtension,
   SyncStateProvider,
@@ -30,7 +30,7 @@ import { DataTrackInfo } from './types';
  * Methods the `dataTracks` extension adds to the local participant.
  * @experimental
  */
-export interface DataTrackLocalApi {
+export interface DataTrackLocalParticipantApi {
   /** Publishes a data track.
    *
    * Returns the published data track if successful. Use {@link LocalDataTrack#tryPush}
@@ -51,7 +51,7 @@ export const dataTracks = {
   install(
     room: CoreRoom,
     ctx: ExtensionContext,
-  ): LocalApiProvider<DataTrackLocalApi> &
+  ): LocalParticipantApiProvider<DataTrackLocalParticipantApi> &
     EngineHooks &
     ConnectionHooks &
     ParticipantHooks &
@@ -241,4 +241,4 @@ export const dataTracks = {
       },
     };
   },
-} satisfies RoomExtension<{}, DataTrackLocalApi>;
+} satisfies RoomExtension<{}, DataTrackLocalParticipantApi>;

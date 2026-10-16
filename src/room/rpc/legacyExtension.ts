@@ -1,5 +1,5 @@
 import type { CoreRoom } from '../CoreRoom';
-import type { ExtensionContext, LocalApiProvider, RoomExtension } from '../extensions';
+import type { ExtensionContext, LocalParticipantApiProvider, RoomExtension } from '../extensions';
 import type { RpcRoomApi } from './extension';
 import { rpc } from './extension';
 
@@ -7,7 +7,7 @@ import { rpc } from './extension';
  * The deprecated rpc methods on the local participant.
  * @experimental
  */
-export interface RpcLegacyLocalApi {
+export interface RpcLegacyLocalParticipantApi {
   /**
    * @deprecated use `room.registerRpcMethod` instead
    */
@@ -26,8 +26,11 @@ export interface RpcLegacyLocalApi {
 export const rpcLegacy = {
   key: /* @__PURE__ */ Symbol('lk.extension.rpcLegacy'),
   requires: [rpc] as const,
-  install(_room: CoreRoom, ctx: ExtensionContext): LocalApiProvider<RpcLegacyLocalApi> {
+  install(
+    _room: CoreRoom,
+    ctx: ExtensionContext,
+  ): LocalParticipantApiProvider<RpcLegacyLocalParticipantApi> {
     const { registerRpcMethod, unregisterRpcMethod } = ctx.get(rpc).room;
     return { localParticipant: { registerRpcMethod, unregisterRpcMethod } };
   },
-} satisfies RoomExtension<{}, RpcLegacyLocalApi>;
+} satisfies RoomExtension<{}, RpcLegacyLocalParticipantApi>;

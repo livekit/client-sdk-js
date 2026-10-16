@@ -3,7 +3,7 @@ import { EngineEvent } from '../events';
 import type {
   EngineHooks,
   ExtensionContext,
-  LocalApiProvider,
+  LocalParticipantApiProvider,
   RoomExtension,
   SlotProvider,
 } from '../extensions';
@@ -29,7 +29,7 @@ import {
  * Methods the `video` extension adds to the local participant.
  * @experimental
  */
-export interface VideoLocalApi {
+export interface VideoLocalParticipantApi {
   /**
    * Enable or disable a participant's camera track.
    *
@@ -85,7 +85,9 @@ export const video = {
   install(
     room: CoreRoom,
     ctx: ExtensionContext,
-  ): LocalApiProvider<VideoLocalApi> & SlotProvider<'videoPublisher'> & EngineHooks {
+  ): LocalParticipantApiProvider<VideoLocalParticipantApi> &
+    SlotProvider<'videoPublisher'> &
+    EngineHooks {
     registerVideoCapture();
     room.options.videoCaptureDefaults = { ...videoDefaults, ...room.options.videoCaptureDefaults };
     room.options.publishDefaults = { ...videoPublishDefaults, ...room.options.publishDefaults };
@@ -110,4 +112,4 @@ export const video = {
       },
     };
   },
-} satisfies RoomExtension<{}, VideoLocalApi>;
+} satisfies RoomExtension<{}, VideoLocalParticipantApi>;

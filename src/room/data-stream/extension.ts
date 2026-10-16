@@ -9,7 +9,7 @@ import {
   type DataPacketOwner,
   type EngineHooks,
   type ExtensionContext,
-  type LocalApiProvider,
+  type LocalParticipantApiProvider,
   type RoomApiProvider,
   type SlotProvider,
   defineExtension,
@@ -43,7 +43,7 @@ export interface DataStreamRoomApi {
  * Methods the `dataStreams` extension adds to the local participant.
  * @experimental
  */
-export interface DataStreamLocalApi {
+export interface DataStreamLocalParticipantApi {
   /**
    * Sends the given string to participants in the room via the data channel.
    * For longer messages, consider using {@link streamText} instead.
@@ -101,7 +101,7 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
     ctx: ExtensionContext,
     streamOptions: RoomDataStreamOptions | undefined,
   ): RoomApiProvider<DataStreamRoomApi> &
-    LocalApiProvider<DataStreamLocalApi> &
+    LocalParticipantApiProvider<DataStreamLocalParticipantApi> &
     SlotProvider<'byteStreamOpener'> &
     DataPacketOwner &
     EngineHooks &

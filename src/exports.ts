@@ -196,7 +196,7 @@ export type {
   Disposable,
   EngineHooks,
   ExtensionApis,
-  LocalApiProvider,
+  LocalParticipantApiProvider as LocalParticipantApiProvider,
   ParticipantHooks,
   RoomApiProvider,
   SlotProvider,
@@ -204,12 +204,15 @@ export type {
   ExtensionResult,
   RoomExtension,
 } from './room/extensions';
-export type { DataStreamLocalApi, DataStreamRoomApi } from './room/data-stream/extension';
-export type { RpcLocalApi, RpcRoomApi } from './room/rpc/extension';
-export type { DataTrackLocalApi } from './room/data-track/extension';
+export type {
+  DataStreamLocalParticipantApi,
+  DataStreamRoomApi,
+} from './room/data-stream/extension';
+export type { RpcLocalParticipantApi, RpcRoomApi } from './room/rpc/extension';
+export type { DataTrackLocalParticipantApi } from './room/data-track/extension';
 export type { E2eeRoomApi } from './e2ee/extension';
-export type { VideoLocalApi } from './room/video/extension';
-export type { ChatLocalApi } from './room/chat/extension';
+export type { VideoLocalParticipantApi } from './room/video/extension';
+export type { ChatLocalParticipantApi } from './room/chat/extension';
 
 export { LocalTrackRecorder } from './room/track/record';
 export {

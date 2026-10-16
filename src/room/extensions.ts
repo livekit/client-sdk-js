@@ -25,11 +25,11 @@ import type { StreamBytesOptions } from './types';
  * handlers registered there are in place before `connect()`.
  * @experimental
  */
-export interface RoomExtension<RoomApi = {}, LocalApi = {}> {
+export interface RoomExtension<RoomApi = {}, LocalParticipantApi = {}> {
   readonly key: symbol;
   /** Hard dependencies. They install first; an instance the app lists explicitly wins over them. */
   readonly requires?: readonly RoomExtension<any, any>[];
-  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RoomApi, LocalApi>;
+  install(room: CoreRoom, ctx: ExtensionContext): ExtensionResult<RoomApi, LocalParticipantApi>;
 }
 
 /**
@@ -97,8 +97,8 @@ export interface RoomApiProvider<RoomApi = {}> {
  * An extension that adds methods to the local participant, copied onto it.
  * @experimental
  */
-export interface LocalApiProvider<LocalApi = {}> {
-  localParticipant: LocalApi;
+export interface LocalParticipantApiProvider<LocalParticipantApi = {}> {
+  localParticipant: LocalParticipantApi;
 }
 
 /**
@@ -113,15 +113,15 @@ export interface Disposable {
 /**
  * What `install` returns: the APIs plus every contribution to core an extension can opt into,
  * all optional. An extension declares the narrower type it uses, such as
- * `RoomApiProvider<RpcRoomApi> & LocalApiProvider<RpcLocalApi> & DataPacketOwner`, so a missing
+ * `RoomApiProvider<RpcRoomApi> & LocalParticipantApiProvider<RpcLocalParticipantApi> & DataPacketOwner`, so a missing
  * API or an undeclared contribution is a type error. Extra members are not copied anywhere;
  * dependent extensions read them through `ctx.get(extension)`. The room's own typing
- * (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalApi>` generics, which each
+ * (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalParticipantApi>` generics, which each
  * extension pins with `satisfies`.
  * @experimental
  */
-export type ExtensionResult<RoomApi = {}, LocalApi = {}> = Partial<
-  RoomApiProvider<RoomApi> & LocalApiProvider<LocalApi> & Disposable
+export type ExtensionResult<RoomApi = {}, LocalParticipantApi = {}> = Partial<
+  RoomApiProvider<RoomApi> & LocalParticipantApiProvider<LocalParticipantApi> & Disposable
 > &
   EngineHooks &
   ConnectionHooks &
@@ -205,8 +205,11 @@ type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (
   ? I
   : never;
 
-type ApiOf<E> = E extends RoomExtension<infer R, any> ? R : never;
-type LocalOf<E> = E extends RoomExtension<any, infer L> ? L : never;
+// An extension without a room or participant API infers `unknown` there, which would swallow the
+// other extensions' APIs in the union below, so it counts as `{}`.
+type Known<T> = unknown extends T ? {} : T;
+type ApiOf<E> = E extends RoomExtension<infer R, any> ? Known<R> : never;
+type LocalOf<E> = E extends RoomExtension<any, infer L> ? Known<L> : never;
 type Deps<E> = E extends { requires: readonly (infer D)[] } ? D | Deps<D> : never;
 type All<E> = E | Deps<E>;
 

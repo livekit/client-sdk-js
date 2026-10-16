@@ -97,7 +97,7 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   deduped by key), and `install(room, ctx)`. It lives in `extension.ts` next to its managers.
 - `install` returns an intersection of small interfaces, and each extension declares exactly the
   ones it uses as its return type, so a missing API or an undeclared contribution is a type
-  error: `RoomApiProvider<RoomApi>` (`room`, copied onto the room), `LocalApiProvider<LocalApi>`
+  error: `RoomApiProvider<RoomApi>` (`room`, copied onto the room), `LocalParticipantApiProvider<LocalParticipantApi>`
   (`localParticipant`, copied onto the local participant), `Disposable`, `EngineHooks`
   (`onEngineCreated`), `ConnectionHooks` (`onDisconnect`), `ParticipantHooks`, `DataPacketOwner`
   (`dataPackets`, one owner per case), `SyncStateProvider`, and `SlotProvider<K>` for the values
@@ -108,7 +108,7 @@ modules whole; the main entry stays one self-contained bundle. `pnpm check:core`
   interface: one per capability, named for what core does with it, `*Provider` for a value core
   reads, `*Hooks` for a moment core calls, `*Owner` for an exclusive claim. `ExtensionResult` is the union of all of them, optional, for the resolver.
   Extra members (the managers) are visible to dependents through `ctx.get(extension)`. The
-  room's typing (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalApi>` generics
+  room's typing (`ExtensionApis`) comes from the `RoomExtension<RoomApi, LocalParticipantApi>` generics
   pinned with `satisfies`, not from the result. Nothing registers on `ExtensionContext`; it
   offers `log`, `get`, `slot` and the two privileged operations.
 - Extensions that take options (`e2ee`, `frameMetadata`, `dataStreams`) are built with
