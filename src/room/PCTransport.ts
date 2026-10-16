@@ -29,7 +29,8 @@ interface TrackBitrateInfo {
  * (e.g., users set lower targets for VP9/AV1 knowing they're more efficient).
  * Why cap at 1 Mbps: Prevents BWE from starting too aggressively on high bitrate tracks.
  * The cap is lowered further for connections that were slow to set up, see
- * `computeStartBitrateCap`.
+ * `computeStartBitrateCap`, or that the browser reports as slow, see
+ * `connectionEffectiveTypeStartBitrateCap`.
  */
 const startBitrateMultiplier = 0.9;
 
@@ -54,6 +55,17 @@ const minTargetBitrateKbps = 300;
  */
 const setupTimeForMaxStartBitrateMs = 1500;
 const setupTimeForMinStartBitrateMs = 3500;
+
+/** Cap on the start bitrate hint, in kbps, when the browser reports a `3g` connection. */
+const effectiveType3gStartBitrateKbps = 500;
+
+/**
+ * The part of the Network Information API (`navigator.connection`) read here. It is Chromium
+ * only, so TypeScript's DOM typings do not declare it.
+ */
+interface NetworkInformation {
+  readonly effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
+}
 
 const debounceInterval = 20;
 
@@ -86,8 +98,9 @@ export function findTrackCodecPayload(
  * high-bitrate track; screen share is exempt, because its content needs the bitrate
  * immediately to stay legible.
  *
- * The cap is lowered for a connection that was slow to set up (`computeStartBitrateCap`).
- * Screen share is exempt from that ramp as well, however slow the setup.
+ * The cap is lowered for a connection that was slow to set up (`computeStartBitrateCap`), and
+ * for one the browser reports as slow (`connectionEffectiveTypeStartBitrateCap`), whichever is
+ * lower. Screen share is exempt from both, however slow the connection.
  *
  * @internal
  */
@@ -99,17 +112,49 @@ export function computeTrackStartBitrate(
     return undefined;
   }
   const calculated = Math.min(Math.round(trackbr.maxbr * startBitrateMultiplier), trackbr.maxbr);
-  const cap = computeStartBitrateCap(connectionSetupTimeMs);
   if (trackbr.isScreenShare) {
     return calculated;
   }
+  const cap = Math.min(
+    computeStartBitrateCap(connectionSetupTimeMs),
+    connectionEffectiveTypeStartBitrateCap(),
+  );
   return Math.min(calculated, cap);
+}
+
+/**
+ * Cap on the start bitrate hint, in kbps, from the browser's effective connection type
+ * (`navigator.connection.effectiveType`, Chromium only): `slow-2g` and `2g` cap at
+ * `minTargetBitrateKbps`, `3g` at `effectiveType3gStartBitrateKbps`.
+ *
+ * It catches links that have low bandwidth but low latency, which set up quickly and so slip
+ * past the setup time ramp. `4g`, and browsers without the API, give no guidance and stay at the
+ * `maxStartBitrateKbps` ceiling, as `computeStartBitrateCap` does without a setup time. The
+ * connection RTT the API also reports is not used: it lags behind network changes, and the setup
+ * time already reflects latency.
+ */
+function connectionEffectiveTypeStartBitrateCap(): number {
+  // A `typeof` guard, since `globalThis` is missing from some supported browsers (Chrome < 71,
+  // Firefox < 65, Safari < 12.1) and the build does not polyfill it.
+  const connection =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { connection?: NetworkInformation }).connection
+      : undefined;
+  switch (connection?.effectiveType) {
+    case 'slow-2g':
+    case '2g':
+      return minTargetBitrateKbps;
+    case '3g':
+      return effectiveType3gStartBitrateKbps;
+    default:
+      return maxStartBitrateKbps;
+  }
 }
 
 /**
  * Cap on the start bitrate hint, in kbps, from how long the connection took to set up.
  *
- * Connection setup time (signaling join plus ICE/DTLS) is the only network signal there is
+ * Connection setup time (signaling join plus ICE/DTLS) is the network signal every platform has
  * before the first video offer, since libwebrtc cannot probe the path until a video sender
  * exists. It grows with round-trip time and loss, which also mark the links where a 1 Mbps
  * seed overshoots, so the cap ramps linearly from `maxStartBitrateKbps` at
