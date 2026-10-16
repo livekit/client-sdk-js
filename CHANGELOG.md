@@ -1,5 +1,52 @@
 # Change Log
 
+## 2.23.0
+
+### Minor Changes
+
+- Release the audio contexts and web audio graphs the SDK creates. Previously they accumulated over mute/unmute cycles. They are now collected after `room.disconnect()`. - [#2029](https://github.com/livekit/client-sdk-js/pull/2029) ([@lukasIO](https://github.com/lukasIO))
+
+  - `detectSilence` tears its context down on the throw path as well as the happy one.
+  - The cleanup from `createAudioAnalyser` disconnects its nodes before it closes the context, and it is now idempotent.
+  - The shared empty audio stream track is refcounted. `releaseEmptyAudioStreamTrack` is a new export, and its context closes once the last clone is handed back.
+  - If `webAudioMix` is an object without an `audioContext`, a room now closes the context it created for itself.
+  - When the underlying track is replaced, audio processors are passed the audio context. This lets them rebuild their filter nodes on unmute. Previously they left the old nodes behind.
+  - The iOS dummy audio element and its `visibilitychange` listener are torn down on disconnect. Previously the listener outlived every room on the page.
+
+  This also fixes a false `AudioSilenceDetected`. Silence detection read a zero-filled buffer from a context that never reached `running`. An autoplay-blocked page therefore reported silence on every track it checked.
+
+  Three further behavior changes to be aware of:
+
+  - A track retained across rooms loses its audio processor. `room.disconnect({ stopTracks: false })` detaches the track from the audio context, which stops the processor. Call `setProcessor` again after you republish the track.
+  - Under `webAudioMix`, every attached element is muted, not only the first one. A second attached element no longer plays the track twice. When the audio context goes away, those elements are unmuted again and their volume is restored.
+  - `Participant.setAudioContext` and `LocalAudioTrack.setAudioContext` now return a promise. Both are marked `@internal`, but both appear in the published type declarations.
+
+### Patch Changes
+
+- Scale the `x-google-start-bitrate` hint by connection setup time: the 1 Mbps camera cap now applies to connections that set up within 1.5 s and ramps linearly down to 300 kbps at 3.5 s or slower; screen share stays uncapped. - [#2146](https://github.com/livekit/client-sdk-js/pull/2146) ([@changt](https://github.com/changt))
+
+- Add jitter to reconnect retries in the default reconnect policy, including the first retry and reconnects requested by the server, so clients that disconnect together don't reconnect at the same time. The first retry waits a random 0 to 500 ms, and later retries scale their existing base delays by a random factor between 0.5 and 1.5. - [#2124](https://github.com/livekit/client-sdk-js/pull/2124) ([@RaphaelFakhri](https://github.com/RaphaelFakhri))
+
+- Publishing a backup codec now sends correctly sized video layers on that codec's own entry. Before this fix the layers were zero sized, on a field the server ignores. - [#2137](https://github.com/livekit/client-sdk-js/pull/2137) ([@lukasIO](https://github.com/lukasIO))
+
+- When an SEI or AUD NALU precedes the slice, encrypt h264 frames from the correct offset. Those NALUs read as h265 slice types, so detection returned h265 and the unencrypted prefix ended inside the leading NALU. The slice header was encrypted and no error was raised. The frame bytes now take precedence over a caller-supplied codec. The sender cryptor is also seeded with the publish codec for h264 and h265. A fallback to VP8 handling now logs the first bytes of the frame. - [#2131](https://github.com/livekit/client-sdk-js/pull/2131) ([@lukasIO](https://github.com/lukasIO))
+
+- Do not leave half of a surrogate pair when truncating an `RpcError` message or data to its byte limit - [#2126](https://github.com/livekit/client-sdk-js/pull/2126) ([@RaphaelFakhri](https://github.com/RaphaelFakhri))
+
+- Cancel in-flight full reconnects when the engine closes, preventing delayed cleanup, region failover, or join responses from reopening a disconnected session. Honor cancellation before opening a signal transport. - [#2095](https://github.com/livekit/client-sdk-js/pull/2095) ([@horvatz](https://github.com/horvatz))
+
+- Fix E2EE H.264/H.265 decryption failing for encoders that emit 3-byte Annex B start codes (e.g. Intel Quick Sync on Windows). The sender now rewrites them to 4-byte start codes in the unencrypted header, matching what the receiver's depacketizer reconstructs. - [#2144](https://github.com/livekit/client-sdk-js/pull/2144) ([@1egoman](https://github.com/1egoman))
+
+- On Chrome, a disconnected microphone now restarts on the OS default input instead of the first enumerated device. If a restart fails after the user stopped the track, the capture device no longer stays live - [#2138](https://github.com/livekit/client-sdk-js/pull/2138) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: lower timeout for validating connection errors and guard against locking - [#2148](https://github.com/livekit/client-sdk-js/pull/2148) ([@lukasIO](https://github.com/lukasIO))
+
+- Error in-flight incoming data streams when the room disconnects instead of leaving readers pending - [#2125](https://github.com/livekit/client-sdk-js/pull/2125) ([@RaphaelFakhri](https://github.com/RaphaelFakhri))
+
+- fix safari specific issue where data channel could change after waiting for headroom - [#2130](https://github.com/livekit/client-sdk-js/pull/2130) ([@1egoman](https://github.com/1egoman))
+
+- Lower the camera `x-google-start-bitrate` hint further when the browser reports a slow connection (`navigator.connection.effectiveType`, Chromium only): 300 kbps for `2g` and `slow-2g`, 500 kbps for `3g`. The lower of this and the connection setup time cap applies; `4g` and browsers without the API keep the setup time cap alone, and screen share stays uncapped. - [#2149](https://github.com/livekit/client-sdk-js/pull/2149) ([@changt](https://github.com/changt))
+
 ## 2.22.4
 
 ### Patch Changes
