@@ -453,6 +453,12 @@ export class SignalClient {
       throw e;
     }
 
+    if (abortSignal?.aborted) {
+      unlock();
+      this.log.debug('signal connect abandoned before opening a transport');
+      throw ConnectionError.cancelled('Connection aborted');
+    }
+
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       try {
         let alreadyAborted = false;
@@ -506,6 +512,10 @@ export class SignalClient {
           const startClose = performance.now();
           await this.teardownTransport('replaced by a new connection attempt');
           this.log.debug(`closed previous ws connection in ${performance.now() - startClose}ms`);
+        }
+        if (alreadyAborted) {
+          this.log.debug('signal connect abandoned after tearing down the previous transport');
+          return;
         }
 
         // the transport created below belongs to this attempt; events arriving from it after a
@@ -571,6 +581,12 @@ export class SignalClient {
               }
             });
           const connection = await this.ws.opened.catch(async (reason: unknown) => {
+            if (alreadyAborted) {
+              // the abort handler has already rejected this attempt; don't probe the validate
+              // endpoint for a failure nobody is waiting on
+              this.log.debug('signal connect abandoned while the websocket was opening');
+              return;
+            }
             if (this.lifecycleState !== 'connected') {
               // claimed synchronously, before the await below: the socket's close event is already
               // on its way and would otherwise reject first with a less useful error
@@ -647,6 +663,13 @@ export class SignalClient {
             return;
           }
           signalReader.releaseLock();
+          if (alreadyAborted) {
+            // The abort handler has already rejected this attempt and is closing the transport.
+            // Don't act on a join that raced it: `onJoined` would publish an abandoned session's
+            // state to the room.
+            this.log.debug('signal connect abandoned while waiting for the first message');
+            return;
+          }
 
           // Validate the first message
           const validation = this.validateFirstMessage(
