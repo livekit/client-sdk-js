@@ -2,6 +2,7 @@ import {
   ClientInfo_Capability,
   JoinResponse,
   StreamState as ProtoStreamState,
+  Room as RoomModel,
   StreamStateUpdate,
   SubscriptionError,
   SubscriptionResponse,
@@ -461,5 +462,32 @@ describe('audio context ownership', () => {
     await room.releaseAudioContext();
 
     expect(created[0].closed).toBe(true);
+  });
+});
+
+describe('room updates', () => {
+  function pushRoomUpdate(room: Room, update: { name?: string; sid?: string }) {
+    (room as unknown as { handleRoomUpdate: (room: RoomModel) => void }).handleRoomUpdate(
+      new RoomModel(update),
+    );
+  }
+
+  it('emits RoomSidChanged when the session ID changes', async () => {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    const sidChanged = vi.fn();
+    room.on(RoomEvent.RoomSidChanged, sidChanged);
+
+    pushRoomUpdate(room, { name: 'room', sid: 'RM_first' });
+    expect(sidChanged).not.toHaveBeenCalled();
+
+    pushRoomUpdate(room, { name: 'room', sid: 'RM_first' });
+    pushRoomUpdate(room, { name: 'room', sid: '' });
+    expect(sidChanged).not.toHaveBeenCalled();
+
+    pushRoomUpdate(room, { name: 'room', sid: 'RM_second' });
+    expect(sidChanged).toHaveBeenCalledOnce();
+    expect(sidChanged).toHaveBeenCalledWith('RM_second');
+    await expect(room.getSid()).resolves.toBe('RM_second');
   });
 });

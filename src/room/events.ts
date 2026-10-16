@@ -221,6 +221,15 @@ export enum RoomEvent {
   RoomMetadataChanged = 'roomMetadataChanged',
 
   /**
+   * The room's session ID changed while connected, for example when the server
+   * starts a new session for a room that is still live, or the local participant
+   * was moved to another room. Room.getSid() returns the new ID.
+   *
+   * args: (sid: string)
+   */
+  RoomSidChanged = 'roomSidChanged',
+
+  /**
    * Data received from another participant.
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
