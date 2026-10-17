@@ -98,10 +98,13 @@ export class DeferrableMap<K, V> extends Map<K, V> {
       };
       signal.addEventListener('abort', onAbort, { once: true });
 
-      // Clean up the listener once the future settles (resolved or rejected).
-      future.promise.finally(() => {
+      // Clean up the listener once the future settles (resolved or rejected). Handle both
+      // outcomes here: a `.finally()` chain would re-reject with the abort error and surface
+      // as an unhandled rejection even when the caller catches the returned promise.
+      const removeAbortListener = () => {
         signal.removeEventListener('abort', onAbort);
-      });
+      };
+      future.promise.then(removeAbortListener, removeAbortListener);
     }
 
     return future.promise;
