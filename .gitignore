@@ -117,3 +117,6 @@ examples/**/build/
 
 # scratch dir of scripts/check-core-types.mjs
 .tmp-core-types-*
+
+# API Extractor comparison output
+/temp/
