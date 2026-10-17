@@ -1674,11 +1674,17 @@ export default class LocalParticipant extends Participant {
               trackInfo.sender = undefined;
             }
           }
-          track.simulcastCodecs.clear();
         }
       } catch (e) {
         this.log.warn('failed to unpublish track', { ...pubLogContext, error: e });
       }
+    }
+
+    if (isLocalVideoTrack(track)) {
+      // the backup codec clones are dropped with the map, so they have to be stopped even when the
+      // track itself is kept for republishing, or the peer connection is already gone
+      track.simulcastCodecs.forEach((trackInfo) => trackInfo.mediaStreamTrack.stop());
+      track.simulcastCodecs.clear();
     }
 
     // remove from our maps
