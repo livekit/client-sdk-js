@@ -83,7 +83,9 @@
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2 && downlevel-dts ./dist/core/types/src ./dist/core/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit",
-    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs"
+    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs",
+    "api-report:update": "api-extractor run --local --config api-extractor.main.json && api-extractor run --local --config api-extractor.core.json",
+    "api-report:check": "api-extractor run --config api-extractor.main.json && api-extractor run --config api-extractor.core.json"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
@@ -108,6 +110,8 @@
     "@eslint/js": "10.0.1",
     "@livekit/changesets-changelog-github": "^0.2.0",
     "@livekit/throws-transformer": "^0.1.3",
+    "@microsoft/api-extractor": "7.59.4",
+    "@nbilyk/downlevel-dts": "^0.15.2",
     "@rollup/plugin-babel": "7.1.0",
     "@rollup/plugin-commonjs": "29.0.3",
     "@rollup/plugin-json": "6.1.0",
@@ -125,7 +129,6 @@
     "@typescript/native": "catalog:",
     "@vitest/browser": "^4.1.10",
     "@vitest/browser-playwright": "^4.1.10",
-    "@nbilyk/downlevel-dts": "^0.15.2",
     "eslint": "10.7.0",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "10.1.8",
