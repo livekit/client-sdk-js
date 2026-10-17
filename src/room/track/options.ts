@@ -505,40 +505,40 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-  h90: new VideoPreset(160, 90, 90_000, 20),
-  h180: new VideoPreset(320, 180, 160_000, 20),
-  h216: new VideoPreset(384, 216, 180_000, 20),
-  h360: new VideoPreset(640, 360, 450_000, 20),
-  h540: new VideoPreset(960, 540, 800_000, 25),
-  h720: new VideoPreset(1280, 720, 1_700_000, 30),
-  h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
-  h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
-  h2160: new VideoPreset(3840, 2160, 8_000_000, 30),
+  h90: /* @__PURE__ */ new VideoPreset(160, 90, 90_000, 20),
+  h180: /* @__PURE__ */ new VideoPreset(320, 180, 160_000, 20),
+  h216: /* @__PURE__ */ new VideoPreset(384, 216, 180_000, 20),
+  h360: /* @__PURE__ */ new VideoPreset(640, 360, 450_000, 20),
+  h540: /* @__PURE__ */ new VideoPreset(960, 540, 800_000, 25),
+  h720: /* @__PURE__ */ new VideoPreset(1280, 720, 1_700_000, 30),
+  h1080: /* @__PURE__ */ new VideoPreset(1920, 1080, 3_000_000, 30),
+  h1440: /* @__PURE__ */ new VideoPreset(2560, 1440, 5_000_000, 30),
+  h2160: /* @__PURE__ */ new VideoPreset(3840, 2160, 8_000_000, 30),
 } as const;
 
 /**
  * Four by three presets
  */
 export const VideoPresets43 = {
-  h120: new VideoPreset(160, 120, 70_000, 20),
-  h180: new VideoPreset(240, 180, 125_000, 20),
-  h240: new VideoPreset(320, 240, 140_000, 20),
-  h360: new VideoPreset(480, 360, 330_000, 20),
-  h480: new VideoPreset(640, 480, 500_000, 20),
-  h540: new VideoPreset(720, 540, 600_000, 25),
-  h720: new VideoPreset(960, 720, 1_300_000, 30),
-  h1080: new VideoPreset(1440, 1080, 2_300_000, 30),
-  h1440: new VideoPreset(1920, 1440, 3_800_000, 30),
+  h120: /* @__PURE__ */ new VideoPreset(160, 120, 70_000, 20),
+  h180: /* @__PURE__ */ new VideoPreset(240, 180, 125_000, 20),
+  h240: /* @__PURE__ */ new VideoPreset(320, 240, 140_000, 20),
+  h360: /* @__PURE__ */ new VideoPreset(480, 360, 330_000, 20),
+  h480: /* @__PURE__ */ new VideoPreset(640, 480, 500_000, 20),
+  h540: /* @__PURE__ */ new VideoPreset(720, 540, 600_000, 25),
+  h720: /* @__PURE__ */ new VideoPreset(960, 720, 1_300_000, 30),
+  h1080: /* @__PURE__ */ new VideoPreset(1440, 1080, 2_300_000, 30),
+  h1440: /* @__PURE__ */ new VideoPreset(1920, 1440, 3_800_000, 30),
 } as const;
 
 export const ScreenSharePresets = {
-  h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
-  h360fps15: new VideoPreset(640, 360, 400_000, 15, 'medium'),
-  h720fps5: new VideoPreset(1280, 720, 800_000, 5, 'medium'),
-  h720fps15: new VideoPreset(1280, 720, 1_500_000, 15, 'medium'),
-  h720fps30: new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
-  h1080fps15: new VideoPreset(1920, 1080, 2_500_000, 15, 'medium'),
-  h1080fps30: new VideoPreset(1920, 1080, 5_000_000, 30, 'medium'),
+  h360fps3: /* @__PURE__ */ new VideoPreset(640, 360, 200_000, 3, 'medium'),
+  h360fps15: /* @__PURE__ */ new VideoPreset(640, 360, 400_000, 15, 'medium'),
+  h720fps5: /* @__PURE__ */ new VideoPreset(1280, 720, 800_000, 5, 'medium'),
+  h720fps15: /* @__PURE__ */ new VideoPreset(1280, 720, 1_500_000, 15, 'medium'),
+  h720fps30: /* @__PURE__ */ new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
+  h1080fps15: /* @__PURE__ */ new VideoPreset(1920, 1080, 2_500_000, 15, 'medium'),
+  h1080fps30: /* @__PURE__ */ new VideoPreset(1920, 1080, 5_000_000, 30, 'medium'),
   // original resolution, without resizing
-  original: new VideoPreset(0, 0, 7_000_000, 30, 'medium'),
+  original: /* @__PURE__ */ new VideoPreset(0, 0, 7_000_000, 30, 'medium'),
 } as const;
