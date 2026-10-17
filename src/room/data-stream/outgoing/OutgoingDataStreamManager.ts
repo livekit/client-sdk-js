@@ -43,7 +43,6 @@ const textEncoder = /* @__PURE__ */ new TextEncoder();
 
 /**
  * Manages sending custom user data via data channels.
- * @internal
  */
 export default class OutgoingDataStreamManager {
   protected engine: RTCEngine;

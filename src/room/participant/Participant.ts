@@ -91,7 +91,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
-  protected audioContext?: AudioContext;
+  /** @internal */
+  audioContext?: AudioContext;
 
   protected log: StructuredLogger = log;
 
