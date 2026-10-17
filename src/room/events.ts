@@ -625,6 +625,8 @@ export enum EngineEvent {
   Offline = 'offline',
   SignalRequestResponse = 'signalRequestResponse',
   SignalConnected = 'signalConnected',
+  /** @internal The signal WebSocket upgrade completed; a telemetry checkpoint. */
+  SignalOpened = 'signalOpened',
   RoomMoved = 'roomMoved',
   PublishDataTrackResponse = 'publishDataTrackResponse',
   UnPublishDataTrackResponse = 'unPublishDataTrackResponse',

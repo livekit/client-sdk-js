@@ -24,6 +24,28 @@ jobs:
         image: livekit/test-server:latest
         ports:
           - 9999:9999
+      # The telemetry story (src/telemetry/telemetry.browser.test.ts) runs a whole call on a real
+      # server and reports it to a real OTLP collector; without them it skips.
+      livekit:
+        image: livekit/livekit-server:latest
+        env:
+          LIVEKIT_KEYS: 'devkey: secret'
+          # media over the published ports only: one UDP port, candidates on 127.0.0.1
+          LIVEKIT_CONFIG: |
+            port: 7880
+            rtc:
+              tcp_port: 7881
+              udp_port: 7882
+              use_external_ip: false
+              node_ip: 127.0.0.1
+        ports:
+          - 7880:7880
+          - 7881:7881
+          - 7882:7882/udp
+      otelcol:
+        image: otel/opentelemetry-collector-contrib:latest
+        ports:
+          - 4318:4318
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -53,6 +75,9 @@ jobs:
         env:
           # Connect to the test-server service above (validate + WS on 9999).
           LK_TEST_SERVER_URL: ws://127.0.0.1:9999
+          # The telemetry story's server and collector (services above).
+          LK_URL: ws://127.0.0.1:7880
+          LK_TELEMETRY_ENDPOINT: http://127.0.0.1:4318
 
       - name: Collect test-server logs
         if: failure()
