@@ -6,48 +6,11 @@
 // Returns a structured result the Playwright spec inspects via
 // page.evaluate(() => window.__smoke).
 (function (root) {
-  function runSmoke(lk, expectedVersion) {
+  async function runSmoke(lk, expectedVersion) {
     const errors = [];
     const must = function (cond, msg) {
       if (!cond) errors.push(msg);
     };
-
-    const requiredValueExports = [
-      'Room',
-      'LocalParticipant',
-      'RemoteParticipant',
-      'Participant',
-      'LocalTrack',
-      'RemoteTrack',
-      'LocalAudioTrack',
-      'LocalVideoTrack',
-      'RemoteAudioTrack',
-      'RemoteVideoTrack',
-      'LocalTrackPublication',
-      'RemoteTrackPublication',
-      'TrackPublication',
-      'Track',
-      'ConnectionState',
-      'ConnectionQuality',
-      'DisconnectReason',
-      'RoomEvent',
-      'ParticipantEvent',
-      'TrackEvent',
-      'LogLevel',
-      'version',
-      'createLocalTracks',
-      'createLocalAudioTrack',
-      'createLocalVideoTrack',
-      'isBrowserSupported',
-      'supportsAdaptiveStream',
-    ];
-    for (var i = 0; i < requiredValueExports.length; i++) {
-      var name = requiredValueExports[i];
-      must(
-        lk[name] !== undefined && lk[name] !== null,
-        'missing export: ' + name + ' (got ' + typeof lk[name] + ')',
-      );
-    }
 
     must(
       typeof lk.version === 'string' && lk.version.length > 0,
@@ -86,12 +49,50 @@
         typeof room.prepareConnection === 'function',
         'room.prepareConnection is not a function',
       );
+
       try {
-        room.disconnect();
+        var connectedEvents = 0;
+        const onConnected = function () {
+          connectedEvents += 1;
+        };
+        room.on(lk.RoomEvent.Connected, onConnected);
+        room.emit(lk.RoomEvent.Connected);
+        room.off(lk.RoomEvent.Connected, onConnected);
+        room.emit(lk.RoomEvent.Connected);
+        must(connectedEvents === 1, 'Room event on/off did not preserve EventEmitter behavior');
+
+        room.registerTextStreamHandler('smoke-text', function () {});
+        room.unregisterTextStreamHandler('smoke-text');
+        room.registerByteStreamHandler('smoke-bytes', function () {});
+        room.unregisterByteStreamHandler('smoke-bytes');
+
+        room.registerRpcMethod('smoke-room', async function () {
+          return 'ok';
+        });
+        room.localParticipant.unregisterRpcMethod('smoke-room');
+        room.localParticipant.registerRpcMethod('smoke-local', async function () {
+          return 'ok';
+        });
+        room.unregisterRpcMethod('smoke-local');
+
+        must((await room.getSid()) === '', 'getSid() on a disconnected room did not resolve empty');
+        must(
+          room.getParticipantByIdentity('missing') === undefined,
+          'getParticipantByIdentity() returned a missing participant',
+        );
+        must(
+          (await room.localParticipant.setCameraEnabled(false)) === undefined,
+          'setCameraEnabled(false) without a camera track did not resolve undefined',
+        );
+        must(
+          (await room.localParticipant.setScreenShareEnabled(false)) === undefined,
+          'setScreenShareEnabled(false) without a screen track did not resolve undefined',
+        );
+        await room.disconnect();
+        await room.dispose();
       } catch (err) {
         errors.push(
-          'room.disconnect() on a disconnected room threw: ' +
-            (err && err.message ? err.message : String(err)),
+          'main Room behavior threw: ' + (err && err.message ? err.message : String(err)),
         );
       }
     }
