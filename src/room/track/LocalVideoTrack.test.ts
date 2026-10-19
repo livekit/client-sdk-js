@@ -301,6 +301,18 @@ describe('backup codec tracks', () => {
     return { track, info, backup };
   }
 
+  // the backup sender rejects the first swap to a clone of the track `id`
+  function rejectFirstSwapTo(backup: ReturnType<typeof makeTrackSender>, id: string) {
+    let rejected = false;
+    backup.replaceTrack.mockImplementation(async (next: MediaStreamTrack | null) => {
+      if (!rejected && next?.id.startsWith(id)) {
+        rejected = true;
+        throw new Error('rejected');
+      }
+      backup.track = next;
+    });
+  }
+
   it('sends a clone of the replacement track on the backup codec and stops the old clone', async () => {
     const camera = makeMediaStreamTrack('camera');
     const { track, info, backup } = await publishWithBackupCodec(camera);
@@ -329,14 +341,7 @@ describe('backup codec tracks', () => {
     const cameraA = makeMediaStreamTrack('camera');
     const { track, info, backup } = await publishWithBackupCodec(cameraA);
     const cloneA = info.mediaStreamTrack;
-    let rejectOnce = true;
-    backup.replaceTrack.mockImplementation(async (next: MediaStreamTrack | null) => {
-      if (rejectOnce && next?.id.startsWith('camera-b')) {
-        rejectOnce = false;
-        throw new Error('rejected');
-      }
-      backup.track = next;
-    });
+    rejectFirstSwapTo(backup, 'camera-b');
 
     // 1. replacing A with B fails on the backup sender
     const cameraB = makeMediaStreamTrack('camera-b');
@@ -350,6 +355,22 @@ describe('backup codec tracks', () => {
 
     // 4. retrying with the same track sends a fresh clone of it
     await track.replaceTrack(cameraB);
+    expect(cameraB.clones).toHaveLength(2);
+    expect(backup.track).toBe(cameraB.clones[1]);
+    expect(info.mediaStreamTrack).toBe(cameraB.clones[1]);
+    expect(cameraB.clones[1].readyState).toBe('live');
+  });
+
+  it('retries a backup codec whose sender rejected the track when upstream resumes', async () => {
+    const { track, info, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
+    rejectFirstSwapTo(backup, 'camera-b');
+    const cameraB = makeMediaStreamTrack('camera-b');
+    await expect(track.replaceTrack(cameraB)).rejects.toThrow('rejected');
+
+    await track.pauseUpstream();
+    await track.resumeUpstream();
+
+    // a fresh clone of B, not the clone stopped when the swap failed
     expect(cameraB.clones).toHaveLength(2);
     expect(backup.track).toBe(cameraB.clones[1]);
     expect(info.mediaStreamTrack).toBe(cameraB.clones[1]);

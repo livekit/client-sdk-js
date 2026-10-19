@@ -33,7 +33,7 @@ export class SimulcastTrackInfo {
 
   encodings?: RTCRtpEncodingParameters[];
 
-  /** @internal set when the sender rejected the current track, so that the next swap retries it */
+  /** @internal set when the sender rejected the current track, so that the next swap or resume retries it */
   needsRefresh?: boolean;
 
   constructor(codec: VideoCodec, mediaStreamTrack: MediaStreamTrack) {
@@ -148,7 +148,12 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   async resumeUpstream() {
     await super.resumeUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
-      await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+      if (sc.needsRefresh) {
+        // its clone was stopped when the sender rejected it
+        await this.refreshSimulcastTrack(sc);
+      } else {
+        await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+      }
     }
   }
 
@@ -296,8 +301,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   protected override async onSenderTrackSwapped(): Promise<void> {
     // replaceTrack() with the same track skips setMediaStreamTrack(), so a backup codec whose
     // sender rejected that track is retried here
-    if (Array.from(this.simulcastCodecs.values()).some((sc) => sc.needsRefresh)) {
-      await this.refreshSimulcastTracks();
+    for (const sc of this.simulcastCodecs.values()) {
+      if (sc.needsRefresh) {
+        await this.refreshSimulcastTrack(sc);
+      }
     }
     await this.refreshSenderEncodings();
   }
@@ -313,25 +320,29 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    */
   private async refreshSimulcastTracks() {
     for (const sc of this.simulcastCodecs.values()) {
-      const previousTrack = sc.mediaStreamTrack;
-      sc.mediaStreamTrack = this.mediaStreamTrack.clone();
-      sc.needsRefresh = false;
-      if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
-        try {
-          await sc.sender.replaceTrack(sc.mediaStreamTrack);
-        } catch (e) {
-          // the application replaced the previous track, so it must not keep being published:
-          // this codec sends nothing until the next swap retries it
-          sc.needsRefresh = true;
-          // a sender that rejects null as well is not sending anything anymore
-          await sc.sender.replaceTrack(null).catch(() => undefined);
-          sc.mediaStreamTrack.stop();
-          previousTrack.stop();
-          throw e;
-        }
-      }
-      previousTrack.stop();
+      await this.refreshSimulcastTrack(sc);
     }
+  }
+
+  private async refreshSimulcastTrack(sc: SimulcastTrackInfo) {
+    const previousTrack = sc.mediaStreamTrack;
+    sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+    sc.needsRefresh = false;
+    if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
+      try {
+        await sc.sender.replaceTrack(sc.mediaStreamTrack);
+      } catch (e) {
+        // the application replaced the previous track, so it must not keep being published:
+        // this codec sends nothing until a swap or a resume retries it
+        sc.needsRefresh = true;
+        // a sender that rejects null as well is not sending anything anymore
+        await sc.sender.replaceTrack(null).catch(() => undefined);
+        sc.mediaStreamTrack.stop();
+        previousTrack.stop();
+        throw e;
+      }
+    }
+    previousTrack.stop();
   }
 
   /**
