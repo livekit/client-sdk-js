@@ -1,3 +1,4 @@
+import { NegotiatedDataChannelID } from '@livekit/protocol';
 import type { PCTransportManager } from '../PCTransportManager';
 import { FlowControlledDataChannel } from './FlowControlledDataChannel';
 import { LossyDataChannel } from './LossyDataChannel';
@@ -7,12 +8,6 @@ import { DataChannelKind, dataChannelHighWaterMark, dataChannelLowWaterMark } fr
 const lossyDataChannelLabel = '_lossy';
 const reliableDataChannelLabel = '_reliable';
 const dataTrackDataChannelLabel = '_data_track';
-
-// Fixed SCTP stream IDs for negotiated publisher channels; must match the server
-// (NegotiatedDataChannelID in livekit_rtc.proto).
-const reliableNegotiatedId = 100;
-const lossyNegotiatedId = 101;
-const dataTrackNegotiatedId = 102;
 
 export interface DataChannelManagerOptions {
   /** Whether the owning engine has been closed — a closed engine rejects headroom waiters. */
@@ -176,7 +171,7 @@ export class DataChannelManager {
       pcManager.createPublisherDataChannel(lossyDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
-        ...idFor(lossyNegotiatedId),
+        ...idFor(NegotiatedDataChannelID.NDCI_LOSSY),
       }),
       this.opts.onDataMessage,
     );
@@ -184,7 +179,7 @@ export class DataChannelManager {
       this.reliable,
       pcManager.createPublisherDataChannel(reliableDataChannelLabel, {
         ordered: true,
-        ...idFor(reliableNegotiatedId),
+        ...idFor(NegotiatedDataChannelID.NDCI_RELIABLE),
       }),
       this.opts.onDataMessage,
     );
@@ -193,7 +188,7 @@ export class DataChannelManager {
       pcManager.createPublisherDataChannel(dataTrackDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
-        ...idFor(dataTrackNegotiatedId),
+        ...idFor(NegotiatedDataChannelID.NDCI_DATA_TRACK),
       }),
       this.opts.onDataTrackMessage,
     );
