@@ -10,7 +10,7 @@
     <script src="/shared/assertions.js"></script>
     <script src="/node_modules/livekit-client/dist/livekit-client.umd.js"></script>
     <script>
-      (function () {
+      (async function () {
         const lk = window.LivekitClient;
         if (!lk) {
           window.__smoke = {
@@ -18,7 +18,7 @@
             errors: ['window.LivekitClient is not defined after loading UMD bundle'],
           };
         } else {
-          window.__smoke = window.__livekitRunSmoke(lk, window.__expectedVersion);
+          window.__smoke = await window.__livekitRunSmoke(lk, window.__expectedVersion);
         }
         document.getElementById('result').textContent = JSON.stringify(window.__smoke, null, 2);
       })();

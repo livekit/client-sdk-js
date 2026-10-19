@@ -10,8 +10,9 @@
     <script src="/shared/assertions.js"></script>
     <script type="module">
       import * as lk from '/node_modules/livekit-client/dist/livekit-client.esm.mjs';
+
       const expected = window.__expectedVersion;
-      const result = window.__livekitRunSmoke(lk, expected);
+      const result = await window.__livekitRunSmoke(lk, expected);
       window.__smoke = result;
       document.getElementById('result').textContent = JSON.stringify(result, null, 2);
     </script>
