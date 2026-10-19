@@ -970,9 +970,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
       await engine.close();
-      if (this.engine === engine) {
-        this.recreateEngine();
-      }
+      this.recreateEngine(false, engine);
 
       const resultingError = abortController.signal.aborted
         ? ConnectionError.cancelled('Signal connection aborted')
@@ -993,9 +991,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     if (abortController.signal.aborted) {
       await engine.close();
-      if (this.engine === engine) {
-        this.recreateEngine();
-      }
+      this.recreateEngine(false, engine);
       throw ConnectionError.cancelled(`Connection attempt aborted`);
     }
 
@@ -1006,9 +1002,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       );
     } catch (e) {
       await engine.close();
-      if (this.engine === engine) {
-        this.recreateEngine();
-      }
+      this.recreateEngine(false, engine);
       throw e;
     }
 
@@ -1509,13 +1503,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       );
   }
 
-  private recreateEngine(sendLeave?: boolean) {
-    const oldEngine = this.engine;
-
+  private recreateEngine(sendLeave?: boolean, oldEngine: RTCEngine | undefined = this.engine) {
     if (sendLeave && oldEngine && !oldEngine.client.isDisconnected) {
       oldEngine.client.sendLeave().finally(() => oldEngine.close());
     } else {
       oldEngine?.close();
+    }
+    // the room already moved on to a newer engine (or none); leave that one alone
+    if (oldEngine !== this.engine) {
+      return;
     }
     /* @ts-ignore */
     this.engine = undefined;
