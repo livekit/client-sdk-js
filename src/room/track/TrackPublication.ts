@@ -12,10 +12,10 @@ import { TrackEvent } from '../events';
 import type { LoggerOptions, TranscriptionSegment } from '../types';
 import { isAudioTrack, isVideoTrack } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
-import LocalVideoTrack from './LocalVideoTrack';
+import type LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
 import type RemoteTrack from './RemoteTrack';
-import RemoteVideoTrack from './RemoteVideoTrack';
+import type RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 import { getLogContextFromTrack } from './utils';
 

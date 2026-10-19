@@ -15,9 +15,6 @@ export type BrowserDetails = {
 
 let browserDetails: BrowserDetails | undefined;
 
-/**
- * @internal
- */
 export function getBrowser(userAgent?: string, force = true): BrowserDetails | undefined {
   if (typeof userAgent === 'undefined' && typeof navigator === 'undefined') {
     return;

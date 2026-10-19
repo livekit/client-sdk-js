@@ -11,7 +11,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
-import Room, { ConnectionState } from './Room';
+import { ConnectionState, Room } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -60,7 +60,7 @@ describe('Room signaling options', () => {
 
     (
       room as unknown as {
-        e2eeManager: unknown;
+        slots: { e2eeManager: unknown };
         connectSignal: (
           url: string,
           token: string,
@@ -70,7 +70,7 @@ describe('Room signaling options', () => {
           abortController: AbortController,
         ) => Promise<JoinResponse>;
       }
-    ).e2eeManager = {};
+    ).slots.e2eeManager = {};
 
     await (
       room as unknown as {

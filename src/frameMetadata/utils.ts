@@ -1,5 +1,6 @@
 import { PacketTrailerFeature } from '@livekit/protocol';
 import { isInsertableStreamSupported } from '../e2ee/utils';
+import type { TrackPublishDefaults } from '../room/track/options';
 import { isScriptTransformSupportedForWorker } from '../room/utils';
 import type { FrameMetadataOptions } from './FrameMetadataManager';
 import type { FrameMetadataPublishOptions } from './types';
@@ -47,4 +48,26 @@ export function getFrameMetadataPublishOptions(
   }
 
   return options.timestamp || options.frameId ? options : undefined;
+}
+
+/**
+ * The deprecated `packetTrailer` publish option. Only the full entry's types declare it (see
+ * `index.ts`), but both builds still honor it.
+ */
+type WithPacketTrailer = { packetTrailer?: FrameMetadataPublishOptions };
+
+/** The requested frame metadata: `frameMetadata`, or the deprecated `packetTrailer`. */
+export function getPublishFrameMetadata(
+  opts?: TrackPublishDefaults,
+): FrameMetadataPublishOptions | undefined {
+  return opts?.frameMetadata ?? (opts as WithPacketTrailer | undefined)?.packetTrailer;
+}
+
+/** Sets `frameMetadata` and the deprecated `packetTrailer` alike. */
+export function setPublishFrameMetadata(
+  opts: TrackPublishDefaults,
+  value: FrameMetadataPublishOptions | undefined,
+) {
+  opts.frameMetadata = value;
+  (opts as WithPacketTrailer).packetTrailer = value;
 }

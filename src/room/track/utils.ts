@@ -1,5 +1,4 @@
 import { TrackInfo, TrackPublishedResponse, TrackSource, VideoQuality } from '@livekit/protocol';
-import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import log from '../../logger';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
@@ -12,6 +11,11 @@ import {
   type VideoCaptureOptions,
   type VideoCodec,
 } from './options';
+import type {
+  AudioProcessorOptions,
+  TrackProcessor,
+  VideoProcessorOptions,
+} from './processor/types';
 import type { AudioTrack } from './types';
 
 export function mergeDefaultOptions(

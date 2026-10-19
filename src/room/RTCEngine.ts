@@ -55,7 +55,9 @@ import {
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import {
+  getPublishFrameMetadata,
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
   shouldUseFrameMetadataScriptTransform,
@@ -73,7 +75,6 @@ import type { FlowControlledDataChannel } from './data-channel/FlowControlledDat
 import type { LossyDataChannel } from './data-channel/LossyDataChannel';
 import type { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import { DataChannelKind } from './data-channel/types';
-import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -88,7 +89,7 @@ import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
-import LocalVideoTrack from './track/LocalVideoTrack';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type { Track } from './track/Track';
@@ -136,8 +137,8 @@ export { DataChannelKind };
 // `0` means "no limit".
 const DEFAULT_MAX_MESSAGE_SIZE = 64_000;
 
-/** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+  /** @internal */
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
@@ -160,6 +161,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   e2eeManager: BaseE2EEManager | undefined;
+
+  /** @internal set by the room from the `frameMetadata` extension */
+  frameMetadataOptions: FrameMetadataOptions | undefined;
 
   get isClosed() {
     return this._isClosed;
@@ -1116,7 +1120,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private get frameMetadataWorker(): Worker | undefined {
-    return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
+    return this.frameMetadataOptions?.worker;
   }
 
   private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
@@ -1125,7 +1129,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    const frameMetadata = opts.frameMetadata ?? opts.packetTrailer;
+    const frameMetadata = getPublishFrameMetadata(opts);
     const hasMetadata = hasFrameMetadataPublishOptions(frameMetadata);
 
     if (shouldUseFrameMetadataScriptTransform()) {
@@ -1140,7 +1144,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (
-      !isFrameMetadataSupported(this.options.frameMetadata ?? this.options.packetTrailer) ||
+      !isFrameMetadataSupported(this.frameMetadataOptions) ||
       !('createEncodedStreams' in sender)
     ) {
       if (hasMetadata) {
@@ -1959,7 +1963,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   sendSyncState(
     remoteTracks: RemoteTrackPublication[],
     localTracks: LocalTrackPublication[],
-    localDataTrackInfos: Array<DataTrackInfo>,
+    publishDataTracks: PublishDataTrackResponse[],
   ) {
     if (!this.pcManager) {
       this.log.warn('sync state cannot be sent without peer connection setup');
@@ -2032,9 +2036,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
-        publishDataTracks: localDataTrackInfos.map((info) => {
-          return new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) });
-        }),
+        publishDataTracks,
       }),
     );
   }
