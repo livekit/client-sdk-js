@@ -2081,6 +2081,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE), SignalTarget.PUBLISHER);
     getInfo(this.dataChannelForKind(DataChannelKind.LOSSY, true), SignalTarget.SUBSCRIBER);
     getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataChannelKind.DATA_TRACK_LOSSY), SignalTarget.PUBLISHER);
+    getInfo(
+      this.dataChannelForKind(DataChannelKind.DATA_TRACK_LOSSY, true),
+      SignalTarget.SUBSCRIBER,
+    );
+
     return infos;
   }
 
