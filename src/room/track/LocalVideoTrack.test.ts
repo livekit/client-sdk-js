@@ -4,6 +4,7 @@ import LocalVideoTrack, { videoLayersFromEncodings } from './LocalVideoTrack';
 import type { SimulcastTrackInfo } from './LocalVideoTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCodec } from './options';
+import type { TrackProcessor } from './processor/types';
 
 describe('videoLayersFromEncodings', () => {
   it('returns single layer for no encoding', () => {
@@ -313,6 +314,24 @@ describe('backup codec tracks', () => {
     });
   }
 
+  // lets queued work, such as a retry waiting for the track change lock, run
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  // a processor whose init() waits until the test rejects it
+  function makeFailingProcessor() {
+    let rejectInit: (error: Error) => void = () => {};
+    const processor = {
+      name: 'failing',
+      init: () =>
+        new Promise<void>((_, reject) => {
+          rejectInit = reject;
+        }),
+      restart: async () => {},
+      destroy: async () => {},
+    } as TrackProcessor<Track.Kind.Video>;
+    return { processor, rejectInit: (error: Error) => rejectInit(error) };
+  }
+
   it('sends a clone of the replacement track on the backup codec and stops the old clone', async () => {
     const camera = makeMediaStreamTrack('camera');
     const { track, info, backup } = await publishWithBackupCodec(camera);
@@ -384,12 +403,55 @@ describe('backup codec tracks', () => {
 
     const cameraC = makeMediaStreamTrack('camera-c');
     await track.replaceTrack(cameraC);
+    await flush();
 
     // the track change refreshes every backup codec, so resuming upstream on the way must not
-    // swap the rejected one first
+    // swap the rejected one, neither before nor after
     expect(cameraC.clones).toHaveLength(1);
     expect(backup.track).toBe(cameraC.clones[0]);
     expect(cameraC.clones[0].readyState).toBe('live');
+  });
+
+  it('retries a rejected backup codec after a track change that fails before refreshing it', async () => {
+    const { track, info, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
+    rejectFirstSwapTo(backup, 'camera-b');
+    const cameraB = makeMediaStreamTrack('camera-b');
+    await expect(track.replaceTrack(cameraB)).rejects.toThrow('rejected');
+    await track.pauseUpstream();
+
+    // resuming while setProcessor() holds the track change lock, then the processor fails
+    const { processor, rejectInit } = makeFailingProcessor();
+    const setup = track.setProcessor(processor);
+    await flush();
+    await track.resumeUpstream();
+    rejectInit(new Error('init failed'));
+    await expect(setup).rejects.toThrow('init failed');
+    await flush();
+
+    expect(cameraB.clones).toHaveLength(2);
+    expect(backup.track).toBe(cameraB.clones[1]);
+    expect(info.mediaStreamTrack).toBe(cameraB.clones[1]);
+    expect(cameraB.clones[1].readyState).toBe('live');
+  });
+
+  it('drops a pending backup codec retry when the track is stopped first', async () => {
+    const { track, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
+    rejectFirstSwapTo(backup, 'camera-b');
+    const cameraB = makeMediaStreamTrack('camera-b');
+    await expect(track.replaceTrack(cameraB)).rejects.toThrow('rejected');
+
+    const { processor, rejectInit } = makeFailingProcessor();
+    const setup = track.setProcessor(processor);
+    await flush();
+    await track.resumeUpstream();
+    track.stop();
+    rejectInit(new Error('init failed'));
+    await expect(setup).rejects.toThrow('init failed');
+    await flush();
+
+    // a retry now would open the capture again through a new clone
+    expect(cameraB.clones).toHaveLength(1);
+    expect(backup.track).toBeNull();
   });
 
   it('stops the backup codec clone when an SDK managed camera is muted', async () => {

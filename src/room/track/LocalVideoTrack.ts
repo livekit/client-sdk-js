@@ -150,12 +150,35 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     for await (const sc of this.simulcastCodecs.values()) {
       if (!sc.needsRefresh) {
         await sc.sender?.replaceTrack(sc.mediaStreamTrack);
-      } else if (!this.trackChangeLock.isLocked()) {
-        // its clone was stopped when the sender rejected it. During a track change the codecs are
-        // all refreshed right after this, so it is left to that refresh.
+      } else if (this.trackChangeLock.isLocked()) {
+        this.retryAfterTrackChange(sc);
+      } else {
+        // its clone was stopped when the sender rejected it
         await this.refreshSimulcastTrack(sc);
       }
     }
+  }
+
+  /**
+   * A track change in progress refreshes every backup codec when it succeeds, but it can fail
+   * before that. Not awaited: this can run from within the track change itself.
+   */
+  private retryAfterTrackChange(sc: SimulcastTrackInfo) {
+    this.trackChangeLock
+      .lock()
+      .then(async (unlock) => {
+        unlock();
+        // still pending, and not dropped by an unpublish or a stop in the meantime
+        if (sc.needsRefresh && !this.isStopped && this.simulcastCodecs.get(sc.codec) === sc) {
+          await this.refreshSimulcastTrack(sc);
+        }
+      })
+      .catch((error) => {
+        this.log.warn('failed to retry backup codec after a track change', {
+          ...this.logContext,
+          error,
+        });
+      });
   }
 
   async mute(): Promise<typeof this> {
