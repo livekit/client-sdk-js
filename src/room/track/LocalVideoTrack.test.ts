@@ -325,25 +325,35 @@ describe('backup codec tracks', () => {
     expect(backup.track).toBe(newCamera.clones[0]);
   });
 
-  it('keeps the previous clone when the backup sender rejects the new one', async () => {
-    const camera = makeMediaStreamTrack('camera');
-    const { track, info, backup } = await publishWithBackupCodec(camera);
-    const oldClone = info.mediaStreamTrack;
+  it('stops the backup codec when its sender rejects the new track, and retries it with the same track', async () => {
+    const cameraA = makeMediaStreamTrack('camera');
+    const { track, info, backup } = await publishWithBackupCodec(cameraA);
+    const cloneA = info.mediaStreamTrack;
+    let rejectOnce = true;
     backup.replaceTrack.mockImplementation(async (next: MediaStreamTrack | null) => {
-      if (next?.id.startsWith('new-camera')) {
+      if (rejectOnce && next?.id.startsWith('camera-b')) {
+        rejectOnce = false;
         throw new Error('rejected');
       }
       backup.track = next;
     });
 
-    const newCamera = makeMediaStreamTrack('new-camera');
-    await expect(track.replaceTrack(newCamera)).rejects.toThrow('rejected');
+    // 1. replacing A with B fails on the backup sender
+    const cameraB = makeMediaStreamTrack('camera-b');
+    await expect(track.replaceTrack(cameraB)).rejects.toThrow('rejected');
 
-    // the sender still sends the previous clone, which stays owned so that it is stopped later
-    expect(backup.track).toBe(oldClone);
-    expect(info.mediaStreamTrack).toBe(oldClone);
-    expect(oldClone.readyState).toBe('live');
-    expect(newCamera.clones[0].readyState).toBe('ended');
+    // 2. the backup sender stops sending, 3. and A's clone is stopped: the application replaced A
+    expect(backup.replaceTrack).toHaveBeenLastCalledWith(null);
+    expect(backup.track).toBeNull();
+    expect(cloneA.readyState).toBe('ended');
+    expect(cameraB.clones[0].readyState).toBe('ended');
+
+    // 4. retrying with the same track sends a fresh clone of it
+    await track.replaceTrack(cameraB);
+    expect(cameraB.clones).toHaveLength(2);
+    expect(backup.track).toBe(cameraB.clones[1]);
+    expect(info.mediaStreamTrack).toBe(cameraB.clones[1]);
+    expect(cameraB.clones[1].readyState).toBe('live');
   });
 
   it('stops the backup codec clone when an SDK managed camera is muted', async () => {
