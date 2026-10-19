@@ -771,6 +771,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
       unlockDisconnect?.();
 
+      const failAttempt = (error: unknown, reason?: DisconnectReason) => {
+        // once a newer connect() replaced this attempt's controller, the room's state belongs to it
+        if (this.abortController === abortController) {
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
+        }
+        reject(error);
+      };
+
       try {
         await BackOffStrategy.getInstance().getBackOffPromise(url);
         if (abortController.signal.aborted) {
@@ -788,17 +796,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           let nextUrl: string | null = null;
           try {
             this.log.debug('Fetching next region');
-            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
-              this.abortController?.signal,
-            );
+            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(abortController.signal);
           } catch (regionFetchError) {
             if (
               regionFetchError instanceof ConnectionError &&
               (regionFetchError.status === 401 ||
                 regionFetchError.reason === ConnectionErrorReason.Cancelled)
             ) {
-              this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
-              reject(regionFetchError);
+              failAttempt(regionFetchError);
               return;
             }
           }
@@ -813,26 +818,21 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
             this.log.debug('Adding failed connection attempt to back off');
             BackOffStrategy.getInstance().addFailedConnectionAttempt(url);
           }
-          if (nextUrl && !this.abortController?.signal.aborted) {
+          if (nextUrl && !abortController.signal.aborted) {
             this.log.info(
               `Initial connection failed with ConnectionError: ${error.message}. Retrying with another region: ${nextUrl}`,
             );
             this.recreateEngine(true);
             await connectFn(resolve, reject, nextUrl);
           } else {
-            this.handleDisconnect(
-              this.options.stopLocalTrackOnUnpublish,
-              getDisconnectReasonFromConnectionError(error),
-            );
-            reject(error);
+            failAttempt(error, getDisconnectReasonFromConnectionError(error));
           }
         } else {
           let disconnectReason = DisconnectReason.UNKNOWN_REASON;
           if (error instanceof ConnectionError) {
             disconnectReason = getDisconnectReasonFromConnectionError(error);
           }
-          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
-          reject(error);
+          failAttempt(error, disconnectReason);
         }
       }
     };
@@ -935,8 +935,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       // create engine if previously disconnected
       this.maybeCreateEngine();
     }
+    // a concurrent disconnect() or connect() can replace or clear `this.engine` while we await below
+    const engine = this.engine;
     if (this.regionUrlProvider?.isCloud()) {
-      this.engine.setRegionStrategy(this.createRegionStrategy());
+      engine.setRegionStrategy(this.createRegionStrategy());
     }
 
     this.acquireAudioContext(true).catch((error) =>
@@ -946,17 +948,17 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
     if (this.connOptions.rtcConfig) {
-      this.engine.rtcConfig = this.connOptions.rtcConfig;
+      engine.rtcConfig = this.connOptions.rtcConfig;
     }
     if (this.connOptions.peerConnectionTimeout) {
-      this.engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
+      engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
     }
 
     try {
       const joinResponse = await this.connectSignal(
         url,
         token,
-        this.engine,
+        engine,
         this.connOptions,
         this.options,
         abortController,
@@ -967,8 +969,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      this.recreateEngine(false, engine);
 
       const resultingError = abortController.signal.aborted
         ? ConnectionError.cancelled('Signal connection aborted')
@@ -988,19 +990,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     if (abortController.signal.aborted) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      this.recreateEngine(false, engine);
       throw ConnectionError.cancelled(`Connection attempt aborted`);
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(
+      await engine.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
     } catch (e) {
-      await this.engine.close();
-      this.recreateEngine();
+      await engine.close();
+      this.recreateEngine(false, engine);
       throw e;
     }
 
@@ -1501,13 +1503,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       );
   }
 
-  private recreateEngine(sendLeave?: boolean) {
-    const oldEngine = this.engine;
-
+  private recreateEngine(sendLeave?: boolean, oldEngine: RTCEngine | undefined = this.engine) {
     if (sendLeave && oldEngine && !oldEngine.client.isDisconnected) {
       oldEngine.client.sendLeave().finally(() => oldEngine.close());
     } else {
       oldEngine?.close();
+    }
+    // the room already moved on to a newer engine (or none); leave that one alone
+    if (oldEngine !== this.engine) {
+      return;
     }
     /* @ts-ignore */
     this.engine = undefined;

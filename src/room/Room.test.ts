@@ -11,8 +11,10 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
+import RTCEngine from './RTCEngine';
 import { ConnectionState, Room } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
@@ -461,5 +463,95 @@ describe('audio context ownership', () => {
     await room.releaseAudioContext();
 
     expect(created[0].closed).toBe(true);
+  });
+});
+
+describe('connection attempt racing disconnect (#2150)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  type AttemptConnection = (
+    url: string,
+    token: string,
+    opts: undefined,
+    abortController: AbortController,
+  ) => Promise<void>;
+
+  /** Starts a connection attempt whose signal join stays pending until `failJoin` is called. */
+  async function startAttempt(room: Room) {
+    let failJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join').mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+        }),
+    );
+    const engine = room.engine;
+    const abortController = new AbortController();
+    (room as unknown as { abortController: AbortController }).abortController = abortController;
+    room.state = ConnectionState.Connecting;
+    const attempt = (room as unknown as { attemptConnection: AttemptConnection }).attemptConnection(
+      'ws://localhost:7880',
+      'token',
+      undefined,
+      abortController,
+    );
+    await vi.waitFor(() => expect(failJoin).toBeDefined());
+    return { attempt, engine, failJoin };
+  }
+
+  it('rejects as cancelled when disconnect() clears the engine mid-join', async () => {
+    const room = new Room();
+    const { attempt, engine, failJoin } = await startAttempt(room);
+    const close = vi.spyOn(engine, 'close');
+
+    await room.disconnect();
+    expect(room.engine).toBeUndefined();
+    failJoin();
+
+    await expect(attempt).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('leaves a newer connect() alone when a stale join fails', async () => {
+    // connect() bails out unless the runtime looks like it supports WebRTC
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTrack() {}
+      },
+    );
+    let failStaleJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join')
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failStaleJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+          }),
+      )
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const room = new Room();
+
+    const stale = room.connect('ws://localhost:7880', 'token');
+    await vi.waitFor(() => expect(failStaleJoin).toBeDefined());
+    await room.disconnect();
+    await expect(stale).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+
+    room.connect('ws://localhost:7880', 'token').catch(() => {});
+    await vi.waitFor(() => expect(RTCEngine.prototype.join).toHaveBeenCalledTimes(2));
+    const newerEngine = room.engine;
+    const close = vi.spyOn(newerEngine, 'close');
+    const disconnected = vi.fn();
+    room.on(RoomEvent.Disconnected, disconnected);
+
+    failStaleJoin();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(room.state).toBe(ConnectionState.Connecting);
+    expect(room.engine).toBe(newerEngine);
+    expect(close).not.toHaveBeenCalled();
+    expect(disconnected).not.toHaveBeenCalled();
   });
 });
