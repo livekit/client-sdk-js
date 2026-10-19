@@ -434,6 +434,45 @@ describe('backup codec tracks', () => {
     expect(cameraB.clones[1].readyState).toBe('live');
   });
 
+  it('keeps a newer backup codec track when an older swap is rejected after it', async () => {
+    const { track, info, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
+    let rejectRetry: ((error: Error) => void) | undefined;
+    backup.replaceTrack.mockImplementation(async (next: MediaStreamTrack | null) => {
+      if (next?.id === 'camera-b-clone0') {
+        throw new Error('rejected');
+      }
+      if (next?.id === 'camera-b-clone1' && !rejectRetry) {
+        // the retry's swap is still pending when the next camera comes in, then fails
+        return new Promise<void>((_, reject) => {
+          rejectRetry = reject;
+        });
+      }
+      backup.track = next;
+    });
+    await expect(track.replaceTrack(makeMediaStreamTrack('camera-b'))).rejects.toThrow('rejected');
+
+    // a retry is queued behind a failing track change, and starts its swap
+    const { processor, rejectInit } = makeFailingProcessor();
+    const setup = track.setProcessor(processor);
+    await flush();
+    await track.resumeUpstream();
+    rejectInit(new Error('init failed'));
+    await expect(setup).rejects.toThrow('init failed');
+    await flush();
+    expect(rejectRetry).toBeDefined();
+
+    const cameraC = makeMediaStreamTrack('camera-c');
+    await track.replaceTrack(cameraC);
+    rejectRetry!(new Error('rejected'));
+    await flush();
+
+    // the failed retry must not take the newer camera off the backup codec
+    expect(backup.track).toBe(cameraC.clones[0]);
+    expect(info.mediaStreamTrack).toBe(cameraC.clones[0]);
+    expect(cameraC.clones[0].readyState).toBe('live');
+    expect(info.needsRefresh).toBe(false);
+  });
+
   it('drops a pending backup codec retry when the track is stopped first', async () => {
     const { track, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
     rejectFirstSwapTo(backup, 'camera-b');

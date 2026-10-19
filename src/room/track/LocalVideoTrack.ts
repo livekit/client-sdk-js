@@ -350,19 +350,23 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   private async refreshSimulcastTrack(sc: SimulcastTrackInfo) {
     const previousTrack = sc.mediaStreamTrack;
-    sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+    const newTrack = this.mediaStreamTrack.clone();
+    sc.mediaStreamTrack = newTrack;
     sc.needsRefresh = false;
     if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
       try {
-        await sc.sender.replaceTrack(sc.mediaStreamTrack);
+        await sc.sender.replaceTrack(newTrack);
       } catch (e) {
-        // the application replaced the previous track, so it must not keep being published:
-        // this codec sends nothing until a swap or a resume retries it
-        sc.needsRefresh = true;
-        // a sender that rejects null as well is not sending anything anymore
-        await sc.sender.replaceTrack(null).catch(() => undefined);
-        sc.mediaStreamTrack.stop();
+        newTrack.stop();
         previousTrack.stop();
+        // unless a newer refresh took the codec over while this swap was pending: the application
+        // replaced the previous track, so it must not keep being published, and this codec sends
+        // nothing until a swap or a resume retries it
+        if (sc.mediaStreamTrack === newTrack) {
+          sc.needsRefresh = true;
+          // a sender that rejects null as well is not sending anything anymore
+          await sc.sender.replaceTrack(null).catch(() => undefined);
+        }
         throw e;
       }
     }
