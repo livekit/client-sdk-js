@@ -377,6 +377,21 @@ describe('backup codec tracks', () => {
     expect(cameraB.clones[1].readyState).toBe('live');
   });
 
+  it('clones a replacement track once for a backup codec whose sender rejected the previous one', async () => {
+    const { track, backup } = await publishWithBackupCodec(makeMediaStreamTrack('camera'));
+    rejectFirstSwapTo(backup, 'camera-b');
+    await expect(track.replaceTrack(makeMediaStreamTrack('camera-b'))).rejects.toThrow('rejected');
+
+    const cameraC = makeMediaStreamTrack('camera-c');
+    await track.replaceTrack(cameraC);
+
+    // the track change refreshes every backup codec, so resuming upstream on the way must not
+    // swap the rejected one first
+    expect(cameraC.clones).toHaveLength(1);
+    expect(backup.track).toBe(cameraC.clones[0]);
+    expect(cameraC.clones[0].readyState).toBe('live');
+  });
+
   it('stops the backup codec clone when an SDK managed camera is muted', async () => {
     const camera = makeMediaStreamTrack('camera');
     const { track, info } = await publishWithBackupCodec(camera, false);

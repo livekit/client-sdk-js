@@ -148,11 +148,12 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   async resumeUpstream() {
     await super.resumeUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
-      if (sc.needsRefresh) {
-        // its clone was stopped when the sender rejected it
-        await this.refreshSimulcastTrack(sc);
-      } else {
+      if (!sc.needsRefresh) {
         await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+      } else if (!this.trackChangeLock.isLocked()) {
+        // its clone was stopped when the sender rejected it. During a track change the codecs are
+        // all refreshed right after this, so it is left to that refresh.
+        await this.refreshSimulcastTrack(sc);
       }
     }
   }
