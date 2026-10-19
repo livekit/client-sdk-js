@@ -8,6 +8,12 @@ const lossyDataChannelLabel = '_lossy';
 const reliableDataChannelLabel = '_reliable';
 const dataTrackDataChannelLabel = '_data_track';
 
+// Fixed SCTP stream IDs for negotiated publisher channels; must match the server
+// (NegotiatedDataChannelID in livekit_rtc.proto).
+const reliableNegotiatedId = 100;
+const lossyNegotiatedId = 101;
+const dataTrackNegotiatedId = 102;
+
 export interface DataChannelManagerOptions {
   /** Whether the owning engine has been closed — a closed engine rejects headroom waiters. */
   isEngineClosed: () => boolean;
@@ -57,6 +63,8 @@ export class DataChannelManager {
   private dataTrackSub?: RTCDataChannel;
 
   private opts: DataChannelManagerOptions;
+
+  private negotiated = false;
 
   constructor(opts: DataChannelManagerOptions) {
     this.opts = opts;
@@ -119,14 +127,23 @@ export class DataChannelManager {
     );
   }
 
+  /** Whether the current publisher channels were created as negotiated (fixed IDs). */
+  get publisherChannelsNegotiated(): boolean {
+    return this.hasPublisherChannels && this.negotiated;
+  }
+
   /**
    * Creates the three publisher data channels on the given transport, wires their handlers, and
    * attaches them to the wrappers — attaching closes any replaced channel objects and rejects the
    * waiters still parked on them.
+   *
+   * With `negotiated`, the channels use fixed SCTP stream IDs agreed with the server instead of
+   * the in-band DCEP open handshake, so the server can send on them right away.
    */
-  createPublisherChannels(pcManager: PCTransportManager) {
-    // Recreating (the Safari null-id path): attaching the new handles below closes the old ones,
-    // so unhook them first — the old channel's close must not report an unexpected close.
+  createPublisherChannels(pcManager: PCTransportManager, negotiated: boolean = false) {
+    // Recreating (the Safari null-id path, or the in-band fallback after join): attaching the new
+    // handles below closes the old ones, so unhook them first — the old channel's close must not
+    // report an unexpected close.
     for (const channel of [this.lossy, this.reliable, this.dataTrack]) {
       const old = channel.channelHandle;
       if (old) {
@@ -152,11 +169,14 @@ export class DataChannelManager {
       channel.attach(dc);
     };
 
+    const idFor = (id: number) => (negotiated ? { negotiated, id } : {});
+
     wire(
       this.lossy,
       pcManager.createPublisherDataChannel(lossyDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
+        ...idFor(lossyNegotiatedId),
       }),
       this.opts.onDataMessage,
     );
@@ -164,6 +184,7 @@ export class DataChannelManager {
       this.reliable,
       pcManager.createPublisherDataChannel(reliableDataChannelLabel, {
         ordered: true,
+        ...idFor(reliableNegotiatedId),
       }),
       this.opts.onDataMessage,
     );
@@ -172,9 +193,11 @@ export class DataChannelManager {
       pcManager.createPublisherDataChannel(dataTrackDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
+        ...idFor(dataTrackNegotiatedId),
       }),
       this.opts.onDataTrackMessage,
     );
+    this.negotiated = negotiated;
 
     this.lossy.startThresholdTuning();
   }

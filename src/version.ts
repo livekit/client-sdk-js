@@ -1,7 +1,11 @@
 import { version as v } from '../package.json';
 
 export const version = v;
-export const protocolVersion = 17;
+export const protocolVersion = 18;
+
+/** First server protocol version that creates the single peer connection data channels as
+ * negotiated (fixed SCTP stream IDs) instead of opening them in-band. */
+export const PROTOCOL_NEGOTIATED_DATA_CHANNELS = 18;
 
 /** Initial client protocol. */
 export const CLIENT_PROTOCOL_DEFAULT = 0;
