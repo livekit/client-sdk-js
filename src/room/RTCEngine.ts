@@ -1672,16 +1672,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.pcState === PCState.Connected) {
         resolve();
       }
+      const cleanup = () => {
+        this.off(EngineEvent.Restarted, onRestarted);
+        this.off(EngineEvent.Disconnected, onFailed);
+        this.off(EngineEvent.Restarting, onFailed);
+      };
       const onRestarted = () => {
-        this.off(EngineEvent.Disconnected, onDisconnected);
+        cleanup();
         resolve();
       };
-      const onDisconnected = () => {
-        this.off(EngineEvent.Restarted, onRestarted);
+      // a new Restarting means this attempt's region failed and the next attempt takes over
+      const onFailed = () => {
+        cleanup();
         reject();
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      this.once(EngineEvent.Disconnected, onFailed);
+      this.once(EngineEvent.Restarting, onFailed);
     });
   };
 

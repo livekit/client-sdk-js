@@ -257,9 +257,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
    */
   private roomInfoBeforeRestart?: RoomModel;
 
-  /** counts full reconnect attempts, so that only the latest one reports the recovery */
-  private restartAttempt = 0;
-
   private isResuming: boolean = false;
 
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
@@ -1728,7 +1725,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.isResuming = false;
 
     // a region that failed after its join leaves its room state and held back events behind
-    this.restartAttempt += 1;
     this.roomInfoBeforeRestart ??= this.roomInfo;
     this.roomInfo = this.roomInfoBeforeRestart;
     this.bufferedEvents = [];
@@ -1747,7 +1743,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
-    const attempt = this.restartAttempt;
     this.bufferedEvents = [];
 
     this.applyJoinResponse(joinResponse);
@@ -1760,14 +1755,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     try {
+      // ponytail: waits from here, so a region that fails during a republish longer than
+      // peerConnectionTimeout resolves on the next region's Restarted; start the wait before
+      // the republish if that shows up
       await this.engine.waitForRestarted();
       this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
     } catch {
-      // reconnection failed, handleDisconnect is being invoked already, just return here
-      return;
-    }
-    if (attempt !== this.restartAttempt) {
-      // this region failed and the attempt on the next region reports the recovery
+      // this region failed and the next attempt reports the recovery, or reconnection failed
+      // and handleDisconnect is being invoked already
       return;
     }
     this.roomInfoBeforeRestart = undefined;
