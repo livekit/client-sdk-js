@@ -231,3 +231,51 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     expect(participant.log.warn).toHaveBeenCalledOnce();
   });
 });
+
+describe('LocalParticipant republishing a track whose upstream is paused', () => {
+  // a full reconnect unpublishes every track and publishes it again over a new sender, while
+  // the track keeps its paused upstream state
+  function makePausedMicrophone() {
+    return {
+      isLocal: true,
+      kind: Track.Kind.Audio,
+      source: Track.Source.Microphone,
+      isMuted: false,
+      isUpstreamPaused: true,
+      mediaStreamTrack: { id: 'microphone-cid' },
+      on: vi.fn(),
+      getSourceTrackSettings: () => ({}),
+    } as unknown as LocalTrack;
+  }
+
+  async function capturePublishRequest(track: LocalTrack) {
+    const addTrack = vi.fn(async () => {
+      throw new Error('stop after the add track request');
+    });
+    const participant = Object.create(LocalParticipant.prototype) as Record<string, unknown>;
+    Object.assign(participant, {
+      encryptionType: Encryption_Type.NONE,
+      trackPublications: new Map(),
+      enabledPublishVideoCodecs: [],
+      hasPermissionsToPublish: () => true,
+      canPublishFrameMetadata: () => false,
+      engine: { isClosed: false, addTrack },
+      log: { warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
+    });
+    const publish = (
+      participant as unknown as {
+        publish: (track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) => Promise<void>;
+      }
+    ).publish.bind(participant);
+
+    await expect(publish(track, {}, false)).rejects.toThrow('stop after the add track request');
+    expect(addTrack).toHaveBeenCalledOnce();
+    return addTrack.mock.calls[0][0] as AddTrackRequest;
+  }
+
+  it('announces the track as muted to the server', async () => {
+    const req = await capturePublishRequest(makePausedMicrophone());
+
+    expect(req.muted).toBe(true);
+  });
+});
