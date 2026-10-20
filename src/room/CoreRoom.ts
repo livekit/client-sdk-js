@@ -1744,6 +1744,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    // wait from here, so that this region failing during the republish ends the wait
+    const restarted = this.engine.waitForRestarted().then(
+      () => true,
+      () => false,
+    );
 
     this.applyJoinResponse(joinResponse);
 
@@ -1754,17 +1759,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.error('error trying to re-publish tracks after reconnection', { error });
     }
 
-    try {
-      // ponytail: waits from here, so a region that fails during a republish longer than
-      // peerConnectionTimeout resolves on the next region's Restarted; start the wait before
-      // the republish if that shows up
-      await this.engine.waitForRestarted();
-      this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
-    } catch {
+    if (!(await restarted)) {
       // this region failed and the next attempt reports the recovery, or reconnection failed
       // and handleDisconnect is being invoked already
       return;
     }
+    this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
     this.roomInfoBeforeRestart = undefined;
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);

@@ -591,4 +591,35 @@ describe('full reconnect failing over to a second region', () => {
     expect(metadataChanged).toHaveBeenCalledWith('new');
     await room.disconnect();
   });
+
+  it('reports the recovery once when the failed region republishes past its failure', async () => {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    // the peer connection state from before the outage; only the restart's Restarted counts
+    (room.engine as unknown as { pcState: number }).pcState = 1; // PCState.Connected
+    let finishFirstRepublish!: () => void;
+    vi.spyOn(room.localParticipant, 'republishAllTracks')
+      .mockImplementationOnce(
+        () => new Promise<void>((resolve) => (finishFirstRepublish = resolve)),
+      )
+      .mockImplementation(async () => {});
+    const reconnected = vi.fn();
+    room.on(RoomEvent.Reconnected, reconnected);
+
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    await flush();
+    room.engine.emit(EngineEvent.Restarting);
+    finishFirstRepublish();
+    await flush();
+    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    await flush();
+    expect(reconnected).not.toHaveBeenCalled();
+
+    room.engine.emit(EngineEvent.Restarted);
+    await flush();
+
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    await room.disconnect();
+  });
 });

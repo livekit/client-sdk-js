@@ -1667,11 +1667,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  /** waits for the current restart attempt's `Restarted`; call it on `SignalRestarted` */
   waitForRestarted = () => {
     return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
-        resolve();
-      }
       const cleanup = () => {
         this.off(EngineEvent.Restarted, onRestarted);
         this.off(EngineEvent.Disconnected, onFailed);
