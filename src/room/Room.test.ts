@@ -555,3 +555,40 @@ describe('connection attempt racing disconnect (#2150)', () => {
     expect(disconnected).not.toHaveBeenCalled();
   });
 });
+
+describe('full reconnect failing over to a second region', () => {
+  const join = (metadata: string) =>
+    new JoinResponse({
+      room: { sid: 'RM_test', name: 'test', metadata },
+      participant: { sid: 'PA_local', identity: 'local' },
+    });
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('reports the recovery once, with the changes the connected region reports', async () => {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    room.engine.emit(EngineEvent.RoomUpdate, join('old').room!);
+    vi.spyOn(room.localParticipant, 'republishAllTracks').mockImplementation(async () => {});
+    const reconnected = vi.fn();
+    const metadataChanged = vi.fn();
+    room.on(RoomEvent.Reconnected, reconnected);
+    room.on(RoomEvent.RoomMetadataChanged, metadataChanged);
+
+    // the first region joins, then its peer connection fails
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    await flush();
+    // the second region joins and connects
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    await flush();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    expect(metadataChanged).toHaveBeenCalledTimes(1);
+    expect(metadataChanged).toHaveBeenCalledWith('new');
+    await room.disconnect();
+  });
+});

@@ -251,6 +251,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private bufferedEvents: Array<any> = [];
 
+  /**
+   * the room as it was before the current full reconnect. Every region the full reconnect tries
+   * starts from it, so the region it connects to reports every change since the outage
+   */
+  private roomInfoBeforeRestart?: RoomModel;
+
+  /** counts full reconnect attempts, so that only the latest one reports the recovery */
+  private restartAttempt = 0;
+
   private isResuming: boolean = false;
 
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
@@ -1718,6 +1727,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
 
+    // a region that failed after its join leaves its room state and held back events behind
+    this.restartAttempt += 1;
+    this.roomInfoBeforeRestart ??= this.roomInfo;
+    this.roomInfo = this.roomInfoBeforeRestart;
+    this.bufferedEvents = [];
+
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
       this.handleParticipantDisconnected(p.identity, p);
@@ -1732,6 +1747,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
+    const attempt = this.restartAttempt;
     this.bufferedEvents = [];
 
     this.applyJoinResponse(joinResponse);
@@ -1750,6 +1766,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       // reconnection failed, handleDisconnect is being invoked already, just return here
       return;
     }
+    if (attempt !== this.restartAttempt) {
+      // this region failed and the attempt on the next region reports the recovery
+      return;
+    }
+    this.roomInfoBeforeRestart = undefined;
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
@@ -1760,6 +1781,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
+    this.roomInfoBeforeRestart = undefined;
     this.transcriptionReceivedTimes.clear();
     this.extensionResults.forEach((result) => result.onDisconnect?.());
     if (this.state === ConnectionState.Disconnected) {
