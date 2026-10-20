@@ -1262,6 +1262,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed text stream', async () => {
@@ -1296,6 +1308,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed byte stream', async () => {
@@ -1329,6 +1353,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should drop a duplicate chunk index on an uncompressed text stream and still decode', async () => {
