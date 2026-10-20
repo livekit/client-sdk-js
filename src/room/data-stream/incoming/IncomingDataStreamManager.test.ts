@@ -1831,5 +1831,58 @@ describe('IncomingDataStreamManager', () => {
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Encryption type mismatch');
     });
+
+    it('should treat packets for a stream that errored on a chunk index gap as an unknown stream (#2166)', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('first')),
+        Encryption_Type.NONE,
+      );
+      // Skip chunk index 1, which errors the stream.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 2, new TextEncoder().encode('third')),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(1);
+      await expect(readers[0].readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // Packets still in flight for the errored stream are dropped, just like packets for a stream
+      // that was never opened, rather than throwing on a closed controller.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new TextEncoder().encode('fourth')),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
+      expect(readers).toHaveLength(1);
+
+      // No state is left behind for the stream id: a header reusing it opens a brand new stream
+      // instead of failing with `AlreadyOpened`, and that stream reads cleanly from chunk 0.
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('fresh stream')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      expect(readers).toHaveLength(2);
+      expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
   });
 });
