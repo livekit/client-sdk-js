@@ -246,6 +246,16 @@ export default class IncomingDataStreamManager {
               sendingParticipantIdentity: participantIdentity,
             });
           },
+          cancel: () => {
+            // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
+            // was cancelled, which cancels this source stream. Unregister it so later chunks and the
+            // trailer for this stream are dropped rather than hitting a closed controller.
+            if (
+              this.byteStreamControllers.get(streamHeader.streamId)?.controller === streamController
+            ) {
+              this.byteStreamControllers.delete(streamHeader.streamId);
+            }
+          },
         });
         streamHandlerCallback(
           new ByteStreamReader(
@@ -348,6 +358,16 @@ export default class IncomingDataStreamManager {
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
             });
+          },
+          cancel: () => {
+            // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
+            // was cancelled, which cancels this source stream. Unregister it so later chunks and the
+            // trailer for this stream are dropped rather than hitting a closed controller.
+            if (
+              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
+            ) {
+              this.textStreamControllers.delete(streamHeader.streamId);
+            }
           },
         });
         streamHandlerCallback(
