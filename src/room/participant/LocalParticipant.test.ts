@@ -217,6 +217,16 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     expect(req.simulcastCodecs[0].layers).toEqual(req.layers);
   });
 
+  it('announces the backup codec of a paused track as muted', async () => {
+    const track = makeBackupCodecTrack({ width: 1280, height: 720 });
+    Object.assign(track, { isUpstreamPaused: true });
+    const participant = makeBackupCodecParticipant(track);
+
+    await publishBackupCodec(participant, track);
+
+    expect(capturedRequest(participant).muted).toBe(true);
+  });
+
   it('omits layers when the capture dimensions are unknown', async () => {
     const track = makeBackupCodecTrack({});
     const participant = makeBackupCodecParticipant(track);
