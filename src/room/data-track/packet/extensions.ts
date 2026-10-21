@@ -1,5 +1,5 @@
-import { type Throws } from '@livekit/throws-transformer/throws';
 import type { NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
+import { type Throws } from '../../../utils/throws';
 import { coerceToDataView } from '../utils';
 import { EXT_TAG_PADDING, U8_LENGTH_BYTES, U64_LENGTH_BYTES } from './constants';
 import { DataTrackDeserializeError, DataTrackDeserializeErrorReason } from './errors';

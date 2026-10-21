@@ -39,6 +39,9 @@ jobs:
       run: |
         pnpm build:clean
         pnpm compat
-        
+
+    - name: Check published types in a consumer with skipLibCheck off
+      run: pnpm check:published-types
+
     - name: Ensure package publish is configured correctly
       run: pnpm publint
