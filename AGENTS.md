@@ -24,6 +24,11 @@ selection. Cancellation must cover continuations after awaited cleanup and late 
 engine close removes room listeners, so room-event guards cannot catch those continuations.
 Regression tests live in `RTCEngine.test.ts` and `SignalClient.test.ts`.
 
+Each region attempt of a full reconnect has its own `AbortSignal`, passed as the second argument of
+`EngineEvent.SignalRestarted`. The engine aborts it when the next attempt begins (next region or a
+later restart) and on close. `CoreRoom.handleSignalRestarted` awaits a republish, so it checks that
+signal before it reports the recovery. Failover regression tests live in `Room.test.ts`.
+
 ### Data transport APIs
 
 LiveKit has four data transport mechanisms, each suited to different patterns:

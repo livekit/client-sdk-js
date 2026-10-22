@@ -233,6 +233,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectAbortController?: AbortController;
 
+  /**
+   * the attempt of a full reconnect on one region, handed out with `SignalRestarted`. Aborted when
+   * the next attempt begins, on the next region or in a later restart, and on close
+   */
+  private restartAttemptController?: AbortController;
+
   private reconnectPolicy: ReconnectPolicy;
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -494,6 +500,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async close(reason?: string) {
     this.reconnectAbortController?.abort();
     this.reconnectAbortController = undefined;
+    this.restartAttemptController?.abort();
+    this.restartAttemptController = undefined;
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -1480,6 +1488,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.restartAttemptController?.abort();
+      const restartAttempt = new AbortController();
+      this.restartAttemptController = restartAttempt;
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1527,7 +1538,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse);
+      this.emit(EngineEvent.SignalRestarted, joinResponse, restartAttempt.signal);
 
       await this.waitForPCReconnected();
       if (abortSignal.aborted) {
@@ -1667,21 +1678,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  waitForRestarted = () => {
-    return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
-        resolve();
+  /**
+   * resolves to whether the attempt `SignalRestarted` handed out restarted the connection. Call it
+   * while handling that event, before `Restarted` can fire
+   */
+  waitForRestarted = (restartAttempt: AbortSignal) => {
+    return new Promise<boolean>((resolve) => {
+      if (restartAttempt.aborted) {
+        resolve(false);
+        return;
       }
       const onRestarted = () => {
-        this.off(EngineEvent.Disconnected, onDisconnected);
-        resolve();
+        restartAttempt.removeEventListener('abort', onAborted);
+        resolve(true);
       };
-      const onDisconnected = () => {
+      const onAborted = () => {
         this.off(EngineEvent.Restarted, onRestarted);
-        reject();
+        resolve(false);
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      restartAttempt.addEventListener('abort', onAborted, { once: true });
     });
   };
 
@@ -2179,7 +2195,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: () => void;
   signalResumed: () => void;
-  signalRestarted: (joinResp: JoinResponse) => void;
+  signalRestarted: (joinResp: JoinResponse, restartAttempt: AbortSignal) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

@@ -849,6 +849,31 @@ describe('RTCEngine', () => {
         await engine.close();
       }
     });
+
+    it('aborts a region attempt when the next attempt begins or the engine closes', async () => {
+      const { engine, internals } = primeEngine();
+      vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(
+        SignalConnectionState.CONNECTED,
+      );
+      vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+      vi.spyOn(internals, 'waitForPCReconnected').mockRejectedValueOnce(new Error('pc failed'));
+      engine.setRegionStrategy({
+        getNextUrl: vi.fn().mockResolvedValueOnce('wss://another-region.livekit.io'),
+        resetAttempts: () => {},
+      });
+      const attempts: AbortSignal[] = [];
+      engine.on(EngineEvent.SignalRestarted, (_joinResponse, attempt) => attempts.push(attempt));
+
+      await internals.attemptReconnect();
+      expect(attempts.map((attempt) => attempt.aborted)).toEqual([true, false]);
+
+      engine.fullReconnectOnNext = true;
+      await internals.attemptReconnect();
+      expect(attempts.map((attempt) => attempt.aborted)).toEqual([true, true, false]);
+
+      await engine.close();
+      expect(attempts[2].aborted).toBe(true);
+    });
   });
 
   describe('reconnect requested mid-attempt', () => {

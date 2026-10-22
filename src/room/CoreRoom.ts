@@ -251,6 +251,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private bufferedEvents: Array<any> = [];
 
+  /**
+   * the room as it was before the current full reconnect. Every region the full reconnect tries
+   * starts from it, so the region it connects to reports every change since the outage
+   */
+  private roomInfoBeforeRestart?: RoomModel;
+
   private isResuming: boolean = false;
 
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
@@ -1718,6 +1724,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
 
+    // a region that failed after its join leaves its room state and held back events behind
+    this.roomInfoBeforeRestart ??= this.roomInfo;
+    this.roomInfo = this.roomInfoBeforeRestart;
+    this.bufferedEvents = [];
+
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
       this.handleParticipantDisconnected(p.identity, p);
@@ -1728,11 +1739,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   };
 
-  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
+  private handleSignalRestarted = async (
+    joinResponse: JoinResponse,
+    restartAttempt: AbortSignal,
+  ) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
 
@@ -1743,13 +1758,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.error('error trying to re-publish tracks after reconnection', { error });
     }
 
-    try {
-      await this.engine.waitForRestarted();
-      this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
-    } catch {
-      // reconnection failed, handleDisconnect is being invoked already, just return here
+    // the attempt is aborted when a newer attempt began, on the next region or in a later
+    // restart, or when the engine closed; whatever replaced it reports the outcome
+    if (!(await restarted) || restartAttempt.aborted) {
       return;
     }
+    this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
+    this.roomInfoBeforeRestart = undefined;
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
@@ -1760,6 +1775,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
+    this.roomInfoBeforeRestart = undefined;
     this.transcriptionReceivedTimes.clear();
     this.extensionResults.forEach((result) => result.onDisconnect?.());
     if (this.state === ConnectionState.Disconnected) {
