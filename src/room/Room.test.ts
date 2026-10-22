@@ -564,23 +564,52 @@ describe('full reconnect failing over to a second region', () => {
     });
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it('reports the recovery once, with the changes the connected region reports', async () => {
+  /** Drives the room as the engine does: each region attempt has a signal the next one aborts. */
+  function restarts(room: Room) {
+    let attempt: AbortController | undefined;
+    return {
+      restarting() {
+        attempt?.abort();
+        attempt = new AbortController();
+        room.engine.emit(EngineEvent.Restarting);
+      },
+      signalRestarted(metadata: string) {
+        room.engine.emit(EngineEvent.SignalRestarted, join(metadata), attempt!.signal);
+      },
+    };
+  }
+
+  function setup() {
     const room = new Room();
     room.state = ConnectionState.Connected;
     room.engine.emit(EngineEvent.RoomUpdate, join('old').room!);
-    vi.spyOn(room.localParticipant, 'republishAllTracks').mockImplementation(async () => {});
+    const republish = vi
+      .spyOn(room.localParticipant, 'republishAllTracks')
+      .mockImplementation(async () => {});
     const reconnected = vi.fn();
     const metadataChanged = vi.fn();
     room.on(RoomEvent.Reconnected, reconnected);
     room.on(RoomEvent.RoomMetadataChanged, metadataChanged);
+    return { room, engine: restarts(room), republish, reconnected, metadataChanged };
+  }
+
+  /** Holds the next republish open until the returned function is called. */
+  function holdNextRepublish(republish: ReturnType<typeof setup>['republish']) {
+    let finish!: () => void;
+    republish.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+    return () => finish();
+  }
+
+  it('reports the recovery once, with the changes the connected region reports', async () => {
+    const { room, engine, reconnected, metadataChanged } = setup();
 
     // the first region joins, then its peer connection fails
-    room.engine.emit(EngineEvent.Restarting);
-    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    engine.restarting();
+    engine.signalRestarted('new');
     await flush();
     // the second region joins and connects
-    room.engine.emit(EngineEvent.Restarting);
-    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    engine.restarting();
+    engine.signalRestarted('new');
     await flush();
     room.engine.emit(EngineEvent.Restarted);
     await flush();
@@ -593,26 +622,16 @@ describe('full reconnect failing over to a second region', () => {
   });
 
   it('reports the recovery once when the failed region republishes past its failure', async () => {
-    const room = new Room();
-    room.state = ConnectionState.Connected;
-    // the peer connection state from before the outage; only the restart's Restarted counts
-    (room.engine as unknown as { pcState: number }).pcState = 1; // PCState.Connected
-    let finishFirstRepublish!: () => void;
-    vi.spyOn(room.localParticipant, 'republishAllTracks')
-      .mockImplementationOnce(
-        () => new Promise<void>((resolve) => (finishFirstRepublish = resolve)),
-      )
-      .mockImplementation(async () => {});
-    const reconnected = vi.fn();
-    room.on(RoomEvent.Reconnected, reconnected);
+    const { room, engine, republish, reconnected } = setup();
+    const finishFirstRepublish = holdNextRepublish(republish);
 
-    room.engine.emit(EngineEvent.Restarting);
-    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    engine.restarting();
+    engine.signalRestarted('new');
     await flush();
-    room.engine.emit(EngineEvent.Restarting);
+    engine.restarting();
     finishFirstRepublish();
     await flush();
-    room.engine.emit(EngineEvent.SignalRestarted, join('new'));
+    engine.signalRestarted('new');
     await flush();
     expect(reconnected).not.toHaveBeenCalled();
 
@@ -620,6 +639,44 @@ describe('full reconnect failing over to a second region', () => {
     await flush();
 
     expect(reconnected).toHaveBeenCalledTimes(1);
+    await room.disconnect();
+  });
+
+  it('leaves a restart alone that began while an earlier one was still republishing', async () => {
+    const { room, engine, republish, reconnected, metadataChanged } = setup();
+    const finishFirstRepublish = holdNextRepublish(republish);
+    // the engine reports a pending reconnect for as long as an attempt runs
+    let attemptRunning = true;
+    vi.spyOn(room.engine, 'pendingReconnect', 'get').mockImplementation(() => attemptRunning);
+
+    // the first restart connects while its republish is still running
+    engine.restarting();
+    engine.signalRestarted('a');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    attemptRunning = false;
+    await flush();
+    // a second restart begins before that republish ends
+    attemptRunning = true;
+    engine.restarting();
+    finishFirstRepublish();
+    await flush();
+    expect(room.state).toBe(ConnectionState.Reconnecting);
+    expect(reconnected).not.toHaveBeenCalled();
+
+    // the second restart fails over from region c to region d
+    engine.signalRestarted('c');
+    await flush();
+    engine.restarting();
+    engine.signalRestarted('c');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    attemptRunning = false;
+    await flush();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    expect(metadataChanged).toHaveBeenLastCalledWith('c');
     await room.disconnect();
   });
 });

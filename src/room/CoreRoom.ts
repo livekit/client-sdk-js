@@ -1739,16 +1739,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   };
 
-  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
+  private handleSignalRestarted = async (
+    joinResponse: JoinResponse,
+    restartAttempt: AbortSignal,
+  ) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
-    // wait from here, so that this region failing during the republish ends the wait
-    const restarted = this.engine.waitForRestarted().then(
-      () => true,
-      () => false,
-    );
+    const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
 
@@ -1759,9 +1758,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.error('error trying to re-publish tracks after reconnection', { error });
     }
 
-    if (!(await restarted)) {
-      // this region failed and the next attempt reports the recovery, or reconnection failed
-      // and handleDisconnect is being invoked already
+    // the attempt is aborted when a newer attempt began, on the next region or in a later
+    // restart, or when the engine closed; whatever replaced it reports the outcome
+    if (!(await restarted) || restartAttempt.aborted) {
       return;
     }
     this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
