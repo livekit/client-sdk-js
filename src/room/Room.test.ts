@@ -11,8 +11,9 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
+import { subscribeToEvents } from '../utils/subscribeToEvents';
 import RTCEngine from './RTCEngine';
-import { ConnectionState, Room } from './Room';
+import { ConnectionState, Room, type RoomEventCallbacks } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
@@ -586,11 +587,11 @@ describe('full reconnect failing over to a second region', () => {
     const republish = vi
       .spyOn(room.localParticipant, 'republishAllTracks')
       .mockImplementation(async () => {});
-    const reconnected = vi.fn();
-    const metadataChanged = vi.fn();
-    room.on(RoomEvent.Reconnected, reconnected);
-    room.on(RoomEvent.RoomMetadataChanged, metadataChanged);
-    return { room, engine: restarts(room), republish, reconnected, metadataChanged };
+    const roomEvents = subscribeToEvents<RoomEventCallbacks>(room, [
+      RoomEvent.Reconnected,
+      RoomEvent.RoomMetadataChanged,
+    ]);
+    return { room, engine: restarts(room), republish, roomEvents };
   }
 
   /** Holds the next republish open until the returned function is called. */
@@ -601,7 +602,7 @@ describe('full reconnect failing over to a second region', () => {
   }
 
   it('reports the recovery once, with the changes the connected region reports', async () => {
-    const { room, engine, reconnected, metadataChanged } = setup();
+    const { room, engine, roomEvents } = setup();
 
     // the first region joins, then its peer connection fails
     engine.restarting();
@@ -615,14 +616,15 @@ describe('full reconnect failing over to a second region', () => {
     await flush();
 
     expect(room.state).toBe(ConnectionState.Connected);
-    expect(reconnected).toHaveBeenCalledTimes(1);
-    expect(metadataChanged).toHaveBeenCalledTimes(1);
-    expect(metadataChanged).toHaveBeenCalledWith('new');
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('new');
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
     await room.disconnect();
   });
 
   it('reports the recovery once when the failed region republishes past its failure', async () => {
-    const { room, engine, republish, reconnected } = setup();
+    const { room, engine, republish, roomEvents } = setup();
     const finishFirstRepublish = holdNextRepublish(republish);
 
     engine.restarting();
@@ -633,17 +635,18 @@ describe('full reconnect failing over to a second region', () => {
     await flush();
     engine.signalRestarted('new');
     await flush();
-    expect(reconnected).not.toHaveBeenCalled();
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
 
     room.engine.emit(EngineEvent.Restarted);
     await flush();
 
-    expect(reconnected).toHaveBeenCalledTimes(1);
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
     await room.disconnect();
   });
 
   it('leaves a restart alone that began while an earlier one was still republishing', async () => {
-    const { room, engine, republish, reconnected, metadataChanged } = setup();
+    const { room, engine, republish, roomEvents } = setup();
     const finishFirstRepublish = holdNextRepublish(republish);
     // the engine reports a pending reconnect for as long as an attempt runs
     let attemptRunning = true;
@@ -662,7 +665,7 @@ describe('full reconnect failing over to a second region', () => {
     finishFirstRepublish();
     await flush();
     expect(room.state).toBe(ConnectionState.Reconnecting);
-    expect(reconnected).not.toHaveBeenCalled();
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
 
     // the second restart fails over from region c to region d
     engine.signalRestarted('c');
@@ -675,8 +678,10 @@ describe('full reconnect failing over to a second region', () => {
     await flush();
 
     expect(room.state).toBe(ConnectionState.Connected);
-    expect(reconnected).toHaveBeenCalledTimes(1);
-    expect(metadataChanged).toHaveBeenLastCalledWith('c');
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('c');
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
     await room.disconnect();
   });
 });
