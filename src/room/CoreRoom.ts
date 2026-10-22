@@ -547,6 +547,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         },
       )
       .on(EngineEvent.Disconnected, (reason?: DisconnectReason) => {
+        // the server can end the session while connect() still waits for the transports (e.g. a
+        // DUPLICATE_IDENTITY leave). Cancel that attempt: left running, it times out, fails over to
+        // another region and rejoins with the same token after the room reported Disconnected,
+        // and disconnect() can't stop it since the room already looks disconnected
+        this.abortController?.abort('room disconnected by the server during connection attempt');
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
