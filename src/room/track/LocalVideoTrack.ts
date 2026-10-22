@@ -33,6 +33,9 @@ export class SimulcastTrackInfo {
 
   encodings?: RTCRtpEncodingParameters[];
 
+  /** @internal set when the sender rejected the current track, so that the next swap or resume retries it */
+  needsRefresh?: boolean;
+
   constructor(codec: VideoCodec, mediaStreamTrack: MediaStreamTrack) {
     this.codec = codec;
     this.mediaStreamTrack = mediaStreamTrack;
@@ -147,8 +150,37 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   async resumeUpstream() {
     await super.resumeUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
-      await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+      if (!sc.needsRefresh) {
+        await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+      } else if (this.trackChangeLock.isLocked()) {
+        this.retryAfterTrackChange(sc);
+      } else {
+        // its clone was stopped when the sender rejected it
+        await this.refreshSimulcastTrack(sc);
+      }
     }
+  }
+
+  /**
+   * A track change in progress refreshes every backup codec when it succeeds, but it can fail
+   * before that. Not awaited: this can run from within the track change itself.
+   */
+  private retryAfterTrackChange(sc: SimulcastTrackInfo) {
+    this.trackChangeLock
+      .lock()
+      .then(async (unlock) => {
+        unlock();
+        // still pending, and not dropped by an unpublish or a stop in the meantime
+        if (sc.needsRefresh && !this.isStopped && this.simulcastCodecs.get(sc.codec) === sc) {
+          await this.refreshSimulcastTrack(sc);
+        }
+      })
+      .catch((error) => {
+        this.log.warn('failed to retry backup codec after a track change', {
+          ...this.logContext,
+          error,
+        });
+      });
   }
 
   async mute(): Promise<typeof this> {
@@ -163,6 +195,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
         this.log.debug('stopping camera track', this.logContext);
         // also stop the track, so that camera indicator is turned off
         this._mediaStreamTrack.stop();
+        // backup codecs hold their own clones of the camera, which keep it on as well
+        this.simulcastCodecs.forEach((sc) => sc.mediaStreamTrack.stop());
       }
       await super.mute();
       return this;
@@ -282,13 +316,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     // reset cpu constrained state after track is restarted
     this.isCpuConstrained = false;
 
-    for await (const sc of this.simulcastCodecs.values()) {
-      if (sc.sender && sc.sender.transport?.state !== 'closed') {
-        sc.mediaStreamTrack = this.mediaStreamTrack.clone();
-        await sc.sender.replaceTrack(sc.mediaStreamTrack);
-      }
-    }
-
     // The new MediaStreamTrack may have different dimensions than the previous one
     // (e.g. switching between cameras with different native resolutions), which would
     // leave the sender's encoding parameters (scaleResolutionDownBy, maxBitrate, etc.)
@@ -298,7 +325,54 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   }
 
   protected override async onSenderTrackSwapped(): Promise<void> {
+    // replaceTrack() with the same track skips setMediaStreamTrack(), so a backup codec whose
+    // sender rejected that track is retried here
+    for (const sc of this.simulcastCodecs.values()) {
+      if (sc.needsRefresh) {
+        await this.refreshSimulcastTrack(sc);
+      }
+    }
     await this.refreshSenderEncodings();
+  }
+
+  protected override async onMediaStreamTrackChanged(): Promise<void> {
+    await this.refreshSimulcastTracks();
+  }
+
+  /**
+   * Each backup codec sends its own clone of the track, which `resumeUpstream` hands back to its
+   * sender. Whenever the track (or the processed track) changes, every backup codec needs a fresh
+   * clone of it, and the clone it replaces has to be stopped, or it would keep the capture alive.
+   */
+  private async refreshSimulcastTracks() {
+    for (const sc of this.simulcastCodecs.values()) {
+      await this.refreshSimulcastTrack(sc);
+    }
+  }
+
+  private async refreshSimulcastTrack(sc: SimulcastTrackInfo) {
+    const previousTrack = sc.mediaStreamTrack;
+    const newTrack = this.mediaStreamTrack.clone();
+    sc.mediaStreamTrack = newTrack;
+    sc.needsRefresh = false;
+    if (sc.sender && sc.sender.transport?.state !== 'closed' && !this.isUpstreamPaused) {
+      try {
+        await sc.sender.replaceTrack(newTrack);
+      } catch (e) {
+        newTrack.stop();
+        previousTrack.stop();
+        // unless a newer refresh took the codec over while this swap was pending: the application
+        // replaced the previous track, so it must not keep being published, and this codec sends
+        // nothing until a swap or a resume retries it
+        if (sc.mediaStreamTrack === newTrack) {
+          sc.needsRefresh = true;
+          // a sender that rejects null as well is not sending anything anymore
+          await sc.sender.replaceTrack(null).catch(() => undefined);
+        }
+        throw e;
+      }
+    }
+    previousTrack.stop();
   }
 
   /**
@@ -417,9 +491,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await super.setProcessor(processor, showProcessedStreamLocally);
 
     if (this.processor?.processedTrack) {
-      for await (const sc of this.simulcastCodecs.values()) {
-        await sc.sender?.replaceTrack(this.processor.processedTrack);
-      }
+      await this.refreshSimulcastTracks();
     }
   }
 
