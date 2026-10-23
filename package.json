@@ -83,11 +83,13 @@
     "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2 && downlevel-dts ./dist/core/types/src ./dist/core/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit",
-    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs"
+    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs",
+    "check:published-types": "node scripts/check-published-types.mjs"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
     "@livekit/protocol": "1.52.1",
+    "@types/sdp-transform": "^2.15.0",
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
@@ -118,7 +120,6 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/events": "^3.0.3",
-    "@types/sdp-transform": "2.15.0",
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "8.64.0",
     "@typescript-eslint/parser": "8.64.0",

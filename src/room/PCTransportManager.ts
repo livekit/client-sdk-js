@@ -1,8 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
-import type { Throws } from '@livekit/throws-transformer/throws';
 import log, { LoggerNames, getLogger } from '../logger';
 import TypedPromise from '../utils/TypedPromise';
+import type { Throws } from '../utils/throws';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, NegotiationError } from './errors';

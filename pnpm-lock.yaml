@@ -29,6 +29,9 @@ importers:
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
+      '@types/sdp-transform':
+        specifier: ^2.15.0
+        version: 2.15.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -108,9 +111,6 @@ importers:
       '@types/events':
         specifier: ^3.0.3
         version: 3.0.3
-      '@types/sdp-transform':
-        specifier: 2.15.0
-        version: 2.15.0
       '@types/ua-parser-js':
         specifier: 0.7.39
         version: 0.7.39
