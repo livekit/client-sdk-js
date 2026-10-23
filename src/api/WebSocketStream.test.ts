@@ -181,6 +181,8 @@ describe('WebSocketStream', () => {
       const wsStream = new WebSocketStream('wss://test.example.com', {
         signal: abortController.signal,
       });
+      // aborting before open rejects opened
+      wsStream.opened.catch(() => {});
 
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
       abortController.abort();
@@ -237,6 +239,45 @@ describe('WebSocketStream', () => {
 
       await expect(wsStream.opened).resolves.toHaveProperty('readable');
       expect(removeEventListenerSpy).toHaveBeenCalledWith('close', expect.any(Function));
+    });
+
+    it('should reject when closed before opening, without waiting for a platform event', async () => {
+      const wsStream = new WebSocketStream('wss://test.example.com');
+
+      // React Native reports nothing yet: on iOS not until the TCP connect settles, on Android never
+      wsStream.close({ closeCode: 1000, reason: 'aborted' });
+
+      await expect(wsStream.opened).rejects.toThrow(
+        'Websocket closed before the connection opened',
+      );
+    });
+
+    it('should close again and keep opened rejected when the socket opens after close()', async () => {
+      const wsStream = new WebSocketStream('wss://test.example.com');
+      const closeSpy = vi.spyOn(mockWebSocket, 'close');
+
+      wsStream.close({ closeCode: 1000, reason: 'aborted' });
+      // React Native on Android: the close was ignored and the handshake completes anyway
+      mockWebSocket.triggerOpen();
+
+      await expect(wsStream.opened).rejects.toThrow(
+        'Websocket closed before the connection opened',
+      );
+      expect(closeSpy).toHaveBeenCalledTimes(2);
+      expect(closeSpy).toHaveBeenLastCalledWith(1000, 'aborted');
+    });
+
+    it('should reject when the abort signal fires before opening', async () => {
+      const abortController = new AbortController();
+      const wsStream = new WebSocketStream('wss://test.example.com', {
+        signal: abortController.signal,
+      });
+
+      abortController.abort();
+
+      await expect(wsStream.opened).rejects.toThrow(
+        'Websocket closed before the connection opened',
+      );
     });
   });
 
@@ -408,8 +449,10 @@ describe('WebSocketStream', () => {
   });
 
   describe('close() method', () => {
+    // these close before open, which rejects opened
     it('should close WebSocket with custom close code and reason', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
+      wsStream.opened.catch(() => {});
 
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
 
@@ -420,6 +463,7 @@ describe('WebSocketStream', () => {
 
     it('should handle close with partial or no arguments', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
+      wsStream.opened.catch(() => {});
 
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
 
@@ -432,6 +476,7 @@ describe('WebSocketStream', () => {
 
     it('truncates a reason longer than WebSocket.close accepts', () => {
       const wsStream = new WebSocketStream('wss://test.example.com');
+      wsStream.opened.catch(() => {});
 
       const closeSpy = vi.spyOn(mockWebSocket, 'close');
 
