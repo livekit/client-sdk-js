@@ -63,6 +63,18 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           ConnectionError.websocket('Encountered websocket error during connection establishment'),
         );
       };
+      // Some WebSocket implementations (React Native on iOS, for one) report a handshake that ends
+      // before the socket opens as a bare `close` event with no `error` before it. Without this
+      // handler `opened` would stay pending forever in that case.
+      const closeBeforeOpenHandler = (ev: CloseEvent) => {
+        reject(
+          ConnectionError.websocket(
+            `Websocket closed during connection establishment with code ${ev.code}${
+              ev.reason ? `: ${ev.reason}` : ''
+            }`,
+          ),
+        );
+      };
       ws.onopen = () => {
         resolve({
           readable: new ReadableStream<T>({
@@ -100,8 +112,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           extensions: ws.extensions,
         });
         ws.removeEventListener('error', rejectHandler);
+        ws.removeEventListener('close', closeBeforeOpenHandler);
       };
       ws.addEventListener('error', rejectHandler);
+      ws.addEventListener('close', closeBeforeOpenHandler);
     });
 
     this.closed = new TypedPromise<WebSocketCloseInfo, WebsocketError>((resolve, reject) => {

@@ -216,6 +216,28 @@ describe('WebSocketStream', () => {
 
       await expect(wsStream.opened).rejects.toThrow();
     });
+
+    it('should reject when WebSocket closes before opening without an error event', async () => {
+      const wsStream = new WebSocketStream('wss://test.example.com');
+      wsStream.closed.catch(() => {});
+
+      mockWebSocket.triggerClose(1006, 'Stream end encountered');
+
+      await expect(wsStream.opened).rejects.toThrow(
+        'Websocket closed during connection establishment with code 1006: Stream end encountered',
+      );
+    });
+
+    it('should not reject opened when WebSocket closes after opening', async () => {
+      const wsStream = new WebSocketStream('wss://test.example.com');
+      const removeEventListenerSpy = vi.spyOn(mockWebSocket, 'removeEventListener');
+
+      mockWebSocket.triggerOpen();
+      mockWebSocket.triggerClose(1000, '');
+
+      await expect(wsStream.opened).resolves.toHaveProperty('readable');
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('close', expect.any(Function));
+    });
   });
 
   describe('closed Promise', () => {
