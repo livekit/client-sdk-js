@@ -10,6 +10,7 @@ import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { FrameCryptor, encryptionEnabledMap, isFrameServerInjected } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { parseH264IdrPpsId } from './naluUtils';
 
 function mockEncryptedRTCEncodedVideoFrame(keyIndex: number): RTCEncodedVideoFrame {
   const trailer = mockFrameTrailer(keyIndex);
@@ -311,6 +312,21 @@ describe('FrameCryptor', () => {
         );
         expect(Array.from(decryptedData)).toEqual(plainTextData);
       });
+      it('keeps the PPS id readable when it lies past the unencrypted bytes (#2180)', async () => {
+        // Intel Quick Sync IDR slice: the PPS id is the first encrypted bit, so a single
+        // encryption leaves it at 0 only half the time.
+        const qsvIdr = [0x65, 0x88, 0x80, 0x40, 0x87, 0x0a, 0x55, 0x66];
+        const plainTextData = [0, 0, 0, 1, ...sps, 0, 0, 0, 1, ...pps, 0, 0, 0, 1, ...qsvIdr];
+        const sliceStart = plainTextData.length - qsvIdr.length;
+        for (let i = 0; i < 16; i++) {
+          const { encryptedData, decryptedData } = await encryptAndDecrypt(
+            new Uint8Array(plainTextData),
+          );
+          expect(parseH264IdrPpsId(encryptedData.subarray(sliceStart))).toBe(0);
+          expect(Array.from(decryptedData)).toEqual(plainTextData);
+        }
+      });
+
       it('logs the frame bytes once when NALU processing fails', async () => {
         vitest.useFakeTimers();
         const warn = vitest.spyOn(workerLogger, 'warn');
