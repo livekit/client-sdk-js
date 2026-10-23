@@ -1,5 +1,31 @@
 # Change Log
 
+## 2.24.0
+
+### Minor Changes
+
+- Split `Room` into `CoreRoom` plus extensions. `createRoom(options, [extensions])` from `livekit-client/core` builds a room with only the extensions an application needs; `e2ee`, `frameMetadata` and `dataStreams` take their options directly. `Room.dispose()` releases a room for good. Video publishing (camera, screen share, simulcast, SVC, backup codecs) is the `video` extension; receiving video stays in core. The new `livekit-client/core` entry (ESM only, experimental) exports `CoreRoom` and the extensions. `simulateParticipants` and the legacy chat messages are extensions too; the core entry does not offer legacy chat. - [#2141](https://github.com/livekit/client-sdk-js/pull/2141) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- If the server disconnects the participant while `room.connect()` is still waiting for the transports (e.g. a `DUPLICATE_IDENTITY` leave), the connection attempt is now cancelled. Previously it kept waiting until `peerConnectionTimeout`, then failed over to another region and rejoined with the same token after the room had already emitted `Disconnected`; `room.disconnect()` could not stop it because the room already looked disconnected. - [#2177](https://github.com/livekit/client-sdk-js/pull/2177) ([@tobelesa](https://github.com/tobelesa))
+
+- Cancel an incoming data stream when its reader stops early (an aborted `signal`, a `break` out of `for await`, or a read error), so the stream is unregistered and later packets for it are dropped instead of buffering until the trailer arrives. A reader can no longer resume a stream after leaving its iteration early. - [#2168](https://github.com/livekit/client-sdk-js/pull/2168) ([@1egoman](https://github.com/1egoman))
+
+- add datatrack data channel to sync state info - [#2159](https://github.com/livekit/client-sdk-js/pull/2159) ([@lukasIO](https://github.com/lukasIO))
+
+- Mark data track unpublished after republish fail - [#2170](https://github.com/livekit/client-sdk-js/pull/2170) ([@1egoman](https://github.com/1egoman))
+
+- Fix an unhandled promise rejection when the signal passed to `dataTracks.getDeferred()` aborts, even though the caller catches the rejected promise. - [#2156](https://github.com/livekit/client-sdk-js/pull/2156) ([@Abhishek-B-R](https://github.com/Abhishek-B-R))
+
+- Fixes an issue where if a data stream runs into a terminal error, any packets delivered afterwards will be treated as if the stream doesn't exist (and not throw a sync error) - [#2167](https://github.com/livekit/client-sdk-js/pull/2167) ([@1egoman](https://github.com/1egoman))
+
+- Fix dynacast never pausing video layers on React Native: save sender encodings before skipping the stats monitor - [#2163](https://github.com/livekit/client-sdk-js/pull/2163) ([@davidliu](https://github.com/davidliu))
+
+- Ignore signal messages received after the WebSocket is closed on React Native - [#2173](https://github.com/livekit/client-sdk-js/pull/2173) ([@davidliu](https://github.com/davidliu))
+
+- If `room.disconnect()` runs during the signal join, the connection attempt now rejects as cancelled instead of with a `TypeError`. A stale connection attempt no longer closes the engine of a newer connection or disconnects the room. - [#2151](https://github.com/livekit/client-sdk-js/pull/2151) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.23.0
 
 ### Minor Changes
