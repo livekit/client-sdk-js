@@ -1728,7 +1728,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.handleParticipantDisconnected(p.identity, p);
     }
 
-    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+    // During the initial connection, connect() follows the restart and reports its outcome.
+    if (
+      this.state !== ConnectionState.Connecting &&
+      this.setAndEmitConnectionState(ConnectionState.Reconnecting)
+    ) {
       this.emit(RoomEvent.Reconnecting);
     }
   };
@@ -1738,6 +1742,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    const initialConnection = this.state === ConnectionState.Connecting;
 
     this.applyJoinResponse(joinResponse);
 
@@ -1753,6 +1758,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
     } catch {
       // reconnection failed, handleDisconnect is being invoked already, just return here
+      return;
+    }
+    if (initialConnection) {
+      // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+      this.bufferedEvents = [];
       return;
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);

@@ -355,6 +355,49 @@ describe('stream state updates', () => {
   });
 });
 
+describe('full reconnect', () => {
+  function restartFrom(state: ConnectionState) {
+    const room = new Room();
+    room.state = state;
+    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue();
+    const events: string[] = [];
+    room
+      .on(RoomEvent.Reconnecting, () => events.push(RoomEvent.Reconnecting))
+      .on(RoomEvent.Reconnected, () => events.push(RoomEvent.Reconnected))
+      .on(RoomEvent.ConnectionStateChanged, (s) => events.push(`state:${s}`));
+
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(
+      EngineEvent.SignalRestarted,
+      new JoinResponse({ participant: { sid: 'PA_local', identity: 'local' } }),
+    );
+    return { room, events };
+  }
+
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('leaves an initial connection to connect() instead of reporting a reconnect', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting);
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('reports a reconnect of an established session', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connected);
+    await flush();
+
+    expect(events).toEqual([
+      `state:${ConnectionState.Reconnecting}`,
+      RoomEvent.Reconnecting,
+      `state:${ConnectionState.Connected}`,
+      RoomEvent.Reconnected,
+    ]);
+    expect(room.state).toBe(ConnectionState.Connected);
+  });
+});
+
 describe('audio context ownership', () => {
   class StubAudioContext {
     state: AudioContextState = 'running';
