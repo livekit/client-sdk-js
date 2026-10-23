@@ -568,6 +568,40 @@ describe('RTCEngine', () => {
 
       internals.dataChannels.lossy.stopThresholdTuning();
     });
+
+    it.each([
+      ['publisher-only', 18, true],
+      ['publisher-only', 17, false],
+      ['publisher-only', undefined, false],
+      ['subscriber-primary', 18, false],
+    ])(
+      'mode %s with server protocol %s creates negotiated channels: %s',
+      (mode, protocol, expected) => {
+        const engine = new RTCEngine(roomOptionDefaults);
+        const pcManager = {
+          mode,
+          createPublisherDataChannel: vi.fn((label: string) =>
+            Object.assign(new FakeDataChannel(), { label }),
+          ),
+        };
+        Object.assign(engine as unknown as Record<string, unknown>, {
+          pcManager,
+          latestJoinResponse: { serverInfo: protocol === undefined ? undefined : { protocol } },
+        });
+        const internals = engine as unknown as {
+          createDataChannels: () => void;
+          dataChannels: {
+            publisherChannelsNegotiated: boolean;
+            lossy: { stopThresholdTuning: () => void };
+          };
+        };
+
+        internals.createDataChannels();
+
+        expect(internals.dataChannels.publisherChannelsNegotiated).toBe(expected);
+        internals.dataChannels.lossy.stopThresholdTuning();
+      },
+    );
   });
 
   describe('handleDataChannelClose', () => {
