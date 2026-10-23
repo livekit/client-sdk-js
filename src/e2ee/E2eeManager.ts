@@ -2,11 +2,11 @@ import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { FrameMetadata } from '../frameMetadata/types';
-import { hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
+import { getPublishFrameMetadata, hasFrameMetadataPublishOptions } from '../frameMetadata/utils';
 import { LogLevel, LoggerNames, getLogger, onWorkerLogLevelChanged, workerLogger } from '../logger';
+import type { CoreRoom } from '../room/CoreRoom';
+import { ConnectionState } from '../room/CoreRoom';
 import type RTCEngine from '../room/RTCEngine';
-import type Room from '../room/Room';
-import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
@@ -49,11 +49,14 @@ import type {
 import { isE2EESupported } from './utils';
 
 export interface BaseE2EEManager {
-  setup(room: Room): void;
+  /** @internal */
+  setup(room: CoreRoom): void;
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
+  /** @internal */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  /** @internal */
   setSifTrailer(trailer: NonSharedUint8Array): void;
   encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
   handleEncryptedData(
@@ -63,6 +66,7 @@ export interface BaseE2EEManager {
     keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+  off<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
   dispose?(): void;
 }
 
@@ -75,7 +79,7 @@ export class E2EEManager
 {
   protected worker: Worker;
 
-  protected room?: Room;
+  protected room?: CoreRoom;
 
   private encryptionEnabled: boolean;
 
@@ -131,7 +135,7 @@ export class E2EEManager
   /**
    * @internal
    */
-  setup(room: Room) {
+  setup(room: CoreRoom) {
     if (!isE2EESupported()) {
       throw new DeviceUnsupportedError(
         'tried to setup end-to-end encryption on an unsupported browser',
@@ -374,7 +378,7 @@ export class E2EEManager
     });
   }
 
-  private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
+  private setupEventListeners(room: CoreRoom, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackPublished, (pub, participant) =>
       this.setParticipantCryptorEnabledForPublication(pub, participant.identity),
     );
@@ -620,13 +624,15 @@ export class E2EEManager
       if (!sender) this.log.warn('early return because sender is not ready');
       return;
     }
+    const isVideo = isVideoTrack(track);
+    // Safari exposes no per-frame codec info until trackInfo arrives. Seed only h264/h265:
+    // a wrong vp8 seed would skip the NALU path, a wrong NALU seed only costs a logged fallback.
+    const publishedCodec = isVideo ? track.publishOptions?.videoCodec : undefined;
     this.handleSender(
       sender,
       track.mediaStreamID,
-      undefined,
-      isVideoTrack(track)
-        ? (track.publishOptions?.frameMetadata ?? track.publishOptions?.packetTrailer)
-        : undefined,
+      publishedCodec === 'h264' || publishedCodec === 'h265' ? publishedCodec : undefined,
+      isVideo ? getPublishFrameMetadata(track.publishOptions) : undefined,
     );
   }
 

@@ -26,7 +26,7 @@ import {
   type SfuPublishResponseResult,
 } from './types';
 
-const log = getLogger(LoggerNames.DataTracks);
+const log = /* @__PURE__ */ getLogger(LoggerNames.DataTracks);
 
 export type PendingDescriptor = {
   type: 'pending';
@@ -343,7 +343,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
           return;
         }
         if (result.type === 'error') {
-          log.warn(`Republish failed for track ${handle}`);
+          log.warn(`Republish failed for track ${handle}: ${result.error}`);
+          descriptor.publishState = 'unpublished';
           return;
         }
 
@@ -380,6 +381,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
    *
    * This must be sent after a full reconnect in order for existing publications
    * to be recognized by the SFU. Each republished track will be assigned a new SID.
+   * Tracks the SFU rejects are unpublished.
    * @internal
    */
   sfuWillRepublishTracks() {

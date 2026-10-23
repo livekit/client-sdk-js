@@ -13,9 +13,7 @@ export interface WebAudioSettings {
   audioContext: AudioContext;
 }
 
-/**
- * @internal
- */
+/** The resolved room options. `RoomOptions` is the partial form apps pass in. */
 export interface InternalRoomOptions {
   /**
    * AdaptiveStream lets LiveKit automatically manage quality of subscribed
@@ -151,9 +149,7 @@ export interface RoomDataStreamOptions {
  */
 export interface RoomOptions extends Partial<InternalRoomOptions> {}
 
-/**
- * @internal
- */
+/** The resolved connect options. `RoomConnectOptions` is the partial form apps pass in. */
 export interface InternalRoomConnectOptions {
   /** autosubscribe to room tracks after joining, defaults to true */
   autoSubscribe: boolean;
@@ -172,6 +168,16 @@ export interface InternalRoomConnectOptions {
    */
   disableIceLite: boolean;
 
+  /**
+   * whether the SFU may pause subscribed video tracks when this participant's downstream
+   * connection is congested, so that other tracks can continue to stream smoothly.
+   * paused tracks resume automatically when conditions allow, and `RoomEvent.TrackStreamStateChanged`
+   * fires on each transition.
+   * when left undefined, the server's default applies (the project setting on LiveKit Cloud,
+   * or `rtc.congestion_control.allow_pause` when self-hosting)
+   */
+  subscriberAllowPause?: boolean;
+
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
 
@@ -183,3 +189,13 @@ export interface InternalRoomConnectOptions {
  * Options for Room.connect()
  */
 export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {}
+
+/**
+ * The options of a room from `createRoom()`: `RoomOptions` without the slices that the `e2ee`,
+ * `frameMetadata` and `dataStreams` extensions take directly.
+ * @experimental
+ */
+export type CoreRoomOptions = Omit<
+  RoomOptions,
+  'e2ee' | 'encryption' | 'frameMetadata' | 'packetTrailer' | 'dataStream'
+>;

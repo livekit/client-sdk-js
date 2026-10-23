@@ -1,6 +1,9 @@
 import {
   ClientInfo_Capability,
+  DisconnectReason,
   JoinResponse,
+  LeaveRequest,
+  LeaveRequest_Action,
   StreamState as ProtoStreamState,
   StreamStateUpdate,
   SubscriptionError,
@@ -11,8 +14,12 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
-import Room, { ConnectionState } from './Room';
+import { BackOffStrategy } from './BackOffStrategy';
+import RTCEngine from './RTCEngine';
+import { RegionUrlProvider } from './RegionUrlProvider';
+import { ConnectionState, Room } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
@@ -60,7 +67,7 @@ describe('Room signaling options', () => {
 
     (
       room as unknown as {
-        e2eeManager: unknown;
+        slots: { e2eeManager: unknown };
         connectSignal: (
           url: string,
           token: string,
@@ -70,7 +77,7 @@ describe('Room signaling options', () => {
           abortController: AbortController,
         ) => Promise<JoinResponse>;
       }
-    ).e2eeManager = {};
+    ).slots.e2eeManager = {};
 
     await (
       room as unknown as {
@@ -388,5 +395,325 @@ describe('full reconnect', () => {
       RoomEvent.Reconnected,
     ]);
     expect(room.state).toBe(ConnectionState.Connected);
+  });
+});
+
+describe('audio context ownership', () => {
+  class StubAudioContext {
+    state: AudioContextState = 'running';
+
+    closed = false;
+
+    async close() {
+      this.closed = true;
+      this.state = 'closed';
+    }
+
+    async resume() {
+      this.state = 'running';
+    }
+  }
+
+  const created: StubAudioContext[] = [];
+
+  function stubAudioContext() {
+    created.length = 0;
+    vi.stubGlobal(
+      'AudioContext',
+      class extends StubAudioContext {
+        constructor() {
+          super();
+          created.push(this);
+        }
+      },
+    );
+  }
+
+  /** `acquireAudioContext` and `releaseAudioContext` are private */
+  function internals(room: Room) {
+    return room as unknown as {
+      acquireAudioContext: () => Promise<void>;
+      releaseAudioContext: (retained?: unknown[]) => Promise<void>;
+      audioContext?: StubAudioContext;
+      ownsAudioContext: boolean;
+      localParticipant: { setAudioContext: (ctx: AudioContext | undefined) => Promise<void> };
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('closes a context it created for a webAudioMix object that supplies none', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+
+    await room.acquireAudioContext();
+    expect(created).toHaveLength(1);
+    expect(room.ownsAudioContext).toBe(true);
+    expect(room.audioContext).toBe(created[0]);
+
+    await room.releaseAudioContext();
+    expect(created[0].closed).toBe(true);
+    expect(room.audioContext).toBeUndefined();
+  });
+
+  it('leaves a supplied context open', async () => {
+    stubAudioContext();
+    const provided = new StubAudioContext();
+    const room = internals(
+      new Room({ webAudioMix: { audioContext: provided as unknown as AudioContext } }),
+    );
+
+    await room.acquireAudioContext();
+    expect(room.ownsAudioContext).toBe(false);
+    expect(created).toHaveLength(0);
+
+    await room.releaseAudioContext();
+    expect(provided.closed).toBe(false);
+  });
+
+  it('closes the context even when a retained track fails to detach', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+
+    const retained = { setAudioContext: () => Promise.reject(new Error('detach failed')) };
+    await room.releaseAudioContext([retained]);
+
+    expect(created[0].closed).toBe(true);
+  });
+
+  it('does not build a context for an acquire queued behind a release', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+    expect(created).toHaveLength(1);
+
+    // `startAudio` reads `audioContextReleased` before it waits on the mutex, so its acquire can
+    // already be queued behind a disconnect by the time the flag is set
+    const released = room.releaseAudioContext();
+    const acquired = room.acquireAudioContext();
+    await Promise.all([released, acquired]);
+
+    expect(created).toHaveLength(1);
+    expect(created[0].closed).toBe(true);
+    expect(room.audioContext).toBeUndefined();
+  });
+
+  it('closes the outgoing context even when a participant fails to move off it', async () => {
+    stubAudioContext();
+    const room = internals(new Room({ webAudioMix: {} }));
+    await room.acquireAudioContext();
+
+    vi.spyOn(room.localParticipant, 'setAudioContext').mockRejectedValue(new Error('move failed'));
+    await room.releaseAudioContext();
+
+    expect(created[0].closed).toBe(true);
+  });
+});
+
+describe('connection attempt racing disconnect (#2150)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  type AttemptConnection = (
+    url: string,
+    token: string,
+    opts: undefined,
+    abortController: AbortController,
+  ) => Promise<void>;
+
+  /** Starts a connection attempt whose signal join stays pending until `failJoin` is called. */
+  async function startAttempt(room: Room) {
+    let failJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join').mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+        }),
+    );
+    const engine = room.engine;
+    const abortController = new AbortController();
+    (room as unknown as { abortController: AbortController }).abortController = abortController;
+    room.state = ConnectionState.Connecting;
+    const attempt = (room as unknown as { attemptConnection: AttemptConnection }).attemptConnection(
+      'ws://localhost:7880',
+      'token',
+      undefined,
+      abortController,
+    );
+    await vi.waitFor(() => expect(failJoin).toBeDefined());
+    return { attempt, engine, failJoin };
+  }
+
+  it('rejects as cancelled when disconnect() clears the engine mid-join', async () => {
+    const room = new Room();
+    const { attempt, engine, failJoin } = await startAttempt(room);
+    const close = vi.spyOn(engine, 'close');
+
+    await room.disconnect();
+    expect(room.engine).toBeUndefined();
+    failJoin();
+
+    await expect(attempt).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it('leaves a newer connect() alone when a stale join fails', async () => {
+    // connect() bails out unless the runtime looks like it supports WebRTC
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTrack() {}
+      },
+    );
+    let failStaleJoin!: () => void;
+    vi.spyOn(RTCEngine.prototype, 'join')
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failStaleJoin = () => reject(ConnectionError.cancelled('Connection aborted'));
+          }),
+      )
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const room = new Room();
+
+    const stale = room.connect('ws://localhost:7880', 'token');
+    await vi.waitFor(() => expect(failStaleJoin).toBeDefined());
+    await room.disconnect();
+    await expect(stale).rejects.toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+
+    room.connect('ws://localhost:7880', 'token').catch(() => {});
+    await vi.waitFor(() => expect(RTCEngine.prototype.join).toHaveBeenCalledTimes(2));
+    const newerEngine = room.engine;
+    const close = vi.spyOn(newerEngine, 'close');
+    const disconnected = vi.fn();
+    room.on(RoomEvent.Disconnected, disconnected);
+
+    failStaleJoin();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(room.state).toBe(ConnectionState.Connecting);
+    expect(room.engine).toBe(newerEngine);
+    expect(close).not.toHaveBeenCalled();
+    expect(disconnected).not.toHaveBeenCalled();
+  });
+});
+
+describe('server leave during connect()', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    BackOffStrategy.getInstance().resetAll();
+  });
+
+  /**
+   * Starts `connect()` against a LiveKit Cloud URL whose signal join succeeds but whose transports
+   * never connect: the attempt only ends through its abort signal, or once the test lets the peer
+   * connection timeout elapse (after which every transport wait times out right away).
+   */
+  async function connectUntilTransportWait() {
+    // connect() bails out unless the runtime looks like it supports WebRTC
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTrack() {}
+      },
+    );
+    vi.spyOn(RegionUrlProvider.prototype, 'fetchRegionSettings').mockReturnValue(
+      new Promise(() => {}),
+    );
+    const getNextBestRegionUrl = vi
+      .spyOn(RegionUrlProvider.prototype, 'getNextBestRegionUrl')
+      .mockResolvedValueOnce('wss://test-project-other-region.livekit.cloud')
+      .mockResolvedValue(null);
+    const join = vi.spyOn(RTCEngine.prototype, 'join').mockImplementation(async function (
+      this: RTCEngine,
+    ) {
+      // the real join wires the signal callbacks, among them the server leave handler
+      (this as unknown as { setupSignalClientCallbacks: () => void }).setupSignalClientCallbacks();
+      return {
+        joinResponse: new JoinResponse({
+          room: { name: 'test-room', sid: 'room-sid' },
+          participant: { sid: 'participant-sid', identity: 'test-user' },
+        }),
+        serverInfo: { version: '1.0.0' },
+      };
+    });
+    let timedOut = false;
+    const pendingWaits: Array<() => void> = [];
+    vi.spyOn(RTCEngine.prototype, 'waitForPCInitialConnection').mockImplementation(
+      (_timeout, abortController) =>
+        new Promise<void>((_, reject) => {
+          const timeOut = () =>
+            reject(ConnectionError.internal('could not establish pc connection'));
+          if (timedOut) {
+            timeOut();
+            return;
+          }
+          abortController?.signal.addEventListener('abort', () =>
+            reject(ConnectionError.cancelled('room connection has been cancelled')),
+          );
+          pendingWaits.push(timeOut);
+        }),
+    );
+
+    const room = new Room();
+    const outcome = room.connect('wss://test-project.livekit.cloud', 'token').then(
+      () => 'connected',
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() => expect(pendingWaits).toHaveLength(1));
+
+    const elapsePeerConnectionTimeout = () => {
+      timedOut = true;
+      pendingWaits.forEach((timeOut) => timeOut());
+    };
+    return { room, outcome, join, getNextBestRegionUrl, elapsePeerConnectionTimeout };
+  }
+
+  /** What the signal client does with a server `leave` (another session took this identity). */
+  function receiveDuplicateIdentityLeave(room: Room) {
+    room.engine.client.onLeave?.(
+      new LeaveRequest({
+        action: LeaveRequest_Action.DISCONNECT,
+        reason: DisconnectReason.DUPLICATE_IDENTITY,
+      }),
+    );
+  }
+
+  it('cancels the attempt instead of rejoining another region with the same token', async () => {
+    const { room, outcome, join, getNextBestRegionUrl, elapsePeerConnectionTimeout } =
+      await connectUntilTransportWait();
+    const connected = vi.fn();
+    room.on(RoomEvent.Connected, connected);
+
+    receiveDuplicateIdentityLeave(room);
+    expect(room.state).toBe(ConnectionState.Disconnected);
+    elapsePeerConnectionTimeout();
+
+    const error = await outcome;
+    expect(join).toHaveBeenCalledTimes(1);
+    expect(getNextBestRegionUrl).not.toHaveBeenCalled();
+    expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+    expect(room.state).toBe(ConnectionState.Disconnected);
+    expect(connected).not.toHaveBeenCalled();
+  });
+
+  it('leaves no attempt running when disconnect() follows the leave', async () => {
+    const { room, outcome, join, elapsePeerConnectionTimeout } = await connectUntilTransportWait();
+
+    receiveDuplicateIdentityLeave(room);
+    // the room already reports Disconnected, so this returns early
+    await room.disconnect();
+    elapsePeerConnectionTimeout();
+
+    const error = await outcome;
+    expect(join).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
   });
 });

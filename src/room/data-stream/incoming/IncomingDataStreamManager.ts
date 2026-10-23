@@ -87,6 +87,17 @@ export default class IncomingDataStreamManager {
   }
 
   clearControllers() {
+    // Error any in flight streams so readers do not wait forever for chunks that can no longer arrive.
+    const abnormalEndError = new DataStreamError(
+      'Room disconnected in the middle of receiving data',
+      DataStreamErrorReason.AbnormalEnd,
+    );
+    for (const { controller } of this.byteStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
+    for (const { controller } of this.textStreamControllers.values()) {
+      controller.error(abnormalEndError);
+    }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
     this.bufferedPackets = [];
@@ -235,6 +246,16 @@ export default class IncomingDataStreamManager {
               sendingParticipantIdentity: participantIdentity,
             });
           },
+          cancel: () => {
+            // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
+            // was cancelled, which cancels this source stream. Unregister it so later chunks and the
+            // trailer for this stream are dropped rather than hitting a closed controller.
+            if (
+              this.byteStreamControllers.get(streamHeader.streamId)?.controller === streamController
+            ) {
+              this.byteStreamControllers.delete(streamHeader.streamId);
+            }
+          },
         });
         streamHandlerCallback(
           new ByteStreamReader(
@@ -337,6 +358,16 @@ export default class IncomingDataStreamManager {
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
             });
+          },
+          cancel: () => {
+            // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
+            // was cancelled, which cancels this source stream. Unregister it so later chunks and the
+            // trailer for this stream are dropped rather than hitting a closed controller.
+            if (
+              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
+            ) {
+              this.textStreamControllers.delete(streamHeader.streamId);
+            }
           },
         });
         streamHandlerCallback(

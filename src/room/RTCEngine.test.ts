@@ -1,13 +1,17 @@
 import {
   DataPacket,
   DataPacket_Kind,
+  JoinResponse,
   ConnectionQuality as ProtoConnectionQuality,
   UserPacket,
 } from '@livekit/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { roomOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -16,6 +20,8 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
+import CriticalTimers from './timers';
+import { Future } from './utils';
 
 describe('RTCEngine', () => {
   const originalRTCRtpSender = window.RTCRtpSender;
@@ -90,10 +96,8 @@ describe('RTCEngine', () => {
   it('enables encoded insertable streams when a packet trailer worker is configured', () => {
     stubInsertableStreamsSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
 
     expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBe(true);
   });
@@ -102,10 +106,8 @@ describe('RTCEngine', () => {
     stubInsertableStreamsSupport();
     stubScriptTransformSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
 
     expect(makeRTCConfiguration(engine).encodedInsertableStreams).toBeUndefined();
   });
@@ -151,10 +153,8 @@ describe('RTCEngine', () => {
   it('does not create sender passthrough streams for packet trailers when script transforms are supported', () => {
     stubScriptTransformSupport();
 
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker: {} as Worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker: {} as Worker };
     const createEncodedStreams = vi.fn();
     const sender = {
       createEncodedStreams,
@@ -169,10 +169,8 @@ describe('RTCEngine', () => {
     stubInsertableStreamsSupport();
 
     const worker = { postMessage: vi.fn() } as unknown as Worker;
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker };
     const readable = {} as ReadableStream;
     const writable = {} as WritableStream;
     const createEncodedStreams = vi.fn(() => ({ readable, writable }));
@@ -215,10 +213,8 @@ describe('RTCEngine', () => {
     });
 
     const worker = {} as Worker;
-    const engine = new RTCEngine({
-      ...roomOptionDefaults,
-      packetTrailer: { worker },
-    });
+    const engine = new RTCEngine(roomOptionDefaults);
+    engine.frameMetadataOptions = { worker };
     const createEncodedStreams = vi.fn();
     const sender = {
       createEncodedStreams,
@@ -315,7 +311,13 @@ describe('RTCEngine', () => {
 
     bufferedAmountLowThreshold = 64 * 1024;
 
+    readyState: RTCDataChannelState = 'open';
+
     send = vi.fn();
+
+    close = vi.fn(() => {
+      this.readyState = 'closing';
+    });
   }
 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -542,6 +544,37 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('createDataChannels', () => {
+    it('makes the next sender wait for replacement channels to open', () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const pcManager = {
+        createPublisherDataChannel: vi.fn((label: string) =>
+          Object.assign(new FakeDataChannel(), { label }),
+        ),
+      };
+      const connected = Promise.resolve();
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        pcManager,
+        publisherConnectionPromise: connected,
+      });
+      const internals = engine as unknown as {
+        createDataChannels: () => void;
+        publisherConnectionPromise?: Promise<void>;
+        dataChannels: { lossy: { stopThresholdTuning: () => void } };
+      };
+
+      // First creation (nothing to replace) keeps the memoized readiness check.
+      internals.createDataChannels();
+      expect(internals.publisherConnectionPromise).toBe(connected);
+
+      // Recreation (the Safari null-id resume path) swaps in channels that start out connecting.
+      internals.createDataChannels();
+      expect(internals.publisherConnectionPromise).toBeUndefined();
+
+      internals.dataChannels.lossy.stopThresholdTuning();
+    });
+  });
+
   describe('handleDataChannelClose', () => {
     function stubCloseEnv(
       engine: RTCEngine,
@@ -706,6 +739,123 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('closing during a full reconnect', () => {
+    interface ReconnectInternals {
+      _isClosed: boolean;
+      url: string;
+      token: string;
+      signalOpts: SignalOptions;
+      attemptReconnect: () => Promise<void>;
+      configure: () => Promise<void>;
+      waitForPCReconnected: () => Promise<void>;
+      reconnectAbortController?: AbortController;
+    }
+
+    function primeEngine() {
+      const engine = new RTCEngine({ ...roomOptionDefaults, singlePeerConnection: false });
+      const internals = engine as unknown as ReconnectInternals;
+      internals._isClosed = false;
+      internals.url = 'wss://test.livekit.io';
+      internals.token = 'test-token';
+      internals.signalOpts = { autoSubscribe: true, maxRetries: 1, websocketTimeout: 15_000 };
+      engine.fullReconnectOnNext = true;
+      const configure = vi.spyOn(internals, 'configure').mockResolvedValue();
+      vi.spyOn(internals, 'waitForPCReconnected').mockResolvedValue();
+      const join = vi
+        .spyOn(engine.client, 'join')
+        .mockResolvedValue(new JoinResponse({ subscriberPrimary: true }));
+      return { engine, internals, configure, join };
+    }
+
+    it('does not join after close completes while reconnect cleanup is pending', async () => {
+      const { engine, internals, join } = primeEngine();
+      const cleanupStarted = new Future<void, Error>();
+      const finishCleanup = new Future<void, Error>();
+      vi.spyOn(engine, 'cleanupPeerConnections').mockImplementationOnce(async () => {
+        cleanupStarted.resolve?.();
+        await finishCleanup.promise;
+      });
+
+      const reconnect = internals.attemptReconnect();
+      await cleanupStarted.promise;
+      const controller = internals.reconnectAbortController;
+      expect(controller).toBeDefined();
+      await engine.close();
+      expect(controller?.signal.aborted).toBe(true);
+      expect(internals.reconnectAbortController).toBeUndefined();
+      finishCleanup.resolve?.();
+      await reconnect;
+
+      expect(internals.reconnectAbortController).toBeUndefined();
+      expect(join).not.toHaveBeenCalled();
+      expect(engine.isClosed).toBe(true);
+    });
+
+    it('does not join another region after close completes during region selection', async () => {
+      const { engine, internals, join } = primeEngine();
+      join.mockRejectedValue(ConnectionError.internal('signal connection failed'));
+      const selectingRegion = new Future<void, Error>();
+      const nextRegion = new Future<string | null, Error>();
+      const getNextUrl = vi.fn(async () => {
+        selectingRegion.resolve?.();
+        return nextRegion.promise;
+      });
+      engine.setRegionStrategy({ getNextUrl, resetAttempts: () => {} });
+
+      const reconnect = internals.attemptReconnect();
+      await selectingRegion.promise;
+      await engine.close();
+      nextRegion.resolve?.('wss://another-region.livekit.io');
+      // A second selection must terminate even on the unfixed implementation.
+      getNextUrl.mockResolvedValue(null);
+      await reconnect;
+
+      expect(join).toHaveBeenCalledTimes(1);
+      expect(getNextUrl).toHaveBeenCalledTimes(1);
+      expect(engine.isClosed).toBe(true);
+    });
+
+    it('does not reopen the engine when a signal join resolves after close', async () => {
+      const { engine, internals, configure, join } = primeEngine();
+      const joining = new Future<void, Error>();
+      const joinResponse = new Future<JoinResponse, Error>();
+      join.mockImplementationOnce(async () => {
+        joining.resolve?.();
+        return joinResponse.promise;
+      });
+
+      const reconnect = internals.attemptReconnect();
+      await joining.promise;
+      await engine.close();
+      joinResponse.resolve?.(new JoinResponse({ subscriberPrimary: true }));
+      await reconnect;
+
+      expect(engine.isClosed).toBe(true);
+      expect(configure).not.toHaveBeenCalled();
+      expect(join.mock.calls[0][3]?.aborted).toBe(true);
+    });
+
+    it('still completes a full reconnect while the engine is active', async () => {
+      const { engine, internals, join } = primeEngine();
+      vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+      vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(
+        SignalConnectionState.CONNECTED,
+      );
+      const restarted = vi.fn();
+      engine.on(EngineEvent.Restarted, restarted);
+
+      try {
+        await internals.attemptReconnect();
+
+        expect(join).toHaveBeenCalledTimes(1);
+        expect(restarted).toHaveBeenCalledTimes(1);
+        expect(engine.isClosed).toBe(false);
+      } finally {
+        await engine.close();
+      }
+    });
+  });
+
   describe('reconnect requested mid-attempt', () => {
     // A full reconnect requested while a resume is already in flight (e.g. a server
     // RECONNECT leave racing the resume) sets `fullReconnectOnNext` mid-attempt. A
@@ -716,7 +866,7 @@ describe('RTCEngine', () => {
       clientConfiguration: unknown;
       pcManager: unknown;
       resumeConnection: (reason?: number) => Promise<void>;
-      restartConnection: (regionUrl?: string) => Promise<void>;
+      restartConnection: (abortSignal: AbortSignal, regionUrl?: string) => Promise<void>;
       clearPendingReconnect: () => void;
       handleDisconnect: (connection: string, reason?: number) => void;
       attemptReconnect: (reason?: number) => Promise<void>;
@@ -1148,6 +1298,78 @@ describe('RTCEngine', () => {
       await expect(afterRestart).resolves.toBeUndefined();
       expect(controllers[2].signal.aborted).toBe(true);
       expect(pendingAborts(engine).size).toBe(0);
+    });
+  });
+
+  describe('server-requested reconnect delay', () => {
+    // A RECONNECT or RESUME leave from the server skips any remaining backoff. It must still go
+    // through the reconnect policy, so that clients told to reconnect together spread out.
+    interface DisconnectInternals {
+      _isClosed: boolean;
+      reconnectAttempts: number;
+      handleDisconnect: (connection: string, reason?: number) => void;
+    }
+
+    function scheduledDelay(
+      nextRetryDelayInMs: ReconnectPolicy['nextRetryDelayInMs'],
+      attempts = 0,
+    ) {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: { nextRetryDelayInMs },
+      });
+      const internals = engine as unknown as DisconnectInternals;
+      internals._isClosed = false;
+      internals.reconnectAttempts = attempts;
+      const setTimeoutSpy = vi
+        .spyOn(CriticalTimers, 'setTimeout')
+        .mockReturnValue(0 as unknown as ReturnType<typeof setTimeout>);
+      internals.handleDisconnect('leave-reconnect');
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+      return setTimeoutSpy.mock.calls[0][1];
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('uses the first retry delay of the policy instead of reconnecting immediately', () => {
+      const nextRetryDelayInMs = vi.fn((context: ReconnectContext) =>
+        context.retryCount === 0 ? 321 : 5000,
+      );
+      expect(scheduledDelay(nextRetryDelayInMs)).toBe(321);
+    });
+
+    it('skips the remaining backoff when the request arrives during a later retry', () => {
+      const nextRetryDelayInMs = vi.fn((context: ReconnectContext) =>
+        context.retryCount === 0 ? 321 : 5000,
+      );
+      expect(scheduledDelay(nextRetryDelayInMs, 3)).toBe(321);
+    });
+
+    it('gives up when the policy stops on the first retry delay', () => {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: {
+          nextRetryDelayInMs: (context: ReconnectContext) =>
+            context.retryCount === 0 ? null : 5000,
+        },
+      });
+      const internals = engine as unknown as DisconnectInternals;
+      internals._isClosed = false;
+      internals.reconnectAttempts = 3;
+      const setTimeoutSpy = vi.spyOn(CriticalTimers, 'setTimeout');
+      const disconnected = vi.fn();
+      engine.on(EngineEvent.Disconnected, disconnected);
+      internals.handleDisconnect('leave-reconnect');
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      expect(disconnected).toHaveBeenCalledTimes(1);
+    });
+
+    it('spreads out clients that use the default policy', () => {
+      const defaultPolicy = new DefaultReconnectPolicy();
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      expect(scheduledDelay((context) => defaultPolicy.nextRetryDelayInMs(context))).toBe(250);
     });
   });
 });

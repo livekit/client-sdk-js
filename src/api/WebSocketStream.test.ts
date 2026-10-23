@@ -407,6 +407,17 @@ describe('WebSocketStream', () => {
       wsStream.close();
       expect(closeSpy).toHaveBeenCalledWith(undefined, undefined);
     });
+
+    it('truncates a reason longer than WebSocket.close accepts', () => {
+      const wsStream = new WebSocketStream('wss://test.example.com');
+
+      const closeSpy = vi.spyOn(mockWebSocket, 'close');
+
+      // 'é' is two UTF-8 bytes, so the 123-byte limit falls in the middle of a character
+      wsStream.close({ closeCode: 1000, reason: 'é'.repeat(100) });
+
+      expect(closeSpy).toHaveBeenCalledWith(1000, 'é'.repeat(61));
+    });
   });
 
   describe('AbortSignal integration', () => {

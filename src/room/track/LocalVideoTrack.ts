@@ -109,14 +109,16 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   /* @internal */
   startMonitor(signalClient: SignalClient) {
     this.signalClient = signalClient;
-    if (!isWeb()) {
-      return;
-    }
+
     // save original encodings
     // TODO : merge simulcast tracks stats
     const params = this.sender?.getParameters();
     if (params) {
       this.encodings = params.encodings;
+    }
+
+    if (!isWeb()) {
+      return;
     }
 
     if (this.monitorInterval) {
@@ -401,6 +403,13 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await sender.setParameters(params);
   }
 
+  /**
+   * Sets a processor on this track, and wires its processed track into the simulcast codecs.
+   *
+   * The processor is destroyed when the track is stopped, which unpublishing and disconnecting
+   * both do by default, so it has to be set again after reconnecting. See {@link TrackProcessor}
+   * for the full lifecycle.
+   */
   async setProcessor(
     processor: TrackProcessor<Track.Kind.Video>,
     showProcessedStreamLocally = true,

@@ -25,7 +25,7 @@ import type {
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import { ErrorRateLimiter } from './ErrorRateLimiter';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
-import { processNALUsForEncryption } from './naluUtils';
+import { normalizeAnnexBStartCodes, processNALUsForEncryption } from './naluUtils';
 import { identifySifPayload } from './sifPayload';
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
@@ -490,7 +490,16 @@ export class FrameCryptor extends BaseFrameCryptor {
       let frameInfo = this.getUnencryptedBytes(encodedFrame);
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
+      let frameHeader: NonSharedUint8Array = new Uint8Array(
+        encodedFrame.data,
+        0,
+        frameInfo.unencryptedBytes,
+      );
+      if (frameInfo.requiresNALUProcessing) {
+        // The receiver's depacketizer rebuilds NALUs with 4-byte start codes, so authenticate (and
+        // send) the header in that form or decryption fails for encoders emitting 3-byte ones.
+        frameHeader = normalizeAnnexBStartCodes(frameHeader);
+      }
 
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
@@ -510,7 +519,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           {
             name: ENCRYPTION_ALGORITHM,
             iv,
-            additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+            additionalData: frameHeader,
           },
           encryptionKey,
           new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
@@ -906,7 +915,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         };
       }
     } catch (e) {
-      this.logNALUFallbackOnce(fallbackKey, payloadType, e);
+      this.logNALUFallbackOnce(fallbackKey, frame, payloadType, detectedCodec, e);
     }
 
     // Fallback to VP8 handling
@@ -919,7 +928,9 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private logNALUFallbackOnce(
     fallbackKey: string,
+    frame: RTCEncodedVideoFrame,
     payloadType: number | undefined,
+    detectedCodec: VideoCodec | undefined,
     error: unknown,
   ) {
     if (this.loggedNALUFallbacks.has(fallbackKey)) {
@@ -929,6 +940,12 @@ export class FrameCryptor extends BaseFrameCryptor {
     workerLogger.warn('NALU processing failed, falling back to VP8 handling', {
       error,
       payloadType,
+      detectedCodec,
+      frameType: frame.type,
+      byteLength: frame.data.byteLength,
+      firstBytes: Array.from(new Uint8Array(frame.data, 0, Math.min(16, frame.data.byteLength)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join(' '),
       ...this.logContext,
     });
   }

@@ -26,7 +26,7 @@ import {
   type EventTrackUnavailable,
 } from './types';
 
-const log = getLogger(LoggerNames.DataTracks);
+const log = /* @__PURE__ */ getLogger(LoggerNames.DataTracks);
 
 export type DataTrackIncomingManagerCallbacks = {
   /** Request sent to the SFU to update the subscription for a data track. */
