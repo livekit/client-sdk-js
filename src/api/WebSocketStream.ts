@@ -67,7 +67,12 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
         resolve({
           readable: new ReadableStream<T>({
             start(controller) {
-              ws.onmessage = ({ data }) => controller.enqueue(data);
+              ws.onmessage = ({ data }) => {
+                // workaround for RN behavior, browsers drop these messages already
+                if (ws.readyState === WebSocket.OPEN) {
+                  controller.enqueue(data);
+                }
+              };
               ws.onerror = (e) =>
                 controller.error(ConnectionError.websocket(getErrorDescription(e, 'websocket')));
               ws.onclose = (ev) => {
