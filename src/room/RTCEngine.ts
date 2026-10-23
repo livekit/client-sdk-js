@@ -1559,11 +1559,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
     let onRestarted!: () => void;
     let onClosing!: () => void;
+    let onAbort!: () => void;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     const engineOutcome = new Promise<void>((resolve, reject) => {
       onRestarted = resolve;
       onClosing = () => reject(ConnectionError.internal('could not establish pc connection'));
+      onAbort = () => reject(ConnectionError.cancelled('room connection has been cancelled'));
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Closing, onClosing);
+      // The transport wait below enforces these too, but not once it has resolved.
+      abortController?.signal.addEventListener('abort', onAbort);
+      deadline = CriticalTimers.setTimeout(onClosing, timeout ?? this.peerConnectionTimeout);
     });
     this.once(EngineEvent.Restarting, onRestarting);
     try {
@@ -1576,6 +1582,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await engineOutcome;
       }
     } finally {
+      CriticalTimers.clearTimeout(deadline);
+      abortController?.signal.removeEventListener('abort', onAbort);
       this.off(EngineEvent.Restarting, onRestarting);
       this.off(EngineEvent.Restarted, onRestarted);
       this.off(EngineEvent.Closing, onClosing);

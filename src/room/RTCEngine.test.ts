@@ -834,6 +834,19 @@ describe('RTCEngine', () => {
       return engine;
     }
 
+    // Original transports that only connect when the test says so, and enforce no timeout or abort.
+    function primeEngineWithConnectableTransports() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      let connect!: () => void;
+      (engine as unknown as { pcManager: unknown }).pcManager = {
+        ensurePCTransportConnection: () =>
+          new Promise<void>((resolve) => {
+            connect = resolve;
+          }),
+      };
+      return { engine, connectOriginalTransports: () => connect() };
+    }
+
     beforeEach(() => {
       vi.useFakeTimers();
     });
@@ -863,14 +876,7 @@ describe('RTCEngine', () => {
     });
 
     it('follows the full reconnect when the original transports connect after it began', async () => {
-      const engine = primeEngine();
-      let connectOriginalTransports!: () => void;
-      (engine as unknown as { pcManager: unknown }).pcManager = {
-        ensurePCTransportConnection: () =>
-          new Promise<void>((resolve) => {
-            connectOriginalTransports = resolve;
-          }),
-      };
+      const { engine, connectOriginalTransports } = primeEngineWithConnectableTransports();
       const wait = engine.waitForPCInitialConnection(15_000);
       const failed = expect(wait).rejects.toMatchObject({
         reason: ConnectionErrorReason.InternalError,
@@ -882,6 +888,36 @@ describe('RTCEngine', () => {
       engine.emit(EngineEvent.Closing);
 
       await failed;
+    });
+
+    it('rejects when the timeout runs out after the original transports connected', async () => {
+      const { engine, connectOriginalTransports } = primeEngineWithConnectableTransports();
+      const wait = engine.waitForPCInitialConnection(15_000);
+      const timedOut = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.InternalError,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      connectOriginalTransports();
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await timedOut;
+    });
+
+    it('rejects as cancelled when aborted after the original transports connected', async () => {
+      const { engine, connectOriginalTransports } = primeEngineWithConnectableTransports();
+      const abortController = new AbortController();
+      const wait = engine.waitForPCInitialConnection(15_000, abortController);
+      const cancelled = expect(wait).rejects.toMatchObject({
+        reason: ConnectionErrorReason.Cancelled,
+      });
+
+      engine.emit(EngineEvent.Restarting);
+      connectOriginalTransports();
+      await vi.advanceTimersByTimeAsync(0);
+      abortController.abort();
+
+      await cancelled;
     });
 
     it('rejects when the timeout runs out during the full reconnect', async () => {
