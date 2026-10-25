@@ -533,9 +533,9 @@ export class FrameCryptor extends BaseFrameCryptor {
         const ppsId = frameInfo.requiresNALUProcessing
           ? parseH264IdrPpsId(new Uint8Array(encodedFrame.data, sliceStart))
           : null;
-        let newDataWithoutHeader: NonSharedUint8Array;
+        let cipherText: ArrayBuffer;
         for (let attempt = 1; ; attempt++) {
-          const cipherText = await crypto.subtle.encrypt(
+          cipherText = await crypto.subtle.encrypt(
             {
               name: ENCRYPTION_ALGORITHM,
               iv,
@@ -545,24 +545,16 @@ export class FrameCryptor extends BaseFrameCryptor {
             new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
           );
 
-          newDataWithoutHeader = new Uint8Array(
-            cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
-          );
-          newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
-          newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
-          newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
-
-          if (frameInfo.requiresNALUProcessing) {
-            newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
-          }
-
           if (ppsId === null || attempt === MAX_PPS_ID_ENCRYPT_ATTEMPTS) {
             break;
           }
-          // The slice as the receiver sees it: its 2 unencrypted bytes, then the escaped ciphertext.
-          const sentSlice = new Uint8Array(18);
+          // The slice as the receiver sees it: its 2 unencrypted bytes, then the escaped
+          // ciphertext. writeRbsp works byte by byte, so escaping the first 16 bytes gives the
+          // start of the escaped frame, and a retry costs only the encryption.
+          const escapedStart = writeRbsp(new Uint8Array(cipherText, 0, 16));
+          const sentSlice = new Uint8Array(2 + escapedStart.byteLength);
           sentSlice.set(new Uint8Array(encodedFrame.data, sliceStart, 2));
-          sentSlice.set(newDataWithoutHeader.subarray(0, 16), 2);
+          sentSlice.set(escapedStart, 2);
           if (parseH264IdrPpsId(sentSlice) === ppsId) {
             break;
           }
@@ -570,6 +562,17 @@ export class FrameCryptor extends BaseFrameCryptor {
             encodedFrame.getMetadata().synchronizationSource ?? -1,
             encodedFrame.timestamp,
           );
+        }
+
+        let newDataWithoutHeader: NonSharedUint8Array = new Uint8Array(
+          cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
+        );
+        newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
+        newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
+        newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
+
+        if (frameInfo.requiresNALUProcessing) {
+          newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
         }
 
         var newData = new Uint8Array(frameHeader.byteLength + newDataWithoutHeader.byteLength);
