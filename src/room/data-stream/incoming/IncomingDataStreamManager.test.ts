@@ -1560,6 +1560,45 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('Extra chunk(s)');
     });
 
+    it.each([
+      ['UNCOMPRESSED', DataStream_CompressionType.NONE],
+      ['COMPRESSED', DataStream_CompressionType.DEFLATE_RAW],
+    ])(
+      'should hold a v2 SINGLE PACKET + %s payload to its declared totalLength',
+      async (_, compression) => {
+        /** Reads an inline text stream that carries `text` and declares `totalLength`. */
+        const readInlineText = async (text: string, totalLength?: bigint) => {
+          const manager = new IncomingDataStreamManager();
+          manager.setConnected(true);
+
+          const readerPromise = new Promise<TextStreamReader>((resolve) => {
+            manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+          });
+
+          const encoded = new TextEncoder().encode(text);
+          manager.handleDataStreamPacket(
+            headerPacket(crypto.randomUUID(), 'textHeader', {
+              totalLength,
+              compression,
+              inlineContent:
+                compression === DataStream_CompressionType.DEFLATE_RAW
+                  ? await deflateRawCompress(encoded)
+                  : encoded,
+            }),
+            Encryption_Type.NONE,
+          );
+
+          const reader = await readerPromise;
+          return reader.readAll();
+        };
+
+        await expect(readInlineText('hello', 6n)).rejects.toThrow('Not enough chunk(s)');
+        await expect(readInlineText('hello', 4n)).rejects.toThrow('Extra chunk(s)');
+        await expect(readInlineText('hello', 5n)).resolves.toStrictEqual('hello');
+        await expect(readInlineText('hello')).resolves.toStrictEqual('hello');
+      },
+    );
+
     it('should merge trailer attributes on a compressed stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
@@ -1738,6 +1777,36 @@ describe('IncomingDataStreamManager', () => {
       );
       // A non-empty trailer reason means the sender aborted; the stream must not be reported as
       // a successful close.
+      manager.handleDataStreamPacket(
+        trailerPacket(streamId, undefined, 'cancelled'),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
+    });
+
+    it('should error with the trailer reason when a stream closes abnormally short of its totalLength', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { totalLength: BigInt(text.length * 2) }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      // The sender stops halfway and gives a reason; that reason, not the missing bytes, is the
+      // error the reader gets.
       manager.handleDataStreamPacket(
         trailerPacket(streamId, undefined, 'cancelled'),
         Encryption_Type.NONE,
