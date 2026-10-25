@@ -632,6 +632,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       );
     }
 
+    // The negotiation deadline in PCTransportManager.negotiate() reads the manager's own
+    // timeout, so hand it the value configured through the connect options.
+    this.pcManager.peerConnectionTimeout = this.peerConnectionTimeout;
+
     this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
     this.pcManager.onIceCandidate = (candidate, target) => {
