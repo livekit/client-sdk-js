@@ -73,7 +73,7 @@ export class DataCryptor {
           name: ENCRYPTION_ALGORITHM,
           iv,
         },
-        keySet.encryptionKey,
+        ratchetOpts.encryptionKey ?? keySet.encryptionKey,
         new Uint8Array(data),
       );
       return {
@@ -103,7 +103,7 @@ export class DataCryptor {
             iv,
             keys,
             keyIndex,
-            initialMaterial,
+            initialMaterial ?? keySet,
             {
               ratchetCount: ratchetOpts.ratchetCount + 1,
               encryptionKey: ratchetedKeySet?.encryptionKey,

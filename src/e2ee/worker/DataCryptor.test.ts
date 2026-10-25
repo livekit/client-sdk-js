@@ -126,7 +126,7 @@ describe('DataCryptor', () => {
       const plainData = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
 
       // Sender ratchets their key forward
-      await senderKeys.ratchetKey(1, false);
+      await senderKeys.ratchetKey(1);
 
       // Sender encrypts data with the ratcheted key
       const encrypted = await DataCryptor.encrypt(plainData, senderKeys);
@@ -140,6 +140,47 @@ describe('DataCryptor', () => {
       );
 
       expect(decrypted.payload).toEqual(plainData);
+    });
+
+    it('keeps the ratcheted key after decrypting a packet from a ratcheted sender', async () => {
+      const senderKeys = prepareParticipantTestKeys('sender', {
+        ratchetWindowSize: 4,
+      });
+      const receiverKeys = prepareParticipantTestKeys('receiver', {
+        ratchetWindowSize: 4,
+      });
+
+      const initialMaterial = await createKeyMaterialFromString('test-key');
+      await senderKeys.setKey(initialMaterial, 1);
+      await receiverKeys.setKey(initialMaterial, 1);
+      const receiverInitialKeySet = receiverKeys.getKeySet(1);
+
+      // Sender ratchets once, so the receiver is one ratchet step behind
+      await senderKeys.ratchetKey(1);
+
+      const first = new Uint8Array([1, 2, 3, 4]);
+      const encryptedFirst = await DataCryptor.encrypt(first, senderKeys);
+      const decryptedFirst = await DataCryptor.decrypt(
+        encryptedFirst.payload,
+        encryptedFirst.iv,
+        receiverKeys,
+        encryptedFirst.keyIndex,
+      );
+      expect(decryptedFirst.payload).toEqual(first);
+
+      // The receiver now stores the ratcheted key, so a later packet decrypts without ratcheting
+      expect(receiverKeys.getKeySet(1)).not.toBe(receiverInitialKeySet);
+      const ratchetSpy = vitest.spyOn(receiverKeys, 'ratchetKey');
+      const second = new Uint8Array([5, 6, 7, 8]);
+      const encryptedSecond = await DataCryptor.encrypt(second, senderKeys);
+      const decryptedSecond = await DataCryptor.decrypt(
+        encryptedSecond.payload,
+        encryptedSecond.iv,
+        receiverKeys,
+        encryptedSecond.keyIndex,
+      );
+      expect(decryptedSecond.payload).toEqual(second);
+      expect(ratchetSpy).not.toHaveBeenCalled();
     });
 
     it('respects ratchet window size limit', async () => {
