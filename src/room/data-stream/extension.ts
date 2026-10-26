@@ -14,6 +14,9 @@ import {
   type SlotProvider,
   defineExtension,
 } from '../extensions';
+import { ParticipantAgentAttributes } from '../participant/attributes';
+import { Track } from '../track/Track';
+import TranscriptionStreamConverter from '../transcription/TranscriptionStreamConverter';
 import type {
   ByteStreamInfo,
   SendBytesOptions,
@@ -121,6 +124,33 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
       () => Array.from(room.remoteParticipants.keys()),
     );
 
+    const transcriptionStreamConverter = new TranscriptionStreamConverter({
+      onTranscription: (transcription) => ctx.handleTranscription(transcription),
+      getMicrophoneTrackSid: (identity) => {
+        const participant = room.getParticipantByIdentity(identity);
+        for (const publication of participant?.trackPublications.values() ?? []) {
+          if (publication.source === Track.Source.Microphone) {
+            return publication.trackSid;
+          }
+        }
+        return undefined;
+      },
+      getDelegatingPublisherIdentity: (identity) => {
+        // An avatar worker carries `lk.publish_on_behalf` naming the agent it speaks for.
+        for (const participant of room.remoteParticipants.values()) {
+          if (participant.attributes[ParticipantAgentAttributes.PublishOnBehalf] === identity) {
+            return participant.identity;
+          }
+        }
+        return undefined;
+      },
+    });
+    // The converter listens to the event rather than registering a handler for the
+    // `lk.transcription` topic, so an application that reads that topic keeps its access.
+    incoming.on('transcriptionStreamArrived', ({ reader, participantIdentity }) => {
+      transcriptionStreamConverter.handleTextStream(reader, participantIdentity);
+    });
+
     const onStreamPacket = (_value: unknown, packet: DataPacket, encryptionType: Encryption_Type) =>
       incoming.handleDataStreamPacket(packet, encryptionType);
 
@@ -143,7 +173,10 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
         streamTrailer: onStreamPacket,
       },
       onEngineCreated: (engine) => outgoing.setupEngine(engine),
-      onDisconnect: () => incoming.clearControllers(),
+      onDisconnect: () => {
+        transcriptionStreamConverter.reset();
+        incoming.clearControllers();
+      },
       room: {
         registerTextStreamHandler: (topic, callback) =>
           incoming.registerTextStreamHandler(topic, callback),

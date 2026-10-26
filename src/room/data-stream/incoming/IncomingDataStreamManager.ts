@@ -113,8 +113,10 @@ export default class IncomingDataStreamManager extends (EventEmitter as new () =
     for (const { controller } of this.byteStreamControllers.values()) {
       controller.error(abnormalEndError);
     }
-    for (const { controller } of this.textStreamControllers.values()) {
-      controller.error(abnormalEndError);
+    for (const group of this.textStreamControllers.values()) {
+      for (const controller of group.controllers) {
+        controller.error(abnormalEndError);
+      }
     }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();

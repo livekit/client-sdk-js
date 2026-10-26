@@ -394,6 +394,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       simulateConnected: (roomInfo, localParticipantInfo) =>
         this.simulateConnected(roomInfo, localParticipantInfo),
       acquireEmptyAudioStreamTrack: () => this.acquireEmptyAudioStreamTrack(),
+      handleTranscription: (transcription) => this.handleTranscription(transcription),
     };
     const results: ExtensionResult<any, any>[] = [];
     for (const ext of extensions) {
