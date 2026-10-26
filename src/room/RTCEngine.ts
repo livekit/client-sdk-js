@@ -727,7 +727,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
       // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      if (this.pcManager.mode === 'publisher-only') {
+      // an answer to an older offer is ignored by the publisher transport, so its mapping
+      // is stale too and must not replace the one installed by the current answer
+      if (
+        this.pcManager.mode === 'publisher-only' &&
+        !this.pcManager.publisher.isStaleAnswer(offerId)
+      ) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
