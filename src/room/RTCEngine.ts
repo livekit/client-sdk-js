@@ -800,6 +800,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
+      /**
+       * Same limitation as in `applyInitialPublisherLayout`: native libwebrtc never fires a new
+       * `track` event when a remote track is later placed on a pre-created recvonly section,
+       * so such a track would never be attached. Skip the sections on React Native.
+       */
+      if (isReactNative()) {
+        this.log.debug('ignoring media sections requirement on React Native', {
+          numAudios: requirement.numAudios,
+          numVideos: requirement.numVideos,
+        });
+        return;
+      }
       this.addMediaSections(requirement.numAudios, requirement.numVideos);
       this.negotiate().catch((err) => {
         this.log.error(err);

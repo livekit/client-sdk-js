@@ -2,6 +2,7 @@ import {
   DataPacket,
   DataPacket_Kind,
   JoinResponse,
+  type MediaSectionsRequirement,
   ConnectionQuality as ProtoConnectionQuality,
   UserPacket,
 } from '@livekit/protocol';
@@ -1321,6 +1322,60 @@ describe('RTCEngine', () => {
       const defaultPolicy = new DefaultReconnectPolicy();
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
       expect(scheduledDelay((context) => defaultPolicy.nextRetryDelayInMs(context))).toBe(250);
+    });
+  });
+
+  describe('media sections requirement', () => {
+    const originalProduct = navigator.product;
+
+    afterEach(() => {
+      Object.defineProperty(window.navigator, 'product', {
+        configurable: true,
+        value: originalProduct,
+      });
+    });
+
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const addPublisherTransceiverOfKind = vi.fn();
+      const negotiate = vi.spyOn(engine, 'negotiate').mockResolvedValue(undefined);
+      const internals = engine as unknown as {
+        pcManager: unknown;
+        setupSignalClientCallbacks: () => void;
+      };
+      internals.pcManager = { mode: 'publisher-only', addPublisherTransceiverOfKind };
+      internals.setupSignalClientCallbacks();
+      return { engine, addPublisherTransceiverOfKind, negotiate };
+    }
+
+    const requirement = { numAudios: 2, numVideos: 1 } as MediaSectionsRequirement;
+
+    it('adds the requested recvonly sections and renegotiates', () => {
+      const { engine, addPublisherTransceiverOfKind, negotiate } = primeEngine();
+
+      engine.client.onMediaSectionsRequirement!(requirement);
+
+      expect(addPublisherTransceiverOfKind).toHaveBeenCalledTimes(3);
+      expect(addPublisherTransceiverOfKind).toHaveBeenCalledWith('audio', {
+        direction: 'recvonly',
+      });
+      expect(addPublisherTransceiverOfKind).toHaveBeenCalledWith('video', {
+        direction: 'recvonly',
+      });
+      expect(negotiate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not add sections on React Native', () => {
+      Object.defineProperty(window.navigator, 'product', {
+        configurable: true,
+        value: 'ReactNative',
+      });
+      const { engine, addPublisherTransceiverOfKind, negotiate } = primeEngine();
+
+      engine.client.onMediaSectionsRequirement!(requirement);
+
+      expect(addPublisherTransceiverOfKind).not.toHaveBeenCalled();
+      expect(negotiate).not.toHaveBeenCalled();
     });
   });
 });
