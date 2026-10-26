@@ -1141,6 +1141,32 @@ describe('RTCEngine', () => {
 
       expect(engine.pcManager?.peerConnectionTimeout).toBe(42_000);
     });
+
+    it('times out pcManager.negotiate() after the configured peerConnectionTimeout', async () => {
+      vi.useFakeTimers();
+      try {
+        const engine = new RTCEngine(roomOptionDefaults);
+        engine.peerConnectionTimeout = 40_000;
+
+        await configure(engine, new JoinResponse());
+        const pcManager = engine.pcManager!;
+        // A publisher that never produces an answer, so only the deadline can settle the call.
+        vi.spyOn(pcManager.publisher, 'negotiate').mockImplementation(() => {});
+
+        let settled: Error | undefined;
+        pcManager.negotiate(new AbortController()).catch((e: Error) => {
+          settled = e;
+        });
+
+        await vi.advanceTimersByTimeAsync(39_999);
+        expect(settled).toBeUndefined();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(settled?.message).toBe('negotiation timed out');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('negotiate', () => {
