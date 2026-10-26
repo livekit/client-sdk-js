@@ -20,12 +20,18 @@ export enum PCTransportState {
 }
 
 type PCMode = 'subscriber-primary' | 'publisher-primary' | 'publisher-only';
+
+export type PCTransportManagerOptions = {
+  rtcConfig?: RTCConfiguration;
+  peerConnectionTimeout?: number;
+};
+
 export class PCTransportManager {
   public publisher: PCTransport;
 
   public subscriber?: PCTransport;
 
-  public peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
+  public readonly peerConnectionTimeout: number;
 
   public get needsPublisher() {
     return this.isPublisherConnectionRequired;
@@ -75,8 +81,16 @@ export class PCTransportManager {
     return this._mode;
   }
 
-  constructor(mode: PCMode, loggerOptions: LoggerOptions, rtcConfig?: RTCConfiguration) {
+  constructor(
+    mode: PCMode,
+    loggerOptions: LoggerOptions,
+    {
+      rtcConfig,
+      peerConnectionTimeout = roomConnectOptionDefaults.peerConnectionTimeout,
+    }: PCTransportManagerOptions = {},
+  ) {
     this.loggerOptions = loggerOptions;
+    this.peerConnectionTimeout = peerConnectionTimeout;
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager, () => this.logContext);
     this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
 

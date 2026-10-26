@@ -617,7 +617,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (!joinResponse) {
       const rtcConfig = this.makeRTCConfiguration();
-      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, rtcConfig);
+      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, {
+        rtcConfig,
+        peerConnectionTimeout: this.peerConnectionTimeout,
+      });
     } else {
       this.participantSid = joinResponse.participant?.sid;
       const rtcConfig = this.makeRTCConfiguration(joinResponse);
@@ -628,13 +631,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             ? 'subscriber-primary'
             : 'publisher-primary',
         this.loggerOptions,
-        rtcConfig,
+        { rtcConfig, peerConnectionTimeout: this.peerConnectionTimeout },
       );
     }
-
-    // The negotiation deadline in PCTransportManager.negotiate() reads the manager's own
-    // timeout, so hand it the value configured through the connect options.
-    this.pcManager.peerConnectionTimeout = this.peerConnectionTimeout;
 
     this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
