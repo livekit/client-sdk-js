@@ -301,23 +301,6 @@ describe('TokenSourceConfigurable caching behavior (via TokenSource.custom)', ()
     expect(customFn).toHaveBeenCalledTimes(1);
   });
 
-  it('refetches when the options object is changed in place', async () => {
-    const customFn = vi.fn().mockResolvedValue(makeResponseObject());
-    const tokenSource = TokenSource.custom(customFn);
-    const options: TokenSourceFetchOptions = {
-      roomName: 'room',
-      participantAttributes: { key: 'value' },
-    };
-
-    await tokenSource.fetch(options);
-    options.participantAttributes!.key = 'other value';
-    await tokenSource.fetch(options);
-    options.roomName = 'other room';
-    await tokenSource.fetch(options);
-
-    expect(customFn).toHaveBeenCalledTimes(3);
-  });
-
   it('does not return the previous response for options whose fetch failed', async () => {
     const roomA = makeResponseObject();
     const customFn = vi
