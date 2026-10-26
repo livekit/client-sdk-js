@@ -2108,5 +2108,32 @@ describe('IncomingDataStreamManager', () => {
       // conflict - which proves the stream really was dropped rather than half-opened.
       expect(() => manager.handleDataStreamPacket(header, Encryption_Type.NONE)).not.toThrow();
     });
+
+    it('should settle the transcription tap reader when the controllers are cleared', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const managerEvents = subscribeToEvents<IncomingDataStreamManagerCallbacks>(manager, [
+        'transcriptionStreamArrived',
+      ]);
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { topic: TRANSCRIPTION_TOPIC }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('partial')),
+        Encryption_Type.NONE,
+      );
+
+      const event = await managerEvents.waitFor('transcriptionStreamArrived');
+      const read = event.reader.readAll();
+
+      // A room disconnect mid-transcription. The tap's reader must settle, or it retains the Room
+      // through the converter callbacks.
+      manager.clearControllers();
+
+      await expect(read).rejects.toThrow('Room disconnected');
+    });
   });
 });
