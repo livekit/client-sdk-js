@@ -720,19 +720,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
+      // an answer to an older offer is never applied by the publisher transport, so
+      // neither its mapping nor anything else in it may replace the current answer's state
+      if (this.pcManager.publisher.isStaleAnswer(offerId)) {
+        this.log.warn('ignoring answer for old offer', {
+          offerId,
+          latestOfferId: this.pcManager.publisher.latestOfferId,
+        });
+        return;
+      }
       this.log.debug('received server answer', {
         RTCSdpType: sd.type,
         sdp: sd.sdp,
         midToTrackId,
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
-      // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      // an answer to an older offer is ignored by the publisher transport, so its mapping
-      // is stale too and must not replace the one installed by the current answer
-      if (
-        this.pcManager.mode === 'publisher-only' &&
-        !this.pcManager.publisher.isStaleAnswer(offerId)
-      ) {
+      // transport has no sending tracks) and must not clobber the subscriber offer mapping.
+      // an empty mapping is decoded as `{}` and would wipe the current one as well, so it is
+      // ignored the same way the Rust SDK does
+      if (this.pcManager.mode === 'publisher-only' && Object.keys(midToTrackId).length > 0) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);

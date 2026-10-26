@@ -1368,5 +1368,29 @@ describe('RTCEngine', () => {
       expect(trackIdFor('0')).toBe('TR_audio');
       expect(trackIdFor('1')).toBe('TR_video');
     });
+
+    it('does not apply an answer to an older offer at all', async () => {
+      const { engine, publisher, setPublisherAnswer } = primeEngine();
+      publisher.latestOfferId = 2;
+      const refresh = vi.fn();
+      engine.on(EngineEvent.RequestSubscribedCodecRefresh, refresh);
+
+      await engine.client.onAnswer!(answer, 1, { '0': 'TR_audio' });
+
+      expect(setPublisherAnswer).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it('keeps the current mapping when the current answer carries an empty one', async () => {
+      const { engine, publisher, setPublisherAnswer, trackIdFor } = primeEngine();
+      publisher.latestOfferId = 2;
+      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+
+      publisher.latestOfferId = 3;
+      await engine.client.onAnswer!(answer, 3, {});
+
+      expect(setPublisherAnswer).toHaveBeenLastCalledWith(answer, 3);
+      expect(trackIdFor('1')).toBe('TR_video');
+    });
   });
 });
