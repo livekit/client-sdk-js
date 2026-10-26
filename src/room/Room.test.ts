@@ -1,6 +1,12 @@
 import {
   ClientInfo_Capability,
+  DataPacket,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_TextHeader,
+  DataStream_Trailer,
   DisconnectReason,
+  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -9,7 +15,10 @@ import {
   SubscriptionError,
   SubscriptionResponse,
   TrackInfo,
+  TrackSource,
   TrackType,
+  Transcription,
+  TranscriptionSegment as TranscriptionSegmentModel,
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
@@ -18,9 +27,10 @@ import { BackOffStrategy } from './BackOffStrategy';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import { ConnectionState, Room } from './Room';
+import { dataStreams } from './data-stream/extension';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
-import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
+import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import RemoteVideoTrack from './track/RemoteVideoTrack';
@@ -672,5 +682,148 @@ describe('server leave during connect()', () => {
     const error = await outcome;
     expect(join).toHaveBeenCalledTimes(1);
     expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+  });
+});
+
+describe('transcription back-conversion', () => {
+  const agentIdentity = 'agent-1';
+  const trackSid = 'TR_mic';
+
+  /** A connected room with one remote participant publishing a microphone track. */
+  function setupRoom() {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    (
+      room as unknown as {
+        installedExtensions: Map<symbol, { incoming: { setConnected: (c: boolean) => void } }>;
+      }
+    ).installedExtensions
+      .get(dataStreams.key)!
+      .incoming.setConnected(true);
+
+    const participant = new RemoteParticipant(room.engine.client, 'PA_agent', agentIdentity);
+    const publication = new RemoteTrackPublication(
+      Track.Kind.Audio,
+      new TrackInfo({
+        sid: trackSid,
+        type: TrackType.AUDIO,
+        name: 'roomio_audio',
+        source: TrackSource.MICROPHONE,
+      }),
+      true,
+    );
+    participant.trackPublications.set(trackSid, publication);
+    (
+      room as unknown as { remoteParticipants: Map<string, RemoteParticipant> }
+    ).remoteParticipants.set(agentIdentity, participant);
+
+    return { room, participant, publication };
+  }
+
+  function pushPacket(room: Room, packet: DataPacket) {
+    (
+      room as unknown as {
+        handleDataPacket: (packet: DataPacket, encryptionType: Encryption_Type) => void;
+      }
+    ).handleDataPacket(packet, Encryption_Type.NONE);
+  }
+
+  /** Publishes a complete single-chunk `lk.transcription` stream from `senderIdentity`. */
+  function pushTranscriptionStream(
+    room: Room,
+    senderIdentity: string,
+    text: string,
+    attributes: Record<string, string>,
+  ) {
+    const streamId = crypto.randomUUID();
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamHeader',
+          value: new DataStream_Header({
+            streamId,
+            topic: 'lk.transcription',
+            mimeType: 'text/plain',
+            timestamp: 0n,
+            attributes,
+            contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+          }),
+        },
+      }),
+    );
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamChunk',
+          value: new DataStream_Chunk({
+            streamId,
+            chunkIndex: 0n,
+            content: new TextEncoder().encode(text),
+          }),
+        },
+      }),
+    );
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamTrailer',
+          value: new DataStream_Trailer({ streamId }),
+        },
+      }),
+    );
+  }
+
+  it('ignores legacy Transcription data packets', () => {
+    const { room } = setupRoom();
+    const received: Array<unknown> = [];
+    room.on(RoomEvent.TranscriptionReceived, (segments) => received.push(segments));
+
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: agentIdentity,
+        value: {
+          case: 'transcription',
+          value: new Transcription({
+            transcribedParticipantIdentity: agentIdentity,
+            trackId: trackSid,
+            segments: [
+              new TranscriptionSegmentModel({ id: 'SG_legacy', text: 'legacy', final: true }),
+            ],
+          }),
+        },
+      }),
+    );
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('emits TranscriptionReceived from an lk.transcription stream', async () => {
+    const { room, participant, publication } = setupRoom();
+    const roomEvents: Array<{ segments: Array<{ text: string }>; identity?: string }> = [];
+    const trackEvents: Array<Array<{ text: string }>> = [];
+    room.on(RoomEvent.TranscriptionReceived, (segments, p) =>
+      roomEvents.push({ segments, identity: p?.identity }),
+    );
+    publication.on(TrackEvent.TranscriptionReceived, (segments) => trackEvents.push(segments));
+
+    pushTranscriptionStream(room, agentIdentity, 'Hello world', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcribed_track_id': trackSid,
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(roomEvents.length).toBeGreaterThan(0);
+    expect(roomEvents[0].segments[0].text).toBe('Hello world');
+    expect(roomEvents[0].identity).toBe(participant.identity);
+    expect(trackEvents.length).toBeGreaterThan(0);
+    expect(trackEvents[0][0].text).toBe('Hello world');
   });
 });
