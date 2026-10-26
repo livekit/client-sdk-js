@@ -134,6 +134,14 @@ describe('areTokenSourceFetchOptionsEqual', () => {
     ).to.equal(false);
     expect(
       areTokenSourceFetchOptionsEqual(
+        { participantAttributes: { role: 'viewer' } },
+        {
+          participantAttributes: Object.assign(Object.create({ role: 'viewer' }), { team: 'blue' }),
+        },
+      ),
+    ).to.equal(false);
+    expect(
+      areTokenSourceFetchOptionsEqual(
         { participantAttributes: {} },
         { participantAttributes: undefined },
       ),

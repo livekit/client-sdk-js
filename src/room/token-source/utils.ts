@@ -95,8 +95,9 @@ function areAttributesEqual(
     return false;
   }
   const aKeys = Object.keys(a);
-  if (aKeys.length !== Object.keys(b).length) {
+  const bKeys = new Set(Object.keys(b));
+  if (aKeys.length !== bKeys.size) {
     return false;
   }
-  return aKeys.every((key) => a[key] === b[key]);
+  return aKeys.every((key) => bKeys.has(key) && a[key] === b[key]);
 }
