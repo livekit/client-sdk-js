@@ -16,3 +16,12 @@ export const STREAM_CHUNK_SIZE_BYTES = 15_000;
  * @internal
  */
 export const DEFAULT_MAX_PAYLOAD_BYTE_LENGTH = 5_000_000_000;
+
+/**
+ * Reserved topic carrying transcription text streams. `IncomingDataStreamManager` taps this topic
+ * with its `transcriptionStreamArrived` event so the SDK can rebuild transcription events while
+ * still delivering the stream to any application handler.
+ *
+ * @internal
+ */
+export const TRANSCRIPTION_TOPIC = 'lk.transcription';

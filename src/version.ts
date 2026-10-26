@@ -12,7 +12,12 @@ export const CLIENT_PROTOCOL_DATA_STREAM_RPC = 1;
  * entire payload is smuggled into the header packet, with no chunk/trailer packets). Senders only
  * use the single-packet optimization when the recipient advertises at least this protocol. */
 export const CLIENT_PROTOCOL_DATA_STREAM_V2 = 2;
+/** The client rebuilds transcription events from `lk.transcription` text streams, so senders may
+ * omit the legacy `Transcription` data packet. Read in both directions: a client advertising this
+ * needs no legacy packets, and an agent advertising it publishes every transcription on the
+ * `lk.transcription` stream channel. */
+export const CLIENT_PROTOCOL_TRANSCRIPTION_STREAMS = 3;
 
 /** The client protocol version indicates what level of support that the client has for
  * client <-> client api interactions. */
-export const clientProtocol = CLIENT_PROTOCOL_DATA_STREAM_V2;
+export const clientProtocol = CLIENT_PROTOCOL_TRANSCRIPTION_STREAMS;

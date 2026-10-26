@@ -394,6 +394,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       simulateConnected: (roomInfo, localParticipantInfo) =>
         this.simulateConnected(roomInfo, localParticipantInfo),
       acquireEmptyAudioStreamTrack: () => this.acquireEmptyAudioStreamTrack(),
+      handleTranscription: (transcription) => this.handleTranscription(transcription),
     };
     const results: ExtensionResult<any, any>[] = [];
     for (const ext of extensions) {
@@ -2034,7 +2035,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         packet.participantIdentity,
       );
     } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(participant, packet.value.value);
+      // Legacy `Transcription` packets are ignored: transcription events are rebuilt from the
+      // `lk.transcription` data stream channel instead, which this client advertises support for
+      // via client protocol 3. See
+      // docs/superpowers/specs/2026-09-04-transcription-back-conversion-design.md
+      this.log.debug('ignoring legacy transcription data packet', this.logContext);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
@@ -2078,10 +2083,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
   };
 
-  private handleTranscription = (
-    _remoteParticipant: RemoteParticipant | undefined,
-    transcription: TranscriptionModel,
-  ) => {
+  private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
     const participant =
       transcription.transcribedParticipantIdentity === this.localParticipant.identity
