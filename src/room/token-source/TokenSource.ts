@@ -62,9 +62,16 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
-      this.cachedFetchOptions = options;
-
       const tokenResponse = await this.update(options);
+      // recorded only once the update succeeds, so a failed fetch cannot pair its options
+      // with the response cached for the previous ones; copied so that later in-place
+      // changes to the caller's object are seen as different options
+      this.cachedFetchOptions = {
+        ...options,
+        ...(options.participantAttributes && {
+          participantAttributes: { ...options.participantAttributes },
+        }),
+      };
       this.cachedResponse = tokenResponse;
       return tokenResponse.toJson() as TokenSourceResponseObject;
     } finally {

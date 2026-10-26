@@ -62,11 +62,15 @@ export function areTokenSourceFetchOptionsEqual(
       case 'participantName':
       case 'participantIdentity':
       case 'participantMetadata':
-      case 'participantAttributes':
       case 'agentName':
       case 'agentMetadata':
       case 'deployment':
         if (a[key] !== b[key]) {
+          return false;
+        }
+        break;
+      case 'participantAttributes':
+        if (!areAttributesEqual(a[key], b[key])) {
           return false;
         }
         break;
@@ -78,4 +82,21 @@ export function areTokenSourceFetchOptionsEqual(
   }
 
   return true;
+}
+
+function areAttributesEqual(
+  a: TokenSourceFetchOptions['participantAttributes'],
+  b: TokenSourceFetchOptions['participantAttributes'],
+) {
+  if (a === b) {
+    return true;
+  }
+  if (!a || !b) {
+    return false;
+  }
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) {
+    return false;
+  }
+  return aKeys.every((key) => a[key] === b[key]);
 }
