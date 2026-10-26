@@ -173,9 +173,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this._isNewlyCreated;
   }
 
-  /** A reconnect is scheduled but has not started yet. */
   get pendingReconnect() {
-    return !!this.reconnectTimeout && !this.attemptingReconnect;
+    return !!this.reconnectTimeout;
   }
 
   get serverVersion(): string | undefined {
@@ -1288,11 +1287,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // since the current engine may have inherited a regional url
       this.emit(EngineEvent.TokenRefreshed, this.token);
     }
-    this.reconnectTimeout = CriticalTimers.setTimeout(
-      () =>
-        this.attemptReconnect(disconnectReason).finally(() => (this.reconnectTimeout = undefined)),
-      delay,
-    );
+    this.reconnectTimeout = CriticalTimers.setTimeout(() => {
+      this.reconnectTimeout = undefined;
+      this.attemptReconnect(disconnectReason);
+    }, delay);
   };
 
   /**
@@ -2094,6 +2092,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       CriticalTimers.clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = undefined;
     }
   }
 

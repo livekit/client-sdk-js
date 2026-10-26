@@ -1225,4 +1225,73 @@ describe('RTCEngine', () => {
       expect(scheduledDelay((context) => defaultPolicy.nextRetryDelayInMs(context))).toBe(250);
     });
   });
+
+  describe('pendingReconnect (#2183)', () => {
+    // Room buffers events while a reconnect is pending, so the flag must drop as soon as the
+    // scheduled attempt starts and whenever the timer is cancelled.
+    interface PendingInternals {
+      _isClosed: boolean;
+      handleDisconnect: (connection: string, reason?: number) => void;
+      attemptReconnect: (reason?: number) => Promise<void>;
+      clearReconnectTimeout: () => void;
+    }
+
+    function primeEngine() {
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: { nextRetryDelayInMs: () => 100 },
+      });
+      const internals = engine as unknown as PendingInternals;
+      internals._isClosed = false;
+      const attempts: Array<Future<void, Error>> = [];
+      internals.attemptReconnect = vi.fn(() => {
+        const attempt = new Future<void, Error>();
+        attempts.push(attempt);
+        return attempt.promise;
+      });
+      return { engine, internals, attempts };
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('is cleared once the scheduled attempt starts', () => {
+      const { engine, internals } = primeEngine();
+      internals.handleDisconnect('signal');
+      expect(engine.pendingReconnect).toBe(true);
+
+      vi.advanceTimersByTime(100);
+
+      expect(internals.attemptReconnect).toHaveBeenCalledTimes(1);
+      expect(engine.pendingReconnect).toBe(false);
+    });
+
+    it('is cleared when the scheduled attempt is cancelled', () => {
+      // e.g. handleBrowserOnLine cancels the timer and reconnects right away
+      const { engine, internals } = primeEngine();
+      internals.handleDisconnect('signal');
+
+      internals.clearReconnectTimeout();
+
+      expect(engine.pendingReconnect).toBe(false);
+    });
+
+    it('keeps a retry scheduled while the previous attempt settles', async () => {
+      const { engine, internals, attempts } = primeEngine();
+      internals.handleDisconnect('signal');
+      vi.advanceTimersByTime(100);
+
+      // the attempt fails and schedules a retry before its promise settles
+      internals.handleDisconnect('signal');
+      attempts[0].resolve?.();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(engine.pendingReconnect).toBe(true);
+    });
+  });
 });
