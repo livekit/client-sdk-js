@@ -438,13 +438,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     this.pendingCandidates.push(candidate);
   }
 
+  /** Whether an answer for `offerId` answers an offer older than the latest one sent. */
+  isStaleAnswer(offerId: number): boolean {
+    return this.latestOfferId > 0 && offerId > 0 && offerId !== this.latestOfferId;
+  }
+
   async setRemoteDescription(sd: RTCSessionDescriptionInit, offerId: number): Promise<boolean> {
-    if (
-      sd.type === 'answer' &&
-      this.latestOfferId > 0 &&
-      offerId > 0 &&
-      offerId !== this.latestOfferId
-    ) {
+    if (sd.type === 'answer' && this.isStaleAnswer(offerId)) {
       this.log.warn('ignoring answer for old offer', {
         offerId,
         latestOfferId: this.latestOfferId,
