@@ -291,6 +291,35 @@ describe('TokenSourceConfigurable caching behavior (via TokenSource.custom)', ()
     expect(customFn).toHaveBeenCalledTimes(2);
   });
 
+  it('does not refetch when participantAttributes is an equal new object', async () => {
+    const customFn = vi.fn().mockResolvedValue(makeResponseObject());
+    const tokenSource = TokenSource.custom(customFn);
+
+    await tokenSource.fetch({ roomName: 'room', participantAttributes: { key: 'value' } });
+    await tokenSource.fetch({ roomName: 'room', participantAttributes: { key: 'value' } });
+
+    expect(customFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not return the previous response for options whose fetch failed', async () => {
+    const roomA = makeResponseObject();
+    const customFn = vi
+      .fn()
+      .mockResolvedValueOnce(roomA)
+      .mockRejectedValueOnce(new Error('token server unavailable'))
+      .mockResolvedValueOnce(makeResponseObject(TOKENS.VALID_NO_NBF));
+    const tokenSource = TokenSource.custom(customFn);
+
+    await tokenSource.fetch({ roomName: 'room-a' });
+    await expect(tokenSource.fetch({ roomName: 'room-b' })).rejects.toThrow(
+      'token server unavailable',
+    );
+    const roomB = await tokenSource.fetch({ roomName: 'room-b' });
+
+    expect(customFn).toHaveBeenCalledTimes(3);
+    expect(roomB.participantToken).toStrictEqual(TOKENS.VALID_NO_NBF);
+  });
+
   it('getCachedResponseJwtPayload returns null before first fetch', () => {
     const tokenSource = TokenSource.custom(async () => makeResponseObject());
     expect(tokenSource.getCachedResponseJwtPayload()).toBeNull();

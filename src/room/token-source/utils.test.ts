@@ -113,4 +113,38 @@ describe('areTokenSourceFetchOptionsEqual', () => {
       ),
     ).to.equal(false);
   });
+  it('should compare participant attributes by content', () => {
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { participantAttributes: { a: '1', b: '2' } },
+        { participantAttributes: { b: '2', a: '1' } },
+      ),
+    ).to.equal(true);
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { participantAttributes: { a: '1' } },
+        { participantAttributes: { a: '2' } },
+      ),
+    ).to.equal(false);
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { participantAttributes: { a: '1' } },
+        { participantAttributes: { a: '1', b: '2' } },
+      ),
+    ).to.equal(false);
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { participantAttributes: { role: 'viewer' } },
+        {
+          participantAttributes: Object.assign(Object.create({ role: 'viewer' }), { team: 'blue' }),
+        },
+      ),
+    ).to.equal(false);
+    expect(
+      areTokenSourceFetchOptionsEqual(
+        { participantAttributes: {} },
+        { participantAttributes: undefined },
+      ),
+    ).to.equal(false);
+  });
 });

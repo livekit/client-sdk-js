@@ -14,7 +14,11 @@ import {
 import { areTokenSourceFetchOptionsEqual, decodeTokenPayload, isResponseTokenValid } from './utils';
 
 /** A TokenSourceCached is a TokenSource which caches the last {@link TokenSourceResponseObject} value and returns it
- * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change. */
+ * until a) it expires or b) the {@link TokenSourceFetchOptions} provided to .fetch(...) change.
+ *
+ * Options are compared by value (including the entries of `participantAttributes`), but the cache keeps a
+ * reference to the options object passed to the last successful fetch. Treat that object as immutable: to fetch
+ * with different options, pass a new object rather than changing the previous one in place. */
 abstract class TokenSourceCached extends TokenSourceConfigurable {
   private cachedFetchOptions: TokenSourceFetchOptions | null = null;
 
@@ -62,9 +66,10 @@ abstract class TokenSourceCached extends TokenSourceConfigurable {
       if (this.shouldReturnCachedValueFromFetch(options)) {
         return this.cachedResponse!.toJson() as TokenSourceResponseObject;
       }
-      this.cachedFetchOptions = options;
-
       const tokenResponse = await this.update(options);
+      // recorded only once the update succeeds, so a failed fetch cannot pair its options
+      // with the response cached for the previous ones
+      this.cachedFetchOptions = options;
       this.cachedResponse = tokenResponse;
       return tokenResponse.toJson() as TokenSourceResponseObject;
     } finally {
