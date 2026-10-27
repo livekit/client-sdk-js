@@ -25,6 +25,7 @@ import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
+import { Future } from './utils';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -356,16 +357,25 @@ describe('stream state updates', () => {
 });
 
 describe('full reconnect', () => {
-  function restartFrom(state: ConnectionState) {
+  function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
     const room = new Room();
     room.state = state;
+    if (state === ConnectionState.Connecting) {
+      // connect() is pending
+      (room as unknown as { connectFuture: Future<void, Error> }).connectFuture = new Future();
+    }
     vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue();
     const events: string[] = [];
     room
+      .on(RoomEvent.SignalReconnecting, () => events.push(RoomEvent.SignalReconnecting))
       .on(RoomEvent.Reconnecting, () => events.push(RoomEvent.Reconnecting))
       .on(RoomEvent.Reconnected, () => events.push(RoomEvent.Reconnected))
       .on(RoomEvent.ConnectionStateChanged, (s) => events.push(`state:${s}`));
 
+    if (resumeFirst) {
+      // a rejected resume escalates to a full reconnect, as in a server CONNECTION_TIMEOUT leave
+      room.engine.emit(EngineEvent.Resuming);
+    }
     room.engine.emit(EngineEvent.Restarting);
     room.engine.emit(
       EngineEvent.SignalRestarted,
@@ -378,6 +388,14 @@ describe('full reconnect', () => {
 
   it('leaves an initial connection to connect() instead of reporting a reconnect', async () => {
     const { room, events } = restartFrom(ConnectionState.Connecting);
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('leaves an initial connection to connect() when a resume preceded the restart', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting, { resumeFirst: true });
     await flush();
 
     expect(events).toEqual([]);
