@@ -1786,7 +1786,7 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
     });
 
-    it('should error with the trailer reason when a stream closes abnormally short of its totalLength', async () => {
+    it('should error with the trailer reason when a stream closes before the specified totalLength', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
 
