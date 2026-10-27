@@ -233,6 +233,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectAbortController?: AbortController;
 
+  /**
+   * the attempt of a full reconnect on one region, handed out with `SignalRestarted`. Aborted when
+   * the next attempt begins, on the next region or in a later restart, and on close
+   */
+  private restartAttemptController?: AbortController;
+
   private reconnectPolicy: ReconnectPolicy;
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -494,6 +500,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async close(reason?: string) {
     this.reconnectAbortController?.abort();
     this.reconnectAbortController = undefined;
+    this.restartAttemptController?.abort();
+    this.restartAttemptController = undefined;
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -720,14 +728,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
+      // an answer to an older offer is never applied by the publisher transport, so
+      // neither its mapping nor anything else in it may replace the current answer's state
+      if (this.pcManager.publisher.isStaleAnswer(offerId)) {
+        this.log.warn('ignoring answer for old offer', {
+          offerId,
+          latestOfferId: this.pcManager.publisher.latestOfferId,
+        });
+        return;
+      }
       this.log.debug('received server answer', {
         RTCSdpType: sd.type,
         sdp: sd.sdp,
         midToTrackId,
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
-      // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      if (this.pcManager.mode === 'publisher-only') {
+      // transport has no sending tracks) and must not clobber the subscriber offer mapping.
+      // an empty mapping is decoded as `{}` and would wipe the current one as well, so it is
+      // ignored the same way the Rust SDK does
+      if (this.pcManager.mode === 'publisher-only' && Object.keys(midToTrackId).length > 0) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
@@ -1495,6 +1514,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.restartAttemptController?.abort();
+      const restartAttempt = new AbortController();
+      this.restartAttemptController = restartAttempt;
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1542,7 +1564,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse);
+      this.emit(EngineEvent.SignalRestarted, joinResponse, restartAttempt.signal);
 
       await this.waitForPCReconnected();
       if (abortSignal.aborted) {
@@ -1682,21 +1704,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  waitForRestarted = () => {
-    return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
-        resolve();
+  /**
+   * resolves to whether the attempt `SignalRestarted` handed out restarted the connection. Call it
+   * while handling that event, before `Restarted` can fire
+   */
+  waitForRestarted = (restartAttempt: AbortSignal) => {
+    return new Promise<boolean>((resolve) => {
+      if (restartAttempt.aborted) {
+        resolve(false);
+        return;
       }
       const onRestarted = () => {
-        this.off(EngineEvent.Disconnected, onDisconnected);
-        resolve();
+        restartAttempt.removeEventListener('abort', onAborted);
+        resolve(true);
       };
-      const onDisconnected = () => {
+      const onAborted = () => {
+        restartAttempt.removeEventListener('abort', onAborted);
         this.off(EngineEvent.Restarted, onRestarted);
-        reject();
+        resolve(false);
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      restartAttempt.addEventListener('abort', onAborted);
     });
   };
 
@@ -2194,7 +2222,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: () => void;
   signalResumed: () => void;
-  signalRestarted: (joinResp: JoinResponse) => void;
+  signalRestarted: (joinResp: JoinResponse, restartAttempt: AbortSignal) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

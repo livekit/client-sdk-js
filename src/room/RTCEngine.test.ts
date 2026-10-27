@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import type { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
+import PCTransport from './PCTransport';
 import { PCTransportState } from './PCTransportManager';
 import RTCEngine, { DataChannelKind } from './RTCEngine';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -850,6 +851,31 @@ describe('RTCEngine', () => {
         await engine.close();
       }
     });
+
+    it('aborts a region attempt when the next attempt begins or the engine closes', async () => {
+      const { engine, internals } = primeEngine();
+      vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(
+        SignalConnectionState.CONNECTED,
+      );
+      vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+      vi.spyOn(internals, 'waitForPCReconnected').mockRejectedValueOnce(new Error('pc failed'));
+      engine.setRegionStrategy({
+        getNextUrl: vi.fn().mockResolvedValueOnce('wss://another-region.livekit.io'),
+        resetAttempts: () => {},
+      });
+      const attempts: AbortSignal[] = [];
+      engine.on(EngineEvent.SignalRestarted, (_joinResponse, attempt) => attempts.push(attempt));
+
+      await internals.attemptReconnect();
+      expect(attempts.map((attempt) => attempt.aborted)).toEqual([true, false]);
+
+      engine.fullReconnectOnNext = true;
+      await internals.attemptReconnect();
+      expect(attempts.map((attempt) => attempt.aborted)).toEqual([true, true, false]);
+
+      await engine.close();
+      expect(attempts[2].aborted).toBe(true);
+    });
   });
 
   describe('reconnect requested mid-attempt', () => {
@@ -1322,6 +1348,75 @@ describe('RTCEngine', () => {
       const defaultPolicy = new DefaultReconnectPolicy();
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
       expect(scheduledDelay((context) => defaultPolicy.nextRetryDelayInMs(context))).toBe(250);
+    });
+  });
+
+  describe('publisher answer mid mapping', () => {
+    function primeEngine() {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const publisher = { latestOfferId: 0, isStaleAnswer: PCTransport.prototype.isStaleAnswer };
+      const setPublisherAnswer = vi.fn().mockResolvedValue(undefined);
+      const internals = engine as unknown as {
+        pcManager: unknown;
+        setupSignalClientCallbacks: () => void;
+      };
+      internals.pcManager = {
+        mode: 'publisher-only',
+        publisher,
+        setPublisherAnswer,
+        getMidForReceiver: (receiver: { mid: string }) => receiver.mid,
+      };
+      internals.setupSignalClientCallbacks();
+      const trackIdFor = (mid: string) =>
+        engine.getTrackIdForReceiver({ mid } as unknown as RTCRtpReceiver);
+      return { engine, publisher, setPublisherAnswer, trackIdFor };
+    }
+
+    const answer: RTCSessionDescriptionInit = { type: 'answer', sdp: 'v=0' };
+
+    it('installs the mapping of the answer to the latest offer', async () => {
+      const { engine, publisher, setPublisherAnswer, trackIdFor } = primeEngine();
+      publisher.latestOfferId = 2;
+
+      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+
+      expect(setPublisherAnswer).toHaveBeenCalledWith(answer, 2);
+      expect(trackIdFor('1')).toBe('TR_video');
+    });
+
+    it('keeps the current mapping when an answer to an older offer arrives', async () => {
+      const { engine, publisher, trackIdFor } = primeEngine();
+      publisher.latestOfferId = 2;
+      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+
+      await engine.client.onAnswer!(answer, 1, { '0': 'TR_audio' });
+
+      expect(trackIdFor('0')).toBe('TR_audio');
+      expect(trackIdFor('1')).toBe('TR_video');
+    });
+
+    it('does not apply an answer to an older offer at all', async () => {
+      const { engine, publisher, setPublisherAnswer } = primeEngine();
+      publisher.latestOfferId = 2;
+      const refresh = vi.fn();
+      engine.on(EngineEvent.RequestSubscribedCodecRefresh, refresh);
+
+      await engine.client.onAnswer!(answer, 1, { '0': 'TR_audio' });
+
+      expect(setPublisherAnswer).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it('keeps the current mapping when the current answer carries an empty one', async () => {
+      const { engine, publisher, setPublisherAnswer, trackIdFor } = primeEngine();
+      publisher.latestOfferId = 2;
+      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+
+      publisher.latestOfferId = 3;
+      await engine.client.onAnswer!(answer, 3, {});
+
+      expect(setPublisherAnswer).toHaveBeenLastCalledWith(answer, 3);
+      expect(trackIdFor('1')).toBe('TR_video');
     });
   });
 
