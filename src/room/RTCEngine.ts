@@ -1696,11 +1696,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         resolve(true);
       };
       const onAborted = () => {
+        restartAttempt.removeEventListener('abort', onAborted);
         this.off(EngineEvent.Restarted, onRestarted);
         resolve(false);
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      restartAttempt.addEventListener('abort', onAborted, { once: true });
+      restartAttempt.addEventListener('abort', onAborted);
     });
   };
 
