@@ -1,3 +1,4 @@
+import { NegotiatedDataChannelID } from '@livekit/protocol';
 import type { PCTransportManager } from '../PCTransportManager';
 import { FlowControlledDataChannel } from './FlowControlledDataChannel';
 import { LossyDataChannel } from './LossyDataChannel';
@@ -57,6 +58,8 @@ export class DataChannelManager {
   private dataTrackSub?: RTCDataChannel;
 
   private opts: DataChannelManagerOptions;
+
+  private negotiated = false;
 
   constructor(opts: DataChannelManagerOptions) {
     this.opts = opts;
@@ -119,14 +122,23 @@ export class DataChannelManager {
     );
   }
 
+  /** Whether the current publisher channels were created as negotiated (fixed IDs). */
+  get publisherChannelsNegotiated(): boolean {
+    return this.hasPublisherChannels && this.negotiated;
+  }
+
   /**
    * Creates the three publisher data channels on the given transport, wires their handlers, and
    * attaches them to the wrappers — attaching closes any replaced channel objects and rejects the
    * waiters still parked on them.
+   *
+   * With `negotiated`, the channels use fixed SCTP stream IDs agreed with the server instead of
+   * the in-band DCEP open handshake, so the server can send on them right away.
    */
-  createPublisherChannels(pcManager: PCTransportManager) {
-    // Recreating (the Safari null-id path): attaching the new handles below closes the old ones,
-    // so unhook them first — the old channel's close must not report an unexpected close.
+  createPublisherChannels(pcManager: PCTransportManager, negotiated: boolean = false) {
+    // Recreating (the Safari null-id path, or the in-band fallback after join): attaching the new
+    // handles below closes the old ones, so unhook them first — the old channel's close must not
+    // report an unexpected close.
     for (const channel of [this.lossy, this.reliable, this.dataTrack]) {
       const old = channel.channelHandle;
       if (old) {
@@ -152,11 +164,14 @@ export class DataChannelManager {
       channel.attach(dc);
     };
 
+    const idFor = (id: number) => (negotiated ? { negotiated, id } : {});
+
     wire(
       this.lossy,
       pcManager.createPublisherDataChannel(lossyDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
+        ...idFor(NegotiatedDataChannelID.NDCI_LOSSY),
       }),
       this.opts.onDataMessage,
     );
@@ -164,6 +179,7 @@ export class DataChannelManager {
       this.reliable,
       pcManager.createPublisherDataChannel(reliableDataChannelLabel, {
         ordered: true,
+        ...idFor(NegotiatedDataChannelID.NDCI_RELIABLE),
       }),
       this.opts.onDataMessage,
     );
@@ -172,9 +188,11 @@ export class DataChannelManager {
       pcManager.createPublisherDataChannel(dataTrackDataChannelLabel, {
         ordered: false,
         maxRetransmits: 0,
+        ...idFor(NegotiatedDataChannelID.NDCI_DATA_TRACK),
       }),
       this.opts.onDataTrackMessage,
     );
+    this.negotiated = negotiated;
 
     this.lossy.startThresholdTuning();
   }
