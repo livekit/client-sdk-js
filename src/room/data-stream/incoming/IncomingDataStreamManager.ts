@@ -41,11 +41,16 @@ export default class IncomingDataStreamManager {
 
   private isConnected = false;
 
+  /** Set once the room disconnects, and cleared when it connects again. Unlike `isConnected`, this
+   * stays false while the room is reconnecting. */
+  private hasDisconnected = false;
+
   private bufferedPackets: Array<{ packet: DataPacket; encryptionType: Encryption_Type }> = [];
 
   setConnected(connected: boolean) {
     this.isConnected = connected;
     if (connected) {
+      this.hasDisconnected = false;
       this.flushBufferedPackets();
     }
   }
@@ -87,6 +92,8 @@ export default class IncomingDataStreamManager {
   }
 
   clearControllers() {
+    this.hasDisconnected = true;
+
     // Error any in flight streams so readers do not wait forever for chunks that can no longer arrive.
     const abnormalEndError = new DataStreamError(
       'Room disconnected in the middle of receiving data',
@@ -132,32 +139,29 @@ export default class IncomingDataStreamManager {
   }
 
   /**
-   * Calls a registered stream handler and catches anything it throws or rejects with.
+   * Calls a registered stream handler.
    *
-   * Handlers are usually `async` functions that iterate the reader, and an incoming stream can
-   * error at any point (e.g. the sender or the local room disconnects mid stream). Nothing awaits
-   * the handler, so an error it doesn't catch itself would otherwise surface as an unhandled
-   * promise rejection that application code has no way to observe.
+   * Nothing awaits the handler, so an error it rejects with and doesn't catch itself surfaces as
+   * an unhandled promise rejection. That is left as is while the room is connected, so failures
+   * like a lost chunk stay loud. Once the room has disconnected, though, the session is over and
+   * whatever went wrong is out of the application's hands, so the error is logged as a warning
+   * instead.
    */
   private invokeStreamHandler<R extends ByteStreamReader | TextStreamReader>(
     handler: (reader: R, participantInfo: { identity: string }) => void | Promise<void>,
     reader: R,
     participantInfo: { identity: string },
   ) {
-    const onError = (error: unknown) => {
-      const context = { topic: reader.info.topic, streamId: reader.info.id, error };
-      if (error instanceof DataStreamError && error.reason === DataStreamErrorReason.AbnormalEnd) {
-        // The stream was cut short by a disconnect, which is expected churn.
-        this.log.debug('data stream handler did not handle an abnormally ended stream', context);
-      } else {
-        this.log.error('unhandled error in data stream handler', context);
+    Promise.resolve(handler(reader, participantInfo)).catch((error: unknown) => {
+      if (!this.hasDisconnected) {
+        throw error;
       }
-    };
-    try {
-      Promise.resolve(handler(reader, participantInfo)).catch(onError);
-    } catch (error) {
-      onError(error);
-    }
+      this.log.warn('data stream handler failed after the room disconnected', {
+        topic: reader.info.topic,
+        streamId: reader.info.id,
+        error,
+      });
+    });
   }
 
   handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
