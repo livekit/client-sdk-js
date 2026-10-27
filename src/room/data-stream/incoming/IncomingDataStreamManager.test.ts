@@ -2035,7 +2035,7 @@ describe('IncomingDataStreamManager', () => {
     });
 
     /** Drains microtasks and timers so any unhandledRejection has a chance to fire. */
-    const flush = async () => {
+    const flushAnyUnhandledRejections = async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     };
@@ -2070,7 +2070,7 @@ describe('IncomingDataStreamManager', () => {
       // Room#handleDisconnect calls this while the streams are still open
       manager.clearControllers();
       manager.setConnected(false);
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([]);
       for (const streamId of ['text-1', 'byte-1']) {
@@ -2103,7 +2103,7 @@ describe('IncomingDataStreamManager', () => {
       manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
       manager.clearControllers();
       release();
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([]);
       expect(warnSpy).toHaveBeenCalledWith(
@@ -2123,7 +2123,7 @@ describe('IncomingDataStreamManager', () => {
         Encryption_Type.NONE,
       );
       manager.validateParticipantHasNoActiveDataStreams('alice');
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([
         expect.objectContaining({
@@ -2146,7 +2146,7 @@ describe('IncomingDataStreamManager', () => {
         chunkPacket('text-1', 2, new Uint8Array([0x69])),
         Encryption_Type.NONE,
       );
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([
         expect.objectContaining({ reason: DataStreamErrorReason.Incomplete }),
@@ -2171,7 +2171,7 @@ describe('IncomingDataStreamManager', () => {
       // A reconnect drops out of the connected state without disconnecting the room.
       manager.setConnected(false);
       release();
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([handlerError]);
     });
@@ -2188,7 +2188,7 @@ describe('IncomingDataStreamManager', () => {
         throw handlerError;
       });
       manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
-      await flush();
+      await flushAnyUnhandledRejections();
 
       expect(unhandled).toEqual([handlerError]);
     });
