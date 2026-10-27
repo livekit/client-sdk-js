@@ -8,7 +8,8 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import log from '../../../logger';
 import {
   stubMissingCompressionStreams,
   stubMissingDeflateRawSupport,
@@ -2005,6 +2006,135 @@ describe('IncomingDataStreamManager', () => {
 
       expect(readers).toHaveLength(2);
       expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+  });
+
+  describe('Stream handler errors', () => {
+    let unhandled: unknown[];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+
+    beforeEach(() => {
+      unhandled = [];
+      process.on('unhandledRejection', onUnhandled);
+    });
+
+    afterEach(() => {
+      process.off('unhandledRejection', onUnhandled);
+      vi.restoreAllMocks();
+    });
+
+    /** Drains microtasks and timers so any unhandledRejection has a chance to fire. */
+    const flush = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+
+    it('should not surface an unhandled rejection when an async text handler does not catch a remote disconnect', async () => {
+      const debugSpy = vi.spyOn(log, 'debug').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const received: string[] = [];
+      manager.registerTextStreamHandler('my-topic', async (reader) => {
+        // No try/catch, the way most handlers are written.
+        for await (const chunk of reader) {
+          received.push(chunk);
+        }
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new TextEncoder().encode('hello')),
+        Encryption_Type.NONE,
+      );
+      await flush();
+      manager.validateParticipantHasNoActiveDataStreams('alice');
+      await flush();
+
+      expect(received).toEqual(['hello']);
+      expect(unhandled).toEqual([]);
+      expect(debugSpy).toHaveBeenCalledWith(
+        'data stream handler did not handle an abnormally ended stream',
+        expect.objectContaining({ topic: 'my-topic', streamId: 'text-1' }),
+      );
+    });
+
+    it('should not surface an unhandled rejection when an async byte handler does not catch a local disconnect', async () => {
+      const debugSpy = vi.spyOn(log, 'debug').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      manager.registerByteStreamHandler('my-topic', async (reader) => {
+        await reader.readAll();
+      });
+
+      manager.handleDataStreamPacket(headerPacket('byte-1', 'byteHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('byte-1', 0, new Uint8Array([0x01])),
+        Encryption_Type.NONE,
+      );
+      // Room#handleDisconnect calls this while the stream is still open
+      manager.clearControllers();
+      await flush();
+
+      expect(unhandled).toEqual([]);
+      expect(debugSpy).toHaveBeenCalledWith(
+        'data stream handler did not handle an abnormally ended stream',
+        expect.objectContaining({ topic: 'my-topic', streamId: 'byte-1' }),
+      );
+    });
+
+    it('should log an error when a handler rejects for another reason', async () => {
+      const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const handlerError = new Error('application bug');
+      manager.registerTextStreamHandler('my-topic', async () => {
+        throw handlerError;
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      await flush();
+
+      expect(unhandled).toEqual([]);
+      expect(errorSpy).toHaveBeenCalledWith('unhandled error in data stream handler', {
+        topic: 'my-topic',
+        streamId: 'text-1',
+        error: handlerError,
+      });
+    });
+
+    it('should not throw out of packet handling when a handler throws synchronously', async () => {
+      const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const handlerError = new Error('sync application bug');
+      manager.registerByteStreamHandler('my-topic', () => {
+        throw handlerError;
+      });
+
+      expect(() =>
+        manager.handleDataStreamPacket(headerPacket('byte-1', 'byteHeader'), Encryption_Type.NONE),
+      ).not.toThrow();
+      await flush();
+
+      expect(unhandled).toEqual([]);
+      expect(errorSpy).toHaveBeenCalledWith(
+        'unhandled error in data stream handler',
+        expect.objectContaining({ error: handlerError }),
+      );
+
+      // The stream is still registered, so its later packets are handled normally.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket('byte-1', 0, new Uint8Array([0x01])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
     });
   });
 });

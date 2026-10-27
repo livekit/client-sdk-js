@@ -131,6 +131,35 @@ export default class IncomingDataStreamManager {
     }
   }
 
+  /**
+   * Calls a registered stream handler and catches anything it throws or rejects with.
+   *
+   * Handlers are usually `async` functions that iterate the reader, and an incoming stream can
+   * error at any point (e.g. the sender or the local room disconnects mid stream). Nothing awaits
+   * the handler, so an error it doesn't catch itself would otherwise surface as an unhandled
+   * promise rejection that application code has no way to observe.
+   */
+  private invokeStreamHandler<R extends ByteStreamReader | TextStreamReader>(
+    handler: (reader: R, participantInfo: { identity: string }) => void | Promise<void>,
+    reader: R,
+    participantInfo: { identity: string },
+  ) {
+    const onError = (error: unknown) => {
+      const context = { topic: reader.info.topic, streamId: reader.info.id, error };
+      if (error instanceof DataStreamError && error.reason === DataStreamErrorReason.AbnormalEnd) {
+        // The stream was cut short by a disconnect, which is expected churn.
+        this.log.debug('data stream handler did not handle an abnormally ended stream', context);
+      } else {
+        this.log.error('unhandled error in data stream handler', context);
+      }
+    };
+    try {
+      Promise.resolve(handler(reader, participantInfo)).catch(onError);
+    } catch (error) {
+      onError(error);
+    }
+  }
+
   handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
     if (!this.isConnected) {
       this.bufferedPackets.push({ packet, encryptionType });
@@ -212,7 +241,8 @@ export default class IncomingDataStreamManager {
         const inlineContent = streamHeader.inlineContent as NonSharedUint8Array;
         if (typeof inlineContent !== 'undefined') {
           // Inline bytes are the raw payload, optionally deflate-raw compressed.
-          streamHandlerCallback(
+          this.invokeStreamHandler(
+            streamHandlerCallback,
             new ByteStreamReader(
               info,
               createInlineStream(
@@ -257,7 +287,8 @@ export default class IncomingDataStreamManager {
             }
           },
         });
-        streamHandlerCallback(
+        this.invokeStreamHandler(
+          streamHandlerCallback,
           new ByteStreamReader(
             info,
             compressed
@@ -330,7 +361,8 @@ export default class IncomingDataStreamManager {
           const content = compressed
             ? deflateRawDecompress(inlineContent, this.maxPayloadByteLength)
             : inlineContent;
-          streamHandlerCallback(
+          this.invokeStreamHandler(
+            streamHandlerCallback,
             new TextStreamReader(
               info,
               createInlineStream(streamHeader.streamId, content),
@@ -370,7 +402,8 @@ export default class IncomingDataStreamManager {
             }
           },
         });
-        streamHandlerCallback(
+        this.invokeStreamHandler(
+          streamHandlerCallback,
           new TextStreamReader(
             info,
             compressed
