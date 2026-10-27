@@ -372,6 +372,16 @@ export enum RoomEvent {
    * Emits when a new data track has been unpublished locally.
    */
   LocalDataTrackUnpublished = 'localDataTrackUnpublished',
+
+  /**
+   * The server issued a new access token for the local participant. The server
+   * refreshes the token periodically and after the participant's attributes or
+   * permissions change; the SDK uses the latest token for resumes and reconnects.
+   * Fires only when the token differs from the one the room already holds.
+   *
+   * args: (token: string)
+   */
+  TokenRefreshed = 'tokenRefreshed',
 }
 
 export enum ParticipantEvent {
