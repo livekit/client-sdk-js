@@ -1262,6 +1262,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed text stream', async () => {
@@ -1296,6 +1308,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed byte stream', async () => {
@@ -1329,6 +1353,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should drop a duplicate chunk index on an uncompressed text stream and still decode', async () => {
@@ -1794,6 +1830,112 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Encryption type mismatch');
+    });
+
+    it('should treat packets for a stream that errored on a chunk index gap as an unknown stream (#2166)', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('first')),
+        Encryption_Type.NONE,
+      );
+      // Skip chunk index 1, which errors the stream.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 2, new TextEncoder().encode('third')),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(1);
+      await expect(readers[0].readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // Packets still in flight for the errored stream are dropped, just like packets for a stream
+      // that was never opened, rather than throwing on a closed controller.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new TextEncoder().encode('fourth')),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
+      expect(readers).toHaveLength(1);
+
+      // No state is left behind for the stream id: a header reusing it opens a brand new stream
+      // instead of failing with `AlreadyOpened`, and that stream reads cleanly from chunk 0.
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('fresh stream')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      expect(readers).toHaveLength(2);
+      expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+
+    it('should treat packets for a stream whose read was aborted as an unknown stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('first')),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(1);
+
+      // The consumer gives up on the stream part way through.
+      const abortController = new AbortController();
+      const readAllPromise = readers[0].readAll({ signal: abortController.signal });
+      abortController.abort(new Error('consumer aborted'));
+      await expect(readAllPromise).rejects.toThrow('consumer aborted');
+      // The cancel propagates back up the pipe chain to the source stream asynchronously.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Packets still in flight for the aborted stream are dropped, just like packets for a stream
+      // that was never opened, rather than buffering in a stream nobody reads.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 1, new TextEncoder().encode('second')),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(readers).toHaveLength(1);
+
+      // No state is left behind for the stream id, even though no trailer has arrived to close it: a
+      // header reusing it opens a brand new stream instead of failing with `AlreadyOpened`, and that
+      // stream reads cleanly from chunk 0.
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('fresh stream')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      expect(readers).toHaveLength(2);
+      expect(await readers[1].readAll()).toEqual('fresh stream');
     });
   });
 });

@@ -1096,6 +1096,104 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('configure', () => {
+    class StubPC {
+      onicecandidate = null;
+
+      onicecandidateerror = null;
+
+      oniceconnectionstatechange = null;
+
+      onsignalingstatechange = null;
+
+      onconnectionstatechange = null;
+
+      ondatachannel = null;
+
+      ontrack = null;
+
+      iceConnectionState = 'new';
+
+      signalingState = 'stable';
+
+      connectionState = 'new';
+
+      getTransceivers() {
+        return [];
+      }
+
+      getSenders() {
+        return [];
+      }
+
+      close() {}
+
+      setConfiguration() {}
+    }
+
+    let originalRTCPeerConnection: unknown;
+
+    beforeEach(() => {
+      originalRTCPeerConnection = (globalThis as unknown as { RTCPeerConnection?: unknown })
+        .RTCPeerConnection;
+      (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection = StubPC;
+    });
+
+    afterEach(() => {
+      (globalThis as unknown as { RTCPeerConnection: unknown }).RTCPeerConnection =
+        originalRTCPeerConnection;
+    });
+
+    function configure(engine: RTCEngine, joinResponse?: JoinResponse) {
+      return (
+        engine as unknown as {
+          configure: (
+            joinResponse?: JoinResponse,
+            useSinglePeerConnection?: boolean,
+          ) => Promise<void>;
+        }
+      ).configure(joinResponse, true);
+    }
+
+    it.each([
+      ['with a join response', new JoinResponse()],
+      ['without a join response', undefined],
+    ])('passes peerConnectionTimeout to the transport manager %s', async (_label, joinResponse) => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      engine.peerConnectionTimeout = 42_000;
+
+      await configure(engine, joinResponse);
+
+      expect(engine.pcManager?.peerConnectionTimeout).toBe(42_000);
+    });
+
+    it('times out pcManager.negotiate() after the configured peerConnectionTimeout', async () => {
+      vi.useFakeTimers();
+      try {
+        const engine = new RTCEngine(roomOptionDefaults);
+        engine.peerConnectionTimeout = 40_000;
+
+        await configure(engine, new JoinResponse());
+        const pcManager = engine.pcManager!;
+        // A publisher that never produces an answer, so only the deadline can settle the call.
+        vi.spyOn(pcManager.publisher, 'negotiate').mockImplementation(() => {});
+
+        let settled: Error | undefined;
+        pcManager.negotiate(new AbortController()).catch((e: Error) => {
+          settled = e;
+        });
+
+        await vi.advanceTimersByTimeAsync(39_999);
+        expect(settled).toBeUndefined();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(settled?.message).toBe('negotiation timed out');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('negotiate', () => {
     /**
      * An engine whose `pcManager` parks in `negotiate()` until its abort controller fires, so

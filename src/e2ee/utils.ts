@@ -161,24 +161,36 @@ export function parseRbsp(stream: NonSharedUint8Array): NonSharedUint8Array {
 const kZerosInStartSequence = 2;
 const kEmulationByte = 3;
 
-export function writeRbsp(data_in: NonSharedUint8Array): NonSharedUint8Array {
-  const dataOut: number[] = [];
-  var numConsecutiveZeros = 0;
-  for (var i = 0; i < data_in.length; ++i) {
-    var byte = data_in[i];
+/**
+ * Inserts an emulation prevention byte before every byte <= 3 that follows two zeros.
+ * Returns `dataIn` itself when nothing needs escaping, which is the case for almost
+ * every encrypted frame. Callers must not mutate the result in place.
+ */
+export function writeRbsp(dataIn: NonSharedUint8Array): NonSharedUint8Array {
+  // Indices of the bytes that need an emulation byte in front of them.
+  const escapes: number[] = [];
+  let numConsecutiveZeros = 0;
+  for (let i = 0; i < dataIn.length; ++i) {
+    const byte = dataIn[i];
     if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
-      // Need to escape.
-      dataOut.push(kEmulationByte);
+      escapes.push(i);
       numConsecutiveZeros = 0;
     }
-    dataOut.push(byte);
-    if (byte == 0) {
-      ++numConsecutiveZeros;
-    } else {
-      numConsecutiveZeros = 0;
-    }
+    numConsecutiveZeros = byte === 0 ? numConsecutiveZeros + 1 : 0;
   }
-  return new Uint8Array(dataOut);
+  if (escapes.length === 0) {
+    return dataIn;
+  }
+  const dataOut = new Uint8Array(dataIn.length + escapes.length);
+  let from = 0;
+  for (let k = 0; k < escapes.length; ++k) {
+    // Shifted by k for the emulation bytes already written.
+    dataOut.set(dataIn.subarray(from, escapes[k]), from + k);
+    dataOut[escapes[k] + k] = kEmulationByte;
+    from = escapes[k];
+  }
+  dataOut.set(dataIn.subarray(from), from + escapes.length);
+  return dataOut;
 }
 
 export function asEncryptablePacket(packet: DataPacket): EncryptedPacketPayload | undefined {

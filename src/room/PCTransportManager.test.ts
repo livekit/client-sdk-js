@@ -79,10 +79,9 @@ describe('PCTransportManager.negotiate', () => {
   });
 
   function makeManager() {
-    const manager = new PCTransportManager('publisher-only', {});
+    const manager = new PCTransportManager('publisher-only', {}, { peerConnectionTimeout: 200 });
     const fake = new FakePublisher();
     (manager as unknown as { publisher: FakePublisher }).publisher = fake;
-    manager.peerConnectionTimeout = 200;
     return { manager, pub: fake };
   }
 
