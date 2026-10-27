@@ -1649,7 +1649,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    // A full reconnect during the initial connection replaces the transports polled below, so its
+    // `Restarted` completes the initial connection too. The engine closing (e.g. giving up) fails it.
+    let restarting = false;
+    const onRestarting = () => {
+      restarting = true;
+    };
+    let onRestarted!: () => void;
+    let onClosing!: () => void;
+    let onAbort!: () => void;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const engineOutcome = new Promise<void>((resolve, reject) => {
+      onRestarted = resolve;
+      onClosing = () => reject(ConnectionError.internal('could not establish pc connection'));
+      onAbort = () => reject(ConnectionError.cancelled('room connection has been cancelled'));
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Closing, onClosing);
+      // The transport wait below enforces these too, but not once it has resolved.
+      abortController?.signal.addEventListener('abort', onAbort);
+      deadline = CriticalTimers.setTimeout(onClosing, timeout ?? this.peerConnectionTimeout);
+    });
+    this.once(EngineEvent.Restarting, onRestarting);
+    try {
+      await Promise.race([
+        this.pcManager.ensurePCTransportConnection(abortController, timeout),
+        engineOutcome,
+      ]);
+      if (restarting) {
+        // Transports that connected once a restart had begun are about to be closed; follow it.
+        await engineOutcome;
+      }
+    } finally {
+      CriticalTimers.clearTimeout(deadline);
+      abortController?.signal.removeEventListener('abort', onAbort);
+      this.off(EngineEvent.Restarting, onRestarting);
+      this.off(EngineEvent.Restarted, onRestarted);
+      this.off(EngineEvent.Closing, onClosing);
+    }
   }
 
   private async waitForPCReconnected() {
