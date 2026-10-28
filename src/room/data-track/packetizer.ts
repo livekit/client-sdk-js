@@ -1,4 +1,4 @@
-import type { Throws } from '@livekit/throws-transformer/throws';
+import type { Throws } from '../../utils/throws';
 import { LivekitReasonedError } from '../errors';
 import { type DataTrackFrameInternal } from './frame';
 import { DataTrackHandle } from './handle';
