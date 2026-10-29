@@ -100,12 +100,6 @@ function trailerPacket(
   });
 }
 
-/** Re-attributes a packet to another sender, e.g. to forge a packet from `mallory`. */
-function from(identity: string, packet: DataPacket): DataPacket {
-  packet.participantIdentity = identity;
-  return packet;
-}
-
 /** Concatenates the byte chunks a `ByteStreamReader.readAll()` resolves with. */
 function concatChunks(chunks: Array<Uint8Array>): Uint8Array {
   const out = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0));
@@ -2030,10 +2024,9 @@ describe('IncomingDataStreamManager', () => {
       const reader = await openStream(manager);
 
       // Mallory knows the stream id and tries to write into alice's stream.
-      manager.handleDataStreamPacket(
-        from('mallory', chunkPacket('s1', 0, new TextEncoder().encode('forged'))),
-        Encryption_Type.NONE,
-      );
+      const forged = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
       // Alice's own content, then a clean end.
       manager.handleDataStreamPacket(
         chunkPacket('s1', 0, new TextEncoder().encode('genuine')),
@@ -2053,10 +2046,9 @@ describe('IncomingDataStreamManager', () => {
       manager.handleDataStreamPacket(headerPacket('s1', 'byteHeader'), Encryption_Type.NONE);
       const reader = await readerPromise;
 
-      manager.handleDataStreamPacket(
-        from('mallory', chunkPacket('s1', 0, new Uint8Array([0xff]))),
-        Encryption_Type.NONE,
-      );
+      const forged = chunkPacket('s1', 0, new Uint8Array([0xff]));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
       manager.handleDataStreamPacket(
         chunkPacket('s1', 0, new Uint8Array([1, 2, 3])),
         Encryption_Type.NONE,
@@ -2071,7 +2063,9 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const reader = await openStream(manager);
 
-      manager.handleDataStreamPacket(from('mallory', trailerPacket('s1')), Encryption_Type.NONE);
+      const forged = trailerPacket('s1');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
 
       // The stream is still open: alice's later content still reaches the reader. A rejected
       // trailer must not become a way for a third party to cancel someone else's stream.
@@ -2089,10 +2083,9 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const reader = await openStream(manager);
 
-      manager.handleDataStreamPacket(
-        from('mallory', trailerPacket('s1', { injected: 'yes' })),
-        Encryption_Type.NONE,
-      );
+      const forged = trailerPacket('s1', { injected: 'yes' });
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
       manager.handleDataStreamPacket(trailerPacket('s1', { genuine: 'yes' }), Encryption_Type.NONE);
 
       expect(await reader.readAll()).toEqual('');
@@ -2105,10 +2098,9 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const reader = await openStream(manager);
 
-      manager.handleDataStreamPacket(
-        from('mallory', trailerPacket('s1', undefined, 'forged failure')),
-        Encryption_Type.NONE,
-      );
+      const forged = trailerPacket('s1', undefined, 'forged failure');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
       manager.handleDataStreamPacket(
         chunkPacket('s1', 0, new TextEncoder().encode('ok')),
         Encryption_Type.NONE,

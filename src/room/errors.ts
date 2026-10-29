@@ -319,6 +319,9 @@ export enum DataStreamErrorReason {
 
   // The stream's (decompressed) payload exceeds the maximum allowed size.
   PayloadTooLarge = 10,
+
+  // A chunk or trailer was sent by a participant other than the one that opened the stream.
+  ParticipantIdentityMismatch = 11,
 }
 
 export class DataStreamError extends LivekitReasonedError<DataStreamErrorReason> {
