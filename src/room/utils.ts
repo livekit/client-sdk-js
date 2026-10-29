@@ -360,24 +360,27 @@ export function isMobile(): boolean {
 
 export function isE2EESimulcastSupported() {
   const browser = getBrowser();
+  // Unknown UA (embedded webview, native wrapper). The guard below targets a
+  // specific WebKit bug fixed in 17.2; don't punish clients we can't identify.
+  if (!browser) {
+    return true;
+  }
   const supportedSafariVersion = '17.2'; // see https://bugs.webkit.org/show_bug.cgi?id=257803
-  if (browser) {
-    if (browser.name !== 'Safari' && browser.os !== 'iOS') {
-      return true;
-    } else if (
-      browser.os === 'iOS' &&
-      browser.osVersion &&
-      compareVersions(browser.osVersion, supportedSafariVersion) >= 0
-    ) {
-      return true;
-    } else if (
-      browser.name === 'Safari' &&
-      compareVersions(browser.version, supportedSafariVersion) >= 0
-    ) {
-      return true;
-    } else {
-      return false;
-    }
+  if (browser.name !== 'Safari' && browser.os !== 'iOS') {
+    return true;
+  } else if (
+    browser.os === 'iOS' &&
+    browser.osVersion &&
+    compareVersions(browser.osVersion, supportedSafariVersion) >= 0
+  ) {
+    return true;
+  } else if (
+    browser.name === 'Safari' &&
+    compareVersions(browser.version, supportedSafariVersion) >= 0
+  ) {
+    return true;
+  } else {
+    return false;
   }
 }
 

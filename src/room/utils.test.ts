@@ -14,6 +14,7 @@ import {
   isDeflateRawCompressionSupported,
   isIPadOS,
   isPermissionDeniedError,
+  isE2EESimulcastSupported,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
@@ -617,3 +618,37 @@ describe('empty audio stream track refcounting', () => {
     expect(closedContexts).toBe(2);
   });
 });
+
+describe('isE2EESimulcastSupported', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('fails open for an unrecognized user agent', () => {
+    // Element X and similar native wrappers ship a UA that bowser-style parsers miss.
+    vi.stubGlobal('navigator', {
+      userAgent: 'Element X/26.07.4 (iPhone Air; iOS 26.5.2; Scale/1.00)',
+      product: 'Gecko',
+    });
+    expect(isE2EESimulcastSupported()).toBe(true);
+  });
+
+  it('still disables simulcast on Safari older than 17.2', () => {
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15',
+      product: 'Gecko',
+    });
+    expect(isE2EESimulcastSupported()).toBe(false);
+  });
+
+  it('allows simulcast on current Safari', () => {
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+      product: 'Gecko',
+    });
+    expect(isE2EESimulcastSupported()).toBe(true);
+  });
+});
+
