@@ -2007,4 +2007,107 @@ describe('IncomingDataStreamManager', () => {
       expect(await readers[1].readAll()).toEqual('fresh stream');
     });
   });
+
+  describe('Packets from a participant other than the stream sender', () => {
+    /** Opens text stream "s1" from `alice` and resolves its reader. */
+    async function openStream(manager: IncomingDataStreamManager): Promise<TextStreamReader> {
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      return readerPromise;
+    }
+
+    it('should not append a chunk from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      // Mallory knows the stream id and tries to write into alice's stream.
+      const forged = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      // Alice's own content, then a clean end.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('genuine')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('genuine');
+    });
+
+    it('should not append a chunk from another participant to a byte stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      manager.handleDataStreamPacket(headerPacket('s1', 'byteHeader'), Encryption_Type.NONE);
+      const reader = await readerPromise;
+
+      const forged = chunkPacket('s1', 0, new Uint8Array([0xff]));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new Uint8Array([1, 2, 3])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(concatChunks(await reader.readAll())).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it('should not end the stream on a trailer from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+
+      // The stream is still open: alice's later content still reaches the reader. A rejected
+      // trailer must not become a way for a third party to cancel someone else's stream.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('still open')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('still open');
+    });
+
+    it('should not merge attributes from a trailer from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1', { injected: 'yes' });
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(trailerPacket('s1', { genuine: 'yes' }), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('');
+      expect(reader.info.attributes?.injected).toBeUndefined();
+      expect(reader.info.attributes?.genuine).toEqual('yes');
+    });
+
+    it('should not fail the stream on a forged abnormal end', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1', undefined, 'forged failure');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('ok')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('ok');
+    });
+  });
 });
