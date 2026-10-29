@@ -161,17 +161,11 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        compressedStream
-          .stream()
-          .pipeThrough(
-            progressReportingStream(textInBytes.length, (progress) => handleProgress(progress, 0)),
-          ),
+        compressedStream.stream(),
       );
 
-      // Ensure there's always a 100% progress event fired, even if the string is zero bytes long
-      if (textInBytes.length === 0) {
-        handleProgress(1, 0);
-      }
+      // Compressed bytes cannot be measured against the original text length.
+      handleProgress(1, 0);
     } else {
       // Phase 3 / fallback: header + plain uncompressed chunk packets + trailer.
       const writer = await this.streamText({
