@@ -70,7 +70,7 @@ function createManager(
         : [ClientInfo_Capability.CAP_COMPRESSION_DEFLATE_RAW],
     () => Object.keys(participants),
   );
-  return { manager, sentPackets };
+  return { manager, sentPackets, engine };
 }
 
 function headerOf(packet: DataPacket) {
@@ -379,10 +379,14 @@ describe('OutgoingDataStreamManager', () => {
         .map(() => `hello world${randomText(1_000)}`)
         .join('');
 
+      const onProgress = vi.fn();
       const info = await manager.sendText(text, {
+        onProgress,
         topic: 'my-topic',
         destinationIdentities: ['alice', 'bob'],
       });
+
+      expect(onProgress).toHaveBeenLastCalledWith(1);
 
       // 1 header + 3 data packets + 1 trailer = 5 total packets
       //
@@ -1017,6 +1021,64 @@ describe('OutgoingDataStreamManager', () => {
   });
 
   describe('attachments', () => {
+    it.each([
+      {
+        text: 'hello world'.repeat(1_000),
+        failedPacket: 'streamTrailer',
+        description: 'compressible text',
+      },
+      { text: 'a', failedPacket: 'streamChunk', description: 'expanding compressed text' },
+      { text: 'a', failedPacket: 'streamTrailer', description: 'expanding compressed text' },
+    ])(
+      'should retain partial progress for $description when $failedPacket fails',
+      async ({ text, failedPacket }) => {
+        const { manager, engine } = createManager();
+        const onProgress = vi.fn();
+        const error = new Error('send failed');
+        vi.mocked(engine.sendDataPacket).mockImplementation(async (packet) => {
+          if (packet.value.case === failedPacket) {
+            throw error;
+          }
+        });
+
+        await expect(
+          manager.sendText(text, {
+            attachments: [new File(['attachment'], 'att.txt')],
+            onProgress,
+          }),
+        ).rejects.toBe(error);
+        expect(onProgress).toHaveBeenCalled();
+        expect(onProgress.mock.calls.every(([value]) => value > 0 && value < 0.5)).toBe(true);
+        expect(onProgress).not.toHaveBeenCalledWith(0.5);
+        expect(onProgress).not.toHaveBeenCalledWith(1);
+      },
+    );
+
+    it.each([
+      { text: 'hello world'.repeat(1_000), compress: true },
+      { text: 'hello world'.repeat(1_000), compress: false },
+      { text: '', compress: true },
+      { text: 'a', compress: true },
+    ])(
+      'should finish text and attachment progress at one ($compress, text length $text.length)',
+      async ({ text, compress }) => {
+        const { manager, sentPackets } = createManager();
+        const progress: number[] = [];
+
+        await manager.sendText(text, {
+          attachments: [new File(['attachment'], 'att.txt')],
+          compress,
+          onProgress: (value) => progress.push(value),
+        });
+
+        expect(progress.at(-1)).toBe(1);
+        expect(progress).toEqual([...progress].sort((a, b) => a - b));
+        expect(progress.every((value) => value >= 0 && value <= 1)).toBe(true);
+        expect(headerOf(sentPackets[0]).inlineContent).toBeUndefined();
+        expect(sentPackets.filter((p) => p.value.case === 'streamTrailer')).toHaveLength(2);
+      },
+    );
+
     it('should send attachments as separate byte streams referenced by attachedStreamIds (never inline)', async () => {
       const { manager, sentPackets } = createManager({
         alice: CLIENT_PROTOCOL_DATA_STREAM_V2,
