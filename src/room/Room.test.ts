@@ -804,3 +804,40 @@ describe('server leave during connect()', () => {
     expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
   });
 });
+
+describe('events after a reconnect (#2183)', () => {
+  function connectedRoomWithReconnect(attemptingReconnect: boolean) {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    Object.assign(room.engine as unknown as Record<string, unknown>, {
+      reconnectTimeout: setTimeout(() => {}, 0),
+      attemptingReconnect,
+    });
+    const emitWhenConnected = (event: RoomEvent, ...args: unknown[]) =>
+      (
+        room as unknown as { emitWhenConnected: (event: RoomEvent, ...args: unknown[]) => void }
+      ).emitWhenConnected(event, ...args);
+    return { room, emitWhenConnected };
+  }
+
+  it('emits once the room is back while the attempt is still settling', () => {
+    // the room is set Connected and flushes its buffer before the attempt's promise settles
+    const { room, emitWhenConnected } = connectedRoomWithReconnect(true);
+    const metadataChanged = vi.fn();
+    room.on(RoomEvent.RoomMetadataChanged, metadataChanged);
+
+    emitWhenConnected(RoomEvent.RoomMetadataChanged, 'new metadata');
+
+    expect(metadataChanged).toHaveBeenCalledWith('new metadata');
+  });
+
+  it('still buffers while a reconnect is scheduled but not started', () => {
+    const { room, emitWhenConnected } = connectedRoomWithReconnect(false);
+    const metadataChanged = vi.fn();
+    room.on(RoomEvent.RoomMetadataChanged, metadataChanged);
+
+    emitWhenConnected(RoomEvent.RoomMetadataChanged, 'new metadata');
+
+    expect(metadataChanged).not.toHaveBeenCalled();
+  });
+});

@@ -173,8 +173,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this._isNewlyCreated;
   }
 
+  /** A reconnect is scheduled but has not started yet. */
   get pendingReconnect() {
-    return !!this.reconnectTimeout;
+    return !!this.reconnectTimeout && !this.attemptingReconnect;
   }
 
   get serverVersion(): string | undefined {
