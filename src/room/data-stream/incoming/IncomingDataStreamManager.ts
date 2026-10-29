@@ -144,9 +144,17 @@ export default class IncomingDataStreamManager {
           encryptionType,
         );
       case 'streamChunk':
-        return this.handleStreamChunk(packet.value.value, encryptionType);
+        return this.handleStreamChunk(
+          packet.value.value,
+          packet.participantIdentity,
+          encryptionType,
+        );
       case 'streamTrailer':
-        return this.handleStreamTrailer(packet.value.value, encryptionType);
+        return this.handleStreamTrailer(
+          packet.value.value,
+          packet.participantIdentity,
+          encryptionType,
+        );
       default:
         throw new Error(`DataPacket of value "${packet.value.case}" is not data stream related!`);
     }
@@ -387,88 +395,138 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  private handleStreamChunk(chunk: DataStream_Chunk, encryptionType: Encryption_Type) {
+  /**
+   * Checks that a chunk or trailer may act on the stream it names, given that stream's (already
+   * looked up) controller and the map it was found in.
+   *
+   * Stream ids key the controller maps globally, so a packet naming an open id reaches that stream
+   * whoever sent it. Without the sender check, a participant that learns an id (every recipient of
+   * a multi-destination stream learns it from the header) could append to another participant's
+   * stream, merge its own attributes in, or end it with a forged reason. A packet from the wrong
+   * sender is dropped on its own: erroring the stream instead would let a third party cancel
+   * someone else's stream.
+   *
+   * A packet under the wrong encryption type errors and unregisters the stream, so an unencrypted
+   * peer can neither write into nor cleanly close an encrypted stream.
+   *
+   * @returns whether the packet may be applied to the stream.
+   */
+  private validateStreamPacket(
+    streamId: string,
+    streamController: StreamController<DataStream_Chunk>,
+    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    participantIdentity: string,
+    encryptionType: Encryption_Type,
+  ): boolean {
+    if (streamController.sendingParticipantIdentity !== participantIdentity) {
+      this.log.warn(
+        `Dropping data stream packet for ${streamId} from ${participantIdentity}: stream belongs to ${streamController.sendingParticipantIdentity}`,
+      );
+      return false;
+    }
+    if (streamController.info.encryptionType !== encryptionType) {
+      streamController.controller.error(
+        new DataStreamError(
+          `Encryption type mismatch for stream ${streamId}. Expected ${streamController.info.encryptionType}, got ${encryptionType}`,
+          DataStreamErrorReason.EncryptionTypeMismatch,
+        ),
+      );
+      streamControllers.delete(streamId);
+      return false;
+    }
+    return true;
+  }
+
+  private handleStreamChunk(
+    chunk: DataStream_Chunk,
+    participantIdentity: string,
+    encryptionType: Encryption_Type,
+  ) {
     const fileBuffer = this.byteStreamControllers.get(chunk.streamId);
-    if (fileBuffer) {
-      if (fileBuffer.info.encryptionType !== encryptionType) {
-        fileBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${fileBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
-        );
-        this.byteStreamControllers.delete(chunk.streamId);
-      } else {
-        fileBuffer.controller.enqueue(chunk);
-      }
+    if (
+      fileBuffer &&
+      this.validateStreamPacket(
+        chunk.streamId,
+        fileBuffer,
+        this.byteStreamControllers,
+        participantIdentity,
+        encryptionType,
+      )
+    ) {
+      fileBuffer.controller.enqueue(chunk);
     }
     const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
-        textBuffer.controller.error(
-          new DataStreamError(
-            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
-          ),
-        );
-        this.textStreamControllers.delete(chunk.streamId);
-      } else {
-        textBuffer.controller.enqueue(chunk);
-      }
+    if (
+      textBuffer &&
+      this.validateStreamPacket(
+        chunk.streamId,
+        textBuffer,
+        this.textStreamControllers,
+        participantIdentity,
+        encryptionType,
+      )
+    ) {
+      textBuffer.controller.enqueue(chunk);
     }
   }
 
-  private handleStreamTrailer(trailer: DataStream_Trailer, encryptionType: Encryption_Type) {
+  private handleStreamTrailer(
+    trailer: DataStream_Trailer,
+    participantIdentity: string,
+    encryptionType: Encryption_Type,
+  ) {
+    // Validated before the attribute merge and the close below, so a rejected trailer can neither
+    // inject attributes nor end the stream.
     const textBuffer = this.textStreamControllers.get(trailer.streamId);
-    if (textBuffer) {
-      if (textBuffer.info.encryptionType !== encryptionType) {
+    if (
+      textBuffer &&
+      this.validateStreamPacket(
+        trailer.streamId,
+        textBuffer,
+        this.textStreamControllers,
+        participantIdentity,
+        encryptionType,
+      )
+    ) {
+      textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
+      if (trailer.reason) {
+        // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
+        // surface it as an error rather than pretending the stream completed.
         textBuffer.controller.error(
           new DataStreamError(
-            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
+            `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+            DataStreamErrorReason.AbnormalEnd,
           ),
         );
       } else {
-        textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
-        if (trailer.reason) {
-          // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
-          // surface it as an error rather than pretending the stream completed.
-          textBuffer.controller.error(
-            new DataStreamError(
-              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-              DataStreamErrorReason.AbnormalEnd,
-            ),
-          );
-        } else {
-          textBuffer.controller.close();
-        }
+        textBuffer.controller.close();
       }
       this.textStreamControllers.delete(trailer.streamId);
     }
 
     const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
-    if (fileBuffer) {
-      if (fileBuffer.info.encryptionType !== encryptionType) {
+    if (
+      fileBuffer &&
+      this.validateStreamPacket(
+        trailer.streamId,
+        fileBuffer,
+        this.byteStreamControllers,
+        participantIdentity,
+        encryptionType,
+      )
+    ) {
+      fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
+      if (trailer.reason) {
+        // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
+        // surface it as an error rather than pretending the stream completed.
         fileBuffer.controller.error(
           new DataStreamError(
-            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${fileBuffer.info.encryptionType}`,
-            DataStreamErrorReason.EncryptionTypeMismatch,
+            `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+            DataStreamErrorReason.AbnormalEnd,
           ),
         );
       } else {
-        fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
-        if (trailer.reason) {
-          // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
-          // surface it as an error rather than pretending the stream completed.
-          fileBuffer.controller.error(
-            new DataStreamError(
-              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-              DataStreamErrorReason.AbnormalEnd,
-            ),
-          );
-        } else {
-          fileBuffer.controller.close();
-        }
+        fileBuffer.controller.close();
       }
       this.byteStreamControllers.delete(trailer.streamId);
     }
