@@ -1021,32 +1021,44 @@ describe('OutgoingDataStreamManager', () => {
   });
 
   describe('attachments', () => {
-    it('should retain partial text progress when sending its trailer fails', async () => {
-      const { manager, engine } = createManager();
-      const onProgress = vi.fn();
-      const error = new Error('send failed');
-      vi.mocked(engine.sendDataPacket).mockImplementation(async (packet) => {
-        if (packet.value.case === 'streamTrailer') {
-          throw error;
-        }
-      });
+    it.each([
+      {
+        text: 'hello world'.repeat(1_000),
+        failedPacket: 'streamTrailer',
+        description: 'compressible text',
+      },
+      { text: 'a', failedPacket: 'streamChunk', description: 'expanding compressed text' },
+      { text: 'a', failedPacket: 'streamTrailer', description: 'expanding compressed text' },
+    ])(
+      'should retain partial progress for $description when $failedPacket fails',
+      async ({ text, failedPacket }) => {
+        const { manager, engine } = createManager();
+        const onProgress = vi.fn();
+        const error = new Error('send failed');
+        vi.mocked(engine.sendDataPacket).mockImplementation(async (packet) => {
+          if (packet.value.case === failedPacket) {
+            throw error;
+          }
+        });
 
-      await expect(
-        manager.sendText('hello world'.repeat(1_000), {
-          attachments: [new File(['attachment'], 'att.txt')],
-          onProgress,
-        }),
-      ).rejects.toBe(error);
-      expect(onProgress).toHaveBeenCalled();
-      expect(onProgress.mock.calls.every(([value]) => value > 0 && value < 0.5)).toBe(true);
-      expect(onProgress).not.toHaveBeenCalledWith(0.5);
-      expect(onProgress).not.toHaveBeenCalledWith(1);
-    });
+        await expect(
+          manager.sendText(text, {
+            attachments: [new File(['attachment'], 'att.txt')],
+            onProgress,
+          }),
+        ).rejects.toBe(error);
+        expect(onProgress).toHaveBeenCalled();
+        expect(onProgress.mock.calls.every(([value]) => value > 0 && value < 0.5)).toBe(true);
+        expect(onProgress).not.toHaveBeenCalledWith(0.5);
+        expect(onProgress).not.toHaveBeenCalledWith(1);
+      },
+    );
 
     it.each([
       { text: 'hello world'.repeat(1_000), compress: true },
       { text: 'hello world'.repeat(1_000), compress: false },
       { text: '', compress: true },
+      { text: 'a', compress: true },
     ])(
       'should finish text and attachment progress at one ($compress, text length $text.length)',
       async ({ text, compress }) => {

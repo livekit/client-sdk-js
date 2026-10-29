@@ -161,11 +161,12 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        compressedStream
-          .stream()
-          .pipeThrough(
-            progressReportingStream(textInBytes.length, (progress) => handleProgress(progress, 0)),
-          ),
+        compressedStream.stream().pipeThrough(
+          progressReportingStream(textInBytes.length, (progress) => {
+            // Reserve completion for a successful send, even if compression expands the text.
+            handleProgress(Math.min(progress, 1 - Number.EPSILON), 0);
+          }),
+        ),
       );
 
       // Compressed byte counts may never reach the original text length.
