@@ -689,6 +689,30 @@ describe('full reconnect failing over to a second region', () => {
     expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
     await room.disconnect();
   });
+
+  it('delivers emitWhenConnected events while pendingReconnect remains true after Reconnected (#2183)', async () => {
+    const { room, engine, roomEvents } = setup();
+    // Simulate reconnectTimeout still armed after the room is Connected again.
+    vi.spyOn(room.engine, 'pendingReconnect', 'get').mockReturnValue(true);
+
+    engine.restarting();
+    engine.signalRestarted('after');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    await flush();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    // Drain the metadata from the successful join before the post-reconnect update.
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('after');
+
+    // A post-reconnect room update must not sit in bufferedEvents forever.
+    room.engine.emit(EngineEvent.RoomUpdate, join('late').room!);
+    await flush();
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('late');
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
+    await room.disconnect();
+  });
 });
 
 describe('server leave during connect()', () => {
