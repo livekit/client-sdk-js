@@ -1819,7 +1819,7 @@ describe('IncomingDataStreamManager', () => {
     it('should error an inline compressed payload that inflates past the max payload size', async () => {
       // Decompression-bomb guard: a tiny compressed inline payload must not be allowed to
       // expand without bound.
-      const manager = new IncomingDataStreamManager(1_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 1_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -1845,7 +1845,7 @@ describe('IncomingDataStreamManager', () => {
     });
 
     it('should error a chunked compressed stream that inflates past the max payload size', async () => {
-      const manager = new IncomingDataStreamManager(50_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 50_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -2047,7 +2047,7 @@ describe('IncomingDataStreamManager', () => {
     });
 
     it('respects a custom per participant open stream limit', () => {
-      const manager = new IncomingDataStreamManager(undefined, 2);
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 2 });
       manager.setConnected(true);
 
       const readers: Array<TextStreamReader> = [];

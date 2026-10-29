@@ -7,6 +7,7 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import log from '../../../logger';
+import type { RoomDataStreamOptions } from '../../../options';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
@@ -33,10 +34,10 @@ export default class IncomingDataStreamManager {
   /** Max number of incoming streams a single remote participant may have open at once. */
   private maxOpenStreamsPerParticipant: number;
 
-  constructor(
-    maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
-    maxOpenStreamsPerParticipant: number = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
-  ) {
+  constructor({
+    maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+    maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  }: RoomDataStreamOptions = {}) {
     this.maxPayloadByteLength = maxPayloadByteLength;
     this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
   }
