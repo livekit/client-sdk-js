@@ -16,3 +16,13 @@ export const STREAM_CHUNK_SIZE_BYTES = 15_000;
  * @internal
  */
 export const DEFAULT_MAX_PAYLOAD_BYTE_LENGTH = 5_000_000_000;
+
+/**
+ * Maximum number of incoming data streams a single remote participant may have open at once.
+ * Each open stream holds receiver-side state until its trailer arrives (or the sender
+ * disconnects), so without a cap a participant could open streams it never closes and exhaust
+ * the receiver's memory. Headers for new streams beyond the cap are dropped.
+ *
+ * @internal
+ */
+export const MAX_OPEN_STREAMS_PER_PARTICIPANT = 500;

@@ -12,7 +12,7 @@ import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isDeflateRawCompressionSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
-import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
+import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH, MAX_OPEN_STREAMS_PER_PARTICIPANT } from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -152,11 +152,31 @@ export default class IncomingDataStreamManager {
     }
   }
 
+  /** Returns true if the given participant already has the maximum number of streams open. */
+  private hasTooManyOpenStreams(participantIdentity: string) {
+    let openStreamCount = 0;
+    for (const controllers of [this.byteStreamControllers, this.textStreamControllers]) {
+      for (const { sendingParticipantIdentity } of controllers.values()) {
+        if (sendingParticipantIdentity === participantIdentity) {
+          openStreamCount += 1;
+        }
+      }
+    }
+    return openStreamCount >= MAX_OPEN_STREAMS_PER_PARTICIPANT;
+  }
+
   private handleStreamHeader(
     streamHeader: DataStream_Header,
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
+    if (this.hasTooManyOpenStreams(participantIdentity)) {
+      this.log.error(
+        `Participant ${participantIdentity} already has ${MAX_OPEN_STREAMS_PER_PARTICIPANT} data streams open, dropping stream ${streamHeader.streamId}`,
+      );
+      return;
+    }
+
     switch (streamHeader.contentHeader.case) {
       case 'byteHeader': {
         const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);

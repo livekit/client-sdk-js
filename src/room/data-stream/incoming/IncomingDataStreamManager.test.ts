@@ -14,7 +14,7 @@ import {
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
-import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import { MAX_OPEN_STREAMS_PER_PARTICIPANT, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
 
@@ -2005,6 +2005,45 @@ describe('IncomingDataStreamManager', () => {
 
       expect(readers).toHaveLength(2);
       expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+
+    it('drops headers from a participant that already has the maximum number of streams open', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Fill alice's quota with streams that are never closed.
+      const aliceStreamIds = Array.from({ length: MAX_OPEN_STREAMS_PER_PARTICIPANT }, () =>
+        crypto.randomUUID(),
+      );
+      for (const streamId of aliceStreamIds) {
+        manager.handleDataStreamPacket(headerPacket(streamId, 'textHeader'), Encryption_Type.NONE);
+      }
+      expect(readers).toHaveLength(MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // One more from alice is dropped.
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // The limit is per participant, so bob can still open a stream.
+      const bobHeader = headerPacket(crypto.randomUUID(), 'textHeader');
+      bobHeader.participantIdentity = 'bob';
+      manager.handleDataStreamPacket(bobHeader, Encryption_Type.NONE);
+      expect(readers).toHaveLength(MAX_OPEN_STREAMS_PER_PARTICIPANT + 1);
+
+      // Once one of alice's streams closes, she can open a new one.
+      manager.handleDataStreamPacket(trailerPacket(aliceStreamIds[0]), Encryption_Type.NONE);
+      expect(await readers[0].readAll()).toEqual('');
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(MAX_OPEN_STREAMS_PER_PARTICIPANT + 2);
     });
   });
 });
