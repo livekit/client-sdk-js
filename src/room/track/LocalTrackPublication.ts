@@ -2,13 +2,12 @@ import { AudioTrackFeature, TrackInfo } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isAudioTrack, isVideoTrack } from '../utils';
-import type { AudioCaptureOptions, VideoCaptureOptions } from './options';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
 import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
-import type { TrackPublishOptions } from './options';
+import type { AudioCaptureOptions, TrackPublishOptions, VideoCaptureOptions } from './options';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack = undefined;

@@ -20,7 +20,9 @@ describe('LocalVideoTrack.unmute capture options', () => {
     vi.unstubAllGlobals();
   });
 
-  function fakeTrack(settings: MediaTrackSettings = { width: 1280, height: 720 }): MediaStreamTrack {
+  function fakeTrack(
+    settings: MediaTrackSettings = { width: 1280, height: 720 },
+  ): MediaStreamTrack {
     const listeners = new Map<string, Set<EventListener>>();
     const applyConstraints = vi.fn().mockResolvedValue(undefined);
     return {
@@ -36,7 +38,7 @@ describe('LocalVideoTrack.unmute capture options', () => {
       onunmute: null,
       getSettings: () => settings,
       getConstraints: () => ({}),
-      getCapabilities: () => ({} as MediaTrackCapabilities),
+      getCapabilities: () => ({}) as MediaTrackCapabilities,
       applyConstraints,
       stop: vi.fn(),
       clone: vi.fn(function (this: MediaStreamTrack) {
@@ -63,12 +65,10 @@ describe('LocalVideoTrack.unmute capture options', () => {
     });
 
     // userProvidedTrack=false so unmute reacquires the camera (SDK-managed)
-    const track = new LocalVideoTrack(
-      initial,
-      { width: 1280, height: 720 },
-      false,
-      { loggerName: 'test', loggerOptions: {} },
-    );
+    const track = new LocalVideoTrack(initial, { width: 1280, height: 720 }, false, {
+      loggerName: 'test',
+      loggerOptions: {},
+    });
     track.source = Track.Source.Camera;
     await track.mute();
 
@@ -100,12 +100,10 @@ describe('LocalVideoTrack.unmute capture options', () => {
       getAudioTracks: () => [],
     });
 
-    const track = new LocalVideoTrack(
-      initial,
-      { width: 1280, height: 720 },
-      false,
-      { loggerName: 'test', loggerOptions: {} },
-    );
+    const track = new LocalVideoTrack(initial, { width: 1280, height: 720 }, false, {
+      loggerName: 'test',
+      loggerOptions: {},
+    });
     track.source = Track.Source.Camera;
     await track.mute();
     await track.unmute();
