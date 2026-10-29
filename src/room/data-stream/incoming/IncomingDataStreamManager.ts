@@ -7,7 +7,7 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import log from '../../../logger';
-import type { RoomDataStreamOptions } from '../../../options';
+import { type RoomDataStreamOptions } from '../../../options';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
