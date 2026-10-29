@@ -12,9 +12,9 @@ import {
   isAppleMobile,
   isCompressionStreamSupported,
   isDeflateRawCompressionSupported,
+  isE2EESimulcastSupported,
   isIPadOS,
   isPermissionDeniedError,
-  isE2EESimulcastSupported,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
   negotiateDependencyDescriptor,
@@ -651,4 +651,3 @@ describe('isE2EESimulcastSupported', () => {
     expect(isE2EESimulcastSupported()).toBe(true);
   });
 });
-
