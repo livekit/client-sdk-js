@@ -161,10 +161,14 @@ export default class OutgoingDataStreamManager {
         packet,
         streamId,
         options?.destinationIdentities,
-        compressedStream.stream(),
+        compressedStream
+          .stream()
+          .pipeThrough(
+            progressReportingStream(textInBytes.length, (progress) => handleProgress(progress, 0)),
+          ),
       );
 
-      // Compressed bytes cannot be measured against the original text length.
+      // Compressed byte counts may never reach the original text length.
       handleProgress(1, 0);
     } else {
       // Phase 3 / fallback: header + plain uncompressed chunk packets + trailer.

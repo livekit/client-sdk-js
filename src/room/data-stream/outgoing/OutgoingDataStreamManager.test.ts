@@ -1021,7 +1021,7 @@ describe('OutgoingDataStreamManager', () => {
   });
 
   describe('attachments', () => {
-    it('should not report completed text progress when sending its trailer fails', async () => {
+    it('should retain partial text progress when sending its trailer fails', async () => {
       const { manager, engine } = createManager();
       const onProgress = vi.fn();
       const error = new Error('send failed');
@@ -1037,6 +1037,8 @@ describe('OutgoingDataStreamManager', () => {
           onProgress,
         }),
       ).rejects.toBe(error);
+      expect(onProgress).toHaveBeenCalled();
+      expect(onProgress.mock.calls.every(([value]) => value > 0 && value < 0.5)).toBe(true);
       expect(onProgress).not.toHaveBeenCalledWith(0.5);
       expect(onProgress).not.toHaveBeenCalledWith(1);
     });
