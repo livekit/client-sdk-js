@@ -109,9 +109,7 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
       incoming: IncomingDataStreamManager;
       outgoing: OutgoingDataStreamManager;
     } => {
-    const incoming = new IncomingDataStreamManager(
-      (streamOptions ?? room.options.dataStream)?.maxPayloadByteLength,
-    );
+    const incoming = new IncomingDataStreamManager(streamOptions ?? room.options.dataStream);
     const outgoing = new OutgoingDataStreamManager(
       room.engine,
       ctx.log,

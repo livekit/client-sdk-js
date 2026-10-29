@@ -7,12 +7,16 @@ import {
   Encryption_Type,
 } from '@livekit/protocol';
 import log from '../../../logger';
+import { type RoomDataStreamOptions } from '../../../options';
 import { type NonSharedUint8Array } from '../../../type-polyfills/non-shared-typed-arrays';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isDeflateRawCompressionSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
-import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH } from '../constants';
+import {
+  DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+} from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -27,8 +31,15 @@ export default class IncomingDataStreamManager {
    * errored (decompression-bomb guard). */
   private maxPayloadByteLength: number;
 
-  constructor(maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH) {
+  /** Max number of incoming streams a single remote participant may have open at once. */
+  private maxOpenStreamsPerParticipant: number;
+
+  constructor({
+    maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+    maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  }: RoomDataStreamOptions = {}) {
     this.maxPayloadByteLength = maxPayloadByteLength;
+    this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
   }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
@@ -152,11 +163,31 @@ export default class IncomingDataStreamManager {
     }
   }
 
+  /** Returns true if the given participant already has the maximum number of streams open. */
+  private hasTooManyOpenStreams(participantIdentity: string) {
+    let openStreamCount = 0;
+    for (const controllers of [this.byteStreamControllers, this.textStreamControllers]) {
+      for (const { sendingParticipantIdentity } of controllers.values()) {
+        if (sendingParticipantIdentity === participantIdentity) {
+          openStreamCount += 1;
+        }
+      }
+    }
+    return openStreamCount >= this.maxOpenStreamsPerParticipant;
+  }
+
   private handleStreamHeader(
     streamHeader: DataStream_Header,
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
+    if (this.hasTooManyOpenStreams(participantIdentity)) {
+      this.log.error(
+        `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId}`,
+      );
+      return;
+    }
+
     switch (streamHeader.contentHeader.case) {
       case 'byteHeader': {
         const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
