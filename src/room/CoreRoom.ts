@@ -1017,13 +1017,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       throw e;
     }
 
-    // also hook unload event
+    // also hook unload / freeze events when disconnectOnPageLeave is enabled
     if (isWeb() && this.options.disconnectOnPageLeave) {
-      // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
+      // pagehide + beforeunload cover navigation; freeze covers Page Lifecycle tab freezes
       window.addEventListener('pagehide', this.onPageLeave);
       window.addEventListener('beforeunload', this.onPageLeave);
-    }
-    if (isWeb()) {
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
