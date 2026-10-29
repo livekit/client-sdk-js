@@ -76,6 +76,7 @@ import {
   isVideoTrack,
   isWeb,
   sleep,
+  unwrapConstraint,
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
@@ -1597,7 +1598,7 @@ export class LocalParticipant extends Participant {
           if (isLocalAudioTrack(track)) {
             await this.restartOnDefaultAudioDevice(track);
           } else {
-            await track.restartTrack();
+            await this.restartOnDefaultVideoDevice(track);
           }
         }
       } catch (e) {
@@ -1633,6 +1634,68 @@ export class LocalParticipant extends Participant {
       const allDevices = await DeviceManager.getInstance().getDevices('audioinput', false);
       await track.setDeviceId(allDevices?.[0]?.deviceId ?? 'default');
     }
+  }
+
+  /**
+   * Reacquire a camera after its capture device ended.
+   *
+   * Video inputs have no system `default` device the way audio inputs do, so this does not ask
+   * for `deviceId: 'default'`. The current constraints are tried first, which keeps a camera the
+   * user pinned with an exact device id. A different camera is opened only when that device is
+   * no longer enumerated: the dead id is dropped and the resolution, frame rate and facing mode
+   * stay in place. A device that is still present is never replaced.
+   * @internal
+   */
+  private async restartOnDefaultVideoDevice(track: LocalVideoTrack) {
+    try {
+      await track.restartTrack();
+    } catch (e) {
+      if (!isDeviceAcquisitionFailure(e) || isPermissionDeniedError(e) || track.isStopped) {
+        throw e;
+      }
+      const endedDeviceId = this.endedVideoDeviceId(track);
+      // No id to drop, or the one we asked for is still attached: opening another camera would
+      // publish a device the user did not choose. A restart that already omitted deviceId is not
+      // retried; it would send the same request again.
+      if (
+        track.constraints.deviceId === undefined ||
+        !endedDeviceId ||
+        (await this.videoDeviceIsEnumerated(endedDeviceId))
+      ) {
+        throw e;
+      }
+      this.log.debug(
+        'could not reacquire the camera, retrying with another device',
+        getLogContextFromTrack(track),
+      );
+      await track.restartWithoutCurrentDevice();
+    }
+  }
+
+  private endedVideoDeviceId(track: LocalVideoTrack): string | undefined {
+    const { deviceId } = track.constraints;
+    if (deviceId !== undefined) {
+      try {
+        const id = unwrapConstraint(deviceId);
+        if (id) {
+          return id;
+        }
+      } catch {
+        // an empty constraint object has nothing to unwrap; the settings id is the one that ended
+      }
+    }
+    return track.getSourceTrackSettings().deviceId;
+  }
+
+  /** `requestPermissions` stays false: capture was already granted, and a probe would open a camera. */
+  private async videoDeviceIsEnumerated(deviceId: string): Promise<boolean> {
+    const cameras = await DeviceManager.getInstance().getDevices('videoinput', false);
+    const identified = cameras.filter((device) => device.deviceId);
+    if (identified.length === 0) {
+      // ids are blank or nothing is listed, so this cannot show that the device left
+      return true;
+    }
+    return identified.some((device) => device.deviceId === deviceId);
   }
 
   private getPublicationForTrack(

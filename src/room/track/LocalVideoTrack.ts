@@ -297,6 +297,22 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await this.onSenderTrackSwapped();
   }
 
+  /**
+   * Reopens the camera without the current `deviceId`, keeping every other constraint.
+   *
+   * Video inputs have no system `default` id. Dropping the id lets the browser choose a camera
+   * that is still attached instead of requesting `deviceId: 'default'`, which would fail.
+   * Goes through `restartTrack` so simulcast senders and encodings follow the new source.
+   *
+   * @internal
+   */
+  async restartWithoutCurrentDevice(): Promise<void> {
+    const rest: MediaTrackConstraints = { ...this.constraints };
+    delete rest.deviceId;
+    this._constraints = rest;
+    await this.restartTrack();
+  }
+
   protected override async onSenderTrackSwapped(): Promise<void> {
     await this.refreshSenderEncodings();
   }
