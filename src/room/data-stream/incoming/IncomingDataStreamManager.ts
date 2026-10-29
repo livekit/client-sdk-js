@@ -12,7 +12,10 @@ import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { bigIntToNumber, isDeflateRawCompressionSupported, numberToBigInt } from '../../utils';
 import { deflateRawDecompress, inflateRawTransform } from '../compression';
-import { DEFAULT_MAX_PAYLOAD_BYTE_LENGTH, MAX_OPEN_STREAMS_PER_PARTICIPANT } from '../constants';
+import {
+  DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+} from '../constants';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -27,8 +30,15 @@ export default class IncomingDataStreamManager {
    * errored (decompression-bomb guard). */
   private maxPayloadByteLength: number;
 
-  constructor(maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH) {
+  /** Max number of incoming streams a single remote participant may have open at once. */
+  private maxOpenStreamsPerParticipant: number;
+
+  constructor(
+    maxPayloadByteLength: number = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+    maxOpenStreamsPerParticipant: number = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  ) {
     this.maxPayloadByteLength = maxPayloadByteLength;
+    this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
   }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
@@ -162,7 +172,7 @@ export default class IncomingDataStreamManager {
         }
       }
     }
-    return openStreamCount >= MAX_OPEN_STREAMS_PER_PARTICIPANT;
+    return openStreamCount >= this.maxOpenStreamsPerParticipant;
   }
 
   private handleStreamHeader(
@@ -172,7 +182,7 @@ export default class IncomingDataStreamManager {
   ) {
     if (this.hasTooManyOpenStreams(participantIdentity)) {
       this.log.error(
-        `Participant ${participantIdentity} already has ${MAX_OPEN_STREAMS_PER_PARTICIPANT} data streams open, dropping stream ${streamHeader.streamId}`,
+        `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId}`,
       );
       return;
     }
