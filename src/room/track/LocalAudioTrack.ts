@@ -72,7 +72,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     }
   }
 
-  async unmute(): Promise<typeof this> {
+  async unmute(options?: AudioCaptureOptions): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       if (!this.isMuted) {
@@ -80,15 +80,23 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         return this;
       }
 
-      if (
+      const shouldReacquire =
         this.source === Track.Source.Microphone &&
-        (this.stopOnMute ||
+        (Boolean(options) ||
+          this.stopOnMute ||
           this._mediaStreamTrack.readyState === 'ended' ||
           this.pendingDeviceChange) &&
-        !this.isUserProvided
-      ) {
+        !this.isUserProvided;
+      if (shouldReacquire) {
         this.log.debug('reacquiring mic track', this.logContext);
-        await this.restart(undefined, true);
+        let constraints: MediaTrackConstraints | undefined;
+        if (options) {
+          const streamConstraints = constraintsForOptions({ audio: options });
+          if (typeof streamConstraints.audio !== 'boolean') {
+            constraints = streamConstraints.audio;
+          }
+        }
+        await this.restart(constraints, true);
       }
       await super.unmute();
 

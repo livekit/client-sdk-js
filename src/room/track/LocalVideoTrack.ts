@@ -171,7 +171,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
   }
 
-  async unmute(): Promise<typeof this> {
+  async unmute(options?: VideoCaptureOptions): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       if (!this.isMuted) {
@@ -181,7 +181,28 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         this.log.debug('reacquiring camera track', this.logContext);
-        await this.restart(undefined, true);
+        let constraints: MediaTrackConstraints | undefined;
+        if (options) {
+          // Honor capture options passed to setCameraEnabled when unmuting an
+          // existing publication (previously restart(undefined) reused _constraints).
+          const streamConstraints = constraintsForOptions({ video: options });
+          if (typeof streamConstraints.video !== 'boolean') {
+            constraints = streamConstraints.video;
+          }
+        }
+        await this.restart(constraints, true);
+        if (options) {
+          // Match restartTrack: refresh simulcast clones and sender encodings
+          // for the new capture settings.
+          this.isCpuConstrained = false;
+          for await (const sc of this.simulcastCodecs.values()) {
+            if (sc.sender && sc.sender.transport?.state !== 'closed') {
+              sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+              await sc.sender.replaceTrack(sc.mediaStreamTrack);
+            }
+          }
+          await this.onSenderTrackSwapped();
+        }
       }
       await super.unmute();
       return this;

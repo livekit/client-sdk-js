@@ -2,6 +2,7 @@ import { AudioTrackFeature, TrackInfo } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isAudioTrack, isVideoTrack } from '../utils';
+import type { AudioCaptureOptions, VideoCaptureOptions } from './options';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
@@ -68,8 +69,8 @@ export default class LocalTrackPublication extends TrackPublication {
   /**
    * Unmute track associated with this publication
    */
-  async unmute() {
-    return this.track?.unmute();
+  async unmute(options?: VideoCaptureOptions | AudioCaptureOptions) {
+    return this.track?.unmute(options);
   }
 
   /**
