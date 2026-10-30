@@ -2694,6 +2694,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
+    // Once the room is Connected (Reconnected already emitted), deliver immediately.
+    // engine.pendingReconnect can stay true until reconnectTimeout is cleared in
+    // the restart attempt's finally — buffering in that window would strand events
+    // until a later reconnect (see #2183).
+    if (this.state === ConnectionState.Connected && !this.isResuming) {
+      return this.emit(event, ...args);
+    }
     if (
       this.state === ConnectionState.Reconnecting ||
       this.isResuming ||
@@ -2702,8 +2709,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     ) {
       // in case the room is reconnecting, buffer the events by firing them later after emitting RoomEvent.Reconnected
       this.bufferedEvents.push([event, args]);
-    } else if (this.state === ConnectionState.Connected) {
-      return this.emit(event, ...args);
     }
     return false;
   }
