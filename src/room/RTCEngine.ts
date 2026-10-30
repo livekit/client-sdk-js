@@ -819,6 +819,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
+      // Native libwebrtc does not support pre-populating recvonly media sections
+      // (same guard as applyInitialPublisherLayout / #1984). Adding them here for a
+      // later MediaSectionsRequirement leaves remote tracks stuck as desired but
+      // unsubscribed on React Native. See #2194.
+      if (isReactNative()) {
+        return;
+      }
       this.addMediaSections(requirement.numAudios, requirement.numVideos);
       this.negotiate().catch((err) => {
         this.log.error(err);
