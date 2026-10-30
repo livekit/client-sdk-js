@@ -4,6 +4,8 @@ import {
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  ParticipantInfo,
+  ParticipantInfo_State,
   StreamState as ProtoStreamState,
   StreamStateUpdate,
   SubscriptionError,
@@ -12,6 +14,7 @@ import {
   TrackType,
 } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
 import { subscribeToEvents } from '../utils/subscribeToEvents';
@@ -26,6 +29,7 @@ import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import RemoteVideoTrack from './track/RemoteVideoTrack';
 import { Track } from './track/Track';
+import { Future } from './utils';
 
 describe('Active device switch', () => {
   it('updates devices correctly', async () => {
@@ -802,5 +806,105 @@ describe('server leave during connect()', () => {
     const error = await outcome;
     expect(join).toHaveBeenCalledTimes(1);
     expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+  });
+});
+
+describe('events during a full reconnect (#2183)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  interface EngineInternals {
+    _isClosed: boolean;
+    url: string;
+    token: string;
+    signalOpts: SignalOptions;
+    pcState: number;
+    configure: () => Promise<void>;
+    waitForPCReconnected: () => Promise<void>;
+  }
+
+  /**
+   * Starts a full reconnect on a connected room whose engine still reports its (old) peer
+   * connection as connected, as after a signal-only drop. The restart parks in
+   * `waitForPCReconnected` until `finishPCReconnect` is called.
+   */
+  async function startFullReconnect() {
+    const room = new Room({ reconnectPolicy: { nextRetryDelayInMs: () => 0 } });
+    room.state = ConnectionState.Connected;
+    const engine = room.engine;
+    const internals = engine as unknown as EngineInternals;
+    internals._isClosed = false;
+    internals.url = 'wss://test.livekit.io';
+    internals.token = 'test-token';
+    internals.signalOpts = { autoSubscribe: true, maxRetries: 1, websocketTimeout: 15_000 };
+    // PCState.Connected, left over from the session being replaced
+    internals.pcState = 1;
+    vi.spyOn(internals, 'configure').mockResolvedValue();
+    vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+    vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(SignalConnectionState.CONNECTED);
+    vi.spyOn(engine.client, 'join').mockResolvedValue(
+      new JoinResponse({
+        participant: new ParticipantInfo({ sid: 'PA_local', identity: 'local' }),
+        subscriberPrimary: true,
+      }),
+    );
+    const pcReconnecting = new Future<void, Error>();
+    const pcReconnected = new Future<void, Error>();
+    vi.spyOn(internals, 'waitForPCReconnected').mockImplementation(async () => {
+      pcReconnecting.resolve?.();
+      await pcReconnected.promise;
+    });
+    const restarted = new Future<void, Error>();
+    engine.once(EngineEvent.Restarted, () => restarted.resolve?.());
+
+    const events: string[] = [];
+    room.on(RoomEvent.Reconnected, () => events.push('reconnected'));
+    room.on(RoomEvent.ParticipantConnected, (p) =>
+      events.push(`participantConnected:${p.identity}`),
+    );
+
+    engine.reconnect();
+    await pcReconnecting.promise;
+    // let the room's SignalRestarted handler run as far as it will
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const finishPCReconnect = async () => {
+      pcReconnected.resolve?.();
+      await restarted.promise;
+      await vi.waitFor(() => expect(engine.pendingReconnect).toBe(false));
+    };
+    return { room, engine, events, finishPCReconnect };
+  }
+
+  it('does not report the room reconnected before the engine restart completes', async () => {
+    const { room, events, finishPCReconnect } = await startFullReconnect();
+
+    expect(room.state).toBe(ConnectionState.Reconnecting);
+    expect(events).toEqual([]);
+
+    await finishPCReconnect();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    expect(events).toEqual(['reconnected']);
+  });
+
+  it('delivers participant events that arrive while the restart is settling', async () => {
+    const { room, engine, events, finishPCReconnect } = await startFullReconnect();
+
+    // a remote participant (re)joins while the engine is still waiting on the transports
+    engine.emit(EngineEvent.ParticipantUpdate, [
+      new ParticipantInfo({
+        sid: 'PA_remote',
+        identity: 'remote',
+        state: ParticipantInfo_State.ACTIVE,
+      }),
+    ]);
+    expect(events).toEqual([]);
+
+    await finishPCReconnect();
+
+    expect(events).toEqual(['reconnected', 'participantConnected:remote']);
+    expect((room as unknown as { bufferedEvents: unknown[] }).bufferedEvents).toEqual([]);
   });
 });
