@@ -46,6 +46,7 @@ The publish/subscribe lifecycle is managed by `OutgoingDataTrackManager` and
 `IncomingDataTrackManager` respectively.
 
 Key design decisions:
+
 - `RemoteDataTrack.subscribe()` is **synchronous** — it returns a `ReadableStream` immediately.
   The SFU subscription is initiated lazily inside the stream's `start` callback.
 - The `subscribe()` signal parameter follows the **fetch API pattern**: a single `AbortSignal`
@@ -216,6 +217,15 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
 - Use `managerEvents.areThereBufferedEvents('eventName')` to assert no unexpected events.
 - Prefer plain `async () => { ... }` handlers over `vi.fn().mockResolvedValue()` unless the
   test needs to assert on call arguments.
+
+## Camera fallback when a device ends
+
+`handleTrackEnded` reopens an audio device via `restartOnDefaultAudioDevice` (`deviceId: 'default'` on
+Chromium, then the first enumerated input). Video inputs have no system `default` id, so
+`restartOnDefaultVideoDevice` retries the current constraints first and only then drops `deviceId`
+(`LocalVideoTrack.restartWithoutCurrentDevice`) when that id is gone from `enumerateDevices`. An exact
+or still-listed camera is not replaced: publishing a different camera while the selected one is
+attached was rejected on #2035. A bare `deviceId` string is exact to `getUserMedia`.
 
 ## Code style notes
 
