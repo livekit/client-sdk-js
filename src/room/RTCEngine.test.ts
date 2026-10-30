@@ -986,6 +986,42 @@ describe('RTCEngine', () => {
     });
   });
 
+  describe('pendingReconnect across retries (#2183)', () => {
+    interface RetryInternals {
+      _isClosed: boolean;
+      restartConnection: (abortSignal: AbortSignal, regionUrl?: string) => Promise<void>;
+      handleDisconnect: (connection: string, reason?: number) => void;
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('keeps pendingReconnect set while a retry is scheduled after a failed attempt', async () => {
+      vi.useFakeTimers();
+      const engine = new RTCEngine({
+        ...roomOptionDefaults,
+        reconnectPolicy: { nextRetryDelayInMs: () => 1_000 },
+      });
+      const internals = engine as unknown as RetryInternals;
+      internals._isClosed = false;
+      engine.fullReconnectOnNext = true;
+      internals.restartConnection = vi.fn(async () => {
+        throw new Error('restart failed');
+      });
+
+      internals.handleDisconnect('test');
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(internals.restartConnection).toHaveBeenCalledTimes(1);
+      // the retry is scheduled but hasn't fired yet
+      expect(engine.pendingReconnect).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(internals.restartConnection).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('verifyTransport stuck-connecting bound', () => {
     interface VerifyInternals {
       pcManager: unknown;

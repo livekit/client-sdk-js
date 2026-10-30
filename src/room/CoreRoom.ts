@@ -588,6 +588,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
+      .on(EngineEvent.Restarted, () => {
+        // normally handleSignalRestarted flushes after the restart, but if the room already
+        // reports connected, anything buffered since then would otherwise wait for the next reconnect
+        if (this.state === ConnectionState.Connected) {
+          this.emitBufferedEvents();
+        }
+      })
       .on(EngineEvent.Offline, () => {
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
