@@ -917,6 +917,8 @@ describe('participant roster reconciliation after resume', () => {
     room.engine.emit(EngineEvent.Resumed);
 
     expect([...room.remoteParticipants.keys()]).toEqual(['alice', 'bob']);
+  });
+});
 
 describe('events during a full reconnect (#2183)', () => {
   afterEach(() => {
