@@ -63,7 +63,7 @@ export default abstract class LocalTrack<
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<TrackKind, any>;
+  protected processor?: TrackProcessor<TrackKind, any> | undefined;
 
   protected audioContext?: AudioContext;
 

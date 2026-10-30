@@ -1,5 +1,5 @@
-import { type Throws } from '@livekit/throws-transformer/throws';
 import { Future } from '../room/utils';
+import { type Throws } from './throws';
 
 /** An error which is thrown if a {@link DeferrableMap#getDeferred} call is aborted midway
  * through. */

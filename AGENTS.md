@@ -69,6 +69,12 @@ user-facing API.
 - **Run all tests:** `npx vitest run`
 - **Run specific test file:** `npx vitest run path/to/file.test.ts`
 - **Format:** `npm run format`
+- **Published types:** `pnpm check:published-types` (after `pnpm build`) installs the packed tarball
+  into a temp project outside the repo and type-checks every entry with `skipLibCheck` off and
+  `exactOptionalPropertyTypes` on. Declarations must name only packages in `dependencies`, and their
+  `@types/*` packages must be there too. Import `Throws` from `src/utils/throws.ts`, never from
+  `@livekit/throws-transformer` (a devDependency). If `dist` still shows an old inferred type after
+  a type-only change, delete `node_modules/.cache/rollup-plugin-typescript2`: its cache misses those.
 
 ## Examples
 

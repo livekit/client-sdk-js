@@ -57,7 +57,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
     participantId?: string,
     keyIndex?: number,
   ) => {
-    log.debug('key ratcheted event received', { ratchetResult, participantId, keyIndex });
+    // ratchetResult holds key material, so it stays out of the log.
+    log.debug('key ratcheted event received', { participantId, keyIndex });
   };
 
   getKeys() {
