@@ -1190,7 +1190,9 @@ export function placeholderMidsFromTransceivers(
  * fresh placeholders use the default — the placeholders still converge on the
  * first value seen, so two placeholders can't disagree either. Only placeholder
  * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
- * A codec without an `a=fmtp` line has empty parameters.
+ * A codec without an `a=fmtp` line has empty parameters. Real sections that
+ * disagree on a payload type are not reconciled: the placeholders follow the
+ * last real section, and the real sections still differ.
  * `isPlaceholder` identifies the sections to conform.
  * @internal
  */
@@ -1212,20 +1214,14 @@ export function conformBundledCodecFmtp(
       }
     }
   }
-  if (canonicalByPayload.size === 0) {
-    return;
-  }
-
   // Conform placeholder sections to the canonical fmtp for each shared payload.
   for (const m of media) {
     if (!isPlaceholder(m)) {
       continue;
     }
     for (const { payload } of m.rtp ?? []) {
-      const config = canonicalByPayload.get(payload);
-      if (config === undefined) {
-        continue;
-      }
+      // The first loop added every payload type a placeholder lists.
+      const config = canonicalByPayload.get(payload)!;
       const fmtp = m.fmtp?.find((entry) => entry.payload === payload);
       if (config === '') {
         m.fmtp = (m.fmtp ?? []).filter((entry) => entry.payload !== payload);
