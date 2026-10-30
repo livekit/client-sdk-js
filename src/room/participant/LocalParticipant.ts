@@ -465,7 +465,7 @@ export class LocalParticipant extends Participant {
     let track = this.getTrackPublication(source);
     if (enabled) {
       if (track) {
-        await track.unmute();
+        await track.unmute(options);
       } else {
         let localTracks: Array<LocalTrack> | undefined;
         if (this.pendingPublishing.has(source)) {
@@ -473,7 +473,7 @@ export class LocalParticipant extends Participant {
           if (!pendingTrack) {
             this.log.info('waiting for pending publication promise timed out', { source });
           }
-          await pendingTrack?.unmute();
+          await pendingTrack?.unmute(options);
           return pendingTrack;
         }
         this.pendingPublishing.add(source);

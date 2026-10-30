@@ -323,7 +323,7 @@ export default abstract class LocalTrack<
     return this;
   }
 
-  async unmute() {
+  async unmute(_options?: unknown) {
     this.setTrackMuted(false);
     return this;
   }

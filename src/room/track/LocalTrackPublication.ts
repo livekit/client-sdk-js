@@ -7,7 +7,7 @@ import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
 import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
-import type { TrackPublishOptions } from './options';
+import type { AudioCaptureOptions, TrackPublishOptions, VideoCaptureOptions } from './options';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack = undefined;
@@ -68,8 +68,8 @@ export default class LocalTrackPublication extends TrackPublication {
   /**
    * Unmute track associated with this publication
    */
-  async unmute() {
-    return this.track?.unmute();
+  async unmute(options?: VideoCaptureOptions | AudioCaptureOptions) {
+    return this.track?.unmute(options);
   }
 
   /**
