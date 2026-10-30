@@ -284,6 +284,23 @@ describe('remote track subscription', () => {
   });
 });
 
+describe('token refresh (#2199)', () => {
+  it('emits RoomEvent.TokenRefreshed only when the server sends a new token', () => {
+    const room = new Room();
+    (room as unknown as { latestToken?: string }).latestToken = 'join-token';
+    const tokens: string[] = [];
+    room.on(RoomEvent.TokenRefreshed, (token) => tokens.push(token));
+
+    // the engine re-emits the token it already holds before each reconnect attempt
+    room.engine.emit(EngineEvent.TokenRefreshed, 'join-token');
+    room.engine.emit(EngineEvent.TokenRefreshed, 'refreshed-1');
+    room.engine.emit(EngineEvent.TokenRefreshed, 'refreshed-1');
+    room.engine.emit(EngineEvent.TokenRefreshed, 'refreshed-2');
+
+    expect(tokens).toEqual(['refreshed-1', 'refreshed-2']);
+  });
+});
+
 describe('stream state updates', () => {
   const participantSid = 'PA_remote';
   const participantIdentity = 'remote-user';

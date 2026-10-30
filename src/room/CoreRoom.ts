@@ -241,6 +241,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private regionUrlProvider?: RegionUrlProvider;
 
+  /** the most recent access token for the local participant, used to report only new server-issued tokens */
+  private latestToken?: string;
+
   private regionUrl?: string;
 
   private isVideoPlaybackBlocked: boolean = false;
@@ -627,6 +630,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       })
       .on(EngineEvent.TokenRefreshed, (token) => {
         this.regionUrlProvider?.updateToken(token);
+        // the engine also re-emits the token it already holds before every reconnect attempt
+        if (token !== this.latestToken) {
+          this.latestToken = token;
+          this.emit(RoomEvent.TokenRefreshed, token);
+        }
       })
       .on(EngineEvent.ServerRegionsReported, (regions) => {
         this.regionUrlProvider?.setServerReportedRegions({
@@ -955,6 +963,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
     // a concurrent disconnect() or connect() can replace or clear `this.engine` while we await below
     const engine = this.engine;
+    this.latestToken = token;
     if (this.regionUrlProvider?.isCloud()) {
       engine.setRegionStrategy(this.createRegionStrategy());
     }
@@ -2966,4 +2975,5 @@ export type RoomEventCallbacks = {
   dataTrackUnpublished: (sid: DataTrackSid) => void;
   localDataTrackPublished: (track: LocalDataTrack) => void;
   localDataTrackUnpublished: (sid: DataTrackSid) => void;
+  tokenRefreshed: (token: string) => void;
 };
