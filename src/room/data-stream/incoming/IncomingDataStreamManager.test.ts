@@ -8,11 +8,13 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import log from '../../../logger';
 import {
   stubMissingCompressionStreams,
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
+import { DataStreamErrorReason } from '../../errors';
 import { deflateRawCompress } from '../compression';
 import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
@@ -2005,6 +2007,190 @@ describe('IncomingDataStreamManager', () => {
 
       expect(readers).toHaveLength(2);
       expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+  });
+
+  describe('Stream handler errors', () => {
+    let unhandled: unknown[];
+    let vitestListeners: NodeJS.UnhandledRejectionListener[];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+
+    // Some cases expect an unhandled rejection, so swap out vitest's own listener (which would fail
+    // the run) for one that records them.
+    beforeEach(() => {
+      unhandled = [];
+      vitestListeners = process.listeners('unhandledRejection');
+      process.removeAllListeners('unhandledRejection');
+      process.on('unhandledRejection', onUnhandled);
+    });
+
+    afterEach(() => {
+      process.off('unhandledRejection', onUnhandled);
+      for (const listener of vitestListeners) {
+        process.on('unhandledRejection', listener);
+      }
+      vi.restoreAllMocks();
+    });
+
+    /** Drains microtasks and timers so any unhandledRejection has a chance to fire. */
+    const flushAnyUnhandledRejections = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+
+    /** Registers async handlers that read without a try/catch, the way most handlers are written. */
+    const registerUncaughtHandlers = (manager: IncomingDataStreamManager) => {
+      manager.registerTextStreamHandler('my-topic', async (reader) => {
+        await reader.readAll();
+      });
+      manager.registerByteStreamHandler('my-topic', async (reader) => {
+        await reader.readAll();
+      });
+    };
+
+    it('should warn instead of rejecting when a stream is cut short by the room disconnecting', async () => {
+      const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      registerUncaughtHandlers(manager);
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new Uint8Array([0x68, 0x69])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(headerPacket('byte-1', 'byteHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('byte-1', 0, new Uint8Array([0x01])),
+        Encryption_Type.NONE,
+      );
+
+      // Room#handleDisconnect calls this while the streams are still open
+      manager.clearControllers();
+      manager.setConnected(false);
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([]);
+      for (const streamId of ['text-1', 'byte-1']) {
+        expect(warnSpy).toHaveBeenCalledWith(
+          'data stream handler failed after the room disconnected',
+          expect.objectContaining({
+            topic: 'my-topic',
+            streamId,
+            error: expect.objectContaining({ reason: DataStreamErrorReason.AbnormalEnd }),
+          }),
+        );
+      }
+    });
+
+    it('should warn for any handler error that lands after the room disconnected', async () => {
+      const warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const handlerError = new Error('application bug');
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      manager.registerTextStreamHandler('my-topic', async () => {
+        await released;
+        throw handlerError;
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.clearControllers();
+      release();
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        'data stream handler failed after the room disconnected',
+        expect.objectContaining({ error: handlerError }),
+      );
+    });
+
+    it('should still reject unhandled when the sender disconnects mid stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      registerUncaughtHandlers(manager);
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new Uint8Array([0x68, 0x69])),
+        Encryption_Type.NONE,
+      );
+      manager.validateParticipantHasNoActiveDataStreams('alice');
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([
+        expect.objectContaining({
+          message: 'Participant alice unexpectedly disconnected in the middle of sending data',
+        }),
+      ]);
+    });
+
+    it('should still reject unhandled when a chunk is lost', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      registerUncaughtHandlers(manager);
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 0, new Uint8Array([0x68])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket('text-1', 2, new Uint8Array([0x69])),
+        Encryption_Type.NONE,
+      );
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([
+        expect.objectContaining({ reason: DataStreamErrorReason.Incomplete }),
+      ]);
+    });
+
+    it('should still reject unhandled while the room is reconnecting', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const handlerError = new Error('application bug');
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      manager.registerTextStreamHandler('my-topic', async () => {
+        await released;
+        throw handlerError;
+      });
+
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      // A reconnect drops out of the connected state without disconnecting the room.
+      manager.setConnected(false);
+      release();
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([handlerError]);
+    });
+
+    it('should reject unhandled again once the room connects after a disconnect', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      manager.clearControllers();
+      manager.setConnected(false);
+      manager.setConnected(true);
+
+      const handlerError = new Error('application bug');
+      manager.registerTextStreamHandler('my-topic', async () => {
+        throw handlerError;
+      });
+      manager.handleDataStreamPacket(headerPacket('text-1', 'textHeader'), Encryption_Type.NONE);
+      await flushAnyUnhandledRejections();
+
+      expect(unhandled).toEqual([handlerError]);
     });
   });
 });
