@@ -157,5 +157,5 @@
     "vite": "8.1.6",
     "vitest": "^4.1.10"
   },
-  "packageManager": "pnpm@10.34.5"
+  "packageManager": "pnpm@10.34.7"
 }
