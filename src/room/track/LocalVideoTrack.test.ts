@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isChromiumBased } from '../utils';
 import LocalVideoTrack, { videoLayersFromEncodings } from './LocalVideoTrack';
 import type { SimulcastTrackInfo } from './LocalVideoTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCodec } from './options';
 import { waitForFirstVideoFrame } from './utils';
+
+vi.mock('../utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils')>()),
+  isChromiumBased: vi.fn(() => true),
+}));
 
 vi.mock('./utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./utils')>()),
@@ -258,6 +264,7 @@ function videoCapture(settings: MediaTrackSettings) {
 describe('waitForDimensions', () => {
   afterEach(() => {
     vi.mocked(waitForFirstVideoFrame).mockClear();
+    vi.mocked(isChromiumBased).mockReset().mockReturnValue(true);
   });
 
   it('reads a screen share once its first frame has arrived', async () => {
@@ -278,6 +285,16 @@ describe('waitForDimensions', () => {
     track.source = Track.Source.Camera;
 
     await expect(track.waitForDimensions()).resolves.toEqual({ width: 1280, height: 720 });
+    expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
+  });
+
+  it('reads a screen share outside Chromium without waiting for a frame', async () => {
+    // Firefox and Safari already report the delivered size from getSettings()
+    vi.mocked(isChromiumBased).mockReturnValue(false);
+    const track = new LocalVideoTrack(videoCapture({ width: 1536, height: 664 }));
+    track.source = Track.Source.ScreenShare;
+
+    await expect(track.waitForDimensions()).resolves.toEqual({ width: 1536, height: 664 });
     expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
   });
 });
