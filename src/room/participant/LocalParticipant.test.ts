@@ -231,3 +231,37 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     expect(participant.log.warn).toHaveBeenCalledOnce();
   });
 });
+
+describe('LocalParticipant.unpublishTrack', () => {
+  // a disconnect closes the engine, and so drops the peer connections, before unpublishing
+  it('stops and drops the backup codec clones when the peer connection is gone', async () => {
+    const clone = { stop: vi.fn() };
+    const track = {
+      isLocal: true,
+      kind: Track.Kind.Video,
+      source: Track.Source.Camera,
+      mediaStreamTrack: { enabled: true, id: 'media-track-id' },
+      sender: {},
+      simulcastCodecs: new Map([['vp8', { codec: 'vp8', mediaStreamTrack: clone, sender: {} }]]),
+      off: vi.fn(),
+      stopMonitor: vi.fn(),
+    } as unknown as LocalVideoTrack;
+    const publication = { track, trackSid: 'track-sid', kind: Track.Kind.Video, setTrack: vi.fn() };
+    const participant = Object.create(LocalParticipant.prototype) as LocalParticipant;
+    Object.assign(participant, {
+      log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+      pendingPublishPromises: new Map(),
+      getPublicationForTrack: () => publication,
+      engine: { pcManager: undefined },
+      trackPublications: new Map([['track-sid', publication]]),
+      videoTrackPublications: new Map([['track-sid', publication]]),
+      emit: vi.fn(),
+    });
+
+    // kept for republishing, so the track itself is not stopped
+    await participant.unpublishTrack(track, false);
+
+    expect(clone.stop).toHaveBeenCalledOnce();
+    expect(track.simulcastCodecs.size).toBe(0);
+  });
+});
