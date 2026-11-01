@@ -7,6 +7,8 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { StructuredLogger } from '../../logger';
 import type { CoreRoom } from '../CoreRoom';
+import PCTransport from '../PCTransport';
+import { PCTransportState } from '../PCTransportManager';
 import type LocalTrack from '../track/LocalTrack';
 import type LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
@@ -229,5 +231,138 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     expect(req.layers).toEqual([]);
     expect(req.simulcastCodecs[0].layers).toEqual([]);
     expect(participant.log.warn).toHaveBeenCalledOnce();
+  });
+});
+
+function makeTransceiver() {
+  return { sender: {} as RTCRtpSender, stop: vi.fn() };
+}
+
+function makePublisher(transceivers: ReturnType<typeof makeTransceiver>[]) {
+  return {
+    getTransceivers: () => transceivers as unknown as RTCRtpTransceiver[],
+    removeTrack: vi.fn(),
+    // the real helper, run against the fake transceivers above
+    stopTransceivers: PCTransport.prototype.stopTransceivers,
+  };
+}
+
+type TransceiverTestParticipant = {
+  unpublishTrack: LocalParticipant['unpublishTrack'];
+  publish: (track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) => Promise<unknown>;
+  pendingPublishPromises: Map<LocalTrack, Promise<unknown>>;
+  trackPublications: Map<string, unknown>;
+  audioTrackPublications: Map<string, unknown>;
+  videoTrackPublications: Map<string, unknown>;
+  roomOptions: object;
+  permissions: { canPublish: boolean; canPublishSources: unknown[] };
+  encryptionType: Encryption_Type;
+  enabledPublishVideoCodecs: unknown[];
+  engine: {
+    isClosed: boolean;
+    pcManager: { currentState: PCTransportState; publisher: ReturnType<typeof makePublisher> };
+    addTrack: ReturnType<typeof vi.fn>;
+    createSender: ReturnType<typeof vi.fn>;
+    removeTrack: ReturnType<typeof vi.fn>;
+    negotiate: ReturnType<typeof vi.fn>;
+  };
+  log: {
+    info: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+    debug: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+  };
+};
+
+function makeTransceiverParticipant(publisher: ReturnType<typeof makePublisher>) {
+  const participant = Object.create(LocalParticipant.prototype) as TransceiverTestParticipant;
+  participant.pendingPublishPromises = new Map();
+  participant.trackPublications = new Map();
+  participant.audioTrackPublications = new Map();
+  participant.videoTrackPublications = new Map();
+  participant.roomOptions = {};
+  participant.permissions = { canPublish: true, canPublishSources: [] };
+  participant.encryptionType = Encryption_Type.NONE;
+  participant.enabledPublishVideoCodecs = [];
+  participant.engine = {
+    isClosed: false,
+    pcManager: { currentState: PCTransportState.CONNECTED, publisher },
+    addTrack: vi.fn(),
+    createSender: vi.fn(),
+    removeTrack: vi.fn(() => true),
+    negotiate: vi.fn(async () => {}),
+  };
+  participant.log = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
+  return participant;
+}
+
+describe('LocalParticipant transceiver cleanup', () => {
+  it('stops the transceivers of an unpublished track and its backup codec', async () => {
+    const primary = makeTransceiver();
+    const backup = makeTransceiver();
+    const otherTrack = makeTransceiver();
+    // the pre-populated recvonly placeholder, which also receives remote media in single peer
+    // connection mode
+    const placeholder = makeTransceiver();
+    const participant = makeTransceiverParticipant(
+      makePublisher([placeholder, otherTrack, primary, backup]),
+    );
+    const track = {
+      isLocal: true,
+      kind: Track.Kind.Video,
+      sid: 'TR_video',
+      source: Track.Source.Camera,
+      mediaStreamTrack: { enabled: true, id: 'primary-cid' },
+      sender: primary.sender,
+      simulcastCodecs: new Map([['vp8', { sender: backup.sender }]]),
+      off: vi.fn(),
+      stop: vi.fn(),
+    } as unknown as LocalVideoTrack;
+    const publication = { trackSid: 'TR_video', kind: Track.Kind.Video, track, setTrack: vi.fn() };
+    participant.trackPublications.set('TR_video', publication);
+    participant.videoTrackPublications.set('TR_video', publication);
+
+    await participant.unpublishTrack(track);
+
+    expect(primary.stop).toHaveBeenCalledOnce();
+    expect(backup.stop).toHaveBeenCalledOnce();
+    expect(otherTrack.stop).not.toHaveBeenCalled();
+    expect(placeholder.stop).not.toHaveBeenCalled();
+    // removeTrack runs while the transceivers are not stopped yet
+    const [primaryRemoved, backupRemoved] = participant.engine.removeTrack.mock.invocationCallOrder;
+    expect(primaryRemoved).toBeLessThan(primary.stop.mock.invocationCallOrder[0]);
+    expect(backupRemoved).toBeLessThan(backup.stop.mock.invocationCallOrder[0]);
+    expect(participant.engine.negotiate).toHaveBeenCalledOnce();
+    expect(participant.log.warn).not.toHaveBeenCalled();
+  });
+
+  it('stops the transceiver of a track when the server rejects its publish', async () => {
+    const transceiver = makeTransceiver();
+    const publisher = makePublisher([transceiver]);
+    const participant = makeTransceiverParticipant(publisher);
+    // with enabled video codecs, the sender is created while the AddTrackRequest is pending
+    participant.enabledPublishVideoCodecs = [{}];
+    participant.engine.createSender.mockResolvedValue(transceiver.sender);
+    const rejection = new Error('publish rejected');
+    participant.engine.addTrack.mockImplementation(
+      () => new Promise((_, reject) => setTimeout(() => reject(rejection), 0)),
+    );
+    const track = {
+      isLocal: true,
+      kind: Track.Kind.Audio,
+      source: Track.Source.Microphone,
+      isMuted: false,
+      hasPreConnectBuffer: false,
+      mediaStreamTrack: { enabled: true, id: 'mic-cid' },
+      on: vi.fn(),
+      getSourceTrackSettings: () => ({}),
+    } as unknown as LocalTrack;
+
+    await expect(participant.publish(track, {}, false)).rejects.toBe(rejection);
+
+    expect(transceiver.stop).toHaveBeenCalledOnce();
+    expect(publisher.removeTrack.mock.invocationCallOrder[0]).toBeLessThan(
+      transceiver.stop.mock.invocationCallOrder[0],
+    );
   });
 });

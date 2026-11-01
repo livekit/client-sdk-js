@@ -1012,6 +1012,7 @@ export class LocalParticipant extends Participant {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
             this.engine.pcManager.publisher.removeTrack(track.sender);
+            this.engine.pcManager.publisher.stopTransceivers([track.sender]);
           } catch (e) {
             this.log.error(e);
           }
@@ -1226,6 +1227,7 @@ export class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
+        const senders = [trackSender];
         for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
           // if sender is not currently sending (after replaceTrack(null))
           // removeTrack would have no effect.
@@ -1246,6 +1248,7 @@ export class LocalParticipant extends Participant {
         if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
+              senders.push(trackInfo.sender);
               try {
                 negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
               } catch (e) {
@@ -1256,6 +1259,10 @@ export class LocalParticipant extends Participant {
             }
           }
           track.simulcastCodecs.clear();
+        }
+
+        if (this.engine.pcManager.publisher.stopTransceivers(senders)) {
+          negotiationNeeded = true;
         }
       } catch (e) {
         this.log.warn('failed to unpublish track', { ...pubLogContext, error: e });

@@ -850,6 +850,28 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return this._pc?.removeTrack(sender);
   }
 
+  /**
+   * Stops the transceivers of `senders`. `removeTrack` keeps the transceiver and its encoder,
+   * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
+   * connection closes. Call this after `removeTrack`. Returns true if a transceiver stopped.
+   */
+  stopTransceivers(senders: RTCRtpSender[]): boolean {
+    let stopped = false;
+    for (const transceiver of this.getTransceivers()) {
+      // RTCRtpTransceiver.stop() is not available before Chrome 88
+      if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
+        continue;
+      }
+      try {
+        transceiver.stop();
+        stopped = true;
+      } catch (e) {
+        this.log.warn('could not stop transceiver', { error: e });
+      }
+    }
+    return stopped;
+  }
+
   getConnectionState() {
     return this._pc?.connectionState ?? 'closed';
   }
