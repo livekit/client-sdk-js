@@ -1190,6 +1190,9 @@ export function placeholderMidsFromTransceivers(
  * fresh placeholders use the default — the placeholders still converge on the
  * first value seen, so two placeholders can't disagree either. Only placeholder
  * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * A codec without an `a=fmtp` line has empty parameters. Real sections that
+ * disagree on a payload type are not reconciled: the placeholders follow the
+ * last real section, and the real sections still differ.
  * `isPlaceholder` identifies the sections to conform.
  * @internal
  */
@@ -1202,31 +1205,30 @@ export function conformBundledCodecFmtp(
   // section's value always takes precedence; otherwise the first placeholder
   // value seen is used so divergent placeholders still converge.
   const canonicalByPayload = new Map<number, string>();
-  const fromRealSection = new Set<number>();
   for (const m of media) {
     const placeholder = isPlaceholder(m);
-    for (const fmtp of m.fmtp ?? []) {
-      if (!placeholder) {
-        canonicalByPayload.set(fmtp.payload, fmtp.config);
-        fromRealSection.add(fmtp.payload);
-      } else if (!canonicalByPayload.has(fmtp.payload)) {
-        canonicalByPayload.set(fmtp.payload, fmtp.config);
+    for (const { payload } of m.rtp ?? []) {
+      const config = m.fmtp?.find((fmtp) => fmtp.payload === payload)?.config ?? '';
+      if (!placeholder || !canonicalByPayload.has(payload)) {
+        canonicalByPayload.set(payload, config);
       }
     }
   }
-  if (canonicalByPayload.size === 0) {
-    return;
-  }
-
   // Conform placeholder sections to the canonical fmtp for each shared payload.
   for (const m of media) {
     if (!isPlaceholder(m)) {
       continue;
     }
-    for (const fmtp of m.fmtp ?? []) {
-      const config = canonicalByPayload.get(fmtp.payload);
-      if (config !== undefined && fmtp.config !== config) {
+    for (const { payload } of m.rtp ?? []) {
+      // The first loop added every payload type a placeholder lists.
+      const config = canonicalByPayload.get(payload)!;
+      const fmtp = m.fmtp?.find((entry) => entry.payload === payload);
+      if (config === '') {
+        m.fmtp = (m.fmtp ?? []).filter((entry) => entry.payload !== payload);
+      } else if (fmtp) {
         fmtp.config = config;
+      } else {
+        m.fmtp = [...(m.fmtp ?? []), { payload, config }];
       }
     }
   }
