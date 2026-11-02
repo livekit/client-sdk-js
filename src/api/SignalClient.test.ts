@@ -1182,7 +1182,6 @@ describe('SignalClient.connect', () => {
     });
   });
 
-
   describe('Failure Case - No global Event (React Native)', () => {
     // Hermes/React Native does not define global Event. The connect abort handler used to
     // evaluate `instanceof Event` unconditionally, which threw ReferenceError and left the
