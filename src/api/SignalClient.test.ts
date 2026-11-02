@@ -1182,6 +1182,50 @@ describe('SignalClient.connect', () => {
     });
   });
 
+
+  describe('Failure Case - No global Event (React Native)', () => {
+    // Hermes/React Native does not define global Event. The connect abort handler used to
+    // evaluate `instanceof Event` unconditionally, which threw ReferenceError and left the
+    // timeout unable to reject the join (see #2223). WebSocketStream.opened already rejects on
+    // close-before-open (#2179); this covers the remaining Event guard.
+    function mockHangingWebSocket() {
+      vi.mocked(WebSocketStream).mockImplementationOnce(function () {
+        let rejectOpened!: (e: unknown) => void;
+        let resolveClosed!: (info: WebSocketCloseInfo) => void;
+        return {
+          url: 'wss://test.livekit.io',
+          opened: new Promise((_, reject) => (rejectOpened = reject)),
+          closed: new Promise((resolve) => (resolveClosed = resolve)),
+          close: vi.fn(() => {
+            rejectOpened(new Error('aborted during handshake'));
+            resolveClosed({ closeCode: 1006, reason: '' });
+          }),
+          readyState: 0,
+        } as any;
+      });
+    }
+
+    it('still times out a hanging join when global Event is undefined', async () => {
+      const originalEvent = globalThis.Event;
+      vi.useFakeTimers();
+      try {
+        // @ts-expect-error intentional RN-like environment
+        delete globalThis.Event;
+        mockHangingWebSocket();
+
+        const join = expect(
+          signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+        ).rejects.toMatchObject({ reason: ConnectionErrorReason.Timeout });
+        await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalledTimes(1));
+        await vi.advanceTimersByTimeAsync(defaultOptions.websocketTimeout);
+        await join;
+      } finally {
+        globalThis.Event = originalEvent;
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('Establishing over an existing session', () => {
     async function joinSuccessfully() {
       mockWebSocketStream({

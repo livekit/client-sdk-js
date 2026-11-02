@@ -467,7 +467,12 @@ export class SignalClient {
             return;
           }
           alreadyAborted = true;
-          const target = eventOrError instanceof Event ? eventOrError.currentTarget : eventOrError;
+          // React Native has no global Event; `instanceof Event` throws ReferenceError there and
+          // leaves the timeout/abort path unable to close the socket or reject the connect.
+          const target =
+            typeof Event !== 'undefined' && eventOrError instanceof Event
+              ? eventOrError.currentTarget
+              : eventOrError;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
