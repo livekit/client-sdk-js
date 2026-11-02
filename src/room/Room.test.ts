@@ -13,6 +13,8 @@ import {
   TrackInfo,
   TrackType,
 } from '@livekit/protocol';
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
@@ -193,7 +195,7 @@ describe('Room lifecycle', () => {
     // FinalizationRegistry must be registered with the Room as the target so the
     // cleanup callback fires when the user drops their Room reference.
     if (Room.cleanupRegistry) {
-      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(Function));
+      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(AbortController));
     }
 
     // While the WeakRef still derefs to the Room, the listener forwards to handleDeviceChange.
@@ -240,6 +242,26 @@ describe('Room lifecycle', () => {
         value: originalRegistry,
       });
     }
+  });
+
+  it('lets a dropped Room be garbage collected (#2008)', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: new EventTarget(),
+    });
+    // A Room is retained if either the devicechange listener or the registry's held value closes
+    // over the constructor's context, so check reachability with a real GC.
+    v8.setFlagsFromString('--expose-gc');
+    const gc = runInNewContext('gc') as () => void;
+
+    const roomRef = new WeakRef(new Room());
+
+    // WeakRef targets stay alive until the current job ends, so yield before each collection
+    for (let i = 0; i < 10 && roomRef.deref(); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      gc();
+    }
+    expect(roomRef.deref()).toBeUndefined();
   });
 });
 

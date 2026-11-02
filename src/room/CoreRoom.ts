@@ -355,17 +355,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
         // strongly retain the Room. When the user drops their Room ref, the
         // FinalizationRegistry callback aborts the controller and removes the listener.
-        const roomRef = new WeakRef(this);
-        onDeviceChange = () => {
-          const self = roomRef.deref();
-          if (!self) {
-            return;
-          }
-          self.handleDeviceChange();
-        };
-        cleanupRegistry.register(this, () => {
-          cleanupController.abort();
-        });
+        onDeviceChange = CoreRoom.createWeakDeviceChangeListener(new WeakRef(this));
+        cleanupRegistry.register(this, cleanupController);
       } else {
         // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
         // direct listener (matches pre-#1944 behavior).
@@ -677,9 +668,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
     typeof WeakRef !== 'undefined' &&
-    new FinalizationRegistry((cleanup: () => void) => {
-      cleanup();
+    new FinalizationRegistry((cleanupController: AbortController) => {
+      cleanupController.abort();
     });
+
+  /**
+   * Builds the constructor's `devicechange` listener. It lives outside the constructor so that
+   * its closure only captures `roomRef`, not the constructor's context (which holds the Room).
+   */
+  private static createWeakDeviceChangeListener(roomRef: WeakRef<CoreRoom>) {
+    return () => {
+      roomRef.deref()?.handleDeviceChange();
+    };
+  }
 
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
