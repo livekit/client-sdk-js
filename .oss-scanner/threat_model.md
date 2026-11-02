@@ -62,7 +62,19 @@ connects to.
 - It authenticates each participant's token.
 - It stamps `participantIdentity` and `participantSid` on relayed data packets.
   `CoreRoom.handleDataPacket` and the RPC and stream handlers attribute data
-  by that outer field.
+  by that outer field. For a plaintext `UserPacket` it also overwrites the
+  inner `UserPacket.participantIdentity` with the same value. The server
+  leaves the outer identity unset or unstamped in three cases:
+  - **Hidden participants.** The server blanks both the outer and the inner
+    `UserPacket` identity.
+  - **Server-originated data** (for example the `SendData` server API). There
+    is no sending participant, and the server fills the outer identity from
+    the inner `UserPacket` one.
+  - **Agents speaking on behalf of a participant.** A participant of kind
+    agent may set another identity on a chat message or a text stream
+    header. The server leaves that identity in place and sets `generated` on
+    the message or header. This is how agents attribute generated text to the
+    user they serve.
 - It is the source of room, participant, and track state, region URLs,
   refreshed tokens, and the SIF trailer.
 
@@ -90,12 +102,45 @@ consumes what the server relays here.
   frames that skip decryption are limited to empty DTX frames and SIF frames
   whose payload `identifySifPayload` recognises.
 - **Sender identity.** Data from one participant must not be attributed to
-  another. This covers data packets, streams, RPC, chat, transcriptions, and
-  data tracks. Identity fields inside a participant-controlled payload must
-  not override the server-stamped sender. Examples are the legacy
-  `UserPacket.participantIdentity`, fields inside an encrypted payload, and
-  stream or RPC IDs. A stream or RPC exchange started by one sender must not
-  accept packets from another.
+  another. This covers data packets, streams, RPC, chat, and data tracks.
+  Identity fields inside a participant-controlled payload must not override
+  the server-stamped sender. Examples are fields inside an encrypted payload,
+  and stream or RPC IDs. A stream or RPC exchange started by one sender must
+  not accept packets from another. Two cases are by design:
+  - `applyUserDataCompat` in `RTCEngine.ts` falls back to the inner
+    `UserPacket.participantIdentity` only when the outer identity is empty.
+    For a plaintext packet from a participant, that only happens for a hidden
+    sender, and the server blanks the inner field too, so the fallback is
+    not reachable by a participant. It is a finding if a participant can
+    reach it with an inner identity the server did not stamp, for example
+    one carried inside an encrypted payload.
+  - Agent on-behalf chat messages and text stream headers (see above) carry
+    another participant's identity on purpose. A non-agent participant
+    getting the same result is a finding.
+- **Transcriptions are claims, not identity.** A transcription packet names
+  the participant and track it transcribes in
+  `transcribedParticipantIdentity` and `trackId`. `CoreRoom.handleTranscription`
+  attributes the segments to that participant, not to the sender, because
+  agents publish transcriptions of other participants' tracks. The server
+  only forwards transcription packets from agents. An agent attaching
+  transcriptions to any participant's track is expected behaviour, not
+  spoofing. A non-agent participant getting a transcription delivered is a
+  finding.
+- **Encryption type is reported, not enforced, for data.** With E2EE on, a
+  participant can still send its own data unencrypted. The SDK delivers it
+  and tells the application how it arrived: `RoomEvent.DataReceived` carries
+  the packet's `encryptionType`, and stream readers expose it as
+  `info.encryptionType`. Rejecting plaintext is the application's choice. A
+  participant sending its own data in plaintext is not a finding. These are
+  findings:
+  - plaintext data reported with an encrypted `encryptionType`;
+  - a stream whose header and chunks disagree on encryption type being
+    accepted (`validateStreamPacket` rejects that);
+  - data from one participant decrypted with, or attributed to, another
+    participant's key.
+
+  RPC handlers are not told the encryption type of the request. That is a
+  known gap; report it once at Low, not per method.
 - **No code execution from participant content.** The SDK never evaluates
   participant-controlled content as script, and never inserts it as HTML.
   The SDK only creates `<audio>`, `<video>` and `<canvas>` elements. Names,
@@ -104,6 +149,11 @@ consumes what the server relays here.
   RPC message, data-track packet, or media frame must not throw out of the
   receive path, hang the data-processing lock, or grow memory without bound.
   This includes compressed streams and the pre-connect packet buffer.
+- **Bounded per-participant state.** Well-formed traffic must not grow memory
+  without bound either. A participant can hold receiver state open without
+  sending a single malformed packet. Examples are streams it opens and never
+  closes, transcription segments that never become final (from an agent), and packets
+  buffered before the receiver connects. See [Resource limits](#resource-limits).
 - **Token handling.** The access token is sent only to the server URL the
   application configured and to the region URLs that server returns. It must
   not appear in logs; `SignalClient` redacts it from logged URLs.
@@ -132,14 +182,50 @@ consumes what the server relays here.
   - Behaviour that needs a malicious server, unless it breaks E2EE
     confidentiality or integrity.
   - Applications rendering participant strings unsafely.
-  - The configurable 5 GB default cap on decompressed stream output, unless
-    the cap itself is bypassed.
+  - A configurable limit whose default is too high (see
+    [Resource limits](#resource-limits)). That is Low at most, unless the
+    limit itself is bypassed.
+  - A participant sending its own data unencrypted in an E2EE room, or an
+    agent attributing transcriptions or generated text to another
+    participant, as described under security properties.
   - The token in the WebSocket query string; browsers cannot set headers on
     WebSocket requests.
   - Unverified client-side token decoding, which is used only for expiry and
     caching.
   - Anything that needs control of the embedding application or its key
     provider.
+
+## Resource limits
+
+These limits protect a receiver from a single participant. Some defaults are
+high on purpose. These limits were added after the fact, where there was
+previously no limit at all, and the defaults were chosen so that no existing
+application would break. An application that wants a tighter limit sets it
+through room options.
+
+| Limit | Default | Option | Where |
+| --- | --- | --- | --- |
+| Decompressed or reassembled size of one incoming data stream | 5 GB | `dataStream.maxPayloadByteLength` | `data-stream/constants.ts` |
+| Incoming data streams open at once, per remote participant | 500 | `dataStream.maxOpenStreamsPerParticipant` | `data-stream/constants.ts` |
+| Buffered frames per data-track subscription (newest dropped when full) | 16 | `subscribe({ bufferSize })` | `data-track/incoming/IncomingDataTrackManager.ts` |
+| Packets held by the data-track depacketizer | 128 | none | `data-track/depacketizer.ts` |
+| RPC method name / payload size | 256 B / 15 KB | none | `rpc/utils.ts` |
+
+How to rate findings here:
+
+- **Not a finding, or Low at most:** a report that a default is too high, or
+  that a participant can use the full limit, for example 500 open streams
+  or a 5 GB stream. The application can lower these defaults itself.
+- **Medium:** a way past a limit. Examples: open streams not counted
+  against the sender, a decompressed size not checked against the cap, or
+  state that stays alive after its stream is errored, closed, or the sender
+  leaves.
+- **Medium:** per-participant state that has no limit at all and grows with
+  well-formed traffic from one participant. Two places to check:
+  - the pre-connect `bufferedPackets` queue in `IncomingDataStreamManager`;
+  - `CoreRoom.transcriptionReceivedTimes`. It keeps one entry for each
+    non-final segment ID, and an entry is removed only when that segment
+    becomes final or the room disconnects.
 
 ## Testing
 
