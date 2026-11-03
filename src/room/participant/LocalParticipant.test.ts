@@ -260,6 +260,7 @@ type TransceiverTestParticipant = {
   enabledPublishVideoCodecs: unknown[];
   engine: {
     isClosed: boolean;
+    serverProtocol: number | undefined;
     pcManager: { currentState: PCTransportState; publisher: ReturnType<typeof makePublisher> };
     addTrack: ReturnType<typeof vi.fn>;
     createSender: ReturnType<typeof vi.fn>;
@@ -286,6 +287,8 @@ function makeTransceiverParticipant(publisher: ReturnType<typeof makePublisher>)
   participant.enabledPublishVideoCodecs = [];
   participant.engine = {
     isClosed: false,
+    // the first protocol that matches publisher m-sections by mid (livekit/livekit#5122)
+    serverProtocol: 19,
     pcManager: { currentState: PCTransportState.CONNECTED, publisher },
     addTrack: vi.fn(),
     createSender: vi.fn(),
@@ -294,6 +297,28 @@ function makeTransceiverParticipant(publisher: ReturnType<typeof makePublisher>)
   };
   participant.log = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
   return participant;
+}
+
+function addPublishedVideoTrack(
+  participant: TransceiverTestParticipant,
+  sender: RTCRtpSender,
+  backupSender: RTCRtpSender,
+) {
+  const track = {
+    isLocal: true,
+    kind: Track.Kind.Video,
+    sid: 'TR_video',
+    source: Track.Source.Camera,
+    mediaStreamTrack: { enabled: true, id: 'primary-cid' },
+    sender,
+    simulcastCodecs: new Map([['vp8', { sender: backupSender }]]),
+    off: vi.fn(),
+    stop: vi.fn(),
+  } as unknown as LocalVideoTrack;
+  const publication = { trackSid: 'TR_video', kind: Track.Kind.Video, track, setTrack: vi.fn() };
+  participant.trackPublications.set('TR_video', publication);
+  participant.videoTrackPublications.set('TR_video', publication);
+  return track;
 }
 
 describe('LocalParticipant transceiver cleanup', () => {
@@ -307,20 +332,7 @@ describe('LocalParticipant transceiver cleanup', () => {
     const participant = makeTransceiverParticipant(
       makePublisher([placeholder, otherTrack, primary, backup]),
     );
-    const track = {
-      isLocal: true,
-      kind: Track.Kind.Video,
-      sid: 'TR_video',
-      source: Track.Source.Camera,
-      mediaStreamTrack: { enabled: true, id: 'primary-cid' },
-      sender: primary.sender,
-      simulcastCodecs: new Map([['vp8', { sender: backup.sender }]]),
-      off: vi.fn(),
-      stop: vi.fn(),
-    } as unknown as LocalVideoTrack;
-    const publication = { trackSid: 'TR_video', kind: Track.Kind.Video, track, setTrack: vi.fn() };
-    participant.trackPublications.set('TR_video', publication);
-    participant.videoTrackPublications.set('TR_video', publication);
+    const track = addPublishedVideoTrack(participant, primary.sender, backup.sender);
 
     await participant.unpublishTrack(track);
 
@@ -334,6 +346,21 @@ describe('LocalParticipant transceiver cleanup', () => {
     expect(backupRemoved).toBeLessThan(backup.stop.mock.invocationCallOrder[0]);
     expect(participant.engine.negotiate).toHaveBeenCalledOnce();
     expect(participant.log.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps the transceivers inactive when the server protocol is below 19', async () => {
+    const primary = makeTransceiver();
+    const backup = makeTransceiver();
+    const participant = makeTransceiverParticipant(makePublisher([primary, backup]));
+    participant.engine.serverProtocol = 18;
+    const track = addPublishedVideoTrack(participant, primary.sender, backup.sender);
+
+    await participant.unpublishTrack(track);
+
+    expect(primary.stop).not.toHaveBeenCalled();
+    expect(backup.stop).not.toHaveBeenCalled();
+    expect(participant.engine.removeTrack).toHaveBeenCalledTimes(2);
+    expect(participant.engine.negotiate).toHaveBeenCalledOnce();
   });
 
   it('stops the transceiver of a track when the server rejects its publish', async () => {

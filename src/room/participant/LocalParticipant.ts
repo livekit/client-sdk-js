@@ -73,6 +73,7 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isPermissionDeniedError,
+  isStopTransceiverSupportedByServer,
   isVideoTrack,
   isWeb,
   sleep,
@@ -1012,7 +1013,9 @@ export class LocalParticipant extends Participant {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
             this.engine.pcManager.publisher.removeTrack(track.sender);
-            this.engine.pcManager.publisher.stopTransceivers([track.sender]);
+            if (isStopTransceiverSupportedByServer(this.engine.serverProtocol)) {
+              this.engine.pcManager.publisher.stopTransceivers([track.sender]);
+            }
           } catch (e) {
             this.log.error(e);
           }
@@ -1261,7 +1264,10 @@ export class LocalParticipant extends Participant {
           track.simulcastCodecs.clear();
         }
 
-        if (this.engine.pcManager.publisher.stopTransceivers(senders)) {
+        if (
+          isStopTransceiverSupportedByServer(this.engine.serverProtocol) &&
+          this.engine.pcManager.publisher.stopTransceivers(senders)
+        ) {
           negotiationNeeded = true;
         }
       } catch (e) {
