@@ -592,7 +592,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.Offline, () => {
-        if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })

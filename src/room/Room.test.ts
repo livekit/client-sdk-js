@@ -417,6 +417,15 @@ describe('full reconnect', () => {
     expect(room.state).toBe(ConnectionState.Connecting);
   });
 
+  it('stays Connecting when the browser goes offline inside connect()', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Offline);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
   it('reports a reconnect of an established session', async () => {
     const { room, events } = restartFrom(ConnectionState.Connected);
     await flush();
