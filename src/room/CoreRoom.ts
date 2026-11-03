@@ -251,6 +251,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private bufferedEvents: Array<any> = [];
 
+  /**
+   * the room as it was before the current full reconnect. Every region the full reconnect tries
+   * starts from it, so the region it connects to reports every change since the outage
+   */
+  private roomInfoBeforeRestart?: RoomModel;
+
   private isResuming: boolean = false;
 
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
@@ -349,17 +355,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
         // strongly retain the Room. When the user drops their Room ref, the
         // FinalizationRegistry callback aborts the controller and removes the listener.
-        const roomRef = new WeakRef(this);
-        onDeviceChange = () => {
-          const self = roomRef.deref();
-          if (!self) {
-            return;
-          }
-          self.handleDeviceChange();
-        };
-        cleanupRegistry.register(this, () => {
-          cleanupController.abort();
-        });
+        onDeviceChange = CoreRoom.createWeakDeviceChangeListener(new WeakRef(this));
+        cleanupRegistry.register(this, cleanupController);
       } else {
         // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
         // direct listener (matches pre-#1944 behavior).
@@ -591,6 +588,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
+      .on(EngineEvent.Restarted, () => {
+        // normally handleSignalRestarted flushes after the restart, but if the room already
+        // reports connected, anything buffered since then would otherwise wait for the next reconnect
+        if (this.state === ConnectionState.Connected) {
+          this.emitBufferedEvents();
+        }
+      })
       .on(EngineEvent.Offline, () => {
         // During connect(), the room stays `Connecting` and connect() reports the outcome.
         if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
@@ -674,9 +678,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
     typeof WeakRef !== 'undefined' &&
-    new FinalizationRegistry((cleanup: () => void) => {
-      cleanup();
+    new FinalizationRegistry((cleanupController: AbortController) => {
+      cleanupController.abort();
     });
+
+  /**
+   * Builds the constructor's `devicechange` listener. It lives outside the constructor so that
+   * its closure only captures `roomRef`, not the constructor's context (which holds the Room).
+   */
+  private static createWeakDeviceChangeListener(roomRef: WeakRef<CoreRoom>) {
+    return () => {
+      roomRef.deref()?.handleDeviceChange();
+    };
+  }
 
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
@@ -1733,6 +1747,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
 
+    // a region that failed after its join leaves its room state and held back events behind
+    this.roomInfoBeforeRestart ??= this.roomInfo;
+    this.roomInfo = this.roomInfoBeforeRestart;
+    this.bufferedEvents = [];
+
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
       this.handleParticipantDisconnected(p.identity, p);
@@ -1744,12 +1763,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   };
 
-  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
+  private handleSignalRestarted = async (
+    joinResponse: JoinResponse,
+    restartAttempt: AbortSignal,
+  ) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
     const initialConnection = this.connectFuture !== undefined;
+    const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
 
@@ -1760,13 +1783,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.error('error trying to re-publish tracks after reconnection', { error });
     }
 
-    try {
-      await this.engine.waitForRestarted();
-      this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
-    } catch {
-      // reconnection failed, handleDisconnect is being invoked already, just return here
+    // the attempt is aborted when a newer attempt began, on the next region or in a later
+    // restart, or when the engine closed; whatever replaced it reports the outcome
+    if (!(await restarted) || restartAttempt.aborted) {
       return;
     }
+    this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
+    this.roomInfoBeforeRestart = undefined;
     if (initialConnection) {
       // connect() emits `Connected`; as on any initial join, events from before it are dropped.
       this.bufferedEvents = [];
@@ -1782,6 +1805,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
+    this.roomInfoBeforeRestart = undefined;
     this.transcriptionReceivedTimes.clear();
     this.extensionResults.forEach((result) => result.onDisconnect?.());
     if (this.state === ConnectionState.Disconnected) {

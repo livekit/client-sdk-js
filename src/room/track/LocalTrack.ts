@@ -8,6 +8,7 @@ import type { LoggerOptions } from '../types';
 import {
   compareVersions,
   isAppleMobile,
+  isChromiumBased,
   isMobile,
   markDeviceAcquisitionFailure,
   sleep,
@@ -63,7 +64,7 @@ export default abstract class LocalTrack<
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<TrackKind, any>;
+  protected processor?: TrackProcessor<TrackKind, any> | undefined;
 
   protected audioContext?: AudioContext;
 
@@ -252,15 +253,22 @@ export default abstract class LocalTrack<
 
     const started = Date.now();
 
-    if (isAppleMobile()) {
-      // iOS and iPadOS keep reporting the camera's sensor frame from getSettings() until the
-      // camera has delivered its first picture, so a portrait capture initially reads as
-      // landscape. Wait for that first frame instead of guessing at a delay.
-      // Gated to the Apple capture pipeline rather than run everywhere: elsewhere getSettings() is
-      // already right and the first frame can be hundreds of milliseconds out (measured ~500ms on
-      // macOS Safari), which would be pure added publish latency.
-      // https://github.com/livekit/client-sdk-js/issues/2099
-      // https://github.com/livekit/client-sdk-js/issues/2107
+    if (isAppleMobile() || (isChromiumBased() && this.source === Track.Source.ScreenShare)) {
+      // In a few cases, wait for the first video frame:
+      //
+      // - iOS and iPadOS keep reporting the camera's sensor frame from getSettings() until the
+      //   camera has delivered its first picture, so a portrait capture initially reads as
+      //   landscape. Wait for that first frame instead of guessing at a delay.
+      //   https://github.com/livekit/client-sdk-js/issues/2099
+      //   https://github.com/livekit/client-sdk-js/issues/2107
+      //
+      // - Chrome reports the resolution a screen share asked for (1920x1080 for a 1536x664 tab), which
+      //   would announce simulcast layers at sizes they never have.
+      //   https://github.com/livekit/client-sdk-js/pull/2217
+      //
+      // Outside of these limited cases, getSettings() is already right and the first frame can
+      // be hundreds of milliseconds out (measured ~500ms on macOS Safari), which would be pure
+      // added publish latency.
       await waitForFirstVideoFrame(this._mediaStreamTrack, timeout, this.attachedElements);
     }
 

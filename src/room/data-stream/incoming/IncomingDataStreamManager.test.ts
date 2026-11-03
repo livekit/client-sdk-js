@@ -14,7 +14,7 @@ import {
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
-import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import { DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
 
@@ -1560,6 +1560,45 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('Extra chunk(s)');
     });
 
+    it.each([
+      ['UNCOMPRESSED', DataStream_CompressionType.NONE],
+      ['COMPRESSED', DataStream_CompressionType.DEFLATE_RAW],
+    ])(
+      'should hold a v2 SINGLE PACKET + %s payload to its declared totalLength',
+      async (_, compression) => {
+        /** Reads an inline text stream that carries `text` and declares `totalLength`. */
+        const readInlineText = async (text: string, totalLength?: bigint) => {
+          const manager = new IncomingDataStreamManager();
+          manager.setConnected(true);
+
+          const readerPromise = new Promise<TextStreamReader>((resolve) => {
+            manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+          });
+
+          const encoded = new TextEncoder().encode(text);
+          manager.handleDataStreamPacket(
+            headerPacket(crypto.randomUUID(), 'textHeader', {
+              totalLength,
+              compression,
+              inlineContent:
+                compression === DataStream_CompressionType.DEFLATE_RAW
+                  ? await deflateRawCompress(encoded)
+                  : encoded,
+            }),
+            Encryption_Type.NONE,
+          );
+
+          const reader = await readerPromise;
+          return reader.readAll();
+        };
+
+        await expect(readInlineText('hello', 6n)).rejects.toThrow('Not enough chunk(s)');
+        await expect(readInlineText('hello', 4n)).rejects.toThrow('Extra chunk(s)');
+        await expect(readInlineText('hello', 5n)).resolves.toStrictEqual('hello');
+        await expect(readInlineText('hello')).resolves.toStrictEqual('hello');
+      },
+    );
+
     it('should merge trailer attributes on a compressed stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
@@ -1747,10 +1786,40 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
     });
 
+    it('should error with the trailer reason when a stream closes before the specified totalLength', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { totalLength: BigInt(text.length * 2) }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      // The sender stops halfway and gives a reason; that reason, not the missing bytes, is the
+      // error the reader gets.
+      manager.handleDataStreamPacket(
+        trailerPacket(streamId, undefined, 'cancelled'),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
+    });
+
     it('should error an inline compressed payload that inflates past the max payload size', async () => {
       // Decompression-bomb guard: a tiny compressed inline payload must not be allowed to
       // expand without bound.
-      const manager = new IncomingDataStreamManager(1_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 1_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -1776,7 +1845,7 @@ describe('IncomingDataStreamManager', () => {
     });
 
     it('should error a chunked compressed stream that inflates past the max payload size', async () => {
-      const manager = new IncomingDataStreamManager(50_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 50_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -1936,6 +2005,164 @@ describe('IncomingDataStreamManager', () => {
 
       expect(readers).toHaveLength(2);
       expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+
+    it('drops headers from a participant that already has the maximum number of streams open', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Fill alice's quota with streams that are never closed.
+      const aliceStreamIds = Array.from({ length: DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT }, () =>
+        crypto.randomUUID(),
+      );
+      for (const streamId of aliceStreamIds) {
+        manager.handleDataStreamPacket(headerPacket(streamId, 'textHeader'), Encryption_Type.NONE);
+      }
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // One more from alice is dropped.
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // The limit is per participant, so bob can still open a stream.
+      const bobHeader = headerPacket(crypto.randomUUID(), 'textHeader');
+      bobHeader.participantIdentity = 'bob';
+      manager.handleDataStreamPacket(bobHeader, Encryption_Type.NONE);
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT + 1);
+
+      // Once one of alice's streams closes, she can open a new one.
+      manager.handleDataStreamPacket(trailerPacket(aliceStreamIds[0]), Encryption_Type.NONE);
+      expect(await readers[0].readAll()).toEqual('');
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT + 2);
+    });
+
+    it('respects a custom per participant open stream limit', () => {
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 2 });
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      for (let i = 0; i < 3; i++) {
+        manager.handleDataStreamPacket(
+          headerPacket(crypto.randomUUID(), 'textHeader'),
+          Encryption_Type.NONE,
+        );
+      }
+      expect(readers).toHaveLength(2);
+    });
+  });
+
+  describe('Packets from a participant other than the stream sender', () => {
+    /** Opens text stream "s1" from `alice` and resolves its reader. */
+    async function openStream(manager: IncomingDataStreamManager): Promise<TextStreamReader> {
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      return readerPromise;
+    }
+
+    it('should not append a chunk from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      // Mallory knows the stream id and tries to write into alice's stream.
+      const forged = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      // Alice's own content, then a clean end.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('genuine')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('genuine');
+    });
+
+    it('should not append a chunk from another participant to a byte stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+      manager.handleDataStreamPacket(headerPacket('s1', 'byteHeader'), Encryption_Type.NONE);
+      const reader = await readerPromise;
+
+      const forged = chunkPacket('s1', 0, new Uint8Array([0xff]));
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new Uint8Array([1, 2, 3])),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(concatChunks(await reader.readAll())).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it('should not end the stream on a trailer from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+
+      // The stream is still open: alice's later content still reaches the reader. A rejected
+      // trailer must not become a way for a third party to cancel someone else's stream.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('still open')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('still open');
+    });
+
+    it('should not merge attributes from a trailer from another participant', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1', { injected: 'yes' });
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(trailerPacket('s1', { genuine: 'yes' }), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('');
+      expect(reader.info.attributes?.injected).toBeUndefined();
+      expect(reader.info.attributes?.genuine).toEqual('yes');
+    });
+
+    it('should not fail the stream on a forged abnormal end', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+      const reader = await openStream(manager);
+
+      const forged = trailerPacket('s1', undefined, 'forged failure');
+      forged.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forged, Encryption_Type.NONE);
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('ok')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      expect(await reader.readAll()).toEqual('ok');
     });
   });
 });

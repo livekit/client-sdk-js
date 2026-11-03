@@ -1,8 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isChromiumBased } from '../utils';
 import LocalVideoTrack, { videoLayersFromEncodings } from './LocalVideoTrack';
 import type { SimulcastTrackInfo } from './LocalVideoTrack';
-import { VideoQuality } from './Track';
+import { Track, VideoQuality } from './Track';
 import type { VideoCodec } from './options';
+import { waitForFirstVideoFrame } from './utils';
+
+vi.mock('../utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils')>()),
+  isChromiumBased: vi.fn(() => true),
+}));
+
+vi.mock('./utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./utils')>()),
+  waitForFirstVideoFrame: vi.fn(async () => true),
+}));
 
 describe('videoLayersFromEncodings', () => {
   it('returns single layer for no encoding', () => {
@@ -232,5 +244,57 @@ describe('setDegradationPreference', () => {
     // setParameters is only valid against the most recent getParameters, so the
     // writes must not overlap
     expect(events).toEqual(['primary:start', 'primary:done', 'backup:start', 'backup:done']);
+  });
+});
+
+/** A capture whose getSettings() reports `settings`, which a test may change in place */
+function videoCapture(settings: MediaTrackSettings) {
+  return Object.assign(new EventTarget(), {
+    kind: 'video',
+    id: 'video-capture',
+    label: 'capture',
+    enabled: true,
+    muted: false,
+    readyState: 'live',
+    getSettings: () => settings,
+    getConstraints: () => ({}),
+  }) as unknown as MediaStreamTrack;
+}
+
+describe('waitForDimensions', () => {
+  afterEach(() => {
+    vi.mocked(waitForFirstVideoFrame).mockClear();
+    vi.mocked(isChromiumBased).mockReset().mockReturnValue(true);
+  });
+
+  it('reads a screen share once its first frame has arrived', async () => {
+    // Chrome reports the requested resolution until the shared tab delivers its first frame
+    const settings: MediaTrackSettings = { width: 1920, height: 1080 };
+    vi.mocked(waitForFirstVideoFrame).mockImplementationOnce(async () => {
+      Object.assign(settings, { width: 1536, height: 664 });
+      return true;
+    });
+    const track = new LocalVideoTrack(videoCapture(settings));
+    track.source = Track.Source.ScreenShare;
+
+    await expect(track.waitForDimensions()).resolves.toEqual({ width: 1536, height: 664 });
+  });
+
+  it('reads a camera without waiting for a frame', async () => {
+    const track = new LocalVideoTrack(videoCapture({ width: 1280, height: 720 }));
+    track.source = Track.Source.Camera;
+
+    await expect(track.waitForDimensions()).resolves.toEqual({ width: 1280, height: 720 });
+    expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
+  });
+
+  it('reads a screen share outside Chromium without waiting for a frame', async () => {
+    // Firefox and Safari already report the delivered size from getSettings()
+    vi.mocked(isChromiumBased).mockReturnValue(false);
+    const track = new LocalVideoTrack(videoCapture({ width: 1536, height: 664 }));
+    track.source = Track.Source.ScreenShare;
+
+    await expect(track.waitForDimensions()).resolves.toEqual({ width: 1536, height: 664 });
+    expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
   });
 });

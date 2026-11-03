@@ -944,6 +944,61 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Signal stream read errors', () => {
+    async function join() {
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+      });
+      const closeReasons: Array<string> = [];
+      signalClient.onClose = (reason) => closeReasons.push(reason);
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+      expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
+      return closeReasons;
+    }
+
+    function failingReader(error: unknown) {
+      return { read: () => Promise.reject(error) } as unknown as ReadableStreamDefaultReader<
+        string | ArrayBuffer
+      >;
+    }
+
+    it('logs an unexpected read failure at error level and reports the close', async () => {
+      const closeReasons = await join();
+      const errorSpy = vi.spyOn((signalClient as any).log, 'error');
+
+      const error = new ConnectionError(
+        'WS closed unexpectedly',
+        ConnectionErrorReason.InternalError,
+      );
+      await signalClient.startReadingLoop(failingReader(error));
+
+      expect(errorSpy).toHaveBeenCalledWith('error reading from signal stream', { error });
+      expect(closeReasons).toEqual(['error in reading loop']);
+    });
+
+    it('does not log an error when the read fails because the client closed the connection', async () => {
+      const closeReasons = await join();
+      await signalClient.close();
+      const errorSpy = vi.spyOn((signalClient as any).log, 'error');
+      const debugSpy = vi.spyOn((signalClient as any).log, 'debug');
+
+      const error = new ConnectionError(
+        'WS closed unexpectedly',
+        ConnectionErrorReason.InternalError,
+      );
+      await signalClient.startReadingLoop(failingReader(error));
+
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('ignoring transport close'),
+        expect.objectContaining({ reason: 'error in reading loop', error }),
+      );
+      expect(closeReasons).toEqual([]);
+    });
+  });
+
   describe('Held requests during a resume', () => {
     /**
      * Records the tracks whose mute requests reach the wire, in order. `mute` is session-scoped —

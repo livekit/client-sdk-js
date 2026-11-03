@@ -142,6 +142,19 @@ export interface RoomDataStreamOptions {
    * @default 5_000_000_000 (5 GB)
    */
   maxPayloadByteLength?: number;
+
+  /**
+   * Maximum number of incoming data streams a single remote participant may have open at once.
+   *
+   * Each open stream holds state on this client until its trailer arrives or the sender
+   * disconnects. Headers for new streams beyond this limit are dropped with an error log, so a
+   * participant can't exhaust this client's memory by opening streams it never closes.
+   *
+   * This is enforced on the receiving side only: raising it on a sender has no effect.
+   *
+   * @default 500
+   */
+  maxOpenStreamsPerParticipant?: number;
 }
 
 /**

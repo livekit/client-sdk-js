@@ -4,6 +4,8 @@ import {
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  ParticipantInfo,
+  ParticipantInfo_State,
   StreamState as ProtoStreamState,
   StreamStateUpdate,
   SubscriptionError,
@@ -11,13 +13,17 @@ import {
   TrackInfo,
   TrackType,
 } from '@livekit/protocol';
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
+import { subscribeToEvents } from '../utils/subscribeToEvents';
 import { BackOffStrategy } from './BackOffStrategy';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { ConnectionState, Room } from './Room';
+import { ConnectionState, Room, type RoomEventCallbacks } from './Room';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
@@ -189,7 +195,7 @@ describe('Room lifecycle', () => {
     // FinalizationRegistry must be registered with the Room as the target so the
     // cleanup callback fires when the user drops their Room reference.
     if (Room.cleanupRegistry) {
-      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(Function));
+      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(AbortController));
     }
 
     // While the WeakRef still derefs to the Room, the listener forwards to handleDeviceChange.
@@ -236,6 +242,26 @@ describe('Room lifecycle', () => {
         value: originalRegistry,
       });
     }
+  });
+
+  it('lets a dropped Room be garbage collected (#2008)', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: new EventTarget(),
+    });
+    // A Room is retained if either the devicechange listener or the registry's held value closes
+    // over the constructor's context, so check reachability with a real GC.
+    v8.setFlagsFromString('--expose-gc');
+    const gc = runInNewContext('gc') as () => void;
+
+    const roomRef = new WeakRef(new Room());
+
+    // WeakRef targets stay alive until the current job ends, so yield before each collection
+    for (let i = 0; i < 10 && roomRef.deref(); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      gc();
+    }
+    expect(roomRef.deref()).toBeUndefined();
   });
 });
 
@@ -375,7 +401,7 @@ describe('full reconnect', () => {
 
   function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
     const { room, events } = roomIn(state);
-    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue();
+    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue(true);
 
     if (resumeFirst) {
       // a rejected resume escalates to a full reconnect, as in a server CONNECTION_TIMEOUT leave
@@ -385,6 +411,7 @@ describe('full reconnect', () => {
     room.engine.emit(
       EngineEvent.SignalRestarted,
       new JoinResponse({ participant: { sid: 'PA_local', identity: 'local' } }),
+      new AbortController().signal,
     );
     return { room, events };
   }
@@ -646,6 +673,135 @@ describe('connection attempt racing disconnect (#2150)', () => {
   });
 });
 
+describe('full reconnect failing over to a second region', () => {
+  const join = (metadata: string) =>
+    new JoinResponse({
+      room: { sid: 'RM_test', name: 'test', metadata },
+      participant: { sid: 'PA_local', identity: 'local' },
+    });
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  /** Drives the room as the engine does: each region attempt has a signal the next one aborts. */
+  function restarts(room: Room) {
+    let attempt: AbortController | undefined;
+    return {
+      restarting() {
+        attempt?.abort();
+        attempt = new AbortController();
+        room.engine.emit(EngineEvent.Restarting);
+      },
+      signalRestarted(metadata: string) {
+        room.engine.emit(EngineEvent.SignalRestarted, join(metadata), attempt!.signal);
+      },
+    };
+  }
+
+  function setup() {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    room.engine.emit(EngineEvent.RoomUpdate, join('old').room!);
+    const republish = vi
+      .spyOn(room.localParticipant, 'republishAllTracks')
+      .mockImplementation(async () => {});
+    const roomEvents = subscribeToEvents<RoomEventCallbacks>(room, [
+      RoomEvent.Reconnected,
+      RoomEvent.RoomMetadataChanged,
+    ]);
+    return { room, engine: restarts(room), republish, roomEvents };
+  }
+
+  /** Holds the next republish open until the returned function is called. */
+  function holdNextRepublish(republish: ReturnType<typeof setup>['republish']) {
+    let finish!: () => void;
+    republish.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+    return () => finish();
+  }
+
+  it('reports the recovery once, with the changes the connected region reports', async () => {
+    const { room, engine, roomEvents } = setup();
+
+    // the first region joins, then its peer connection fails
+    engine.restarting();
+    engine.signalRestarted('new');
+    await flush();
+    // the second region joins and connects
+    engine.restarting();
+    engine.signalRestarted('new');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    await flush();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('new');
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
+    await room.disconnect();
+  });
+
+  it('reports the recovery once when the failed region republishes past its failure', async () => {
+    const { room, engine, republish, roomEvents } = setup();
+    const finishFirstRepublish = holdNextRepublish(republish);
+
+    engine.restarting();
+    engine.signalRestarted('new');
+    await flush();
+    engine.restarting();
+    finishFirstRepublish();
+    await flush();
+    engine.signalRestarted('new');
+    await flush();
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+
+    room.engine.emit(EngineEvent.Restarted);
+    await flush();
+
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+    await room.disconnect();
+  });
+
+  it('leaves a restart alone that began while an earlier one was still republishing', async () => {
+    const { room, engine, republish, roomEvents } = setup();
+    const finishFirstRepublish = holdNextRepublish(republish);
+    // the engine reports a pending reconnect for as long as an attempt runs
+    let attemptRunning = true;
+    vi.spyOn(room.engine, 'pendingReconnect', 'get').mockImplementation(() => attemptRunning);
+
+    // the first restart connects while its republish is still running
+    engine.restarting();
+    engine.signalRestarted('a');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    attemptRunning = false;
+    await flush();
+    // a second restart begins before that republish ends
+    attemptRunning = true;
+    engine.restarting();
+    finishFirstRepublish();
+    await flush();
+    expect(room.state).toBe(ConnectionState.Reconnecting);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+
+    // the second restart fails over from region c to region d
+    engine.signalRestarted('c');
+    await flush();
+    engine.restarting();
+    engine.signalRestarted('c');
+    await flush();
+    room.engine.emit(EngineEvent.Restarted);
+    attemptRunning = false;
+    await flush();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    await roomEvents.waitFor(RoomEvent.Reconnected);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.Reconnected)).toBe(false);
+    expect(await roomEvents.waitFor(RoomEvent.RoomMetadataChanged)).toBe('c');
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.RoomMetadataChanged)).toBe(false);
+    await room.disconnect();
+  });
+});
+
 describe('server leave during connect()', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -757,5 +913,105 @@ describe('server leave during connect()', () => {
     const error = await outcome;
     expect(join).toHaveBeenCalledTimes(1);
     expect(error).toMatchObject({ reason: ConnectionErrorReason.Cancelled });
+  });
+});
+
+describe('events during a full reconnect (#2183)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  interface EngineInternals {
+    _isClosed: boolean;
+    url: string;
+    token: string;
+    signalOpts: SignalOptions;
+    pcState: number;
+    configure: () => Promise<void>;
+    waitForPCReconnected: () => Promise<void>;
+  }
+
+  /**
+   * Starts a full reconnect on a connected room whose engine still reports its (old) peer
+   * connection as connected, as after a signal-only drop. The restart parks in
+   * `waitForPCReconnected` until `finishPCReconnect` is called.
+   */
+  async function startFullReconnect() {
+    const room = new Room({ reconnectPolicy: { nextRetryDelayInMs: () => 0 } });
+    room.state = ConnectionState.Connected;
+    const engine = room.engine;
+    const internals = engine as unknown as EngineInternals;
+    internals._isClosed = false;
+    internals.url = 'wss://test.livekit.io';
+    internals.token = 'test-token';
+    internals.signalOpts = { autoSubscribe: true, maxRetries: 1, websocketTimeout: 15_000 };
+    // PCState.Connected, left over from the session being replaced
+    internals.pcState = 1;
+    vi.spyOn(internals, 'configure').mockResolvedValue();
+    vi.spyOn(engine.client, 'sendLeave').mockResolvedValue();
+    vi.spyOn(engine.client, 'currentState', 'get').mockReturnValue(SignalConnectionState.CONNECTED);
+    vi.spyOn(engine.client, 'join').mockResolvedValue(
+      new JoinResponse({
+        participant: new ParticipantInfo({ sid: 'PA_local', identity: 'local' }),
+        subscriberPrimary: true,
+      }),
+    );
+    const pcReconnecting = new Future<void, Error>();
+    const pcReconnected = new Future<void, Error>();
+    vi.spyOn(internals, 'waitForPCReconnected').mockImplementation(async () => {
+      pcReconnecting.resolve?.();
+      await pcReconnected.promise;
+    });
+    const restarted = new Future<void, Error>();
+    engine.once(EngineEvent.Restarted, () => restarted.resolve?.());
+
+    const events: string[] = [];
+    room.on(RoomEvent.Reconnected, () => events.push('reconnected'));
+    room.on(RoomEvent.ParticipantConnected, (p) =>
+      events.push(`participantConnected:${p.identity}`),
+    );
+
+    engine.reconnect();
+    await pcReconnecting.promise;
+    // let the room's SignalRestarted handler run as far as it will
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const finishPCReconnect = async () => {
+      pcReconnected.resolve?.();
+      await restarted.promise;
+      await vi.waitFor(() => expect(engine.pendingReconnect).toBe(false));
+    };
+    return { room, engine, events, finishPCReconnect };
+  }
+
+  it('does not report the room reconnected before the engine restart completes', async () => {
+    const { room, events, finishPCReconnect } = await startFullReconnect();
+
+    expect(room.state).toBe(ConnectionState.Reconnecting);
+    expect(events).toEqual([]);
+
+    await finishPCReconnect();
+
+    expect(room.state).toBe(ConnectionState.Connected);
+    expect(events).toEqual(['reconnected']);
+  });
+
+  it('delivers participant events that arrive while the restart is settling', async () => {
+    const { room, engine, events, finishPCReconnect } = await startFullReconnect();
+
+    // a remote participant (re)joins while the engine is still waiting on the transports
+    engine.emit(EngineEvent.ParticipantUpdate, [
+      new ParticipantInfo({
+        sid: 'PA_remote',
+        identity: 'remote',
+        state: ParticipantInfo_State.ACTIVE,
+      }),
+    ]);
+    expect(events).toEqual([]);
+
+    await finishPCReconnect();
+
+    expect(events).toEqual(['reconnected', 'participantConnected:remote']);
+    expect((room as unknown as { bufferedEvents: unknown[] }).bufferedEvents).toEqual([]);
   });
 });
