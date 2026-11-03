@@ -407,6 +407,16 @@ describe('full reconnect', () => {
     expect(room.state).toBe(ConnectionState.Connecting);
   });
 
+  it('leaves an initial connection to connect() when a resume succeeds', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Resuming);
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
   it('reports a reconnect of an established session', async () => {
     const { room, events } = restartFrom(ConnectionState.Connected);
     await flush();
