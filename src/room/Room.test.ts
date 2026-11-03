@@ -930,3 +930,57 @@ describe('events during a full reconnect (#2183)', () => {
     expect((room as unknown as { bufferedEvents: unknown[] }).bufferedEvents).toEqual([]);
   });
 });
+
+describe('participant updates for an earlier session (#2228)', () => {
+  function setup() {
+    const room = new Room();
+    const update = (sid: string, state: ParticipantInfo_State, reason?: DisconnectReason) =>
+      (
+        room as unknown as { handleParticipantUpdates: (infos: ParticipantInfo[]) => void }
+      ).handleParticipantUpdates([
+        new ParticipantInfo({ sid, identity: 'tutor', state, disconnectReason: reason }),
+      ]);
+    const disconnected: string[] = [];
+    room.on(RoomEvent.ParticipantDisconnected, (p) => disconnected.push(p.sid));
+    // the data track extension unpublishes the tracks of each identity it gets without them
+    const dataTracks = (
+      room as unknown as {
+        extensionResults: Array<{ onParticipantUpdates?: (infos: ParticipantInfo[]) => void }>;
+      }
+    ).extensionResults.find((result) => result.onParticipantUpdates)!;
+    const extensionUpdates = vi.spyOn(dataTracks, 'onParticipantUpdates');
+    const forwardedSids = () =>
+      extensionUpdates.mock.calls.flatMap(([infos]) => infos.map((info) => info.sid));
+    return { room, update, disconnected, forwardedSids };
+  }
+
+  it('keeps the new session when a late DISCONNECTED arrives for the old session', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.SIGNAL_CLOSE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.DUPLICATE_IDENTITY);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual(['PA_old']);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_old', 'PA_new']);
+  });
+
+  it('keeps the new session when the old session leaves after the new one joined', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.DUPLICATE_IDENTITY);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual([]);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
+
+    update('PA_new', ParticipantInfo_State.DISCONNECTED, DisconnectReason.CLIENT_INITIATED);
+
+    expect(room.remoteParticipants.has('tutor')).toBe(false);
+    expect(disconnected).toEqual(['PA_new']);
+  });
+});

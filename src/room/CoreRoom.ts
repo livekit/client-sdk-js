@@ -1873,9 +1873,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
+    const appliedInfos: ParticipantInfo[] = [];
     for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
+        appliedInfos.push(info);
         continue;
       }
 
@@ -1889,6 +1891,17 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
+        // a late update for an earlier session of this identity must not remove the current session
+        if (remoteParticipant?.sid && info.sid && remoteParticipant.sid !== info.sid) {
+          this.log.debug('ignoring disconnect of an earlier participant session', {
+            ...this.logContext,
+            remoteIdentity: info.identity,
+            staleSid: info.sid,
+            currentSid: remoteParticipant.sid,
+          });
+          this.sidToIdentity.delete(info.sid);
+          continue;
+        }
         this.handleParticipantDisconnected(
           info.identity,
           remoteParticipant,
@@ -1900,9 +1913,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
       }
+      appliedInfos.push(info);
     }
 
-    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(participantInfos));
+    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(appliedInfos));
   };
 
   private handleParticipantDisconnected(
