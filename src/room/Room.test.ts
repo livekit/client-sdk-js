@@ -357,20 +357,25 @@ describe('stream state updates', () => {
 });
 
 describe('full reconnect', () => {
-  function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
+  function roomIn(state: ConnectionState) {
     const room = new Room();
     room.state = state;
     if (state === ConnectionState.Connecting) {
       // connect() is pending
       (room as unknown as { connectFuture: Future<void, Error> }).connectFuture = new Future();
     }
-    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue();
     const events: string[] = [];
     room
       .on(RoomEvent.SignalReconnecting, () => events.push(RoomEvent.SignalReconnecting))
       .on(RoomEvent.Reconnecting, () => events.push(RoomEvent.Reconnecting))
       .on(RoomEvent.Reconnected, () => events.push(RoomEvent.Reconnected))
       .on(RoomEvent.ConnectionStateChanged, (s) => events.push(`state:${s}`));
+    return { room, events };
+  }
+
+  function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
+    const { room, events } = roomIn(state);
+    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue();
 
     if (resumeFirst) {
       // a rejected resume escalates to a full reconnect, as in a server CONNECTION_TIMEOUT leave
