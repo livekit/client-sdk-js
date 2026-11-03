@@ -1013,8 +1013,12 @@ export class LocalParticipant extends Participant {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
             this.engine.pcManager.publisher.removeTrack(track.sender);
-            if (isStopTransceiverSupportedByServer(this.engine.serverProtocol)) {
-              this.engine.pcManager.publisher.stopTransceivers([track.sender]);
+            if (
+              isStopTransceiverSupportedByServer(this.engine.serverProtocol) &&
+              this.engine.pcManager.publisher.stopTransceivers([track.sender])
+            ) {
+              // a stopped sender rejects replaceTrack, which mute and restartTrack call
+              track.sender = undefined;
             }
           } catch (e) {
             this.log.error(e);

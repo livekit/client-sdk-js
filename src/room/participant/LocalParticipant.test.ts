@@ -391,5 +391,6 @@ describe('LocalParticipant transceiver cleanup', () => {
     expect(publisher.removeTrack.mock.invocationCallOrder[0]).toBeLessThan(
       transceiver.stop.mock.invocationCallOrder[0],
     );
+    expect(track.sender).toBeUndefined();
   });
 });
