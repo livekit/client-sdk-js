@@ -16,7 +16,7 @@ import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
   DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
-  OVER_LIMIT_LOG_INTERVAL,
+  MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE,
 } from '../constants';
 import {
   type ByteStreamHandler,
@@ -225,8 +225,8 @@ export default class IncomingDataStreamManager {
       (this.byteStreamControllers.get(participantIdentity)?.size ?? 0) +
       (this.textStreamControllers.get(participantIdentity)?.size ?? 0);
     if (openStreamCount >= this.maxOpenStreamsPerParticipant) {
-      // Logs the first drop, then every `OVER_LIMIT_LOG_INTERVAL`th.
-      if (this.droppedOverLimitCount % OVER_LIMIT_LOG_INTERVAL === 0) {
+      // Logs the first drop, then every `MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE`th.
+      if (this.droppedOverLimitCount % MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE === 0) {
         this.log.error(
           `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId} (${this.droppedOverLimitCount + 1} dropped over the limit so far)`,
         );
