@@ -443,6 +443,13 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) {
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
+    if (track.kind === 'audio') {
+      // Release the stream before removing an audio track from it. When an element stops playing,
+      // Chrome silences only the tracks still in its stream, so a removed remote audio track keeps
+      // playing while another remote audio element in the page plays.
+      // https://issues.chromium.org/issues/41336384
+      element.srcObject = null;
+    }
     mediaStream.removeTrack(track);
     if (mediaStream.getTracks().length > 0) {
       element.srcObject = mediaStream;
