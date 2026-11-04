@@ -16,6 +16,7 @@ import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
   DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+  MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE,
 } from '../constants';
 import {
   type ByteStreamHandler,
@@ -23,6 +24,9 @@ import {
   type TextStreamHandler,
   TextStreamReader,
 } from './StreamReader';
+
+/** Open stream controllers by sender identity, then by stream id. */
+type StreamControllersBySender = Map<string, Map<string, StreamController<DataStream_Chunk>>>;
 
 export default class IncomingDataStreamManager {
   private log = log;
@@ -42,9 +46,12 @@ export default class IncomingDataStreamManager {
     this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
   }
 
-  private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+  private byteStreamControllers: StreamControllersBySender = new Map();
 
-  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+  private textStreamControllers: StreamControllersBySender = new Map();
+
+  /** Headers dropped so far for being over the per-participant open-stream limit. */
+  private droppedOverLimitCount = 0;
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
@@ -103,41 +110,26 @@ export default class IncomingDataStreamManager {
       'Room disconnected in the middle of receiving data',
       DataStreamErrorReason.AbnormalEnd,
     );
-    for (const { controller } of this.byteStreamControllers.values()) {
-      controller.error(abnormalEndError);
+    for (const streamControllers of [this.byteStreamControllers, this.textStreamControllers]) {
+      for (const streams of streamControllers.values()) {
+        this.closeStreamsWithError(streams, abnormalEndError);
+      }
+      streamControllers.clear();
     }
-    for (const { controller } of this.textStreamControllers.values()) {
-      controller.error(abnormalEndError);
-    }
-    this.byteStreamControllers.clear();
-    this.textStreamControllers.clear();
     this.bufferedPackets = [];
   }
 
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
     // Terminate any in flight data stream receives from the given participant
-    const textStreamsBeingSentByDisconnectingParticipant = Array.from(
-      this.textStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
-    const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
-      this.byteStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
-
-    if (
-      textStreamsBeingSentByDisconnectingParticipant.length > 0 ||
-      byteStreamsBeingSentByDisconnectingParticipant.length > 0
-    ) {
-      const abnormalEndError = new DataStreamError(
-        `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
-        DataStreamErrorReason.AbnormalEnd,
-      );
-      for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
-        this.byteStreamControllers.delete(id);
-      }
-      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
-        this.textStreamControllers.delete(id);
+    const abnormalEndError = new DataStreamError(
+      `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
+      DataStreamErrorReason.AbnormalEnd,
+    );
+    for (const streamControllers of [this.byteStreamControllers, this.textStreamControllers]) {
+      const streams = streamControllers.get(participantIdentity);
+      if (streams) {
+        streamControllers.delete(participantIdentity);
+        this.closeStreamsWithError(streams, abnormalEndError);
       }
     }
   }
@@ -171,17 +163,57 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  /** Returns true if the given participant already has the maximum number of streams open. */
-  private hasTooManyOpenStreams(participantIdentity: string) {
-    let openStreamCount = 0;
-    for (const controllers of [this.byteStreamControllers, this.textStreamControllers]) {
-      for (const { sendingParticipantIdentity } of controllers.values()) {
-        if (sendingParticipantIdentity === participantIdentity) {
-          openStreamCount += 1;
-        }
-      }
+  private getStream(
+    streamControllers: StreamControllersBySender,
+    participantIdentity: string,
+    streamId: string,
+  ) {
+    return streamControllers.get(participantIdentity)?.get(streamId);
+  }
+
+  private insertStream(
+    streamControllers: StreamControllersBySender,
+    participantIdentity: string,
+    streamId: string,
+    streamController: StreamController<DataStream_Chunk>,
+  ) {
+    let streams = streamControllers.get(participantIdentity);
+    if (!streams) {
+      streams = new Map();
+      streamControllers.set(participantIdentity, streams);
     }
-    return openStreamCount >= this.maxOpenStreamsPerParticipant;
+    streams.set(streamId, streamController);
+  }
+
+  /**
+   * Removes a stream, and its sender's map too once that map is empty. Every single-stream removal
+   * goes through here so no empty map is left behind.
+   */
+  private removeStream(
+    streamControllers: StreamControllersBySender,
+    participantIdentity: string,
+    streamId: string,
+  ) {
+    const streams = streamControllers.get(participantIdentity);
+    if (!streams) {
+      return undefined;
+    }
+    const streamController = streams.get(streamId);
+    streams.delete(streamId);
+    if (streams.size === 0) {
+      streamControllers.delete(participantIdentity);
+    }
+    return streamController;
+  }
+
+  /** Errors out every stream in `streams`, a sender's map already taken out of its controller map. */
+  private closeStreamsWithError(
+    streams: Map<string, StreamController<DataStream_Chunk>>,
+    error: DataStreamError,
+  ) {
+    for (const { controller } of streams.values()) {
+      controller.error(error);
+    }
   }
 
   private handleStreamHeader(
@@ -189,10 +221,17 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    if (this.hasTooManyOpenStreams(participantIdentity)) {
-      this.log.error(
-        `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId}`,
-      );
+    const openStreamCount =
+      (this.byteStreamControllers.get(participantIdentity)?.size ?? 0) +
+      (this.textStreamControllers.get(participantIdentity)?.size ?? 0);
+    if (openStreamCount >= this.maxOpenStreamsPerParticipant) {
+      // Logs the first drop, then every `MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE`th.
+      if (this.droppedOverLimitCount % MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE === 0) {
+        this.log.error(
+          `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId} (${this.droppedOverLimitCount + 1} dropped over the limit so far)`,
+        );
+      }
+      this.droppedOverLimitCount += 1;
       return;
     }
 
@@ -271,28 +310,40 @@ export default class IncomingDataStreamManager {
           start: (controller) => {
             streamController = controller;
 
-            if (this.byteStreamControllers.has(streamHeader.streamId)) {
+            if (
+              this.getStream(this.byteStreamControllers, participantIdentity, streamHeader.streamId)
+            ) {
               throw new DataStreamError(
                 `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
                 DataStreamErrorReason.AlreadyOpened,
               );
             }
 
-            this.byteStreamControllers.set(streamHeader.streamId, {
-              info,
-              controller: streamController,
-              startTime: Date.now(),
-              sendingParticipantIdentity: participantIdentity,
-            });
+            this.insertStream(
+              this.byteStreamControllers,
+              participantIdentity,
+              streamHeader.streamId,
+              {
+                info,
+                controller: streamController,
+                startTime: Date.now(),
+                sendingParticipantIdentity: participantIdentity,
+              },
+            );
           },
           cancel: () => {
             // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
             // was cancelled, which cancels this source stream. Unregister it so later chunks and the
             // trailer for this stream are dropped rather than hitting a closed controller.
             if (
-              this.byteStreamControllers.get(streamHeader.streamId)?.controller === streamController
+              this.getStream(this.byteStreamControllers, participantIdentity, streamHeader.streamId)
+                ?.controller === streamController
             ) {
-              this.byteStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(
+                this.byteStreamControllers,
+                participantIdentity,
+                streamHeader.streamId,
+              );
             }
           },
         });
@@ -384,28 +435,40 @@ export default class IncomingDataStreamManager {
           start: (controller) => {
             streamController = controller;
 
-            if (this.textStreamControllers.has(streamHeader.streamId)) {
+            if (
+              this.getStream(this.textStreamControllers, participantIdentity, streamHeader.streamId)
+            ) {
               throw new DataStreamError(
                 `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
                 DataStreamErrorReason.AlreadyOpened,
               );
             }
 
-            this.textStreamControllers.set(streamHeader.streamId, {
-              info,
-              controller: streamController,
-              startTime: Date.now(),
-              sendingParticipantIdentity: participantIdentity,
-            });
+            this.insertStream(
+              this.textStreamControllers,
+              participantIdentity,
+              streamHeader.streamId,
+              {
+                info,
+                controller: streamController,
+                startTime: Date.now(),
+                sendingParticipantIdentity: participantIdentity,
+              },
+            );
           },
           cancel: () => {
             // The consumer side of the pipe chain errored (e.g. `ensureOrderedChunks` saw a gap) or
             // was cancelled, which cancels this source stream. Unregister it so later chunks and the
             // trailer for this stream are dropped rather than hitting a closed controller.
             if (
-              this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
+              this.getStream(this.textStreamControllers, participantIdentity, streamHeader.streamId)
+                ?.controller === streamController
             ) {
-              this.textStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(
+                this.textStreamControllers,
+                participantIdentity,
+                streamHeader.streamId,
+              );
             }
           },
         });
@@ -430,38 +493,25 @@ export default class IncomingDataStreamManager {
    * Checks that a chunk or trailer may act on the stream it names, given that stream's (already
    * looked up) controller.
    *
-   * Stream ids key the controller maps globally, so a packet naming an open id reaches that stream
-   * whoever sent it. Without the sender check, a participant that learns an id (every recipient of
-   * a multi-destination stream learns it from the header) could append to another participant's
-   * stream, merge its own attributes in, or end it with a forged reason. A packet from the wrong
-   * sender is logged and dropped on its own: erroring the stream instead would let a third party
-   * cancel someone else's stream.
+   * Streams are keyed by their sender, so a chunk or trailer only ever reaches a stream its own
+   * sender opened; a packet naming another participant's stream id finds nothing and is dropped.
    *
-   * The encryption check likewise stops an unencrypted peer from writing into (or cleanly closing)
-   * an encrypted stream; that one does error the stream, see {@link handleStreamPacketError}.
+   * The encryption check stops an unencrypted peer from writing into (or cleanly closing) an
+   * encrypted stream; a mismatch errors the stream, see {@link handleStreamPacketError}.
    *
-   * @returns whether the packet may be applied; `false` means it was dropped.
    * @throws {DataStreamError} `EncryptionTypeMismatch`.
    */
   private validateStreamPacket(
     streamId: string,
     streamController: StreamController<DataStream_Chunk>,
-    participantIdentity: string,
     encryptionType: Encryption_Type,
-  ): boolean {
-    if (streamController.sendingParticipantIdentity !== participantIdentity) {
-      this.log.warn(
-        `Dropping data stream packet for ${streamId} from ${participantIdentity}: stream belongs to ${streamController.sendingParticipantIdentity}`,
-      );
-      return false;
-    }
+  ) {
     if (streamController.info.encryptionType !== encryptionType) {
       throw new DataStreamError(
         `Encryption type mismatch for stream ${streamId}. Expected ${streamController.info.encryptionType}, got ${encryptionType}`,
         DataStreamErrorReason.EncryptionTypeMismatch,
       );
     }
-    return true;
   }
 
   /**
@@ -470,15 +520,16 @@ export default class IncomingDataStreamManager {
    */
   private handleStreamPacketError(
     error: unknown,
+    streamControllers: StreamControllersBySender,
+    participantIdentity: string,
     streamId: string,
     streamController: StreamController<DataStream_Chunk>,
-    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
   ) {
     if (!(error instanceof DataStreamError)) {
       throw error;
     }
     streamController.controller.error(error);
-    streamControllers.delete(streamId);
+    this.removeStream(streamControllers, participantIdentity, streamId);
   }
 
   private handleStreamChunk(
@@ -486,38 +537,26 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    const bytesBuffer = this.byteStreamControllers.get(chunk.streamId);
-    if (bytesBuffer) {
+    for (const streamControllers of [this.byteStreamControllers, this.textStreamControllers]) {
+      const streamController = this.getStream(
+        streamControllers,
+        participantIdentity,
+        chunk.streamId,
+      );
+      if (!streamController) {
+        continue;
+      }
       try {
-        if (
-          this.validateStreamPacket(
-            chunk.streamId,
-            bytesBuffer,
-            participantIdentity,
-            encryptionType,
-          )
-        ) {
-          bytesBuffer.controller.enqueue(chunk);
-        }
+        this.validateStreamPacket(chunk.streamId, streamController, encryptionType);
+        streamController.controller.enqueue(chunk);
       } catch (error) {
         this.handleStreamPacketError(
           error,
+          streamControllers,
+          participantIdentity,
           chunk.streamId,
-          bytesBuffer,
-          this.byteStreamControllers,
+          streamController,
         );
-      }
-    }
-    const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      try {
-        if (
-          this.validateStreamPacket(chunk.streamId, textBuffer, participantIdentity, encryptionType)
-        ) {
-          textBuffer.controller.enqueue(chunk);
-        }
-      } catch (error) {
-        this.handleStreamPacketError(error, chunk.streamId, textBuffer, this.textStreamControllers);
       }
     }
   }
@@ -527,76 +566,43 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    // Validated before the attribute merge and the close below, so a rejected trailer can neither
-    // inject attributes nor end the stream.
-    const textBuffer = this.textStreamControllers.get(trailer.streamId);
-    if (textBuffer) {
-      try {
-        if (
-          this.validateStreamPacket(
-            trailer.streamId,
-            textBuffer,
-            participantIdentity,
-            encryptionType,
-          )
-        ) {
-          textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
-          if (trailer.reason) {
-            // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
-            // surface it as an error rather than pretending the stream completed.
-            textBuffer.controller.error(
-              new DataStreamError(
-                `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-                DataStreamErrorReason.AbnormalEnd,
-              ),
-            );
-          } else {
-            textBuffer.controller.close();
-          }
-          this.textStreamControllers.delete(trailer.streamId);
-        }
-      } catch (error) {
-        this.handleStreamPacketError(
-          error,
-          trailer.streamId,
-          textBuffer,
-          this.textStreamControllers,
-        );
+    for (const streamControllers of [this.textStreamControllers, this.byteStreamControllers]) {
+      const streamController = this.getStream(
+        streamControllers,
+        participantIdentity,
+        trailer.streamId,
+      );
+      if (!streamController) {
+        continue;
       }
-    }
-
-    const bytesBuffer = this.byteStreamControllers.get(trailer.streamId);
-    if (bytesBuffer) {
       try {
-        if (
-          this.validateStreamPacket(
-            trailer.streamId,
-            bytesBuffer,
-            participantIdentity,
-            encryptionType,
-          )
-        ) {
-          bytesBuffer.info.attributes = { ...bytesBuffer.info.attributes, ...trailer.attributes };
-          if (trailer.reason) {
-            // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
-            // surface it as an error rather than pretending the stream completed.
-            bytesBuffer.controller.error(
-              new DataStreamError(
-                `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
-                DataStreamErrorReason.AbnormalEnd,
-              ),
-            );
-          } else {
-            bytesBuffer.controller.close();
-          }
-          this.byteStreamControllers.delete(trailer.streamId);
+        // Validated before the attribute merge and the close below, so a rejected trailer can
+        // neither inject attributes nor end the stream.
+        this.validateStreamPacket(trailer.streamId, streamController, encryptionType);
+        streamController.info.attributes = {
+          ...streamController.info.attributes,
+          ...trailer.attributes,
+        };
+        if (trailer.reason) {
+          // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
+          // surface it as an error rather than pretending the stream completed.
+          streamController.controller.error(
+            new DataStreamError(
+              `Data stream ${trailer.streamId} closed abnormally: ${trailer.reason}`,
+              DataStreamErrorReason.AbnormalEnd,
+            ),
+          );
+        } else {
+          streamController.controller.close();
         }
+        this.removeStream(streamControllers, participantIdentity, trailer.streamId);
       } catch (error) {
         this.handleStreamPacketError(
           error,
+          streamControllers,
+          participantIdentity,
           trailer.streamId,
-          bytesBuffer,
-          this.byteStreamControllers,
+          streamController,
         );
       }
     }
