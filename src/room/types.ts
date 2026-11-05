@@ -118,6 +118,10 @@ export type LoggerOptions = {
   loggerContextCb?: () => Record<string, unknown>;
 };
 
+/**
+ * @deprecated Register a text stream handler for the `lk.transcription` topic instead, via
+ * `room.registerTextStreamHandler('lk.transcription', handler)`.
+ */
 export interface TranscriptionSegment {
   id: string;
   text: string;

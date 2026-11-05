@@ -239,6 +239,8 @@ export enum RoomEvent {
   /**
    * Transcription received from a participant's track.
    * @beta
+   * @deprecated Register a text stream handler for the `lk.transcription` topic instead, via
+   * `room.registerTextStreamHandler('lk.transcription', handler)`.
    */
   TranscriptionReceived = 'transcriptionReceived',
 
@@ -503,6 +505,8 @@ export enum ParticipantEvent {
   /**
    * Transcription received from this participant as data source.
    * @beta
+   * @deprecated Register a text stream handler for the `lk.transcription` topic instead, via
+   * `room.registerTextStreamHandler('lk.transcription', handler)`.
    */
   TranscriptionReceived = 'transcriptionReceived',
 
@@ -708,6 +712,8 @@ export enum TrackEvent {
 
   /**
    * @beta
+   * @deprecated Register a text stream handler for the `lk.transcription` topic instead, via
+   * `room.registerTextStreamHandler('lk.transcription', handler)`.
    */
   TranscriptionReceived = 'transcriptionReceived',
 

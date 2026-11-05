@@ -2977,6 +2977,7 @@ export type RoomEventCallbacks = {
     participantIdentity?: string,
   ) => void;
   sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
+  /** @deprecated Use a text stream handler for the `lk.transcription` topic instead. */
   transcriptionReceived: (
     transcription: TranscriptionSegment[],
     participant?: Participant,
