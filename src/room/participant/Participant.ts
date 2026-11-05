@@ -428,6 +428,7 @@ export type ParticipantEventCallbacks = {
     encryptionType?: Encryption_Type,
   ) => void;
   sipDTMFReceived: (dtmf: SipDTMF) => void;
+  /** @deprecated Use a text stream handler for the `lk.transcription` topic instead. */
   transcriptionReceived: (
     transcription: TranscriptionSegment[],
     publication?: TrackPublication,
