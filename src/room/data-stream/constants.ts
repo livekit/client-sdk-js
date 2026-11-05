@@ -26,11 +26,3 @@ export const DEFAULT_MAX_PAYLOAD_BYTE_LENGTH = 5_000_000_000;
  * @internal
  */
 export const DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT = 500;
-
-/**
- * Only every this-many headers dropped for being over the open-stream limit are logged, so a
- * sender flooding headers at the cap can't flood the logs too.
- *
- * @internal
- */
-export const MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE = 100;
