@@ -208,11 +208,6 @@ export default class IncomingDataStreamManager {
     return this.openStreamCounts.get(participantIdentity) ?? 0;
   }
 
-  /** Returns true if the given participant already has the maximum number of streams open. */
-  private hasTooManyOpenStreams(participantIdentity: string) {
-    return this.getOpenStreamCount(participantIdentity) >= this.maxOpenStreamsPerParticipant;
-  }
-
   /**
    * Registers an open stream and counts it against its sender. Every insertion into a controller
    * map goes through here so {@link openStreamCounts} cannot drift.
@@ -258,7 +253,7 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    if (this.hasTooManyOpenStreams(participantIdentity)) {
+    if (this.getOpenStreamCount(participantIdentity) >= this.maxOpenStreamsPerParticipant) {
       // Logs the first drop, then every `MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE`th.
       if (this.droppedOverLimitCount % MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE === 0) {
         this.log.error(
