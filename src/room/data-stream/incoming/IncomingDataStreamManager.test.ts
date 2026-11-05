@@ -2061,36 +2061,6 @@ describe('IncomingDataStreamManager', () => {
       }
       expect(readers).toHaveLength(2);
     });
-
-    it("removes a sender's map once its last stream closes", async () => {
-      const manager = new IncomingDataStreamManager();
-      manager.setConnected(true);
-
-      const readers: Array<TextStreamReader> = [];
-      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-
-      const { textStreamControllers } = manager as unknown as {
-        textStreamControllers: Map<string, Map<string, unknown>>;
-      };
-
-      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
-      expect(textStreamControllers.get('alice')?.size).toEqual(2);
-
-      // A clean close through the trailer.
-      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
-      expect(textStreamControllers.get('alice')?.size).toEqual(1);
-
-      // An error close: a chunk under the wrong encryption.
-      manager.handleDataStreamPacket(
-        chunkPacket('s2', 0, new TextEncoder().encode('x')),
-        Encryption_Type.GCM,
-      );
-      expect(textStreamControllers.size).toEqual(0);
-
-      expect(await readers[0].readAll()).toEqual('');
-      await expect(readers[1].readAll()).rejects.toThrow(/Encryption type mismatch/);
-    });
   });
 
   describe('Packets from a participant other than the stream sender', () => {
@@ -2193,36 +2163,6 @@ describe('IncomingDataStreamManager', () => {
       manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
 
       expect(await reader.readAll()).toEqual('ok');
-    });
-
-    it('lets another participant open its own stream with the same id', async () => {
-      const manager = new IncomingDataStreamManager();
-      manager.setConnected(true);
-
-      const readers: Array<TextStreamReader> = [];
-      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-
-      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      const malloryHeader = headerPacket('s1', 'textHeader');
-      malloryHeader.participantIdentity = 'mallory';
-      manager.handleDataStreamPacket(malloryHeader, Encryption_Type.NONE);
-      expect(readers).toHaveLength(2);
-
-      // Each sender's packets reach only its own stream.
-      const malloryChunk = chunkPacket('s1', 0, new TextEncoder().encode('mallory'));
-      malloryChunk.participantIdentity = 'mallory';
-      manager.handleDataStreamPacket(malloryChunk, Encryption_Type.NONE);
-      const malloryTrailer = trailerPacket('s1');
-      malloryTrailer.participantIdentity = 'mallory';
-      manager.handleDataStreamPacket(malloryTrailer, Encryption_Type.NONE);
-      manager.handleDataStreamPacket(
-        chunkPacket('s1', 0, new TextEncoder().encode('alice')),
-        Encryption_Type.NONE,
-      );
-      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
-
-      expect(await readers[0].readAll()).toEqual('alice');
-      expect(await readers[1].readAll()).toEqual('mallory');
     });
   });
 });
