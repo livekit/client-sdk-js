@@ -1,4 +1,4 @@
-import type { DataStream_Chunk, Encryption_Type } from '@livekit/protocol';
+import type { Encryption_Type } from '@livekit/protocol';
 
 export type SimulationOptions = {
   publish?: {
@@ -135,14 +135,6 @@ export interface ChatMessage {
   message: string;
   editTimestamp?: number;
   attachedFiles?: Array<File>;
-}
-
-export interface StreamController<T extends DataStream_Chunk> {
-  info: BaseStreamInfo;
-  controller: ReadableStreamDefaultController<T>;
-  startTime: number;
-  endTime?: number;
-  sendingParticipantIdentity: string;
 }
 
 export interface BaseStreamInfo {
