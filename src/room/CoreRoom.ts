@@ -2060,9 +2060,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       );
     } else if (packet.value.case === 'transcription') {
       // Legacy `Transcription` packets are ignored: transcription events are rebuilt from the
-      // `lk.transcription` data stream channel instead, which this client advertises support for
-      // via client protocol 3. See
-      // docs/superpowers/specs/2026-09-04-transcription-back-conversion-design.md
+      // `lk.transcription` data stream channel instead (see `TranscriptionStreamConverter`), which
+      // this client advertises support for via client protocol 3.
       this.log.debug('ignoring legacy transcription data packet', this.logContext);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
