@@ -199,11 +199,18 @@ export default class IncomingDataStreamManager {
     }
   }
 
+  /**
+   * Returns the number of byte and text streams the given participant currently has open.
+   *
+   * @internal
+   */
+  getOpenStreamCount(participantIdentity: string) {
+    return this.openStreamCounts.get(participantIdentity) ?? 0;
+  }
+
   /** Returns true if the given participant already has the maximum number of streams open. */
   private hasTooManyOpenStreams(participantIdentity: string) {
-    return (
-      (this.openStreamCounts.get(participantIdentity) ?? 0) >= this.maxOpenStreamsPerParticipant
-    );
+    return this.getOpenStreamCount(participantIdentity) >= this.maxOpenStreamsPerParticipant;
   }
 
   /**
@@ -219,7 +226,7 @@ export default class IncomingDataStreamManager {
     const { sendingParticipantIdentity } = streamController;
     this.openStreamCounts.set(
       sendingParticipantIdentity,
-      (this.openStreamCounts.get(sendingParticipantIdentity) ?? 0) + 1,
+      this.getOpenStreamCount(sendingParticipantIdentity) + 1,
     );
   }
 
@@ -238,7 +245,7 @@ export default class IncomingDataStreamManager {
     }
     streamControllers.delete(streamId);
     const { sendingParticipantIdentity } = streamController;
-    const count = (this.openStreamCounts.get(sendingParticipantIdentity) ?? 0) - 1;
+    const count = this.getOpenStreamCount(sendingParticipantIdentity) - 1;
     if (count > 0) {
       this.openStreamCounts.set(sendingParticipantIdentity, count);
     } else {

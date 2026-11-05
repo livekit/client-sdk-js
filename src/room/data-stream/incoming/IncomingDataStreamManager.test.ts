@@ -2097,23 +2097,22 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // The trailer ends the stream cleanly.
       manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
       expect(await readers[0].readAll()).toEqual('');
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when the stream's trailer reports an abnormal end", async () => {
@@ -2123,11 +2122,10 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // The trailer carries a reason, which ends the stream with an error.
       manager.handleDataStreamPacket(
@@ -2137,12 +2135,12 @@ describe('IncomingDataStreamManager', () => {
       await expect(readers[0].readAll()).rejects.toThrow('sender gave up');
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when a chunk arrives under the wrong encryption", async () => {
@@ -2152,11 +2150,10 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens an unencrypted stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // An encrypted chunk for the unencrypted stream errors it.
       manager.handleDataStreamPacket(
@@ -2166,12 +2163,12 @@ describe('IncomingDataStreamManager', () => {
       await expect(readers[0].readAll()).rejects.toThrow('Encryption type mismatch');
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when a trailer arrives under the wrong encryption", async () => {
@@ -2181,23 +2178,22 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens an unencrypted stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // An encrypted trailer for the unencrypted stream errors it.
       manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.GCM);
       await expect(readers[0].readAll()).rejects.toThrow('Encryption type mismatch');
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when the reader aborts the stream", async () => {
@@ -2207,11 +2203,10 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // The consumer gives up on the stream before any trailer arrives.
       const abortController = new AbortController();
@@ -2222,12 +2217,12 @@ describe('IncomingDataStreamManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when the sender disconnects", async () => {
@@ -2237,23 +2232,22 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // Alice leaves the room part way through, which errors her stream.
       manager.validateParticipantHasNoActiveDataStreams('alice');
       await expect(readers[0].readAll()).rejects.toThrow('alice unexpectedly disconnected');
 
       // Alice no longer has any open streams counted against her.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So if she rejoins, her next header opens a new stream.
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it("frees the sender's slot when the room disconnects", async () => {
@@ -2263,24 +2257,23 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a stream, which takes her only slot.
       manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
 
       // The room disconnects, which errors every open stream.
       manager.clearControllers();
       await expect(readers[0].readAll()).rejects.toThrow('Room disconnected');
 
-      // No open streams are counted against anyone.
-      expect(openStreamCounts.size).toEqual(0);
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
 
       // So once the room reconnects, alice's next header opens a new stream.
       manager.setConnected(true);
       manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
       expect(readers).toHaveLength(2);
-      expect(openStreamCounts.get('alice')).toEqual(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
     });
 
     it('counts byte and text streams against the same per sender limit', () => {
@@ -2291,19 +2284,18 @@ describe('IncomingDataStreamManager', () => {
       const byteReaders: Array<ByteStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => textReaders.push(reader));
       manager.registerByteStreamHandler('my-topic', (reader) => byteReaders.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice opens a text stream and a byte stream, which takes both of her slots.
       manager.handleDataStreamPacket(headerPacket('t1', 'textHeader'), Encryption_Type.NONE);
       manager.handleDataStreamPacket(headerPacket('b1', 'byteHeader'), Encryption_Type.NONE);
       expect(textReaders).toHaveLength(1);
       expect(byteReaders).toHaveLength(1);
-      expect(openStreamCounts.get('alice')).toEqual(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(2);
 
       // So her next text header is dropped.
       manager.handleDataStreamPacket(headerPacket('t2', 'textHeader'), Encryption_Type.NONE);
       expect(textReaders).toHaveLength(1);
-      expect(openStreamCounts.get('alice')).toEqual(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(2);
     });
 
     it('does not count inline single-packet streams', async () => {
@@ -2312,7 +2304,6 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // Alice sends a stream whose whole payload is inline in its header. It never waits for
       // chunks or a trailer, so it never takes a slot.
@@ -2320,7 +2311,7 @@ describe('IncomingDataStreamManager', () => {
         headerPacket('inline', 'textHeader', { inlineContent: new TextEncoder().encode('hi') }),
         Encryption_Type.NONE,
       );
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
       expect(await readers[0].readAll()).toEqual('hi');
     });
   });
@@ -2651,7 +2642,6 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // agent-1 opens a stream as user, which takes user's only slot.
       const firstHeader = headerPacket('s1', 'textHeader', {
@@ -2662,8 +2652,8 @@ describe('IncomingDataStreamManager', () => {
       });
       firstHeader.participantIdentity = 'user';
       manager.handleDataStreamPacket(firstHeader, Encryption_Type.NONE);
-      expect(openStreamCounts.get('user')).toEqual(1);
-      expect(openStreamCounts.get('agent-1')).toBeUndefined();
+      expect(manager.getOpenStreamCount('user')).toEqual(1);
+      expect(manager.getOpenStreamCount('agent-1')).toEqual(0);
 
       // So a second header in user's name is dropped.
       const secondHeader = headerPacket('s2', 'textHeader', {
@@ -2683,7 +2673,8 @@ describe('IncomingDataStreamManager', () => {
       expect(await readers[0].readAll()).toEqual('');
 
       // That frees user's slot, not one of agent-1's.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('user')).toEqual(0);
+      expect(manager.getOpenStreamCount('agent-1')).toEqual(0);
 
       // So a new header in user's name opens a stream again.
       const thirdHeader = headerPacket('s3', 'textHeader', {
@@ -2703,7 +2694,6 @@ describe('IncomingDataStreamManager', () => {
       manager.setConnected(true);
       const readers: Array<TextStreamReader> = [];
       manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
-      const { openStreamCounts } = manager as unknown as { openStreamCounts: Map<string, number> };
 
       // agent-1 opens a stream as user.
       const header = headerPacket('s1', 'textHeader', {
@@ -2727,7 +2717,7 @@ describe('IncomingDataStreamManager', () => {
       await expect(readers[0].readAll()).rejects.toThrow('agent-1 unexpectedly disconnected');
 
       // And user's slot is free again.
-      expect(openStreamCounts.size).toEqual(0);
+      expect(manager.getOpenStreamCount('user')).toEqual(0);
     });
   });
 });
