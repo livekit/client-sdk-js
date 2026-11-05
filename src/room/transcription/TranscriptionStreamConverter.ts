@@ -123,7 +123,7 @@ export default class TranscriptionStreamConverter {
    * In an avatar session the legacy channel named the *delegating publisher* (the avatar worker)
    * rather than the agent it speaks for, and the stream's `lk.transcribed_track_id` is absent
    * because the agent publishes no microphone track of its own. Preferring the worker keeps the
-   * identity stable across the cutover and lets `Room.handleTranscription` resolve a publication.
+   * identity stable across the cutover and lets `CoreRoom.handleTranscription` resolve a publication.
    */
   private resolveSpeaker(senderIdentity: string, reader: TextStreamReader) {
     // `||` rather than `??` throughout: a resolver that reports "nothing found" as an empty string
