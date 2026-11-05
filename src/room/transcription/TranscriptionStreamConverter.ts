@@ -75,6 +75,7 @@ export default class TranscriptionStreamConverter {
     // payload decoding has to carry state across chunks for the lifetime of this stream.
     const decoder = new TranscriptStreamDecoder();
 
+    let final: boolean;
     try {
       for await (const chunk of reader) {
         const partial = this.partials.get(key);
@@ -85,22 +86,15 @@ export default class TranscriptionStreamConverter {
         partial.text += decoder.push(chunk);
         this.emitSegment(partial, segmentId, senderIdentity, reader, this.isFinal(reader) ?? false);
       }
+      final = this.isFinal(reader) ?? true;
     } catch (err) {
       // The stream ended abnormally (sender disconnected mid-segment, decode failure). Whatever
       // was accumulated is all there will ever be, so close the segment out.
       this.log.debug('lk.transcription stream ended abnormally', err);
-      this.closeSegment(key, segmentId, senderIdentity, reader, true, decoder.flush());
-      return;
+      final = true;
     }
 
-    this.closeSegment(
-      key,
-      segmentId,
-      senderIdentity,
-      reader,
-      this.isFinal(reader) ?? true,
-      decoder.flush(),
-    );
+    this.closeSegment(key, segmentId, senderIdentity, reader, final, decoder.flush());
   };
 
   private closeSegment(
@@ -221,20 +215,16 @@ function partialKey(senderIdentity: string, segmentId: string) {
  * channel always reported zero - so the timings are deliberately dropped rather than guessed at.
  */
 class TranscriptStreamDecoder {
-  private mode: 'pending' | 'text' | 'json' = 'pending';
+  /** Whether the stream is in JSON mode; `undefined` until the first non-blank chunk decides. */
+  private json?: boolean;
 
   /** JSON mode only: the trailing, not yet newline-terminated part of the stream. */
   private buffered = '';
 
   /** Returns the transcript text the chunk completes, possibly empty. */
   push(chunk: string): string {
-    if (this.mode === 'pending') {
-      if (chunk.trim() === '') {
-        return chunk;
-      }
-      this.mode = chunk.trim().startsWith('{"') ? 'json' : 'text';
-    }
-    if (this.mode === 'text') {
+    this.json ??= chunk.trim() === '' ? undefined : chunk.trim().startsWith('{"');
+    if (!this.json) {
       return chunk;
     }
 
@@ -248,7 +238,7 @@ class TranscriptStreamDecoder {
   flush(): string {
     const rest = this.buffered;
     this.buffered = '';
-    return rest === '' ? '' : (unwrapTimedString(rest) ?? rest);
+    return unwrapTimedString(rest) ?? rest;
   }
 }
 
