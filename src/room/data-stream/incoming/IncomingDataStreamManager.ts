@@ -16,6 +16,7 @@ import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
   DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+  MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE,
 } from '../constants';
 import {
   type ByteStreamHandler,
@@ -45,6 +46,17 @@ export default class IncomingDataStreamManager {
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
   private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  /**
+   * Number of open byte and text streams per sender, kept alongside the controller maps so the
+   * per-participant limit is a single lookup rather than a scan of every open stream. Only
+   * {@link addStream} and {@link removeStream} change it; a sender's entry is removed when its
+   * count reaches zero.
+   */
+  private openStreamCounts = new Map<string, number>();
+
+  /** Headers dropped so far for being over the per-participant open-stream limit. */
+  private droppedOverLimitCount = 0;
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
@@ -111,6 +123,7 @@ export default class IncomingDataStreamManager {
     }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
+    this.openStreamCounts.clear();
     this.bufferedPackets = [];
   }
 
@@ -133,11 +146,11 @@ export default class IncomingDataStreamManager {
       );
       for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
         controller.controller.error(abnormalEndError);
-        this.byteStreamControllers.delete(id);
+        this.removeStream(this.byteStreamControllers, id);
       }
       for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
         controller.controller.error(abnormalEndError);
-        this.textStreamControllers.delete(id);
+        this.removeStream(this.textStreamControllers, id);
       }
     }
   }
@@ -173,15 +186,49 @@ export default class IncomingDataStreamManager {
 
   /** Returns true if the given participant already has the maximum number of streams open. */
   private hasTooManyOpenStreams(participantIdentity: string) {
-    let openStreamCount = 0;
-    for (const controllers of [this.byteStreamControllers, this.textStreamControllers]) {
-      for (const { sendingParticipantIdentity } of controllers.values()) {
-        if (sendingParticipantIdentity === participantIdentity) {
-          openStreamCount += 1;
-        }
-      }
+    return (
+      (this.openStreamCounts.get(participantIdentity) ?? 0) >= this.maxOpenStreamsPerParticipant
+    );
+  }
+
+  /**
+   * Registers an open stream and counts it against its sender. Every insertion into a controller
+   * map goes through here so {@link openStreamCounts} cannot drift.
+   */
+  private addStream(
+    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    streamId: string,
+    streamController: StreamController<DataStream_Chunk>,
+  ) {
+    streamControllers.set(streamId, streamController);
+    const { sendingParticipantIdentity } = streamController;
+    this.openStreamCounts.set(
+      sendingParticipantIdentity,
+      (this.openStreamCounts.get(sendingParticipantIdentity) ?? 0) + 1,
+    );
+  }
+
+  /**
+   * Unregisters an open stream and uncounts it from its sender. Every single-stream removal goes
+   * through here so {@link openStreamCounts} cannot drift. The count is keyed by the identity the
+   * stream was registered under, never by the identity on the packet that ends it.
+   */
+  private removeStream(
+    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    streamId: string,
+  ) {
+    const streamController = streamControllers.get(streamId);
+    if (!streamController) {
+      return;
     }
-    return openStreamCount >= this.maxOpenStreamsPerParticipant;
+    streamControllers.delete(streamId);
+    const { sendingParticipantIdentity } = streamController;
+    const count = (this.openStreamCounts.get(sendingParticipantIdentity) ?? 0) - 1;
+    if (count > 0) {
+      this.openStreamCounts.set(sendingParticipantIdentity, count);
+    } else {
+      this.openStreamCounts.delete(sendingParticipantIdentity);
+    }
   }
 
   private handleStreamHeader(
@@ -190,9 +237,13 @@ export default class IncomingDataStreamManager {
     encryptionType: Encryption_Type,
   ) {
     if (this.hasTooManyOpenStreams(participantIdentity)) {
-      this.log.error(
-        `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId}`,
-      );
+      // Logs the first drop, then every `MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE`th.
+      if (this.droppedOverLimitCount % MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE === 0) {
+        this.log.error(
+          `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId} (${this.droppedOverLimitCount + 1} dropped over the limit so far)`,
+        );
+      }
+      this.droppedOverLimitCount += 1;
       return;
     }
 
@@ -278,7 +329,7 @@ export default class IncomingDataStreamManager {
               );
             }
 
-            this.byteStreamControllers.set(streamHeader.streamId, {
+            this.addStream(this.byteStreamControllers, streamHeader.streamId, {
               info,
               controller: streamController,
               startTime: Date.now(),
@@ -292,7 +343,7 @@ export default class IncomingDataStreamManager {
             if (
               this.byteStreamControllers.get(streamHeader.streamId)?.controller === streamController
             ) {
-              this.byteStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(this.byteStreamControllers, streamHeader.streamId);
             }
           },
         });
@@ -391,7 +442,7 @@ export default class IncomingDataStreamManager {
               );
             }
 
-            this.textStreamControllers.set(streamHeader.streamId, {
+            this.addStream(this.textStreamControllers, streamHeader.streamId, {
               info,
               controller: streamController,
               startTime: Date.now(),
@@ -405,7 +456,7 @@ export default class IncomingDataStreamManager {
             if (
               this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
             ) {
-              this.textStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(this.textStreamControllers, streamHeader.streamId);
             }
           },
         });
@@ -478,7 +529,7 @@ export default class IncomingDataStreamManager {
       throw error;
     }
     streamController.controller.error(error);
-    streamControllers.delete(streamId);
+    this.removeStream(streamControllers, streamId);
   }
 
   private handleStreamChunk(
@@ -553,7 +604,7 @@ export default class IncomingDataStreamManager {
           } else {
             textBuffer.controller.close();
           }
-          this.textStreamControllers.delete(trailer.streamId);
+          this.removeStream(this.textStreamControllers, trailer.streamId);
         }
       } catch (error) {
         this.handleStreamPacketError(
@@ -589,7 +640,7 @@ export default class IncomingDataStreamManager {
           } else {
             bytesBuffer.controller.close();
           }
-          this.byteStreamControllers.delete(trailer.streamId);
+          this.removeStream(this.byteStreamControllers, trailer.streamId);
         }
       } catch (error) {
         this.handleStreamPacketError(
