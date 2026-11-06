@@ -278,9 +278,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
 export type ByteStreamHandler = (
   reader: ByteStreamReader,
   participantInfo: { identity: string },
-) => void;
+) => void | Promise<void>;
 
 export type TextStreamHandler = (
   reader: TextStreamReader,
   participantInfo: { identity: string },
-) => void;
+) => void | Promise<void>;
