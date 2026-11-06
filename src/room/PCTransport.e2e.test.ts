@@ -35,12 +35,12 @@ describe('PCTransport.stopTransceivers', () => {
     for (let i = 0; i < 5; i += 1) {
       const { sender } = publisher.addTransceiver(videoTrack(), { direction: 'sendonly' });
       await negotiate(publisher, remote);
-      publisher.removeTrack(sender);
-      expect(publisher.stopTransceivers([sender])).toBe(true);
+      publisher.removeTrack(sender, true);
       await negotiate(publisher, remote);
     }
 
-    expect(publisher.getTransceivers()).toEqual([kept]);
+    expect(publisher.getTransceivers()).toHaveLength(1);
+    expect(publisher.getTransceivers()[0]).toBe(kept);
     expect(kept.currentDirection).toBe('sendonly');
   });
 

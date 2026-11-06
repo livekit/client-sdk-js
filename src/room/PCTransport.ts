@@ -730,8 +730,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         }
       });
       // Conform the placeholder sections (pre-populated, or reverted after an
-      // unpublish) so every shared payload type carries identical fmtp across the
-      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // unpublish on a server below protocol 19, which keeps the transceiver; from
+      // protocol 19 unpublish stops it) so every shared payload type carries
+      // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
+      // payload type collision".
       // Detection is by transceiver (mids are stable across renegotiations) since
       // an unpublished section keeps its `a=msid`.
       const placeholderMids = this.getPlaceholderMids();
@@ -781,8 +783,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * Returns the mids of transceivers that carry no outgoing track on this
    * (publisher) connection: the pre-populated placeholders added by
    * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
-   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
-   * published tracks so a shared payload type stays consistent across the bundle.
+   * for a track and reverted on unpublish (below server protocol 19; from protocol
+   * 19 unpublish stops it). Their codec fmtp is conformed to the published tracks
+   * so a shared payload type stays consistent across the bundle.
    */
   private getPlaceholderMids(): Set<string> {
     return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
@@ -1184,10 +1187,11 @@ export function ensureAudioNackAndStereo(
 /**
  * Returns the mids of transceivers that carry no outgoing track: the
  * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
- * plus any transceiver that was used for a track and reverted on unpublish. The
- * `sender.track` check is the reliable signal — an unpublished section keeps its
- * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
- * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * plus any transceiver that was used for a track and reverted on unpublish (below
+ * server protocol 19; from protocol 19 unpublish stops it). The `sender.track`
+ * check is the reliable signal — an unpublished section keeps its `a=msid` (and
+ * its stale send-derived fmtp), so it can't be told apart from a real send by SDP
+ * alone. Transceiver mids are stable across renegotiations, so
  * this works for every offer/answer after the first.
  * @internal
  */

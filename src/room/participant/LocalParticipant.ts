@@ -1011,8 +1011,8 @@ export class LocalParticipant extends Participant {
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
-            // engine.addTrack deletes the pending resolver of this request before it rejects,
-            // so engine.removeTrack does not reject it again
+            // the pending resolver of this request is gone before this catch runs, so
+            // engine.removeTrack does not reject it again
             this.engine.removeTrack(track.sender);
           } catch (e) {
             this.log.error(e);
