@@ -1191,6 +1191,10 @@ export class SignalClient {
    */
   private resetPingTimeout() {
     this.clearPingTimeout();
+    if (this.isDisconnected) {
+      // the read loop can still deliver messages while close() waits for the socket to close
+      return;
+    }
     if (!this.pingTimeoutDuration) {
       this.log.warn('ping timeout duration not set');
       return;
