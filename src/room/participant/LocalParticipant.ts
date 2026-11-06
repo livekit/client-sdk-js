@@ -73,7 +73,6 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isPermissionDeniedError,
-  isStopTransceiverSupportedByServer,
   isVideoTrack,
   isWeb,
   sleep,
@@ -1012,17 +1011,15 @@ export class LocalParticipant extends Participant {
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
-            this.engine.pcManager.publisher.removeTrack(track.sender);
-            if (
-              isStopTransceiverSupportedByServer(this.engine.serverProtocol) &&
-              this.engine.pcManager.publisher.stopTransceivers([track.sender])
-            ) {
-              // a stopped sender rejects replaceTrack, which mute and restartTrack call
-              track.sender = undefined;
-            }
+            // engine.addTrack deletes the pending resolver of this request before it rejects,
+            // so engine.removeTrack does not reject it again
+            this.engine.removeTrack(track.sender);
           } catch (e) {
             this.log.error(e);
           }
+          // as in unpublishTrack: a stopped sender rejects replaceTrack, which mute and
+          // restartTrack call
+          track.sender = undefined;
           await this.engine.negotiate().catch((negotiateErr) => {
             this.log.error(
               'failed to negotiate after removing track due to failed add track request',
@@ -1234,7 +1231,6 @@ export class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
-        const senders = [trackSender];
         for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
           // if sender is not currently sending (after replaceTrack(null))
           // removeTrack would have no effect.
@@ -1255,7 +1251,6 @@ export class LocalParticipant extends Participant {
         if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              senders.push(trackInfo.sender);
               try {
                 negotiationNeeded = this.engine.removeTrack(trackInfo.sender);
               } catch (e) {
@@ -1266,13 +1261,6 @@ export class LocalParticipant extends Participant {
             }
           }
           track.simulcastCodecs.clear();
-        }
-
-        if (
-          isStopTransceiverSupportedByServer(this.engine.serverProtocol) &&
-          this.engine.pcManager.publisher.stopTransceivers(senders)
-        ) {
-          negotiationNeeded = true;
         }
       } catch (e) {
         this.log.warn('failed to unpublish track', { ...pubLogContext, error: e });

@@ -846,14 +846,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return !!this._pc?.removeTrack;
   }
 
-  removeTrack(sender: RTCRtpSender) {
-    return this._pc?.removeTrack(sender);
+  /**
+   * Removes `sender` from the connection. With `stop`, it then stops the transceiver of `sender`.
+   */
+  removeTrack(sender: RTCRtpSender, stop = false) {
+    this._pc?.removeTrack(sender);
+    if (stop) {
+      this.stopTransceivers([sender]);
+    }
   }
 
   /**
    * Stops the transceivers of `senders`. `removeTrack` keeps the transceiver and its encoder,
    * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
-   * connection closes. Call this after `removeTrack`. Returns true if a transceiver stopped.
+   * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
+   * Returns true if a transceiver stopped.
    */
   stopTransceivers(senders: RTCRtpSender[]): boolean {
     let stopped = false;
