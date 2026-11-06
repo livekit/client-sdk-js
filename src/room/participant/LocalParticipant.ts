@@ -929,7 +929,8 @@ export class LocalParticipant extends Participant {
       cid: track.mediaStreamTrack.id,
       name: opts.name,
       type: Track.kindToProto(track.kind),
-      muted: track.isMuted,
+      // the server sees a paused upstream as muted, see onTrackUpstreamPaused
+      muted: track.isMuted || track.isUpstreamPaused,
       source: Track.sourceToProto(track.source),
       disableDtx,
       encryption: this.encryptionType,

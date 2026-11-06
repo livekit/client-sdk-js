@@ -17,6 +17,7 @@ import { roomOptionDefaults } from './defaults';
 import { ConnectionError, PublishDataError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import CriticalTimers from './timers';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import { Future } from './utils';
 
 describe('RTCEngine', () => {
@@ -621,6 +622,68 @@ describe('RTCEngine', () => {
       fireClose(engine, DataChannelKind.RELIABLE);
 
       expect(error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createSender', () => {
+    // a full reconnect republishes every track over a new sender, including one whose upstream
+    // the application paused
+    function stubPublisher(engine: RTCEngine) {
+      vi.stubGlobal(
+        'RTCPeerConnection',
+        class {
+          addTransceiver() {}
+        },
+      );
+      const sender = { replaceTrack: vi.fn(async () => {}) };
+      Object.assign(engine as unknown as Record<string, unknown>, {
+        pcManager: { addPublisherTransceiver: vi.fn(async () => ({ sender })) },
+      });
+      return sender;
+    }
+
+    function makeTrack(isUpstreamPaused: boolean) {
+      return {
+        kind: 'video',
+        isUpstreamPaused,
+        mediaStreamTrack: { id: 'camera' },
+        setSimulcastTrackSender: vi.fn(async () => {}),
+      } as unknown as LocalVideoTrack;
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('keeps a paused track off the new sender', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const sender = stubPublisher(engine);
+
+      await engine.createSender(makeTrack(true), {});
+
+      expect(sender.replaceTrack).toHaveBeenCalledExactlyOnceWith(null);
+    });
+
+    it('keeps a paused track off a new backup codec sender', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const sender = stubPublisher(engine);
+
+      await engine.createSimulcastSender(
+        makeTrack(true),
+        { codec: 'vp8', mediaStreamTrack: { id: 'camera-clone' } as MediaStreamTrack },
+        { videoCodec: 'vp8' },
+      );
+
+      expect(sender.replaceTrack).toHaveBeenCalledExactlyOnceWith(null);
+    });
+
+    it('leaves a track that is not paused on the new sender', async () => {
+      const engine = new RTCEngine(roomOptionDefaults);
+      const sender = stubPublisher(engine);
+
+      await engine.createSender(makeTrack(false), {});
+
+      expect(sender.replaceTrack).not.toHaveBeenCalled();
     });
   });
 

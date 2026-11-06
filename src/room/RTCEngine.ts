@@ -1117,6 +1117,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
     }
     this.setupFrameMetadataSender(sender, opts);
+    await this.keepPausedTrackOffSender(track, sender);
     return sender;
   }
 
@@ -1137,8 +1138,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (sender) {
       this.setupFrameMetadataSender(sender, opts);
+      await this.keepPausedTrackOffSender(track, sender);
     }
     return sender;
+  }
+
+  // a track republished while its upstream is paused (e.g. after a full reconnect) gets a new
+  // sender, which pauseUpstream() never saw: the sender has to start without the track
+  private async keepPausedTrackOffSender(track: LocalTrack, sender: RTCRtpSender) {
+    if (track.isUpstreamPaused) {
+      await sender.replaceTrack(null);
+    }
   }
 
   private get frameMetadataWorker(): Worker | undefined {
