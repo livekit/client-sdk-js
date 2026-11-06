@@ -304,6 +304,50 @@ describe('remote track subscription', () => {
 
     expect(replay).not.toHaveBeenCalled();
   });
+
+  describe('single peer connection deferred ontrack', () => {
+    // in single peer connection mode the stream and track ids carry no track sid
+    function deferTrack(transceiver: Partial<RTCRtpTransceiver>) {
+      const room = new Room();
+      room.state = ConnectionState.Connecting;
+      room.engine.pcManager = {
+        getTransceiverForReceiver: () => transceiver,
+      } as unknown as RTCEngine['pcManager'];
+
+      const mediaTrack = { id: 'f16e8176-1b9e-4cc9-ae70-b27fe30a24ea' } as MediaStreamTrack;
+      const stream = {
+        id: 'PA_remote|camera',
+        getTracks: () => [mediaTrack],
+      } as unknown as MediaStream;
+      room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
+
+      const replay = vi
+        .spyOn(
+          room as unknown as {
+            onTrackAdded(
+              mediaTrack: MediaStreamTrack,
+              stream: MediaStream,
+              receiver: RTCRtpReceiver,
+            ): void;
+          },
+          'onTrackAdded',
+        )
+        .mockImplementation(() => {});
+
+      room.state = ConnectionState.Connected;
+      room.emit(RoomEvent.Connected);
+      return replay;
+    }
+
+    it('does not replay a track the server stopped sending before the room connected', () => {
+      // the subscription failed after ontrack fired, and a later answer set the mid inactive
+      expect(deferTrack({ currentDirection: 'inactive' })).not.toHaveBeenCalled();
+    });
+
+    it('replays a track the server still sends', () => {
+      expect(deferTrack({ currentDirection: 'recvonly' })).toHaveBeenCalledOnce();
+    });
+  });
 });
 
 describe('stream state updates', () => {

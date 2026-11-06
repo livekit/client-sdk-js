@@ -1563,6 +1563,17 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       });
       const reconnectedHandler = () => {
         cleanup();
+        // the server can stop sending the track before the room connects, e.g. when the
+        // subscription failed. The subscription error cannot always cancel the deferral: it can
+        // arrive before the `track` event, and in single peer connection mode the deferral is
+        // not keyed by the track sid, as only the answer's mid mapping carries it
+        if (this.engine.hasStoppedReceiving(receiver)) {
+          this.log.debug('skipping deferred track, the server no longer sends it', {
+            mediaTrackId: mediaTrack.id,
+            mediaStreamId: stream.id,
+          });
+          return;
+        }
         this.onTrackAdded(mediaTrack, stream, receiver);
       };
       const cleanup = () => {
