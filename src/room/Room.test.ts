@@ -932,13 +932,29 @@ describe('events during a full reconnect (#2183)', () => {
 });
 
 describe('participant updates for an earlier session (#2228)', () => {
+  // PA_new joined after PA_old, so the server orders it as the newer session
+  const joinTimes = {
+    PA_old: { joinedAt: 1_700_000_000n, joinedAtMs: 1_700_000_000_100n },
+    PA_new: { joinedAt: 1_700_000_009n, joinedAtMs: 1_700_000_009_200n },
+  };
+
   function setup() {
     const room = new Room();
-    const update = (sid: string, state: ParticipantInfo_State, reason?: DisconnectReason) =>
+    const update = (
+      sid: keyof typeof joinTimes,
+      state: ParticipantInfo_State,
+      reason?: DisconnectReason,
+    ) =>
       (
         room as unknown as { handleParticipantUpdates: (infos: ParticipantInfo[]) => void }
       ).handleParticipantUpdates([
-        new ParticipantInfo({ sid, identity: 'tutor', state, disconnectReason: reason }),
+        new ParticipantInfo({
+          sid,
+          identity: 'tutor',
+          state,
+          disconnectReason: reason,
+          ...joinTimes[sid],
+        }),
       ]);
     const disconnected: string[] = [];
     room.on(RoomEvent.ParticipantDisconnected, (p) => disconnected.push(p.sid));
@@ -982,5 +998,28 @@ describe('participant updates for an earlier session (#2228)', () => {
 
     expect(room.remoteParticipants.has('tutor')).toBe(false);
     expect(disconnected).toEqual(['PA_new']);
+  });
+
+  it('keeps the new session when a late ACTIVE arrives for the old session', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual([]);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
+  });
+
+  it('removes the old session when the first update for the new session is DISCONNECTED', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.DISCONNECTED, DisconnectReason.CLIENT_INITIATED);
+
+    expect(room.remoteParticipants.has('tutor')).toBe(false);
+    expect(disconnected).toEqual(['PA_old']);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
   });
 });

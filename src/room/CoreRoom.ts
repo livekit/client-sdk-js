@@ -1889,19 +1889,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
 
+      // a late update for an older session of this identity must not change the current session
+      if (remoteParticipant?.isOlderSession(info)) {
+        this.log.debug('ignoring update from an older participant session', {
+          remoteIdentity: info.identity,
+          staleSid: info.sid,
+          currentSid: remoteParticipant.sid,
+        });
+        this.sidToIdentity.delete(info.sid);
+        continue;
+      }
+
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
-        // a late update for an earlier session of this identity must not remove the current session
-        if (remoteParticipant?.sid && info.sid && remoteParticipant.sid !== info.sid) {
-          this.log.debug('ignoring disconnect of an earlier participant session', {
-            ...this.logContext,
-            remoteIdentity: info.identity,
-            staleSid: info.sid,
-            currentSid: remoteParticipant.sid,
-          });
-          this.sidToIdentity.delete(info.sid);
-          continue;
-        }
         this.handleParticipantDisconnected(
           info.identity,
           remoteParticipant,

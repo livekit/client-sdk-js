@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Ignore a late `DISCONNECTED` update for an earlier session of a remote participant, so it no longer removes the participant's current session from `room.remoteParticipants`.
+Ignore a late participant update for an older session of a remote participant, so it no longer removes or replaces the participant's current session in `room.remoteParticipants`.
