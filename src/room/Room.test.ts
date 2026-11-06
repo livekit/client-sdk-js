@@ -1012,6 +1012,20 @@ describe('participant updates for an earlier session (#2228)', () => {
     expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
   });
 
+  it('does not resolve the old sid to the new session', () => {
+    const { room, update } = setup();
+    const getBySid = (sid: string) =>
+      (
+        room as unknown as { getRemoteParticipantBySid: (sid: string) => unknown }
+      ).getRemoteParticipantBySid(sid);
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+
+    expect(getBySid('PA_new')).toBe(room.remoteParticipants.get('tutor'));
+    expect(getBySid('PA_old')).toBeUndefined();
+  });
+
   it('removes the old session when the first update for the new session is DISCONNECTED', () => {
     const { room, update, disconnected, forwardedSids } = setup();
 

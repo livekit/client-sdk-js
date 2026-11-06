@@ -1896,7 +1896,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           staleSid: info.sid,
           currentSid: remoteParticipant.sid,
         });
-        this.sidToIdentity.delete(info.sid);
         continue;
       }
 
@@ -2576,7 +2575,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private getRemoteParticipantBySid(sid: string): RemoteParticipant | undefined {
     const identity = this.sidToIdentity.get(sid);
     if (identity) {
-      return this.remoteParticipants.get(identity);
+      const participant = this.remoteParticipants.get(identity);
+      // an older session's sid must not resolve to the current session of the same identity
+      if (participant?.sid === sid) {
+        return participant;
+      }
     }
   }
 
