@@ -34,3 +34,12 @@ export const DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT = 500;
  * @internal
  */
 export const MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE = 100;
+
+/**
+ * Reserved topic carrying transcription text streams. `IncomingDataStreamManager` taps this topic
+ * with its `transcriptionStreamArrived` event so the SDK can rebuild transcription events while
+ * still delivering the stream to any application handler.
+ *
+ * @internal
+ */
+export const TRANSCRIPTION_TOPIC = 'lk.transcription';
