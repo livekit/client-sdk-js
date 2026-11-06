@@ -1,10 +1,17 @@
 import {
   ClientInfo_Capability,
+  DataPacket,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_TextHeader,
+  DataStream_Trailer,
   DisconnectReason,
+  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
   ParticipantInfo,
+  ParticipantInfo_Kind,
   ParticipantInfo_State,
   StreamState as ProtoStreamState,
   StreamStateUpdate,
@@ -928,5 +935,71 @@ describe('events during a full reconnect (#2183)', () => {
 
     expect(events).toEqual(['reconnected', 'participantConnected:remote']);
     expect((room as unknown as { bufferedEvents: unknown[] }).bufferedEvents).toEqual([]);
+  });
+});
+
+describe('text streams an agent sends on behalf of another participant', () => {
+  it('reads a stream whose chunks carry the agent identity rather than the header identity', async () => {
+    const room = new Room();
+    const agent = new RemoteParticipant(
+      room.engine.client,
+      'PA_agent',
+      'agent-1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ParticipantInfo_Kind.AGENT,
+    );
+    (
+      room as unknown as { remoteParticipants: Map<string, RemoteParticipant> }
+    ).remoteParticipants.set(agent.identity, agent);
+    // The data streams extension starts reading once the room reports it is connected.
+    room.emit(RoomEvent.ConnectionStateChanged, ConnectionState.Connected);
+
+    const readerPromise = new Promise<{ text: Promise<string>; identity: string }>((resolve) => {
+      room.registerTextStreamHandler('lk.transcription', (reader, { identity }) =>
+        resolve({ text: reader.readAll(), identity }),
+      );
+    });
+
+    const receive = (participantIdentity: string, value: DataPacket['value']) =>
+      (
+        room as unknown as {
+          handleDataPacket: (packet: DataPacket, encryptionType: Encryption_Type) => void;
+        }
+      ).handleDataPacket(new DataPacket({ participantIdentity, value }), Encryption_Type.NONE);
+
+    // As the SFU forwards a user transcription published by an agent: the header keeps the
+    // claimed identity and is marked generated, the chunk and trailer carry the agent's.
+    receive('user', {
+      case: 'streamHeader',
+      value: new DataStream_Header({
+        streamId: 's1',
+        topic: 'lk.transcription',
+        mimeType: 'text/plain',
+        timestamp: 0n,
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      }),
+    });
+    receive('agent-1', {
+      case: 'streamChunk',
+      value: new DataStream_Chunk({
+        streamId: 's1',
+        chunkIndex: 0n,
+        content: new TextEncoder().encode('what is the weather'),
+      }),
+    });
+    receive('agent-1', {
+      case: 'streamTrailer',
+      value: new DataStream_Trailer({ streamId: 's1' }),
+    });
+
+    const { text, identity } = await readerPromise;
+    expect(identity).toEqual('user');
+    expect(await text).toEqual('what is the weather');
   });
 });

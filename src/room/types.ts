@@ -137,12 +137,30 @@ export interface ChatMessage {
   attachedFiles?: Array<File>;
 }
 
+/** Information and state for an open incoming data stream. */
 export interface StreamController<T extends DataStream_Chunk> {
   info: BaseStreamInfo;
+  /** Controller of the `ReadableStream` the stream's reader consumes. */
   controller: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;
+  /**
+   * The identity on the stream's header: who the stream is attributed to, and whose open-stream
+   * count it occupies.
+   */
   sendingParticipantIdentity: string;
+  /**
+   * The identity whose chunks and trailer the stream accepts.
+   *
+   * The same as `sendingParticipantIdentity` for every stream except one sent on behalf of
+   * another participant, such as an agent publishing a user's speech-to-text on
+   * `lk.transcription`. The SFU keeps the claimed identity on such a text header, and marks it
+   * `generated`, but stamps the chunks and trailer with the real sender's identity. The real sender
+   * is not named anywhere in the header, so this starts out unset and the first chunk or trailer
+   * from a participant allowed to send on others' behalf claims the stream; see
+   * `IncomingDataStreamManager.validateStreamPacket`.
+   */
+  packetSenderIdentity: string | undefined;
 }
 
 export interface BaseStreamInfo {

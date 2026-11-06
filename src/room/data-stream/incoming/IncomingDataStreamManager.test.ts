@@ -8,13 +8,18 @@ import {
   DataStream_Trailer,
   Encryption_Type,
 } from '@livekit/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import log from '../../../logger';
 import {
   stubMissingCompressionStreams,
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
-import { DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT, STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import {
+  DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+  MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE,
+  STREAM_CHUNK_SIZE_BYTES,
+} from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
 
@@ -2061,6 +2066,254 @@ describe('IncomingDataStreamManager', () => {
       }
       expect(readers).toHaveLength(2);
     });
+
+    it('logs only every so often while a participant floods headers over the limit', () => {
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      manager.registerTextStreamHandler('my-topic', () => {});
+      const errorSpy = vi.spyOn(log, 'error').mockImplementation(() => {});
+
+      try {
+        // One stream fills the quota; every header after it is dropped.
+        for (let i = 0; i < MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE + 2; i++) {
+          manager.handleDataStreamPacket(
+            headerPacket(crypto.randomUUID(), 'textHeader'),
+            Encryption_Type.NONE,
+          );
+        }
+        // The first drop and the throttle's next one.
+        expect(errorSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+  });
+
+  describe('Open stream accounting', () => {
+    it("frees the sender's slot when the stream's trailer arrives", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens a stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // The trailer ends the stream cleanly.
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+      expect(await readers[0].readAll()).toEqual('');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when the stream's trailer reports an abnormal end", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens a stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // The trailer carries a reason, which ends the stream with an error.
+      manager.handleDataStreamPacket(
+        trailerPacket('s1', undefined, 'sender gave up'),
+        Encryption_Type.NONE,
+      );
+      await expect(readers[0].readAll()).rejects.toThrow('sender gave up');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when a chunk arrives under the wrong encryption", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens an unencrypted stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // An encrypted chunk for the unencrypted stream errors it.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('x')),
+        Encryption_Type.GCM,
+      );
+      await expect(readers[0].readAll()).rejects.toThrow('Encryption type mismatch');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when a trailer arrives under the wrong encryption", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens an unencrypted stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // An encrypted trailer for the unencrypted stream errors it.
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.GCM);
+      await expect(readers[0].readAll()).rejects.toThrow('Encryption type mismatch');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when the reader aborts the stream", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens a stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // The consumer gives up on the stream before any trailer arrives.
+      const abortController = new AbortController();
+      const readAllPromise = readers[0].readAll({ signal: abortController.signal });
+      abortController.abort(new Error('consumer aborted'));
+      await expect(readAllPromise).rejects.toThrow('consumer aborted');
+      // The cancel propagates back up the pipe chain to the source stream asynchronously.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when the sender disconnects", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens a stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // Alice leaves the room part way through, which errors her stream.
+      manager.validateParticipantHasNoActiveDataStreams('alice');
+      await expect(readers[0].readAll()).rejects.toThrow('alice unexpectedly disconnected');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So if she rejoins, her next header opens a new stream.
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it("frees the sender's slot when the room disconnects", async () => {
+      // Allow a single open stream per sender, so a slot that is never freed would keep alice's
+      // next header out.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice opens a stream, which takes her only slot.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+
+      // The room disconnects, which errors every open stream.
+      manager.clearControllers();
+      await expect(readers[0].readAll()).rejects.toThrow('Room disconnected');
+
+      // Alice no longer has any open streams counted against her.
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+
+      // So once the room reconnects, alice's next header opens a new stream.
+      manager.setConnected(true);
+      manager.handleDataStreamPacket(headerPacket('s2', 'textHeader'), Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+      expect(manager.getOpenStreamCount('alice')).toEqual(1);
+    });
+
+    it('counts byte and text streams against the same per sender limit', () => {
+      // Allow two open streams per sender.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 2 });
+      manager.setConnected(true);
+      const textReaders: Array<TextStreamReader> = [];
+      const byteReaders: Array<ByteStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => textReaders.push(reader));
+      manager.registerByteStreamHandler('my-topic', (reader) => byteReaders.push(reader));
+
+      // Alice opens a text stream and a byte stream, which takes both of her slots.
+      manager.handleDataStreamPacket(headerPacket('t1', 'textHeader'), Encryption_Type.NONE);
+      manager.handleDataStreamPacket(headerPacket('b1', 'byteHeader'), Encryption_Type.NONE);
+      expect(textReaders).toHaveLength(1);
+      expect(byteReaders).toHaveLength(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(2);
+
+      // So her next text header is dropped.
+      manager.handleDataStreamPacket(headerPacket('t2', 'textHeader'), Encryption_Type.NONE);
+      expect(textReaders).toHaveLength(1);
+      expect(manager.getOpenStreamCount('alice')).toEqual(2);
+    });
+
+    it('does not count inline single-packet streams', async () => {
+      // Allow a single open stream per sender.
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 1 });
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Alice sends a stream whose whole payload is inline in its header. It never waits for
+      // chunks or a trailer, so it never takes a slot.
+      manager.handleDataStreamPacket(
+        headerPacket('inline', 'textHeader', { inlineContent: new TextEncoder().encode('hi') }),
+        Encryption_Type.NONE,
+      );
+      expect(manager.getOpenStreamCount('alice')).toEqual(0);
+      expect(await readers[0].readAll()).toEqual('hi');
+    });
   });
 
   describe('Packets from a participant other than the stream sender', () => {
@@ -2163,6 +2416,308 @@ describe('IncomingDataStreamManager', () => {
       manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
 
       expect(await reader.readAll()).toEqual('ok');
+    });
+  });
+
+  describe('Text streams sent on behalf of another participant', () => {
+    // The SFU keeps the claimed identity on a text header an agent sends for someone else, and
+    // marks it `generated`, but stamps the chunks and trailer with the agent's own identity.
+
+    it('reads the chunks and the trailer the agent sends', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 opens a stream as user, so the header arrives marked generated, from user.
+      const header = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // The chunks arrive from agent-1.
+      const firstChunk = chunkPacket('s1', 0, new TextEncoder().encode('hello '));
+      firstChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(firstChunk, Encryption_Type.NONE);
+      const secondChunk = chunkPacket('s1', 1, new TextEncoder().encode('world'));
+      secondChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(secondChunk, Encryption_Type.NONE);
+
+      // The trailer arrives from agent-1 too.
+      const trailer = trailerPacket('s1', { 'lk.transcription_final': 'true' });
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // The stream reads to completion, with the trailer's attributes merged in.
+      expect(readers).toHaveLength(1);
+      expect(await readers[0].readAll()).toEqual('hello world');
+      expect(readers[0].info.attributes?.['lk.transcription_final']).toEqual('true');
+    });
+
+    it('reads a compressed stream the agent sends', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // The payload, compressed once and split across two chunks.
+      const compressed = await deflateRawCompress(new TextEncoder().encode('compressed hello'));
+      const split = Math.floor(compressed.length / 2);
+
+      // agent-1 opens a compressed stream as user.
+      const header = headerPacket('s1', 'textHeader', {
+        compression: DataStream_CompressionType.DEFLATE_RAW,
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // The compressed chunks and the trailer arrive from agent-1.
+      const firstChunk = chunkPacket('s1', 0, compressed.slice(0, split));
+      firstChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(firstChunk, Encryption_Type.NONE);
+      const secondChunk = chunkPacket('s1', 1, compressed.slice(split));
+      secondChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(secondChunk, Encryption_Type.NONE);
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // The stream decompresses and reads to completion.
+      expect(await readers[0].readAll()).toEqual('compressed hello');
+    });
+
+    it('reads an inline stream the agent sends', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 sends a single-packet stream as user: the whole payload is inline in the header,
+      // so no chunk or trailer follows.
+      const header = headerPacket('s1', 'textHeader', {
+        inlineContent: new TextEncoder().encode('inline hello'),
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // The stream reads to completion.
+      expect(await readers[0].readAll()).toEqual('inline hello');
+    });
+
+    it('drops packets from a participant that cannot send on behalf of others', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf, and mallory
+      // may not.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 opens a stream as user.
+      const header = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // Mallory saw the header and tries to write into the stream before agent-1 does.
+      const forgedChunk = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forgedChunk.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forgedChunk, Encryption_Type.NONE);
+
+      // Mallory also tries to inject attributes and end the stream.
+      const forgedTrailer = trailerPacket('s1', { injected: 'yes' });
+      forgedTrailer.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forgedTrailer, Encryption_Type.NONE);
+
+      // agent-1's own content and trailer arrive.
+      const chunk = chunkPacket('s1', 0, new TextEncoder().encode('genuine'));
+      chunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(chunk, Encryption_Type.NONE);
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // Only agent-1's packets reached the stream.
+      expect(await readers[0].readAll()).toEqual('genuine');
+      expect(readers[0].info.attributes?.injected).toBeUndefined();
+    });
+
+    it('drops packets from a second agent once the first has claimed the stream', async () => {
+      // A manager that knows agent-1 and agent-2 may both send streams on other participants'
+      // behalf.
+      const manager = new IncomingDataStreamManager(
+        {},
+        (identity) => identity === 'agent-1' || identity === 'agent-2',
+      );
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 opens a stream as user.
+      const header = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // agent-1's first chunk claims the stream.
+      const firstChunk = chunkPacket('s1', 0, new TextEncoder().encode('first agent'));
+      firstChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(firstChunk, Encryption_Type.NONE);
+
+      // agent-2 tries to write into and end the claimed stream.
+      const otherAgentChunk = chunkPacket('s1', 1, new TextEncoder().encode(' second agent'));
+      otherAgentChunk.participantIdentity = 'agent-2';
+      manager.handleDataStreamPacket(otherAgentChunk, Encryption_Type.NONE);
+      const otherAgentTrailer = trailerPacket('s1');
+      otherAgentTrailer.participantIdentity = 'agent-2';
+      manager.handleDataStreamPacket(otherAgentTrailer, Encryption_Type.NONE);
+
+      // agent-1 ends the stream.
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // Only agent-1's packets reached the stream.
+      expect(await readers[0].readAll()).toEqual('first agent');
+    });
+
+    it("drops an agent's packets for a header that is not marked generated", async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // User opens an ordinary stream of their own, so the header is not marked generated.
+      const header = headerPacket('s1', 'textHeader');
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // agent-1 tries to write into user's stream.
+      const forgedChunk = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forgedChunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(forgedChunk, Encryption_Type.NONE);
+
+      // User's own content and trailer arrive.
+      const chunk = chunkPacket('s1', 0, new TextEncoder().encode('genuine'));
+      chunk.participantIdentity = 'user';
+      manager.handleDataStreamPacket(chunk, Encryption_Type.NONE);
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'user';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // Only user's packets reached the stream.
+      expect(await readers[0].readAll()).toEqual('genuine');
+    });
+
+    it('counts the stream against the participant it is sent for', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf, and allows a
+      // single open stream per sender.
+      const manager = new IncomingDataStreamManager(
+        { maxOpenStreamsPerParticipant: 1 },
+        (identity) => identity === 'agent-1',
+      );
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 opens a stream as user, which takes user's only slot.
+      const firstHeader = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      firstHeader.participantIdentity = 'user';
+      manager.handleDataStreamPacket(firstHeader, Encryption_Type.NONE);
+      expect(manager.getOpenStreamCount('user')).toEqual(1);
+      expect(manager.getOpenStreamCount('agent-1')).toEqual(0);
+
+      // So a second header in user's name is dropped.
+      const secondHeader = headerPacket('s2', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      secondHeader.participantIdentity = 'user';
+      manager.handleDataStreamPacket(secondHeader, Encryption_Type.NONE);
+      expect(readers).toHaveLength(1);
+
+      // agent-1's trailer, which carries agent-1's identity, ends the first stream.
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+      expect(await readers[0].readAll()).toEqual('');
+
+      // That frees user's slot, not one of agent-1's.
+      expect(manager.getOpenStreamCount('user')).toEqual(0);
+      expect(manager.getOpenStreamCount('agent-1')).toEqual(0);
+
+      // So a new header in user's name opens a stream again.
+      const thirdHeader = headerPacket('s3', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      thirdHeader.participantIdentity = 'user';
+      manager.handleDataStreamPacket(thirdHeader, Encryption_Type.NONE);
+      expect(readers).toHaveLength(2);
+    });
+
+    it('errors the stream when the agent sending it disconnects', async () => {
+      // A manager that knows agent-1 may send streams on other participants' behalf.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // agent-1 opens a stream as user.
+      const header = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+
+      // agent-1's first chunk claims the stream.
+      const chunk = chunkPacket('s1', 0, new TextEncoder().encode('partial'));
+      chunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(chunk, Encryption_Type.NONE);
+
+      // agent-1 leaves the room part way through.
+      manager.validateParticipantHasNoActiveDataStreams('agent-1');
+
+      // The stream errors rather than waiting forever for a trailer that will never come.
+      await expect(readers[0].readAll()).rejects.toThrow('agent-1 unexpectedly disconnected');
+
+      // And user's slot is free again.
+      expect(manager.getOpenStreamCount('user')).toEqual(0);
     });
   });
 });

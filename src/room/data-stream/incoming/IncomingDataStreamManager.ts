@@ -16,6 +16,7 @@ import { deflateRawDecompress, inflateRawTransform } from '../compression';
 import {
   DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
   DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+  MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE,
 } from '../constants';
 import {
   type ByteStreamHandler,
@@ -34,17 +35,38 @@ export default class IncomingDataStreamManager {
   /** Max number of incoming streams a single remote participant may have open at once. */
   private maxOpenStreamsPerParticipant: number;
 
-  constructor({
-    maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
-    maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
-  }: RoomDataStreamOptions = {}) {
+  /**
+   * Whether `identity` may send a stream on behalf of another participant, i.e. may claim a
+   * stream whose header the SFU forwarded under someone else's identity.
+   */
+  private canSendStreamOnOthersBehalf: (identity: string) => boolean;
+
+  constructor(
+    {
+      maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+      maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+    }: RoomDataStreamOptions = {},
+    canSendStreamOnOthersBehalf: (identity: string) => boolean = () => false,
+  ) {
     this.maxPayloadByteLength = maxPayloadByteLength;
     this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
+    this.canSendStreamOnOthersBehalf = canSendStreamOnOthersBehalf;
   }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
   private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  /**
+   * Number of open byte and text streams per sender, kept alongside the controller maps so the
+   * per-participant limit is a single lookup rather than a scan of every open stream. Only
+   * {@link addStream} and {@link removeStream} change it; a sender's entry is removed when its
+   * count reaches zero.
+   */
+  private openStreamCounts = new Map<string, number>();
+
+  /** Headers dropped so far for being over the per-participant open-stream limit. */
+  private droppedOverLimitCount = 0;
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
 
@@ -111,17 +133,23 @@ export default class IncomingDataStreamManager {
     }
     this.byteStreamControllers.clear();
     this.textStreamControllers.clear();
+    this.openStreamCounts.clear();
     this.bufferedPackets = [];
   }
 
   validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
     // Terminate any in flight data stream receives from the given participant
+    // A stream is affected if it is attributed to the participant, or if the participant is
+    // sending it on someone else's behalf.
+    const isAffected = ([, streamController]: [string, StreamController<DataStream_Chunk>]) =>
+      streamController.sendingParticipantIdentity === participantIdentity ||
+      streamController.packetSenderIdentity === participantIdentity;
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.textStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+    ).filter(isAffected);
     const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.byteStreamControllers.entries(),
-    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+    ).filter(isAffected);
 
     if (
       textStreamsBeingSentByDisconnectingParticipant.length > 0 ||
@@ -131,13 +159,13 @@ export default class IncomingDataStreamManager {
         `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
         DataStreamErrorReason.AbnormalEnd,
       );
-      for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
-        this.byteStreamControllers.delete(id);
+      for (const [id, streamController] of byteStreamsBeingSentByDisconnectingParticipant) {
+        streamController.controller.error(abnormalEndError);
+        this.removeStream(this.byteStreamControllers, id);
       }
-      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        controller.controller.error(abnormalEndError);
-        this.textStreamControllers.delete(id);
+      for (const [id, streamController] of textStreamsBeingSentByDisconnectingParticipant) {
+        streamController.controller.error(abnormalEndError);
+        this.removeStream(this.textStreamControllers, id);
       }
     }
   }
@@ -171,17 +199,53 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  /** Returns true if the given participant already has the maximum number of streams open. */
-  private hasTooManyOpenStreams(participantIdentity: string) {
-    let openStreamCount = 0;
-    for (const controllers of [this.byteStreamControllers, this.textStreamControllers]) {
-      for (const { sendingParticipantIdentity } of controllers.values()) {
-        if (sendingParticipantIdentity === participantIdentity) {
-          openStreamCount += 1;
-        }
-      }
+  /**
+   * Returns the number of byte and text streams the given participant currently has open.
+   *
+   * @internal
+   */
+  getOpenStreamCount(participantIdentity: string) {
+    return this.openStreamCounts.get(participantIdentity) ?? 0;
+  }
+
+  /**
+   * Registers an open stream and counts it against its sender. Every insertion into a controller
+   * map goes through here so {@link openStreamCounts} cannot drift.
+   */
+  private addStream(
+    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    streamId: string,
+    streamController: StreamController<DataStream_Chunk>,
+  ) {
+    streamControllers.set(streamId, streamController);
+    const { sendingParticipantIdentity } = streamController;
+    this.openStreamCounts.set(
+      sendingParticipantIdentity,
+      this.getOpenStreamCount(sendingParticipantIdentity) + 1,
+    );
+  }
+
+  /**
+   * Unregisters an open stream and uncounts it from its sender. Every single-stream removal goes
+   * through here so {@link openStreamCounts} cannot drift. The count is keyed by the identity the
+   * stream was registered under, never by the identity on the packet that ends it.
+   */
+  private removeStream(
+    streamControllers: Map<string, StreamController<DataStream_Chunk>>,
+    streamId: string,
+  ) {
+    const streamController = streamControllers.get(streamId);
+    if (!streamController) {
+      return;
     }
-    return openStreamCount >= this.maxOpenStreamsPerParticipant;
+    streamControllers.delete(streamId);
+    const { sendingParticipantIdentity } = streamController;
+    const count = this.getOpenStreamCount(sendingParticipantIdentity) - 1;
+    if (count > 0) {
+      this.openStreamCounts.set(sendingParticipantIdentity, count);
+    } else {
+      this.openStreamCounts.delete(sendingParticipantIdentity);
+    }
   }
 
   private handleStreamHeader(
@@ -189,10 +253,14 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ) {
-    if (this.hasTooManyOpenStreams(participantIdentity)) {
-      this.log.error(
-        `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId}`,
-      );
+    if (this.getOpenStreamCount(participantIdentity) >= this.maxOpenStreamsPerParticipant) {
+      // Logs the first drop, then every `MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE`th.
+      if (this.droppedOverLimitCount % MAX_OPEN_PER_PARTICIPANT_ERROR_LOG_THROTTLE === 0) {
+        this.log.error(
+          `Participant ${participantIdentity} already has ${this.maxOpenStreamsPerParticipant} data streams open, dropping stream ${streamHeader.streamId} (${this.droppedOverLimitCount + 1} dropped over the limit so far)`,
+        );
+      }
+      this.droppedOverLimitCount += 1;
       return;
     }
 
@@ -278,11 +346,14 @@ export default class IncomingDataStreamManager {
               );
             }
 
-            this.byteStreamControllers.set(streamHeader.streamId, {
+            this.addStream(this.byteStreamControllers, streamHeader.streamId, {
               info,
               controller: streamController,
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
+              // The SFU never keeps a claimed identity on a byte header, so its chunks and
+              // trailer carry the same identity.
+              packetSenderIdentity: participantIdentity,
             });
           },
           cancel: () => {
@@ -292,7 +363,7 @@ export default class IncomingDataStreamManager {
             if (
               this.byteStreamControllers.get(streamHeader.streamId)?.controller === streamController
             ) {
-              this.byteStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(this.byteStreamControllers, streamHeader.streamId);
             }
           },
         });
@@ -323,6 +394,10 @@ export default class IncomingDataStreamManager {
         }
 
         let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+
+        // The SFU marks a text header `generated` when it was sent under another participant's
+        // identity (today only an agent may do this).
+        const isOnBehalfOf = streamHeader.contentHeader.value.generated;
 
         const info: TextStreamInfo = {
           id: streamHeader.streamId,
@@ -391,11 +466,14 @@ export default class IncomingDataStreamManager {
               );
             }
 
-            this.textStreamControllers.set(streamHeader.streamId, {
+            this.addStream(this.textStreamControllers, streamHeader.streamId, {
               info,
               controller: streamController,
               startTime: Date.now(),
               sendingParticipantIdentity: participantIdentity,
+              // A `generated` header was sent on this participant's behalf; its real sender claims
+              // the stream with its first chunk or trailer.
+              packetSenderIdentity: isOnBehalfOf ? undefined : participantIdentity,
             });
           },
           cancel: () => {
@@ -405,7 +483,7 @@ export default class IncomingDataStreamManager {
             if (
               this.textStreamControllers.get(streamHeader.streamId)?.controller === streamController
             ) {
-              this.textStreamControllers.delete(streamHeader.streamId);
+              this.removeStream(this.textStreamControllers, streamHeader.streamId);
             }
           },
         });
@@ -437,6 +515,14 @@ export default class IncomingDataStreamManager {
    * sender is logged and dropped on its own: erroring the stream instead would let a third party
    * cancel someone else's stream.
    *
+   * The sender a stream accepts is its `packetSenderIdentity`, see {@link StreamController}. For a
+   * stream sent on someone else's behalf it is unset until the first chunk or trailer arrives from
+   * a participant that {@link canSendStreamOnOthersBehalf}; that participant claims the stream, and
+   * from then on only its packets are accepted. The identity on chunks and trailers is the one the
+   * SFU asserted, so the claim cannot be made under a borrowed identity, and only a participant
+   * allowed to send on others' behalf can make it, so an ordinary participant that saw the header
+   * cannot take the stream over.
+   *
    * The encryption check likewise stops an unencrypted peer from writing into (or cleanly closing)
    * an encrypted stream; that one does error the stream, see {@link handleStreamPacketError}.
    *
@@ -449,9 +535,18 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ): boolean {
-    if (streamController.sendingParticipantIdentity !== participantIdentity) {
+    if (
+      streamController.packetSenderIdentity === undefined &&
+      this.canSendStreamOnOthersBehalf(participantIdentity)
+    ) {
+      streamController.packetSenderIdentity = participantIdentity;
+    }
+    if (streamController.packetSenderIdentity !== participantIdentity) {
+      const owner =
+        streamController.packetSenderIdentity ??
+        `a participant sending on behalf of ${streamController.sendingParticipantIdentity}`;
       this.log.warn(
-        `Dropping data stream packet for ${streamId} from ${participantIdentity}: stream belongs to ${streamController.sendingParticipantIdentity}`,
+        `Dropping data stream packet for ${streamId} from ${participantIdentity}: stream belongs to ${owner}`,
       );
       return false;
     }
@@ -478,7 +573,7 @@ export default class IncomingDataStreamManager {
       throw error;
     }
     streamController.controller.error(error);
-    streamControllers.delete(streamId);
+    this.removeStream(streamControllers, streamId);
   }
 
   private handleStreamChunk(
@@ -540,7 +635,10 @@ export default class IncomingDataStreamManager {
             encryptionType,
           )
         ) {
-          textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
+          textBuffer.info.attributes = {
+            ...textBuffer.info.attributes,
+            ...trailer.attributes,
+          };
           if (trailer.reason) {
             // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
             // surface it as an error rather than pretending the stream completed.
@@ -553,7 +651,7 @@ export default class IncomingDataStreamManager {
           } else {
             textBuffer.controller.close();
           }
-          this.textStreamControllers.delete(trailer.streamId);
+          this.removeStream(this.textStreamControllers, trailer.streamId);
         }
       } catch (error) {
         this.handleStreamPacketError(
@@ -576,7 +674,10 @@ export default class IncomingDataStreamManager {
             encryptionType,
           )
         ) {
-          bytesBuffer.info.attributes = { ...bytesBuffer.info.attributes, ...trailer.attributes };
+          bytesBuffer.info.attributes = {
+            ...bytesBuffer.info.attributes,
+            ...trailer.attributes,
+          };
           if (trailer.reason) {
             // A non-empty reason marks an abnormal close by the sender (e.g. an aborted send);
             // surface it as an error rather than pretending the stream completed.
@@ -589,7 +690,7 @@ export default class IncomingDataStreamManager {
           } else {
             bytesBuffer.controller.close();
           }
-          this.byteStreamControllers.delete(trailer.streamId);
+          this.removeStream(this.byteStreamControllers, trailer.streamId);
         }
       } catch (error) {
         this.handleStreamPacketError(
