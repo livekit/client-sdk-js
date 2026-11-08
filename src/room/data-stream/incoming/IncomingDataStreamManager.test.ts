@@ -2165,4 +2165,123 @@ describe('IncomingDataStreamManager', () => {
       expect(await reader.readAll()).toEqual('ok');
     });
   });
+
+  describe('Packets from a participant trusted to write to any stream', () => {
+    it("reads an agent's text stream sent on behalf of a user", async () => {
+      // A manager that trusts agent-1 to write to any stream.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      // agent-1 publishes a transcription as user: the SFU forwards the header under user's
+      // identity, marked generated.
+      const header = headerPacket('s1', 'textHeader', {
+        contentHeader: {
+          case: 'textHeader',
+          value: new DataStream_TextHeader({ generated: true }),
+        },
+      });
+      header.participantIdentity = 'user';
+      manager.handleDataStreamPacket(header, Encryption_Type.NONE);
+      const reader = await readerPromise;
+
+      // The SFU stamps the chunk and trailer with agent-1's identity.
+      const chunk = chunkPacket('s1', 0, new TextEncoder().encode('what is the weather'));
+      chunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(chunk, Encryption_Type.NONE);
+      const trailer = trailerPacket('s1');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // The stream completes with agent-1's content.
+      expect(await reader.readAll()).toEqual('what is the weather');
+    });
+
+    it('still drops packets from a participant that is not trusted', async () => {
+      // A manager that trusts agent-1, and nobody else, to write to any stream.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      // Alice opens a stream.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      const reader = await readerPromise;
+
+      // Mallory, who is not trusted, tries to write into it and end it.
+      const forgedChunk = chunkPacket('s1', 0, new TextEncoder().encode('forged'));
+      forgedChunk.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forgedChunk, Encryption_Type.NONE);
+      const forgedTrailer = trailerPacket('s1', undefined, 'forged failure');
+      forgedTrailer.participantIdentity = 'mallory';
+      manager.handleDataStreamPacket(forgedTrailer, Encryption_Type.NONE);
+
+      // Alice's own content, then a clean end.
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new TextEncoder().encode('genuine')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket('s1'), Encryption_Type.NONE);
+
+      // Only alice's packets reached the stream.
+      expect(await reader.readAll()).toEqual('genuine');
+    });
+
+    // The two tests below pin down what trusting a participant with every stream allows. They
+    // describe the trade-off of this approach, not behaviour anyone wants.
+
+    it("lets a trusted participant write into another participant's ordinary text stream", async () => {
+      // A manager that trusts agent-1 to write to any stream.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      // Alice opens an ordinary stream: the header is not marked generated.
+      manager.handleDataStreamPacket(headerPacket('s1', 'textHeader'), Encryption_Type.NONE);
+      const reader = await readerPromise;
+
+      // agent-1 knows the stream id, writes into the stream and ends it.
+      const chunk = chunkPacket('s1', 0, new TextEncoder().encode('injected'));
+      chunk.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(chunk, Encryption_Type.NONE);
+      const trailer = trailerPacket('s1', { injected: 'yes' });
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // The reader sees agent-1's content and attributes in a stream attributed to alice, with
+      // nothing marking it as generated.
+      expect(await reader.readAll()).toEqual('injected');
+      expect(reader.info.attributes?.injected).toEqual('yes');
+    });
+
+    it("lets a trusted participant end another participant's byte stream", async () => {
+      // A manager that trusts agent-1 to write to any stream.
+      const manager = new IncomingDataStreamManager({}, (identity) => identity === 'agent-1');
+      manager.setConnected(true);
+      const readerPromise = new Promise<ByteStreamReader>((resolve) => {
+        manager.registerByteStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      // Alice opens a byte stream and sends its first chunk.
+      manager.handleDataStreamPacket(headerPacket('s1', 'byteHeader'), Encryption_Type.NONE);
+      const reader = await readerPromise;
+      manager.handleDataStreamPacket(
+        chunkPacket('s1', 0, new Uint8Array([1, 2, 3])),
+        Encryption_Type.NONE,
+      );
+
+      // agent-1 knows the stream id and sends a trailer reporting an abnormal end.
+      const trailer = trailerPacket('s1', undefined, 'forged failure');
+      trailer.participantIdentity = 'agent-1';
+      manager.handleDataStreamPacket(trailer, Encryption_Type.NONE);
+
+      // Alice's stream fails, and her later chunks are dropped.
+      await expect(reader.readAll()).rejects.toThrow('forged failure');
+    });
+  });
 });

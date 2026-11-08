@@ -34,12 +34,24 @@ export default class IncomingDataStreamManager {
   /** Max number of incoming streams a single remote participant may have open at once. */
   private maxOpenStreamsPerParticipant: number;
 
-  constructor({
-    maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
-    maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
-  }: RoomDataStreamOptions = {}) {
+  /**
+   * Whether `identity` is trusted to send chunks and trailers for any open stream, not only its
+   * own. Used for agents, which send a user's speech-to-text under the user's identity: the SFU
+   * forwards such a header under the user's identity but stamps its chunks and trailer with the
+   * agent's.
+   */
+  private canWriteToAnyStream: (identity: string) => boolean;
+
+  constructor(
+    {
+      maxPayloadByteLength = DEFAULT_MAX_PAYLOAD_BYTE_LENGTH,
+      maxOpenStreamsPerParticipant = DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT,
+    }: RoomDataStreamOptions = {},
+    canWriteToAnyStream: (identity: string) => boolean = () => false,
+  ) {
     this.maxPayloadByteLength = maxPayloadByteLength;
     this.maxOpenStreamsPerParticipant = maxOpenStreamsPerParticipant;
+    this.canWriteToAnyStream = canWriteToAnyStream;
   }
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
@@ -437,6 +449,9 @@ export default class IncomingDataStreamManager {
    * sender is logged and dropped on its own: erroring the stream instead would let a third party
    * cancel someone else's stream.
    *
+   * A participant for which `canWriteToAnyStream` returns true skips the sender check, and may
+   * act on any open stream.
+   *
    * The encryption check likewise stops an unencrypted peer from writing into (or cleanly closing)
    * an encrypted stream; that one does error the stream, see {@link handleStreamPacketError}.
    *
@@ -449,7 +464,10 @@ export default class IncomingDataStreamManager {
     participantIdentity: string,
     encryptionType: Encryption_Type,
   ): boolean {
-    if (streamController.sendingParticipantIdentity !== participantIdentity) {
+    if (
+      streamController.sendingParticipantIdentity !== participantIdentity &&
+      !this.canWriteToAnyStream(participantIdentity)
+    ) {
       this.log.warn(
         `Dropping data stream packet for ${streamId} from ${participantIdentity}: stream belongs to ${streamController.sendingParticipantIdentity}`,
       );

@@ -109,7 +109,12 @@ export const dataStreams = /* @__PURE__ */ defineExtension(
       incoming: IncomingDataStreamManager;
       outgoing: OutgoingDataStreamManager;
     } => {
-    const incoming = new IncomingDataStreamManager(streamOptions ?? room.options.dataStream);
+    const incoming = new IncomingDataStreamManager(
+      streamOptions ?? room.options.dataStream,
+      // Agents are trusted to write to any stream, since the SFU lets an agent send a text stream
+      // under another participant's identity.
+      (identity) => room.remoteParticipants.get(identity)?.isAgent ?? false,
+    );
     const outgoing = new OutgoingDataStreamManager(
       room.engine,
       ctx.log,
