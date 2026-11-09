@@ -336,10 +336,6 @@ export class PCTransportManager {
     return transceivers.find((transceiver) => transceiver.receiver === receiver);
   }
 
-  getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
-    return this.getTransceiverForReceiver(receiver)?.mid;
-  }
-
   getMaxPublisherMessageSize() {
     return this.publisher.getMaxMessageSize();
   }
