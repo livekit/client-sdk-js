@@ -154,8 +154,8 @@ export class PCTransportManager {
     return this.publisher.setRemoteDescription(sd, offerId);
   }
 
-  removeTrack(sender: RTCRtpSender, stop?: boolean) {
-    return this.publisher.removeTrack(sender, stop);
+  removeTrack(sender: RTCRtpSender) {
+    return this.publisher.removeTrack(sender);
   }
 
   async close() {
