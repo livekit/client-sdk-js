@@ -557,7 +557,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.debug('Resuming signal connection');
-        if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (
+          !this.connectFuture &&
+          this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)
+        ) {
           this.emit(RoomEvent.SignalReconnecting);
         }
       })
@@ -566,6 +570,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
         this.updateSubscriptions();
+        if (this.connectFuture) {
+          // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+          this.bufferedEvents = [];
+          return;
+        }
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
         }
@@ -587,7 +596,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         }
       })
       .on(EngineEvent.Offline, () => {
-        if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })
@@ -1747,7 +1757,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.handleParticipantDisconnected(p.identity, p);
     }
 
-    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+    // During connect(), the room stays `Connecting` and connect() reports the outcome.
+    if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
   };
@@ -1760,6 +1771,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    const initialConnection = this.connectFuture !== undefined;
     const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
@@ -1778,6 +1790,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
     this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
     this.roomInfoBeforeRestart = undefined;
+    if (initialConnection) {
+      // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+      this.bufferedEvents = [];
+      return;
+    }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();

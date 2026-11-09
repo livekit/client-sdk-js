@@ -382,6 +382,91 @@ describe('stream state updates', () => {
   });
 });
 
+describe('full reconnect', () => {
+  function roomIn(state: ConnectionState) {
+    const room = new Room();
+    room.state = state;
+    if (state === ConnectionState.Connecting) {
+      // connect() is pending
+      (room as unknown as { connectFuture: Future<void, Error> }).connectFuture = new Future();
+    }
+    const events: string[] = [];
+    room
+      .on(RoomEvent.SignalReconnecting, () => events.push(RoomEvent.SignalReconnecting))
+      .on(RoomEvent.Reconnecting, () => events.push(RoomEvent.Reconnecting))
+      .on(RoomEvent.Reconnected, () => events.push(RoomEvent.Reconnected))
+      .on(RoomEvent.ConnectionStateChanged, (s) => events.push(`state:${s}`));
+    return { room, events };
+  }
+
+  function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
+    const { room, events } = roomIn(state);
+    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue(true);
+
+    if (resumeFirst) {
+      // a rejected resume escalates to a full reconnect, as in a server CONNECTION_TIMEOUT leave
+      room.engine.emit(EngineEvent.Resuming);
+    }
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(
+      EngineEvent.SignalRestarted,
+      new JoinResponse({ participant: { sid: 'PA_local', identity: 'local' } }),
+      new AbortController().signal,
+    );
+    return { room, events };
+  }
+
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('leaves an initial connection to connect() instead of reporting a reconnect', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting);
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('leaves an initial connection to connect() when a resume preceded the restart', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting, { resumeFirst: true });
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('leaves an initial connection to connect() when a resume succeeds', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Resuming);
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('stays Connecting when the browser goes offline inside connect()', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Offline);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('reports a reconnect of an established session', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connected);
+    await flush();
+
+    expect(events).toEqual([
+      `state:${ConnectionState.Reconnecting}`,
+      RoomEvent.Reconnecting,
+      `state:${ConnectionState.Connected}`,
+      RoomEvent.Reconnected,
+    ]);
+    expect(room.state).toBe(ConnectionState.Connected);
+  });
+});
+
 describe('audio context ownership', () => {
   class StubAudioContext {
     state: AudioContextState = 'running';
