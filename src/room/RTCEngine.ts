@@ -2250,12 +2250,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     }
   }
-
-  /** Whether the remote side no longer sends media to `receiver`, e.g. after a failed subscription. */
-  hasStoppedReceiving(receiver: RTCRtpReceiver): boolean {
-    const direction = this.pcManager?.getTransceiverForReceiver(receiver)?.currentDirection;
-    return direction === 'inactive' || direction === 'sendonly' || direction === 'stopped';
-  }
 }
 
 export type EngineEventCallbacks = {

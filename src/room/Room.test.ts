@@ -17,6 +17,7 @@ import v8 from 'node:v8';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
+import MockMediaStream from '../test/MockMediaStream';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
 import { stubMissingDeflateRawSupport } from '../test/compressionStreamStubs';
 import { subscribeToEvents } from '../utils/subscribeToEvents';
@@ -305,48 +306,57 @@ describe('remote track subscription', () => {
     expect(replay).not.toHaveBeenCalled();
   });
 
-  describe('single peer connection deferred ontrack', () => {
-    // in single peer connection mode the stream and track ids carry no track sid
-    function deferTrack(transceiver: Partial<RTCRtpTransceiver>) {
-      const room = new Room();
-      room.state = ConnectionState.Connecting;
-      room.engine.pcManager = {
-        getTransceiverForReceiver: () => transceiver,
-      } as unknown as RTCEngine['pcManager'];
+  it('does not subscribe a deferred track the server stopped sending before the room connected', () => {
+    const room = new Room();
+    room.state = ConnectionState.Connecting;
+    room.engine.emit(EngineEvent.ParticipantUpdate, [
+      new ParticipantInfo({
+        sid: 'PA_remote',
+        identity: 'remote',
+        state: ParticipantInfo_State.ACTIVE,
+        tracks: [new TrackInfo({ sid: 'TR_video', type: TrackType.VIDEO })],
+      }),
+    ]);
+    const trackSubscribed = vi.fn();
+    room.on(RoomEvent.TrackSubscribed, trackSubscribed);
 
-      const mediaTrack = { id: 'f16e8176-1b9e-4cc9-ae70-b27fe30a24ea' } as MediaStreamTrack;
-      const stream = {
-        id: 'PA_remote|camera',
-        getTracks: () => [mediaTrack],
-      } as unknown as MediaStream;
-      room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
+    // the track arrives while the room connects, so the room defers it
+    const mediaTrack = new MockMediaStreamTrack();
+    const stream = new MockMediaStream('PA_remote|TR_video', [mediaTrack]);
+    room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
 
-      const replay = vi
-        .spyOn(
-          room as unknown as {
-            onTrackAdded(
-              mediaTrack: MediaStreamTrack,
-              stream: MediaStream,
-              receiver: RTCRtpReceiver,
-            ): void;
-          },
-          'onTrackAdded',
-        )
-        .mockImplementation(() => {});
+    // the subscription fails and the next answer stops the track, so the browser removes it
+    stream.removeTrack(mediaTrack);
 
-      room.state = ConnectionState.Connected;
-      room.emit(RoomEvent.Connected);
-      return replay;
-    }
+    room.state = ConnectionState.Connected;
+    room.emit(RoomEvent.Connected);
 
-    it('does not replay a track the server stopped sending before the room connected', () => {
-      // the subscription failed after ontrack fired, and a later answer set the mid inactive
-      expect(deferTrack({ currentDirection: 'inactive' })).not.toHaveBeenCalled();
-    });
+    expect(trackSubscribed).not.toHaveBeenCalled();
+  });
 
-    it('replays a track the server still sends', () => {
-      expect(deferTrack({ currentDirection: 'recvonly' })).toHaveBeenCalledOnce();
-    });
+  it('subscribes a deferred track once the room connects', () => {
+    const room = new Room();
+    room.state = ConnectionState.Connecting;
+    room.engine.emit(EngineEvent.ParticipantUpdate, [
+      new ParticipantInfo({
+        sid: 'PA_remote',
+        identity: 'remote',
+        state: ParticipantInfo_State.ACTIVE,
+        tracks: [new TrackInfo({ sid: 'TR_video', type: TrackType.VIDEO })],
+      }),
+    ]);
+    const trackSubscribed = vi.fn();
+    room.on(RoomEvent.TrackSubscribed, trackSubscribed);
+
+    // the track arrives while the room connects, so the room defers it
+    const mediaTrack = new MockMediaStreamTrack();
+    const stream = new MockMediaStream('PA_remote|TR_video', [mediaTrack]);
+    room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
+
+    room.state = ConnectionState.Connected;
+    room.emit(RoomEvent.Connected);
+
+    expect(trackSubscribed).toHaveBeenCalledOnce();
   });
 });
 
