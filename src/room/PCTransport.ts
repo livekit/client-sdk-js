@@ -730,10 +730,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         }
       });
       // Conform the placeholder sections (pre-populated, or reverted after an
-      // unpublish on a server below protocol 19, which keeps the transceiver; from
-      // protocol 19 unpublish stops it) so every shared payload type carries
-      // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
-      // payload type collision".
+      // unpublish) so every shared payload type carries identical fmtp across the
+      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
       // Detection is by transceiver (mids are stable across renegotiations) since
       // an unpublished section keeps its `a=msid`.
       const placeholderMids = this.getPlaceholderMids();
@@ -783,9 +781,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * Returns the mids of transceivers that carry no outgoing track on this
    * (publisher) connection: the pre-populated placeholders added by
    * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
-   * for a track and reverted on unpublish (below server protocol 19; from protocol
-   * 19 unpublish stops it). Their codec fmtp is conformed to the published tracks
-   * so a shared payload type stays consistent across the bundle.
+   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
+   * published tracks so a shared payload type stays consistent across the bundle.
    */
   private getPlaceholderMids(): Set<string> {
     return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
@@ -849,37 +846,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return !!this._pc?.removeTrack;
   }
 
-  /**
-   * Removes `sender` from the connection. With `stop`, it then stops the transceiver of `sender`.
-   */
-  removeTrack(sender: RTCRtpSender, stop = false) {
-    this._pc?.removeTrack(sender);
-    if (stop) {
-      this.stopTransceivers([sender]);
-    }
-  }
-
-  /**
-   * Stops the transceivers of `senders`. `removeTrack` keeps the transceiver and its encoder,
-   * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
-   * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
-   * Returns true if a transceiver stopped.
-   */
-  stopTransceivers(senders: RTCRtpSender[]): boolean {
-    let stopped = false;
-    for (const transceiver of this.getTransceivers()) {
-      // RTCRtpTransceiver.stop() is not available before Chrome 88
-      if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
-        continue;
-      }
-      try {
-        transceiver.stop();
-        stopped = true;
-      } catch (e) {
-        this.log.warn('could not stop transceiver', { error: e });
-      }
-    }
-    return stopped;
+  removeTrack(sender: RTCRtpSender) {
+    return this._pc?.removeTrack(sender);
   }
 
   getConnectionState() {
@@ -1187,11 +1155,10 @@ export function ensureAudioNackAndStereo(
 /**
  * Returns the mids of transceivers that carry no outgoing track: the
  * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
- * plus any transceiver that was used for a track and reverted on unpublish (below
- * server protocol 19; from protocol 19 unpublish stops it). The `sender.track`
- * check is the reliable signal — an unpublished section keeps its `a=msid` (and
- * its stale send-derived fmtp), so it can't be told apart from a real send by SDP
- * alone. Transceiver mids are stable across renegotiations, so
+ * plus any transceiver that was used for a track and reverted on unpublish. The
+ * `sender.track` check is the reliable signal — an unpublished section keeps its
+ * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
+ * real send by SDP alone. Transceiver mids are stable across renegotiations, so
  * this works for every offer/answer after the first.
  * @internal
  */
