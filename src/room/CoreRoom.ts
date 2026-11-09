@@ -1890,9 +1890,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
+    const appliedInfos: ParticipantInfo[] = [];
     for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
+        appliedInfos.push(info);
         continue;
       }
 
@@ -1903,6 +1905,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
+
+      // a late update for an older session of this identity must not change the current session
+      if (remoteParticipant?.isOlderSession(info)) {
+        this.log.debug('ignoring update from an older participant session', {
+          remoteIdentity: info.identity,
+          staleSid: info.sid,
+          currentSid: remoteParticipant.sid,
+        });
+        continue;
+      }
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
@@ -1917,9 +1929,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
       }
+      appliedInfos.push(info);
     }
 
-    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(participantInfos));
+    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(appliedInfos));
   };
 
   private handleParticipantDisconnected(
@@ -2579,7 +2592,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private getRemoteParticipantBySid(sid: string): RemoteParticipant | undefined {
     const identity = this.sidToIdentity.get(sid);
     if (identity) {
-      return this.remoteParticipants.get(identity);
+      const participant = this.remoteParticipants.get(identity);
+      // an older session's sid must not resolve to the current session of the same identity
+      if (participant?.sid === sid) {
+        return participant;
+      }
     }
   }
 
