@@ -355,17 +355,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
         // strongly retain the Room. When the user drops their Room ref, the
         // FinalizationRegistry callback aborts the controller and removes the listener.
-        const roomRef = new WeakRef(this);
-        onDeviceChange = () => {
-          const self = roomRef.deref();
-          if (!self) {
-            return;
-          }
-          self.handleDeviceChange();
-        };
-        cleanupRegistry.register(this, () => {
-          cleanupController.abort();
-        });
+        onDeviceChange = CoreRoom.createWeakDeviceChangeListener(new WeakRef(this));
+        cleanupRegistry.register(this, cleanupController);
       } else {
         // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
         // direct listener (matches pre-#1944 behavior).
@@ -566,7 +557,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.debug('Resuming signal connection');
-        if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (
+          !this.connectFuture &&
+          this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)
+        ) {
           this.emit(RoomEvent.SignalReconnecting);
         }
       })
@@ -575,6 +570,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
         this.updateSubscriptions();
+        if (this.connectFuture) {
+          // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+          this.bufferedEvents = [];
+          return;
+        }
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
         }
@@ -596,7 +596,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         }
       })
       .on(EngineEvent.Offline, () => {
-        if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })
@@ -677,9 +678,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
     typeof WeakRef !== 'undefined' &&
-    new FinalizationRegistry((cleanup: () => void) => {
-      cleanup();
+    new FinalizationRegistry((cleanupController: AbortController) => {
+      cleanupController.abort();
     });
+
+  /**
+   * Builds the constructor's `devicechange` listener. It lives outside the constructor so that
+   * its closure only captures `roomRef`, not the constructor's context (which holds the Room).
+   */
+  private static createWeakDeviceChangeListener(roomRef: WeakRef<CoreRoom>) {
+    return () => {
+      roomRef.deref()?.handleDeviceChange();
+    };
+  }
 
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
@@ -1757,7 +1768,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.handleParticipantDisconnected(p.identity, p);
     }
 
-    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+    // During connect(), the room stays `Connecting` and connect() reports the outcome.
+    if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
   };
@@ -1770,6 +1782,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    const initialConnection = this.connectFuture !== undefined;
     const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
@@ -1788,6 +1801,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
     this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
     this.roomInfoBeforeRestart = undefined;
+    if (initialConnection) {
+      // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+      this.bufferedEvents = [];
+      return;
+    }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
@@ -1883,9 +1901,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
+    const appliedInfos: ParticipantInfo[] = [];
     for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
+        appliedInfos.push(info);
         continue;
       }
 
@@ -1896,6 +1916,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
+
+      // a late update for an older session of this identity must not change the current session
+      if (remoteParticipant?.isOlderSession(info)) {
+        this.log.debug('ignoring update from an older participant session', {
+          remoteIdentity: info.identity,
+          staleSid: info.sid,
+          currentSid: remoteParticipant.sid,
+        });
+        continue;
+      }
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
@@ -1910,9 +1940,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
       }
+      appliedInfos.push(info);
     }
 
-    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(participantInfos));
+    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(appliedInfos));
   };
 
   private handleParticipantDisconnected(
@@ -2572,7 +2603,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private getRemoteParticipantBySid(sid: string): RemoteParticipant | undefined {
     const identity = this.sidToIdentity.get(sid);
     if (identity) {
-      return this.remoteParticipants.get(identity);
+      const participant = this.remoteParticipants.get(identity);
+      // an older session's sid must not resolve to the current session of the same identity
+      if (participant?.sid === sid) {
+        return participant;
+      }
     }
   }
 

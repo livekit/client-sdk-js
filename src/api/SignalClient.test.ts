@@ -999,6 +999,58 @@ describe('SignalClient.connect', () => {
     });
   });
 
+  describe('Messages received while closing', () => {
+    it.each([
+      [
+        'leave',
+        new SignalResponse({
+          message: {
+            case: 'leave',
+            value: new LeaveRequest({ reason: DisconnectReason.CLIENT_INITIATED }),
+          },
+        }),
+      ],
+      [
+        'pongResp',
+        new SignalResponse({
+          message: { case: 'pongResp', value: { lastPingTimestamp: BigInt(Date.now()) } },
+        }),
+      ],
+    ])('does not restart the ping timeout for a %s', async (_, response) => {
+      // the server answers our leave while close() waits for the socket to close
+      let controller!: ReadableStreamDefaultController<ArrayBuffer>;
+      const readable = new ReadableStream<ArrayBuffer>({
+        start(c) {
+          controller = c;
+          c.enqueue(
+            createSignalResponse('join', createJoinResponse()).toBinary().buffer as ArrayBuffer,
+          );
+        },
+      });
+      mockWebSocketStream({ connection: createMockConnection(readable) });
+      await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
+
+      vi.useFakeTimers();
+      try {
+        const warnSpy = vi.spyOn((signalClient as any).log, 'warn');
+        const closing = signalClient.close();
+        // close() has cleared the ping timers and now waits up to 250 ms for the socket to close
+        await vi.advanceTimersByTimeAsync(100);
+        controller.enqueue(response.toBinary().buffer as ArrayBuffer);
+        await vi.advanceTimersByTimeAsync(150);
+        await closing;
+        expect(signalClient.currentState).toBe(SignalConnectionState.DISCONNECTED);
+
+        // pingTimeout is 30 s in the join response
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('ping timeout triggered'));
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('Held requests during a resume', () => {
     /**
      * Records the tracks whose mute requests reach the wire, in order. `mute` is session-scoped —

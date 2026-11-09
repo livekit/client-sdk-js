@@ -730,8 +730,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         }
       });
       // Conform the placeholder sections (pre-populated, or reverted after an
-      // unpublish) so every shared payload type carries identical fmtp across the
-      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // unpublish on a server below protocol 19, which keeps the transceiver; from
+      // protocol 19 unpublish stops it) so every shared payload type carries
+      // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
+      // payload type collision".
       // Detection is by transceiver (mids are stable across renegotiations) since
       // an unpublished section keeps its `a=msid`.
       const placeholderMids = this.getPlaceholderMids();
@@ -781,8 +783,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * Returns the mids of transceivers that carry no outgoing track on this
    * (publisher) connection: the pre-populated placeholders added by
    * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
-   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
-   * published tracks so a shared payload type stays consistent across the bundle.
+   * for a track and reverted on unpublish (below server protocol 19; from protocol
+   * 19 unpublish stops it). Their codec fmtp is conformed to the published tracks
+   * so a shared payload type stays consistent across the bundle.
    */
   private getPlaceholderMids(): Set<string> {
     return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
@@ -846,8 +849,37 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return !!this._pc?.removeTrack;
   }
 
-  removeTrack(sender: RTCRtpSender) {
-    return this._pc?.removeTrack(sender);
+  /**
+   * Removes `sender` from the connection. With `stop`, it then stops the transceiver of `sender`.
+   */
+  removeTrack(sender: RTCRtpSender, stop = false) {
+    this._pc?.removeTrack(sender);
+    if (stop) {
+      this.stopTransceivers([sender]);
+    }
+  }
+
+  /**
+   * Stops the transceivers of `senders`. `removeTrack` keeps the transceiver and its encoder,
+   * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
+   * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
+   * Returns true if a transceiver stopped.
+   */
+  stopTransceivers(senders: RTCRtpSender[]): boolean {
+    let stopped = false;
+    for (const transceiver of this.getTransceivers()) {
+      // RTCRtpTransceiver.stop() is not available before Chrome 88
+      if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
+        continue;
+      }
+      try {
+        transceiver.stop();
+        stopped = true;
+      } catch (e) {
+        this.log.warn('could not stop transceiver', { error: e });
+      }
+    }
+    return stopped;
   }
 
   getConnectionState() {
@@ -1155,10 +1187,11 @@ export function ensureAudioNackAndStereo(
 /**
  * Returns the mids of transceivers that carry no outgoing track: the
  * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
- * plus any transceiver that was used for a track and reverted on unpublish. The
- * `sender.track` check is the reliable signal — an unpublished section keeps its
- * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
- * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * plus any transceiver that was used for a track and reverted on unpublish (below
+ * server protocol 19; from protocol 19 unpublish stops it). The `sender.track`
+ * check is the reliable signal — an unpublished section keeps its `a=msid` (and
+ * its stale send-derived fmtp), so it can't be told apart from a real send by SDP
+ * alone. Transceiver mids are stable across renegotiations, so
  * this works for every offer/answer after the first.
  * @internal
  */
@@ -1190,6 +1223,9 @@ export function placeholderMidsFromTransceivers(
  * fresh placeholders use the default — the placeholders still converge on the
  * first value seen, so two placeholders can't disagree either. Only placeholder
  * sections are ever rewritten, and it is codec-agnostic (opus, H.265, ...).
+ * A codec without an `a=fmtp` line has empty parameters. Real sections that
+ * disagree on a payload type are not reconciled: the placeholders follow the
+ * last real section, and the real sections still differ.
  * `isPlaceholder` identifies the sections to conform.
  * @internal
  */
@@ -1202,31 +1238,30 @@ export function conformBundledCodecFmtp(
   // section's value always takes precedence; otherwise the first placeholder
   // value seen is used so divergent placeholders still converge.
   const canonicalByPayload = new Map<number, string>();
-  const fromRealSection = new Set<number>();
   for (const m of media) {
     const placeholder = isPlaceholder(m);
-    for (const fmtp of m.fmtp ?? []) {
-      if (!placeholder) {
-        canonicalByPayload.set(fmtp.payload, fmtp.config);
-        fromRealSection.add(fmtp.payload);
-      } else if (!canonicalByPayload.has(fmtp.payload)) {
-        canonicalByPayload.set(fmtp.payload, fmtp.config);
+    for (const { payload } of m.rtp ?? []) {
+      const config = m.fmtp?.find((fmtp) => fmtp.payload === payload)?.config ?? '';
+      if (!placeholder || !canonicalByPayload.has(payload)) {
+        canonicalByPayload.set(payload, config);
       }
     }
   }
-  if (canonicalByPayload.size === 0) {
-    return;
-  }
-
   // Conform placeholder sections to the canonical fmtp for each shared payload.
   for (const m of media) {
     if (!isPlaceholder(m)) {
       continue;
     }
-    for (const fmtp of m.fmtp ?? []) {
-      const config = canonicalByPayload.get(fmtp.payload);
-      if (config !== undefined && fmtp.config !== config) {
+    for (const { payload } of m.rtp ?? []) {
+      // The first loop added every payload type a placeholder lists.
+      const config = canonicalByPayload.get(payload)!;
+      const fmtp = m.fmtp?.find((entry) => entry.payload === payload);
+      if (config === '') {
+        m.fmtp = (m.fmtp ?? []).filter((entry) => entry.payload !== payload);
+      } else if (fmtp) {
         fmtp.config = config;
+      } else {
+        m.fmtp = [...(m.fmtp ?? []), { payload, config }];
       }
     }
   }

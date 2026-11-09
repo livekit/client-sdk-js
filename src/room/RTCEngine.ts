@@ -99,6 +99,7 @@ import type { LoggerOptions } from './types';
 import {
   isPublisherOfferWithJoinSupported,
   isReactNative,
+  isStopTransceiverSupportedByServer,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -183,6 +184,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.latestJoinResponse?.serverVersion ||
       undefined
     );
+  }
+
+  get serverProtocol(): number | undefined {
+    return this.latestJoinResponse?.serverInfo?.protocol;
   }
 
   /**
@@ -579,7 +584,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /**
    * Removes sender from PeerConnection, returning true if it was removed successfully
-   * and a negotiation is necessary
+   * and a negotiation is necessary. If the server supports it, it also stops the transceiver
+   * of sender.
    * @param sender
    * @returns
    */
@@ -592,7 +598,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
-      this.pcManager!.removeTrack(sender);
+      this.pcManager!.removeTrack(sender, isStopTransceiverSupportedByServer(this.serverProtocol));
       return true;
     } catch (e: unknown) {
       this.log.warn('failed to remove track', { error: e });
@@ -1677,7 +1683,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    // A full reconnect during the initial connection replaces the transports polled below, so its
+    // `Restarted` completes the initial connection too. The engine closing (e.g. giving up) fails it.
+    let restarting = false;
+    const onRestarting = () => {
+      restarting = true;
+    };
+    let onRestarted!: () => void;
+    let onClosing!: () => void;
+    let onAbort!: () => void;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const engineOutcome = new Promise<void>((resolve, reject) => {
+      onRestarted = resolve;
+      onClosing = () => reject(ConnectionError.internal('could not establish pc connection'));
+      onAbort = () => reject(ConnectionError.cancelled('room connection has been cancelled'));
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Closing, onClosing);
+      // The transport wait below enforces these too, but not once it has resolved.
+      abortController?.signal.addEventListener('abort', onAbort);
+      deadline = CriticalTimers.setTimeout(onClosing, timeout ?? this.peerConnectionTimeout);
+    });
+    this.once(EngineEvent.Restarting, onRestarting);
+    try {
+      await Promise.race([
+        this.pcManager.ensurePCTransportConnection(abortController, timeout),
+        engineOutcome,
+      ]);
+      if (restarting) {
+        // Transports that connected once a restart had begun are about to be closed; follow it.
+        await engineOutcome;
+      }
+    } finally {
+      CriticalTimers.clearTimeout(deadline);
+      abortController?.signal.removeEventListener('abort', onAbort);
+      this.off(EngineEvent.Restarting, onRestarting);
+      this.off(EngineEvent.Restarted, onRestarted);
+      this.off(EngineEvent.Closing, onClosing);
+    }
   }
 
   private async waitForPCReconnected() {

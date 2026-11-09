@@ -2,7 +2,7 @@ export const U16_MAX_SIZE = 0xffff;
 export const U32_MAX_SIZE = 0xffffffff;
 
 /**
- * A number of fields withing the data tracks packet specification assume wrap around behavior when
+ * A number of fields within the data tracks packet specification assume wrap around behavior when
  * an unsigned type is incremented beyond its max size (ie, the packet `sequence` field). This
  * wrapper type manually reimplements this wrap around behavior given javascript's lack of fixed
  * size integer types.

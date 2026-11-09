@@ -13,6 +13,8 @@ import {
   TrackInfo,
   TrackType,
 } from '@livekit/protocol';
+import v8 from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SignalConnectionState, type SignalOptions } from '../api/SignalClient';
 import MockMediaStreamTrack from '../test/MockMediaStreamTrack';
@@ -193,7 +195,7 @@ describe('Room lifecycle', () => {
     // FinalizationRegistry must be registered with the Room as the target so the
     // cleanup callback fires when the user drops their Room reference.
     if (Room.cleanupRegistry) {
-      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(Function));
+      expect(cleanupRegistrySpy).toHaveBeenCalledWith(room, expect.any(AbortController));
     }
 
     // While the WeakRef still derefs to the Room, the listener forwards to handleDeviceChange.
@@ -240,6 +242,26 @@ describe('Room lifecycle', () => {
         value: originalRegistry,
       });
     }
+  });
+
+  it('lets a dropped Room be garbage collected (#2008)', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: new EventTarget(),
+    });
+    // A Room is retained if either the devicechange listener or the registry's held value closes
+    // over the constructor's context, so check reachability with a real GC.
+    v8.setFlagsFromString('--expose-gc');
+    const gc = runInNewContext('gc') as () => void;
+
+    const roomRef = new WeakRef(new Room());
+
+    // WeakRef targets stay alive until the current job ends, so yield before each collection
+    for (let i = 0; i < 10 && roomRef.deref(); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      gc();
+    }
+    expect(roomRef.deref()).toBeUndefined();
   });
 });
 
@@ -401,6 +423,91 @@ describe('stream state updates', () => {
 
     expect(roomEvents).not.toHaveBeenCalled();
     expect(participantEvents).not.toHaveBeenCalled();
+  });
+});
+
+describe('full reconnect', () => {
+  function roomIn(state: ConnectionState) {
+    const room = new Room();
+    room.state = state;
+    if (state === ConnectionState.Connecting) {
+      // connect() is pending
+      (room as unknown as { connectFuture: Future<void, Error> }).connectFuture = new Future();
+    }
+    const events: string[] = [];
+    room
+      .on(RoomEvent.SignalReconnecting, () => events.push(RoomEvent.SignalReconnecting))
+      .on(RoomEvent.Reconnecting, () => events.push(RoomEvent.Reconnecting))
+      .on(RoomEvent.Reconnected, () => events.push(RoomEvent.Reconnected))
+      .on(RoomEvent.ConnectionStateChanged, (s) => events.push(`state:${s}`));
+    return { room, events };
+  }
+
+  function restartFrom(state: ConnectionState, { resumeFirst = false } = {}) {
+    const { room, events } = roomIn(state);
+    vi.spyOn(room.engine, 'waitForRestarted').mockResolvedValue(true);
+
+    if (resumeFirst) {
+      // a rejected resume escalates to a full reconnect, as in a server CONNECTION_TIMEOUT leave
+      room.engine.emit(EngineEvent.Resuming);
+    }
+    room.engine.emit(EngineEvent.Restarting);
+    room.engine.emit(
+      EngineEvent.SignalRestarted,
+      new JoinResponse({ participant: { sid: 'PA_local', identity: 'local' } }),
+      new AbortController().signal,
+    );
+    return { room, events };
+  }
+
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('leaves an initial connection to connect() instead of reporting a reconnect', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting);
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('leaves an initial connection to connect() when a resume preceded the restart', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connecting, { resumeFirst: true });
+    await flush();
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('leaves an initial connection to connect() when a resume succeeds', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Resuming);
+    room.engine.emit(EngineEvent.Resumed);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('stays Connecting when the browser goes offline inside connect()', () => {
+    const { room, events } = roomIn(ConnectionState.Connecting);
+
+    room.engine.emit(EngineEvent.Offline);
+
+    expect(events).toEqual([]);
+    expect(room.state).toBe(ConnectionState.Connecting);
+  });
+
+  it('reports a reconnect of an established session', async () => {
+    const { room, events } = restartFrom(ConnectionState.Connected);
+    await flush();
+
+    expect(events).toEqual([
+      `state:${ConnectionState.Reconnecting}`,
+      RoomEvent.Reconnecting,
+      `state:${ConnectionState.Connected}`,
+      RoomEvent.Reconnected,
+    ]);
+    expect(room.state).toBe(ConnectionState.Connected);
   });
 });
 
@@ -950,5 +1057,112 @@ describe('events during a full reconnect (#2183)', () => {
 
     expect(events).toEqual(['reconnected', 'participantConnected:remote']);
     expect((room as unknown as { bufferedEvents: unknown[] }).bufferedEvents).toEqual([]);
+  });
+});
+
+describe('participant updates for an earlier session (#2228)', () => {
+  // PA_new joined after PA_old, so the server orders it as the newer session
+  const joinTimes = {
+    PA_old: { joinedAt: 1_700_000_000n, joinedAtMs: 1_700_000_000_100n },
+    PA_new: { joinedAt: 1_700_000_009n, joinedAtMs: 1_700_000_009_200n },
+  };
+
+  function setup() {
+    const room = new Room();
+    const update = (
+      sid: keyof typeof joinTimes,
+      state: ParticipantInfo_State,
+      reason?: DisconnectReason,
+    ) =>
+      (
+        room as unknown as { handleParticipantUpdates: (infos: ParticipantInfo[]) => void }
+      ).handleParticipantUpdates([
+        new ParticipantInfo({
+          sid,
+          identity: 'tutor',
+          state,
+          disconnectReason: reason,
+          ...joinTimes[sid],
+        }),
+      ]);
+    const disconnected: string[] = [];
+    room.on(RoomEvent.ParticipantDisconnected, (p) => disconnected.push(p.sid));
+    // the data track extension unpublishes the tracks of each identity it gets without them
+    const dataTracks = (
+      room as unknown as {
+        extensionResults: Array<{ onParticipantUpdates?: (infos: ParticipantInfo[]) => void }>;
+      }
+    ).extensionResults.find((result) => result.onParticipantUpdates)!;
+    const extensionUpdates = vi.spyOn(dataTracks, 'onParticipantUpdates');
+    const forwardedSids = () =>
+      extensionUpdates.mock.calls.flatMap(([infos]) => infos.map((info) => info.sid));
+    return { room, update, disconnected, forwardedSids };
+  }
+
+  it('keeps the new session when a late DISCONNECTED arrives for the old session', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.SIGNAL_CLOSE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.DUPLICATE_IDENTITY);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual(['PA_old']);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_old', 'PA_new']);
+  });
+
+  it('keeps the new session when the old session leaves after the new one joined', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.DISCONNECTED, DisconnectReason.DUPLICATE_IDENTITY);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual([]);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
+
+    update('PA_new', ParticipantInfo_State.DISCONNECTED, DisconnectReason.CLIENT_INITIATED);
+
+    expect(room.remoteParticipants.has('tutor')).toBe(false);
+    expect(disconnected).toEqual(['PA_new']);
+  });
+
+  it('keeps the new session when a late ACTIVE arrives for the old session', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+
+    expect(room.remoteParticipants.get('tutor')?.sid).toBe('PA_new');
+    expect(disconnected).toEqual([]);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
+  });
+
+  it('does not resolve the old sid to the new session', () => {
+    const { room, update } = setup();
+    const getBySid = (sid: string) =>
+      (
+        room as unknown as { getRemoteParticipantBySid: (sid: string) => unknown }
+      ).getRemoteParticipantBySid(sid);
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.ACTIVE);
+
+    expect(getBySid('PA_new')).toBe(room.remoteParticipants.get('tutor'));
+    expect(getBySid('PA_old')).toBeUndefined();
+  });
+
+  it('removes the old session when the first update for the new session is DISCONNECTED', () => {
+    const { room, update, disconnected, forwardedSids } = setup();
+
+    update('PA_old', ParticipantInfo_State.ACTIVE);
+    update('PA_new', ParticipantInfo_State.DISCONNECTED, DisconnectReason.CLIENT_INITIATED);
+
+    expect(room.remoteParticipants.has('tutor')).toBe(false);
+    expect(disconnected).toEqual(['PA_old']);
+    expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
   });
 });

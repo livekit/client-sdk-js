@@ -13,7 +13,7 @@ import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-
 import { TrackEvent } from '../events';
 import { summarizeStatsReport } from '../statsSummary';
 import type { LoggerOptions } from '../types';
-import { isFireFox, isSafari, isWeb } from '../utils';
+import { isChromiumBased, isFireFox, isSafari, isWeb } from '../utils';
 import type { TrackProcessor } from './processor/types';
 import { getLogContextFromTrack } from './utils';
 
@@ -443,6 +443,13 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) {
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
+    if (track.kind === 'audio' && isChromiumBased()) {
+      // Release the stream before removing an audio track from it. When an element stops playing,
+      // Chrome silences only the tracks still in its stream, so a removed remote audio track keeps
+      // playing while another remote audio element in the page plays. Firefox and Safari stop it.
+      // https://issues.chromium.org/issues/41336384
+      element.srcObject = null;
+    }
     mediaStream.removeTrack(track);
     if (mediaStream.getTracks().length > 0) {
       element.srcObject = mediaStream;
