@@ -1011,15 +1011,10 @@ export class LocalParticipant extends Participant {
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
-            // the pending resolver of this request is gone before this catch runs, so
-            // engine.removeTrack does not reject it again
-            this.engine.removeTrack(track.sender);
+            this.engine.pcManager.publisher.removeTrack(track.sender);
           } catch (e) {
             this.log.error(e);
           }
-          // as in unpublishTrack: a stopped sender rejects replaceTrack, which mute and
-          // restartTrack call
-          track.sender = undefined;
           await this.engine.negotiate().catch((negotiateErr) => {
             this.log.error(
               'failed to negotiate after removing track due to failed add track request',

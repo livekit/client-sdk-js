@@ -99,7 +99,6 @@ import type { LoggerOptions } from './types';
 import {
   isPublisherOfferWithJoinSupported,
   isReactNative,
-  isStopTransceiverSupportedByServer,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -184,10 +183,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.latestJoinResponse?.serverVersion ||
       undefined
     );
-  }
-
-  get serverProtocol(): number | undefined {
-    return this.latestJoinResponse?.serverInfo?.protocol;
   }
 
   /**
@@ -584,8 +579,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /**
    * Removes sender from PeerConnection, returning true if it was removed successfully
-   * and a negotiation is necessary. If the server supports it, it also stops the transceiver
-   * of sender.
+   * and a negotiation is necessary
    * @param sender
    * @returns
    */
@@ -598,7 +592,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
-      this.pcManager!.removeTrack(sender, isStopTransceiverSupportedByServer(this.serverProtocol));
+      this.pcManager!.removeTrack(sender);
       return true;
     } catch (e: unknown) {
       this.log.warn('failed to remove track', { error: e });
