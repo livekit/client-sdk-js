@@ -237,3 +237,21 @@ describe('E2EEManager sender codec seeding', () => {
     expect(encode.data.codec).toBeUndefined();
   });
 });
+
+describe('E2EEManager local encryption state', () => {
+  it('posts the local state from the new and from the deprecated method', () => {
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+    const enableMessages = () =>
+      worker.postMessage.mock.calls.map(([m]) => m).filter((m: any) => m?.kind === 'enable');
+
+    manager.setLocalParticipantCryptorEnabled(true);
+    manager.setParticipantCryptorEnabled(false, 'someone-else');
+
+    expect(enableMessages().map((m: any) => m.data)).toEqual([
+      expect.objectContaining({ enabled: true, local: true }),
+      expect.objectContaining({ enabled: false, local: true }),
+    ]);
+    manager.dispose();
+  });
+});
