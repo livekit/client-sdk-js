@@ -29,6 +29,7 @@ A bot closes the PR with a link to this document. After the issue has the `accep
 - **One issue per PR.** A PR solves one accepted issue. Do not include unrelated refactors or formatting changes.
 - **Sign the CLA.** The CLA bot comments on your first PR with a link. Before you sign the CLA, maintainers do not review the PR.
 - **Disclose AI assistance.** State in the PR description each AI tool that wrote or helped write the change. You must understand the code, and you must test it yourself. Maintainers close PRs that the author cannot explain.
+- **Write the PR description yourself.** We strongly encourage a description in your own words, not text from an AI tool. A short description from you helps more than a long generated one. It shows the maintainers what you understand about the change.
 
 ## Security issues
 
