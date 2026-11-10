@@ -233,11 +233,12 @@ export class E2EEManager
   }
 
   /**
+   * Sets whether the local participant encrypts.
    * @internal
    */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string) {
     this.log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
-    this.postEnable(enabled, participantIdentity);
+    this.postEnable(enabled, participantIdentity, true);
   }
 
   /**
@@ -288,10 +289,7 @@ export class E2EEManager
             this.postKey(keyInfo, false);
           });
         }
-        if (
-          this.encryptionEnabled !== data.enabled &&
-          data.participantIdentity === this.room?.localParticipant.identity
-        ) {
+        if (this.encryptionEnabled !== data.enabled && data.local) {
           this.emit(
             EncryptionEvent.ParticipantEncryptionStatusChanged,
             data.enabled,
@@ -435,6 +433,7 @@ export class E2EEManager
           codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
           participantIdentity: this.room!.localParticipant.identity,
           hasPacketTrailer: false,
+          operation: 'encode',
         },
       };
 
@@ -532,13 +531,14 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postEnable(enabled: boolean, participantIdentity: string) {
+  private postEnable(enabled: boolean, participantIdentity: string, local = false) {
     if (this.worker) {
       const enableMsg: EnableMessage = {
         kind: 'enable',
         data: {
           enabled,
           participantIdentity,
+          local,
         },
       };
       this.worker.postMessage(enableMsg);
@@ -593,10 +593,7 @@ export class E2EEManager
       });
       return;
     }
-    this.setParticipantCryptorEnabled(
-      pub.trackInfo.encryption !== Encryption_Type.NONE,
-      participantIdentity,
-    );
+    this.postEnable(pub.trackInfo.encryption !== Encryption_Type.NONE, participantIdentity);
   }
 
   private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {

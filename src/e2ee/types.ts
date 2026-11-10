@@ -89,6 +89,8 @@ export interface UpdateCodecMessage extends BaseMessage {
      */
     previousTrackId?: string;
     hasPacketTrailer: boolean;
+    /** which cryptor the update is for, a receiver's ('decode') when omitted */
+    operation?: 'encode' | 'decode';
   };
 }
 
@@ -123,6 +125,11 @@ export interface EnableMessage extends BaseMessage {
   data: {
     participantIdentity: string;
     enabled: boolean;
+    /**
+     * Set when the app enables or disables encryption for the local participant. Only such a
+     * message changes whether local media is encrypted.
+     */
+    local?: boolean;
   };
 }
 

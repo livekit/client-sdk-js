@@ -40,6 +40,13 @@ const MAX_PPS_ID_ENCRYPT_ATTEMPTS = 16;
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
 
+let localEncryptionEnabled: boolean | undefined;
+
+/** Sets whether local media is encrypted. */
+export function setLocalEncryptionEnabled(enabled: boolean | undefined) {
+  localEncryptionEnabled = enabled;
+}
+
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
 }
@@ -472,7 +479,17 @@ export class FrameCryptor extends BaseFrameCryptor {
       return controller.enqueue(encodedFrame);
     }
 
-    if (!this.isEnabled()) {
+    if (localEncryptionEnabled === undefined) {
+      this.emitThrottledError(
+        new CryptorError(
+          `encryption state unknown for track ${this.trackId}, dropping frame`,
+          CryptorErrorReason.InternalError,
+          this.participantIdentity,
+        ),
+      );
+      return;
+    }
+    if (!localEncryptionEnabled) {
       this.appendFrameMetadata(encodedFrame);
       return controller.enqueue(encodedFrame);
     }

@@ -8,7 +8,12 @@ import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
-import { FrameCryptor, encryptionEnabledMap, isFrameServerInjected } from './FrameCryptor';
+import {
+  FrameCryptor,
+  encryptionEnabledMap,
+  isFrameServerInjected,
+  setLocalEncryptionEnabled,
+} from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { parseH264IdrPpsId } from './naluUtils';
 
@@ -101,6 +106,7 @@ function prepareParticipantTest(
   const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
 
   encryptionEnabledMap.set(participantIdentity, true);
+  setLocalEncryptionEnabled(true);
 
   const cryptor = new FrameCryptor({
     participantIdentity,
@@ -145,6 +151,40 @@ describe('FrameCryptor', () => {
   describe('encode', () => {
     afterEach(() => {
       encryptionEnabledMap.clear();
+      setLocalEncryptionEnabled(undefined);
+    });
+
+    it('drops the frame and emits an error while the local state is unknown', async () => {
+      const { cryptor, input, output } = prepareParticipantTestEncoder(participantIdentity, {});
+      setLocalEncryptionEnabled(undefined);
+      const errors: Error[] = [];
+      cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
+
+      input.write(mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])));
+      await vitest.waitFor(() => expect(errors).toHaveLength(1));
+
+      expect(output.chunks).toEqual([]);
+    });
+
+    it('encrypts independent of the participant state', async () => {
+      const { cryptor, keys, input, output } = prepareParticipantTestEncoder(
+        participantIdentity,
+        {},
+      );
+      await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+      const plainLength = 16;
+
+      encryptionEnabledMap.clear();
+      input.write(mockRTCEncodedVideoFrame(new Uint8Array(plainLength)));
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
+
+      cryptor.unsetParticipant();
+      input.write(mockRTCEncodedVideoFrame(new Uint8Array(plainLength)));
+      await vitest.waitFor(() => expect(output.chunks).toHaveLength(2));
+
+      for (const frame of output.chunks) {
+        expect(frame.data.byteLength).toBeGreaterThan(plainLength);
+      }
     });
 
     it('passthrough if participant encryption disabled', async () => {
@@ -152,8 +192,8 @@ describe('FrameCryptor', () => {
       try {
         const { input, output } = prepareParticipantTestEncoder(participantIdentity, {});
 
-        // disable encryption for participant
-        encryptionEnabledMap.set(participantIdentity, false);
+        // disable encryption for the local participant
+        setLocalEncryptionEnabled(false);
 
         const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
 

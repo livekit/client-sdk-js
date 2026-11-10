@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
-import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
+import { FrameCryptor, encryptionEnabledMap, setLocalEncryptionEnabled } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 function mockRTCEncodedVideoFrame(data: Uint8Array): RTCEncodedVideoFrame {
@@ -47,6 +47,7 @@ function createCryptor(
   const keyProviderOptions = { ...KEY_PROVIDER_DEFAULTS, ...partialKeyProviderOptions };
   const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
   encryptionEnabledMap.set(participantIdentity, true);
+  setLocalEncryptionEnabled(true);
 
   const cryptor = new FrameCryptor({
     participantIdentity,
