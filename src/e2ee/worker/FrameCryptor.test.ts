@@ -4,8 +4,10 @@ import type { FrameMetadataPublishOptions } from '../../frameMetadata/types';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
+import { subscribeToEvents } from '../../utils/subscribeToEvents';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
-import { CryptorEvent } from '../events';
+import { CryptorErrorReason } from '../errors';
+import { type CryptorCallbacks, CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { FrameCryptor, isFrameServerInjected, setLocalEncryptionEnabled } from './FrameCryptor';
@@ -149,35 +151,41 @@ describe('FrameCryptor', () => {
     });
 
     it('drops the frame and emits an error while the local state is unknown', async () => {
+      // Create an encoder for the local participant
       const { cryptor, input, output } = prepareParticipantTestEncoder(participantIdentity, {});
+      const cryptorEvents = subscribeToEvents<CryptorCallbacks>(cryptor, [CryptorEvent.Error]);
+
+      // The app did not say yet whether the local participant encrypts
       setLocalEncryptionEnabled(undefined);
-      const errors: Error[] = [];
-      cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
 
-      input.write(mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])));
-      await vitest.waitFor(() => expect(errors).toHaveLength(1));
+      // Send a frame
+      input.write(mockRTCEncodedVideoFrame(new Uint8Array(16)));
 
-      expect(output.chunks).toEqual([]);
+      // The cryptor reports an error
+      const error = await cryptorEvents.waitFor(CryptorEvent.Error);
+      expect(error.reason).toStrictEqual(CryptorErrorReason.InternalError);
+
+      // The frame was not sent
+      expect(output.chunks).toStrictEqual([]);
     });
 
-    it('encrypts independent of the participant state', async () => {
+    it('encrypts after the participant was unset', async () => {
+      // Create an encoder for the local participant, with a key
       const { cryptor, keys, input, output } = prepareParticipantTestEncoder(
         participantIdentity,
         {},
       );
       await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-      const plainLength = 16;
 
-      input.write(mockRTCEncodedVideoFrame(new Uint8Array(plainLength)));
+      // Unset the participant of the cryptor
+      cryptor.unsetParticipant();
+
+      // Send a frame of 16 bytes
+      input.write(mockRTCEncodedVideoFrame(new Uint8Array(16)));
       await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
 
-      cryptor.unsetParticipant();
-      input.write(mockRTCEncodedVideoFrame(new Uint8Array(plainLength)));
-      await vitest.waitFor(() => expect(output.chunks).toHaveLength(2));
-
-      for (const frame of output.chunks) {
-        expect(frame.data.byteLength).toBeGreaterThan(plainLength);
-      }
+      // The sent frame is longer, because encryption appends the IV and the trailer
+      expect(output.chunks[0].data.byteLength).toBeGreaterThan(16);
     });
 
     it('passthrough if participant encryption disabled', async () => {

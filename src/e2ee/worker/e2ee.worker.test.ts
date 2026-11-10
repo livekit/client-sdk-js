@@ -1,24 +1,17 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { E2EEWorkerMessage } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { setLocalEncryptionEnabled } from './FrameCryptor';
 
-function mockFrame(data: Uint8Array): RTCEncodedVideoFrame {
-  return {
-    data: data.buffer,
-    timestamp: 1,
-    type: 'key',
-    getMetadata: () => ({}),
-  } as RTCEncodedVideoFrame;
-}
-
 describe('e2ee worker', () => {
+  // Sends a message to the worker, like `worker.postMessage` on the main thread
   const post = (msg: E2EEWorkerMessage) =>
     (globalThis.onmessage as (ev: { data: E2EEWorkerMessage }) => void)({ data: msg });
 
   beforeAll(async () => {
-    vi.stubGlobal('postMessage', vi.fn());
+    // The test runs outside of a worker scope: give the worker a place to post its replies
+    globalThis.postMessage = () => {};
     await import('./e2ee.worker');
   });
 
@@ -27,14 +20,7 @@ describe('e2ee worker', () => {
   });
 
   it('keeps sender and receiver cryptors with the same track id apart', async () => {
-    const sent: RTCEncodedVideoFrame[] = [];
-    let send: (frame: RTCEncodedVideoFrame) => void = () => {};
-    const streams = () => ({
-      readableStream: new ReadableStream(),
-      writableStream: new WritableStream(),
-      hasPacketTrailer: false,
-    });
-
+    // Set up the worker with encryption enabled and a key for the local participant
     post({
       kind: 'init',
       data: { keyProviderOptions: { ...KEY_PROVIDER_DEFAULTS, sharedKey: false }, loglevel: 4 },
@@ -50,49 +36,69 @@ describe('e2ee worker', () => {
         updateCurrentKeyIndex: true,
       },
     });
+
+    // Set up a sender for the local track "mic"
+    let senderInput!: ReadableStreamDefaultController<RTCEncodedVideoFrame>;
+    const sentFrames: RTCEncodedVideoFrame[] = [];
     post({
       kind: 'encode',
       data: {
-        ...streams(),
         participantIdentity: 'me',
         trackId: 'mic',
+        hasPacketTrailer: false,
         readableStream: new ReadableStream({
-          start: (c) => {
-            send = (f) => c.enqueue(f);
+          start: (controller) => {
+            senderInput = controller;
           },
         }),
         writableStream: new WritableStream({
-          write: (f) => {
-            sent.push(f);
+          write: (frame) => {
+            sentFrames.push(frame);
           },
         }),
       },
     });
-    post({ kind: 'enable', data: { enabled: false, participantIdentity: 'me' } });
+
+    // Set up a receiver for a remote track that is also called "mic", then remove it
     post({
       kind: 'decode',
-      data: { ...streams(), participantIdentity: 'remote', trackId: 'mic' },
+      data: {
+        participantIdentity: 'remote',
+        trackId: 'mic',
+        hasPacketTrailer: false,
+        readableStream: new ReadableStream(),
+        writableStream: new WritableStream(),
+      },
     });
     post({ kind: 'removeTransform', data: { participantIdentity: 'remote', trackId: 'mic' } });
 
-    await vi.waitFor(() => expect(send).not.toBe(undefined));
-    const plainLength = 16;
-    // let the queued messages run before the frame arrives
+    // The worker handles its messages one after the other: wait until it is through
     await new Promise((resolve) => setTimeout(resolve, 20));
-    send(mockFrame(new Uint8Array(plainLength)));
 
-    await vi.waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0].data.byteLength).toBeGreaterThan(plainLength);
+    // Send a frame of 16 bytes on the local track
+    senderInput.enqueue({
+      data: new Uint8Array(16).buffer,
+      timestamp: 1,
+      type: 'key',
+      getMetadata: () => ({}),
+    } as RTCEncodedVideoFrame);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // The sent frame is longer, because encryption appends the IV and the trailer
+    expect(sentFrames).toHaveLength(1);
+    expect(sentFrames[0].data.byteLength).toBeGreaterThan(16);
   });
 
   it('keeps the encryption state of each received track separate', async () => {
-    const played: RTCEncodedVideoFrame[] = [];
-    let receive: (frame: RTCEncodedVideoFrame) => void = () => {};
-
+    // Set up the worker. The remote participant "alice" has no key
     post({
       kind: 'init',
       data: { keyProviderOptions: { ...KEY_PROVIDER_DEFAULTS, sharedKey: false }, loglevel: 4 },
     });
+
+    // Set up a receiver for an encrypted track of alice
+    let receiverInput!: ReadableStreamDefaultController<RTCEncodedVideoFrame>;
+    const decodedFrames: RTCEncodedVideoFrame[] = [];
     post({
       kind: 'decode',
       data: {
@@ -101,35 +107,45 @@ describe('e2ee worker', () => {
         encrypted: true,
         hasPacketTrailer: false,
         readableStream: new ReadableStream({
-          start: (c) => {
-            receive = (f) => c.enqueue(f);
+          start: (controller) => {
+            receiverInput = controller;
           },
         }),
         writableStream: new WritableStream({
-          write: (f) => {
-            played.push(f);
+          write: (frame) => {
+            decodedFrames.push(frame);
           },
         }),
       },
     });
+
+    // Set up a receiver for a second track of alice, which is not encrypted
     post({ kind: 'enable', data: { enabled: false, participantIdentity: 'alice' } });
     post({
       kind: 'decode',
       data: {
         participantIdentity: 'alice',
         trackId: 'alice-screen',
-        encrypted: false,
+        encrypted: false /* <-- DIFFERENCE */,
         hasPacketTrailer: false,
         readableStream: new ReadableStream(),
         writableStream: new WritableStream(),
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    // no key for alice: a frame of the encrypted track must not reach the decoder as it is
-    receive(mockFrame(new Uint8Array(32)));
+    // The worker handles its messages one after the other: wait until it is through
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(played).toHaveLength(0);
+    // Receive a frame on the encrypted track
+    receiverInput.enqueue({
+      data: new Uint8Array(32).buffer,
+      timestamp: 1,
+      type: 'key',
+      getMetadata: () => ({}),
+    } as RTCEncodedVideoFrame);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // The frame cannot be decrypted without a key, so it does not reach the decoder
+    expect(decodedFrames).toStrictEqual([]);
   });
 });
