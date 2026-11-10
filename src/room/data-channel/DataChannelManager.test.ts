@@ -1,3 +1,4 @@
+import { NegotiatedDataChannelID } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type { PCTransportManager } from '../PCTransportManager';
 import { UnexpectedConnectionState } from '../errors';
@@ -122,6 +123,42 @@ describe('DataChannelManager', () => {
     await expect(
       manager.reliable.waitForHeadroomWithLock(reliableHandle(manager)),
     ).resolves.toBeUndefined();
+
+    manager.lossy.stopThresholdTuning();
+  });
+
+  it('creates negotiated channels with fixed ids and can fall back to in-band ones', () => {
+    const { manager, pcManager } = makeManager();
+    const createSpy = vi.mocked(pcManager.createPublisherDataChannel);
+
+    manager.createPublisherChannels(pcManager, true);
+
+    expect(manager.publisherChannelsNegotiated).toBe(true);
+    expect(createSpy).toHaveBeenCalledWith('_reliable', {
+      ordered: true,
+      negotiated: true,
+      id: NegotiatedDataChannelID.NDCI_RELIABLE,
+    });
+    expect(createSpy).toHaveBeenCalledWith('_lossy', {
+      ordered: false,
+      maxRetransmits: 0,
+      negotiated: true,
+      id: NegotiatedDataChannelID.NDCI_LOSSY,
+    });
+    expect(createSpy).toHaveBeenCalledWith('_data_track', {
+      ordered: false,
+      maxRetransmits: 0,
+      negotiated: true,
+      id: NegotiatedDataChannelID.NDCI_DATA_TRACK,
+    });
+
+    createSpy.mockClear();
+    manager.createPublisherChannels(pcManager, false);
+
+    expect(manager.publisherChannelsNegotiated).toBe(false);
+    expect(createSpy).toHaveBeenCalledWith('_reliable', { ordered: true });
+    manager.teardown();
+    expect(manager.publisherChannelsNegotiated).toBe(false);
 
     manager.lossy.stopThresholdTuning();
   });
