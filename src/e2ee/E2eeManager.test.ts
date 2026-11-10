@@ -239,19 +239,37 @@ describe('E2EEManager sender codec seeding', () => {
 });
 
 describe('E2EEManager local encryption state', () => {
-  it('posts the local state from the new and from the deprecated method', () => {
+  it('posts the local state from setLocalParticipantCryptorEnabled', () => {
+    // Create a manager with a worker that records its messages
     const { room, worker, manager } = makeManager();
     manager.setup(room);
-    const enableMessages = () =>
-      worker.postMessage.mock.calls.map(([m]) => m).filter((m: any) => m?.kind === 'enable');
 
+    // Enable encryption for the local participant
     manager.setLocalParticipantCryptorEnabled(true);
-    manager.setParticipantCryptorEnabled(false, 'someone-else');
 
-    expect(enableMessages().map((m: any) => m.data)).toEqual([
-      expect.objectContaining({ enabled: true, local: true }),
-      expect.objectContaining({ enabled: false, local: true }),
-    ]);
+    // The worker got an enable message that is marked as local
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      kind: 'enable',
+      data: { enabled: true, participantIdentity: '', local: true },
+    });
+
+    manager.dispose();
+  });
+
+  it('posts the local state from the deprecated setParticipantCryptorEnabled', () => {
+    // Create a manager with a worker that records its messages
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+
+    // Enable encryption with the deprecated method, which ignores the identity
+    manager.setParticipantCryptorEnabled(true, 'someone-else'); /* <-- DIFFERENCE */
+
+    // The worker got an enable message that is marked as local
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      kind: 'enable',
+      data: { enabled: true, participantIdentity: '', local: true },
+    });
+
     manager.dispose();
   });
 });
