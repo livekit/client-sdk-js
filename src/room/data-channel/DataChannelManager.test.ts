@@ -1,3 +1,4 @@
+import { NegotiatedDataChannelID } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type { PCTransportManager } from '../PCTransportManager';
 import { UnexpectedConnectionState } from '../errors';
@@ -136,19 +137,19 @@ describe('DataChannelManager', () => {
     expect(createSpy).toHaveBeenCalledWith('_reliable', {
       ordered: true,
       negotiated: true,
-      id: 100,
+      id: NegotiatedDataChannelID.NDCI_RELIABLE,
     });
     expect(createSpy).toHaveBeenCalledWith('_lossy', {
       ordered: false,
       maxRetransmits: 0,
       negotiated: true,
-      id: 101,
+      id: NegotiatedDataChannelID.NDCI_LOSSY,
     });
     expect(createSpy).toHaveBeenCalledWith('_data_track', {
       ordered: false,
       maxRetransmits: 0,
       negotiated: true,
-      id: 102,
+      id: NegotiatedDataChannelID.NDCI_DATA_TRACK,
     });
 
     createSpy.mockClear();
