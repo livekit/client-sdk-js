@@ -283,4 +283,21 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
       }
     }
   }
+
+  /**
+   * No ack or response can arrive once the local participant has left the room.
+   * @internal
+   */
+  handleRoomDisconnected() {
+    for (const { resolve } of this.pendingAcks.values()) {
+      // clears the ack timer
+      resolve();
+    }
+    this.pendingAcks.clear();
+
+    for (const { completionFuture } of this.pendingResponses.values()) {
+      completionFuture.reject?.(RpcError.builtIn('RECIPIENT_DISCONNECTED'));
+    }
+    this.pendingResponses.clear();
+  }
 }

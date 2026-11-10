@@ -1176,3 +1176,27 @@ describe('participant updates for an earlier session (#2228)', () => {
     expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
   });
 });
+
+describe('rpc', () => {
+  it('rejects a pending performRpc when the room disconnects', async () => {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    vi.spyOn(room.engine, 'sendDataPacket').mockResolvedValue(undefined);
+
+    const response = room.localParticipant.performRpc({
+      destinationIdentity: 'remote',
+      method: 'm',
+      payload: 'p',
+      responseTimeout: 300_000,
+    });
+    const settled = response.then(
+      () => 'resolved',
+      (e: Error) => e.message,
+    );
+    await vi.waitFor(() => expect(room.engine.sendDataPacket).toHaveBeenCalled());
+
+    await room.disconnect();
+
+    expect(await settled).toBe('Recipient disconnected');
+  });
+});
