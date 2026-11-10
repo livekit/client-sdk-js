@@ -267,6 +267,11 @@ export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
     return false;
   }
+  // machina (the SDK's state machines) calls `new WeakRef` and `Object.hasOwn` unguarded on every join,
+  // so browsers without them (e.g. Safari < 15.4) pass the WebRTC checks and then throw a ReferenceError/TypeError.
+  if (typeof WeakRef === 'undefined' || typeof Object.hasOwn !== 'function') {
+    return false;
+  }
   return supportsTransceiver() || supportsAddTrack();
 }
 

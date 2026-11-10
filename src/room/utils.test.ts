@@ -12,6 +12,7 @@ import {
   isAppleMobile,
   isCompressionStreamSupported,
   isDeflateRawCompressionSupported,
+  isBrowserSupported,
   isIPadOS,
   isPermissionDeniedError,
   isSVCSimulcast,
@@ -615,5 +616,48 @@ describe('empty audio stream track refcounting', () => {
 
     await releaseEmptyAudioStreamTrack(getEmptyAudioStreamTrack());
     expect(closedContexts).toBe(2);
+  });
+});
+
+describe('isBrowserSupported', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const stubWebRTC = () => {
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTrack() {}
+      },
+    );
+  };
+
+  it('is true when WebRTC and the language features the SDK relies on are present', () => {
+    stubWebRTC();
+    expect(isBrowserSupported()).toBe(true);
+  });
+
+  it('is false without RTCPeerConnection', () => {
+    vi.stubGlobal('RTCPeerConnection', undefined);
+    expect(isBrowserSupported()).toBe(false);
+  });
+
+  it('is false without WeakRef (Safari < 14.1)', () => {
+    stubWebRTC();
+    vi.stubGlobal('WeakRef', undefined);
+    expect(isBrowserSupported()).toBe(false);
+  });
+
+  it('is false without Object.hasOwn (Safari < 15.4)', () => {
+    stubWebRTC();
+    const { hasOwn } = Object;
+    // @ts-expect-error simulating an engine without Object.hasOwn
+    delete Object.hasOwn;
+    try {
+      expect(isBrowserSupported()).toBe(false);
+    } finally {
+      Object.hasOwn = hasOwn;
+    }
   });
 });
