@@ -8,6 +8,8 @@ import { subscribeToEvents } from '../utils/subscribeToEvents';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
 import { type E2EEManagerCallbacks, EncryptionEvent } from './events';
+import type { KeyProviderOptions } from './types';
+import { createKeyMaterialFromString } from './utils';
 
 /**
  * Install just enough of the DOM to let isE2EESupported() return true so
@@ -24,7 +26,7 @@ function installE2EEShims() {
 class FakeWorker {
   postMessage = vi.fn();
 
-  onmessage: unknown = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
 
   onerror: unknown = null;
 
@@ -304,5 +306,52 @@ describe('E2EEManager local encryption state', () => {
     ).toStrictEqual(false);
 
     manager.dispose();
+  });
+});
+
+describe('E2EEManager key replay on enable acknowledgements', () => {
+  class TestKeyProvider extends BaseKeyProvider {
+    async setKey(passphrase: string, keyIndex: number, participantIdentity?: string) {
+      this.onSetEncryptionKey(
+        await createKeyMaterialFromString(passphrase),
+        participantIdentity,
+        keyIndex,
+      );
+    }
+  }
+
+  async function acknowledgeEnableAfterTwoKeys(options: Partial<KeyProviderOptions>) {
+    installE2EEShims();
+    const room = new Room();
+    room.localParticipant.identity = 'me';
+    const worker = new FakeWorker();
+    const keyProvider = new TestKeyProvider(options);
+    const manager = new E2EEManager({ keyProvider, worker: worker as unknown as Worker }, false);
+    manager.setup(room);
+    const participantIdentity = options.sharedKey ? undefined : 'me';
+    await keyProvider.setKey('first', 0, participantIdentity);
+    await keyProvider.setKey('second', 1, participantIdentity);
+    worker.postMessage.mockClear();
+
+    worker.onmessage?.(
+      new MessageEvent('message', {
+        data: { kind: 'enable', data: { enabled: true, participantIdentity: 'me', local: true } },
+      }),
+    );
+    manager.dispose();
+
+    return worker.postMessage.mock.calls.map(([m]) => m).filter((m: any) => m?.kind === 'setKey');
+  }
+
+  it('does not re-send the shared keys the worker already holds', async () => {
+    expect(await acknowledgeEnableAfterTwoKeys({ sharedKey: true })).toEqual([]);
+  });
+
+  it('re-sends the participant keys without changing the active key', async () => {
+    const setKeys = await acknowledgeEnableAfterTwoKeys({ sharedKey: false });
+    expect(setKeys.map((m: any) => [m.data.keyIndex, m.data.updateCurrentKeyIndex])).toEqual([
+      [0, false],
+      [1, false],
+    ]);
   });
 });

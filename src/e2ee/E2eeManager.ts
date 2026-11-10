@@ -302,7 +302,7 @@ export class E2EEManager
         break;
 
       case 'enable':
-        if (data.enabled) {
+        if (data.enabled && !this.keyProvider.getOptions().sharedKey) {
           this.keyProvider.getKeys().forEach((keyInfo) => {
             this.postKey(keyInfo, false);
           });

@@ -432,7 +432,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.sifTrailer = trailer;
   }
 
-  private emitThrottledError(error: CryptorError) {
+  private emitThrottledError(error: CryptorError): boolean {
     const errorKey = `${this.participantIdentity}-${error.reason}-decrypt`;
     const emit = this.errorLimiter.shouldEmit(errorKey, () => {
       workerLogger.warn(`Suppressing further decryption errors for ${this.participantIdentity}`, {
@@ -440,7 +440,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         errorKey,
       });
     });
-    if (!emit) return;
+    if (!emit) return false;
 
     const count = this.errorLimiter.countFor(errorKey);
     if (count > 1) {
@@ -450,6 +450,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       });
     }
     this.emit(CryptorEvent.Error, error);
+    return true;
   }
 
   /**
@@ -740,14 +741,16 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     } else {
       // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
-      workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
-      this.emitThrottledError(
+      const emitted = this.emitThrottledError(
         new CryptorError(
           `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
           CryptorErrorReason.MissingKey,
           this.participantIdentity,
         ),
       );
+      if (emitted) {
+        workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
+      }
       this.keys.decryptionFailure(keyIndex);
     }
   }
