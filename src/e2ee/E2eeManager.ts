@@ -307,13 +307,15 @@ export class E2EEManager
             this.postKey(keyInfo, false);
           });
         }
-        if (this.encryptionEnabled !== data.enabled && data.local) {
-          this.emit(
-            EncryptionEvent.ParticipantEncryptionStatusChanged,
-            data.enabled,
-            this.room!.localParticipant,
-          );
-          this.encryptionEnabled = data.enabled;
+        if (data.local) {
+          if (this.encryptionEnabled !== data.enabled) {
+            this.emit(
+              EncryptionEvent.ParticipantEncryptionStatusChanged,
+              data.enabled,
+              this.room!.localParticipant,
+            );
+            this.encryptionEnabled = data.enabled;
+          }
         } else if (data.participantIdentity) {
           const participant = this.room?.getParticipantByIdentity(data.participantIdentity);
           if (!participant) {

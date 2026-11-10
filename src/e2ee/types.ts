@@ -251,6 +251,7 @@ export type KeyInfo = {
 
 export type E2EEManagerOptions = {
   keyProvider: BaseKeyProvider;
+  /** The worker holds the encryption state of one room. Do not share it between rooms. */
   worker: Worker;
 };
 
