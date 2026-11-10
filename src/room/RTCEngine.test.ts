@@ -1546,7 +1546,7 @@ describe('RTCEngine', () => {
         mode: 'publisher-only',
         publisher,
         setPublisherAnswer,
-        getMidForReceiver: (receiver: { mid: string }) => receiver.mid,
+        getTransceiverForReceiver: (receiver: { mid: string }) => ({ mid: receiver.mid }),
       };
       internals.setupSignalClientCallbacks();
       const trackIdFor = (mid: string) =>
