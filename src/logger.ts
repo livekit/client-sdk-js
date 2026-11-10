@@ -1,4 +1,4 @@
-import * as log from 'loglevel';
+import log from 'loglevel';
 
 export enum LogLevel {
   trace = 0,
@@ -50,8 +50,6 @@ livekitLogger.setDefaultLevel(LogLevel.info);
 export default livekitLogger as StructuredLogger;
 
 /**
- * @internal
- *
  * Get a named logger. When `ctxFn` is supplied, every log call
  * automatically:
  * 1. prepends a `[key=value ...]` prefix derived from `ctxFn()` to the

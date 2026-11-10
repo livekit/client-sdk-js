@@ -1,4 +1,4 @@
-import { createLocalVideoTrack } from '../../room/track/create';
+import { createLocalVideoTrack } from '../../room/video/create';
 import { Checker } from './Checker';
 
 export class PublishVideoCheck extends Checker {

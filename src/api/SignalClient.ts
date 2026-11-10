@@ -56,7 +56,7 @@ import {
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
-import { type DataTrackSid } from '../room/data-track/types';
+import type { DataTrackSid } from '../room/data-track/types';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
@@ -727,8 +727,9 @@ export class SignalClient {
         const resp = parseSignalResponse(value);
         this.handleSignalResponse(resp);
       } catch (e) {
-        this.log.error(`error reading from signal stream`, { error: e });
-        await this.handleOnClose('error in reading loop', attemptId);
+        // only an unexpected loss is an error: a read that fails because we closed the socket
+        // ourselves (or it was replaced) is logged at debug level by handleOnClose
+        await this.handleOnClose('error in reading loop', attemptId, undefined, e);
         break;
       }
     }
@@ -1151,6 +1152,7 @@ export class SignalClient {
     reason: string,
     attemptId: number = this.attemptId,
     simulateReconnectDelay?: number,
+    readError?: unknown,
   ) {
     const onCloseCallback = this.onClose;
     if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
@@ -1161,8 +1163,12 @@ export class SignalClient {
         reason,
         attemptId,
         currentAttemptId: this.attemptId,
+        ...(readError !== undefined ? { error: readError } : {}),
       });
       return;
+    }
+    if (readError !== undefined) {
+      this.log.error(`error reading from signal stream`, { error: readError });
     }
     await this.teardownTransport(reason);
     this.log.info(`websocket connection closed: ${reason}`, { reason });
@@ -1185,6 +1191,10 @@ export class SignalClient {
    */
   private resetPingTimeout() {
     this.clearPingTimeout();
+    if (this.isDisconnected) {
+      // the read loop can still deliver messages while close() waits for the socket to close
+      return;
+    }
     if (!this.pingTimeoutDuration) {
       this.log.warn('ping timeout duration not set');
       return;

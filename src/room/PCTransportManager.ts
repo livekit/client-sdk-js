@@ -1,8 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
-import type { Throws } from '@livekit/throws-transformer/throws';
 import log, { LoggerNames, getLogger } from '../logger';
 import TypedPromise from '../utils/TypedPromise';
+import type { Throws } from '../utils/throws';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, NegotiationError } from './errors';
@@ -20,12 +20,18 @@ export enum PCTransportState {
 }
 
 type PCMode = 'subscriber-primary' | 'publisher-primary' | 'publisher-only';
+
+export type PCTransportManagerOptions = {
+  rtcConfig?: RTCConfiguration;
+  peerConnectionTimeout?: number;
+};
+
 export class PCTransportManager {
   public publisher: PCTransport;
 
   public subscriber?: PCTransport;
 
-  public peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
+  public readonly peerConnectionTimeout: number;
 
   public get needsPublisher() {
     return this.isPublisherConnectionRequired;
@@ -75,8 +81,16 @@ export class PCTransportManager {
     return this._mode;
   }
 
-  constructor(mode: PCMode, loggerOptions: LoggerOptions, rtcConfig?: RTCConfiguration) {
+  constructor(
+    mode: PCMode,
+    loggerOptions: LoggerOptions,
+    {
+      rtcConfig,
+      peerConnectionTimeout = roomConnectOptionDefaults.peerConnectionTimeout,
+    }: PCTransportManagerOptions = {},
+  ) {
     this.loggerOptions = loggerOptions;
+    this.peerConnectionTimeout = peerConnectionTimeout;
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager, () => this.logContext);
     this.iceLog = getLogger(LoggerNames.ICE, () => this.logContext);
 
@@ -315,14 +329,11 @@ export class PCTransportManager {
     return this.publisher.addTransceiverOfKind(kind, transceiverInit);
   }
 
-  getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
+  getTransceiverForReceiver(receiver: RTCRtpReceiver): RTCRtpTransceiver | undefined {
     const transceivers = this.subscriber
       ? this.subscriber.getTransceivers()
       : this.publisher.getTransceivers();
-    const matchingTransceiver = transceivers.find(
-      (transceiver) => transceiver.receiver === receiver,
-    );
-    return matchingTransceiver?.mid;
+    return transceivers.find((transceiver) => transceiver.receiver === receiver);
   }
 
   getMaxPublisherMessageSize() {
@@ -409,18 +420,23 @@ export class PCTransportManager {
 
         reject(ConnectionError.cancelled('room connection has been cancelled'));
       };
+
+      let timedOut = false;
+      const connectTimeout = CriticalTimers.setTimeout(() => {
+        timedOut = true;
+        abortController?.signal.removeEventListener('abort', abortHandler);
+        reject(ConnectionError.internal('could not establish pc connection'));
+      }, timeout);
       if (abortController?.signal.aborted) {
         abortHandler();
       }
       abortController?.signal.addEventListener('abort', abortHandler);
 
-      const connectTimeout = CriticalTimers.setTimeout(() => {
-        abortController?.signal.removeEventListener('abort', abortHandler);
-        reject(ConnectionError.internal('could not establish pc connection'));
-      }, timeout);
-
       while (this.state !== PCTransportState.CONNECTED) {
         await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
+        if (timedOut) {
+          return;
+        }
         if (abortController?.signal.aborted) {
           reject(ConnectionError.cancelled('room connection has been cancelled'));
           return;

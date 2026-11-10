@@ -109,14 +109,16 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   /* @internal */
   startMonitor(signalClient: SignalClient) {
     this.signalClient = signalClient;
-    if (!isWeb()) {
-      return;
-    }
+
     // save original encodings
     // TODO : merge simulcast tracks stats
     const params = this.sender?.getParameters();
     if (params) {
       this.encodings = params.encodings;
+    }
+
+    if (!isWeb()) {
+      return;
     }
 
     if (this.monitorInterval) {

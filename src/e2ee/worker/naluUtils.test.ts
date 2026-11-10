@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAnnexBStartCodes, processNALUsForEncryption } from './naluUtils';
+import {
+  normalizeAnnexBStartCodes,
+  parseH264IdrPpsId,
+  processNALUsForEncryption,
+} from './naluUtils';
 
 /** Annex-B frame: a 4-byte start code before every NALU. */
 function annexB(...nalus: number[][]) {
@@ -119,5 +123,21 @@ describe('processNALUsForEncryption', () => {
       detectedCodec: 'unknown',
       requiresNALUProcessing: false,
     });
+  });
+});
+
+describe('parseH264IdrPpsId', () => {
+  it('reads the PPS id past the second byte of the slice (#2180)', () => {
+    // Intel Quick Sync: slice_type 7 takes 7 bits, so the id is the first bit of the third byte.
+    expect(parseH264IdrPpsId(Uint8Array.from([0x65, 0x88, 0x80, 0x40, 0x87, 0x0a]))).toBe(0);
+    // VideoToolbox: slice_type 2 takes 3 bits, so the id sits in the second byte.
+    expect(parseH264IdrPpsId(Uint8Array.from([0x25, 0xb8, 0x00, 0x40, 0x00, 0x84]))).toBe(0);
+    // first_mb_in_slice 0, slice_type 7, pic_parameter_set_id 1 (bits 1 0001000 010).
+    expect(parseH264IdrPpsId(Uint8Array.from([0x65, 0x88, 0x5f, 0xff]))).toBe(1);
+  });
+
+  it('returns null for a non-IDR slice or a slice that ends inside the field', () => {
+    expect(parseH264IdrPpsId(Uint8Array.from([0x41, 0x9a, 0x21, 0x43]))).toBeNull();
+    expect(parseH264IdrPpsId(Uint8Array.from([0x65, 0x88]))).toBeNull();
   });
 });

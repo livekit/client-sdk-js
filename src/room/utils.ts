@@ -6,14 +6,14 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
-import { type Throws } from '@livekit/throws-transformer/throws';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import type { BrowserDetails } from '../utils/browserParser';
+import { type Throws } from '../utils/throws';
 import { clientProtocol, protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
-import type LocalParticipant from './participant/LocalParticipant';
+import type { LocalParticipant } from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';

@@ -55,7 +55,9 @@ import {
 } from '../api/SignalClient';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import { asEncryptablePacket, isInsertableStreamSupported } from '../e2ee/utils';
+import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
 import {
+  getPublishFrameMetadata,
   hasFrameMetadataPublishOptions,
   isFrameMetadataSupported,
   shouldUseFrameMetadataScriptTransform,
@@ -74,7 +76,6 @@ import type { FlowControlledDataChannel } from './data-channel/FlowControlledDat
 import type { LossyDataChannel } from './data-channel/LossyDataChannel';
 import type { ReliableDataChannel } from './data-channel/ReliableDataChannel';
 import { DataChannelKind } from './data-channel/types';
-import { DataTrackInfo } from './data-track/types';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -89,7 +90,7 @@ import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
-import LocalVideoTrack from './track/LocalVideoTrack';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import type { Track } from './track/Track';
@@ -137,8 +138,8 @@ export { DataChannelKind };
 // `0` means "no limit".
 const DEFAULT_MAX_MESSAGE_SIZE = 64_000;
 
-/** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+  /** @internal */
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
@@ -161,6 +162,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   e2eeManager: BaseE2EEManager | undefined;
+
+  /** @internal set by the room from the `frameMetadata` extension */
+  frameMetadataOptions: FrameMetadataOptions | undefined;
 
   get isClosed() {
     return this._isClosed;
@@ -229,6 +233,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private attemptingReconnect: boolean = false;
 
   private reconnectAbortController?: AbortController;
+
+  /**
+   * the attempt of a full reconnect on one region, handed out with `SignalRestarted`. Aborted when
+   * the next attempt begins, on the next region or in a later restart, and on close
+   */
+  private restartAttemptController?: AbortController;
 
   private reconnectPolicy: ReconnectPolicy;
 
@@ -499,6 +509,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async close(reason?: string) {
     this.reconnectAbortController?.abort();
     this.reconnectAbortController = undefined;
+    this.restartAttemptController?.abort();
+    this.restartAttemptController = undefined;
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -622,7 +634,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (!joinResponse) {
       const rtcConfig = this.makeRTCConfiguration();
-      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, rtcConfig);
+      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, {
+        rtcConfig,
+        peerConnectionTimeout: this.peerConnectionTimeout,
+      });
     } else {
       this.participantSid = joinResponse.participant?.sid;
       const rtcConfig = this.makeRTCConfiguration(joinResponse);
@@ -633,7 +648,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             ? 'subscriber-primary'
             : 'publisher-primary',
         this.loggerOptions,
-        rtcConfig,
+        { rtcConfig, peerConnectionTimeout: this.peerConnectionTimeout },
       );
     }
 
@@ -722,14 +737,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
+      // an answer to an older offer is never applied by the publisher transport, so
+      // neither its mapping nor anything else in it may replace the current answer's state
+      if (this.pcManager.publisher.isStaleAnswer(offerId)) {
+        this.log.warn('ignoring answer for old offer', {
+          offerId,
+          latestOfferId: this.pcManager.publisher.latestOfferId,
+        });
+        return;
+      }
       this.log.debug('received server answer', {
         RTCSdpType: sd.type,
         sdp: sd.sdp,
         midToTrackId,
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
-      // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      if (this.pcManager.mode === 'publisher-only') {
+      // transport has no sending tracks) and must not clobber the subscriber offer mapping.
+      // an empty mapping is decoded as `{}` and would wipe the current one as well, so it is
+      // ignored the same way the Rust SDK does
+      if (this.pcManager.mode === 'publisher-only' && Object.keys(midToTrackId).length > 0) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
@@ -1137,7 +1163,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private get frameMetadataWorker(): Worker | undefined {
-    return (this.options.frameMetadata ?? this.options.packetTrailer)?.worker;
+    return this.frameMetadataOptions?.worker;
   }
 
   private setupFrameMetadataSender(sender: RTCRtpSender, opts: TrackPublishOptions = {}) {
@@ -1146,7 +1172,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    const frameMetadata = opts.frameMetadata ?? opts.packetTrailer;
+    const frameMetadata = getPublishFrameMetadata(opts);
     const hasMetadata = hasFrameMetadataPublishOptions(frameMetadata);
 
     if (shouldUseFrameMetadataScriptTransform()) {
@@ -1161,7 +1187,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (
-      !isFrameMetadataSupported(this.options.frameMetadata ?? this.options.packetTrailer) ||
+      !isFrameMetadataSupported(this.frameMetadataOptions) ||
       !('createEncodedStreams' in sender)
     ) {
       if (hasMetadata) {
@@ -1304,11 +1330,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // since the current engine may have inherited a regional url
       this.emit(EngineEvent.TokenRefreshed, this.token);
     }
-    this.reconnectTimeout = CriticalTimers.setTimeout(
+    const reconnectTimeout = CriticalTimers.setTimeout(
       () =>
-        this.attemptReconnect(disconnectReason).finally(() => (this.reconnectTimeout = undefined)),
+        this.attemptReconnect(disconnectReason).finally(() => {
+          // a failed attempt schedules its retry before this runs; don't clear the retry's handle
+          if (this.reconnectTimeout === reconnectTimeout) {
+            this.reconnectTimeout = undefined;
+          }
+        }),
       delay,
     );
+    this.reconnectTimeout = reconnectTimeout;
   };
 
   /**
@@ -1497,6 +1529,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.restartAttemptController?.abort();
+      const restartAttempt = new AbortController();
+      this.restartAttemptController = restartAttempt;
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1544,7 +1579,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse);
+      this.emit(EngineEvent.SignalRestarted, joinResponse, restartAttempt.signal);
 
       await this.waitForPCReconnected();
       if (abortSignal.aborted) {
@@ -1663,7 +1698,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    // A full reconnect during the initial connection replaces the transports polled below, so its
+    // `Restarted` completes the initial connection too. The engine closing (e.g. giving up) fails it.
+    let restarting = false;
+    const onRestarting = () => {
+      restarting = true;
+    };
+    let onRestarted!: () => void;
+    let onClosing!: () => void;
+    let onAbort!: () => void;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const engineOutcome = new Promise<void>((resolve, reject) => {
+      onRestarted = resolve;
+      onClosing = () => reject(ConnectionError.internal('could not establish pc connection'));
+      onAbort = () => reject(ConnectionError.cancelled('room connection has been cancelled'));
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Closing, onClosing);
+      // The transport wait below enforces these too, but not once it has resolved.
+      abortController?.signal.addEventListener('abort', onAbort);
+      deadline = CriticalTimers.setTimeout(onClosing, timeout ?? this.peerConnectionTimeout);
+    });
+    this.once(EngineEvent.Restarting, onRestarting);
+    try {
+      await Promise.race([
+        this.pcManager.ensurePCTransportConnection(abortController, timeout),
+        engineOutcome,
+      ]);
+      if (restarting) {
+        // Transports that connected once a restart had begun are about to be closed; follow it.
+        await engineOutcome;
+      }
+    } finally {
+      CriticalTimers.clearTimeout(deadline);
+      abortController?.signal.removeEventListener('abort', onAbort);
+      this.off(EngineEvent.Restarting, onRestarting);
+      this.off(EngineEvent.Restarted, onRestarted);
+      this.off(EngineEvent.Closing, onClosing);
+    }
   }
 
   private async waitForPCReconnected() {
@@ -1684,21 +1755,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  waitForRestarted = () => {
-    return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
-        resolve();
+  /**
+   * resolves to whether the attempt `SignalRestarted` handed out restarted the connection. Call it
+   * while handling that event, before `Restarted` can fire
+   */
+  waitForRestarted = (restartAttempt: AbortSignal) => {
+    return new Promise<boolean>((resolve) => {
+      if (restartAttempt.aborted) {
+        resolve(false);
+        return;
       }
       const onRestarted = () => {
-        this.off(EngineEvent.Disconnected, onDisconnected);
-        resolve();
+        restartAttempt.removeEventListener('abort', onAborted);
+        resolve(true);
       };
-      const onDisconnected = () => {
+      const onAborted = () => {
+        restartAttempt.removeEventListener('abort', onAborted);
         this.off(EngineEvent.Restarted, onRestarted);
-        reject();
+        resolve(false);
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      restartAttempt.addEventListener('abort', onAborted);
     });
   };
 
@@ -1980,7 +2057,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   sendSyncState(
     remoteTracks: RemoteTrackPublication[],
     localTracks: LocalTrackPublication[],
-    localDataTrackInfos: Array<DataTrackInfo>,
+    publishDataTracks: PublishDataTrackResponse[],
   ) {
     if (!this.pcManager) {
       this.log.warn('sync state cannot be sent without peer connection setup');
@@ -2053,9 +2130,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
-        publishDataTracks: localDataTrackInfos.map((info) => {
-          return new PublishDataTrackResponse({ info: DataTrackInfo.toProtobuf(info) });
-        }),
+        publishDataTracks,
       }),
     );
   }
@@ -2100,12 +2175,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE), SignalTarget.PUBLISHER);
     getInfo(this.dataChannelForKind(DataChannelKind.LOSSY, true), SignalTarget.SUBSCRIBER);
     getInfo(this.dataChannelForKind(DataChannelKind.RELIABLE, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataChannelKind.DATA_TRACK_LOSSY), SignalTarget.PUBLISHER);
+    getInfo(
+      this.dataChannelForKind(DataChannelKind.DATA_TRACK_LOSSY, true),
+      SignalTarget.SUBSCRIBER,
+    );
+
     return infos;
   }
 
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       CriticalTimers.clearTimeout(this.reconnectTimeout);
+      // `pendingReconnect` is derived from this handle, so it must not outlive the timer
+      this.reconnectTimeout = undefined;
     }
   }
 
@@ -2174,7 +2257,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   getTrackIdForReceiver(receiver: RTCRtpReceiver): string | undefined {
-    const mid = this.pcManager?.getMidForReceiver(receiver);
+    const mid = this.pcManager?.getTransceiverForReceiver(receiver)?.mid;
     if (mid) {
       const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
       if (match) {
@@ -2192,7 +2275,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: () => void;
   signalResumed: () => void;
-  signalRestarted: (joinResp: JoinResponse) => void;
+  signalRestarted: (joinResp: JoinResponse, restartAttempt: AbortSignal) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

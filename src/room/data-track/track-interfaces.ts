@@ -45,7 +45,7 @@ export const DataTrackSymbol: symbol = /* @__PURE__ */ Symbol.for('lk.data-track
 export interface IDataTrack extends ITrack {
   readonly typeSymbol: typeof DataTrackSymbol;
 
-  readonly info?: DataTrackInfo;
+  readonly info?: DataTrackInfo | undefined;
 }
 
 export function isDataTrack(subject: unknown): subject is IDataTrack {

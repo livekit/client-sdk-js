@@ -3,6 +3,7 @@
  * Contains functions for parsing and working with NALUs in video frames
  */
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
+import { parseRbsp } from '../utils';
 
 /**
  * Mask for extracting NALU type from H.264 header byte
@@ -241,6 +242,35 @@ function findSliceNALUUnencryptedBytes(
     }
   }
   return null;
+}
+
+/**
+ * Read pic_parameter_set_id from an H.264 IDR slice NALU, the way a WebRTC receiver does before
+ * its decrypt transform runs. An h265 NALU header byte is even, so it never reads as an IDR here.
+ * @param nalu Bytes from the NALU header on
+ * @returns The PPS id, or null if `nalu` is not an IDR slice or ends inside the field
+ */
+export function parseH264IdrPpsId(nalu: NonSharedUint8Array): number | null {
+  if (parseH264NALUType(nalu[0]) !== H264NALUType.SLICE_IDR) {
+    return null;
+  }
+  // first_mb_in_slice, slice_type and pic_parameter_set_id are the first three ue(v) fields.
+  // 16 bytes hold all three.
+  const rbsp = parseRbsp(nalu.subarray(1, 17));
+  const bitLength = rbsp.length * 8;
+  let bit = 0;
+  const readBit = () => (rbsp[bit >> 3] >> (7 - (bit++ & 7))) & 1;
+  const readUe = () => {
+    let zeros = 0;
+    while (readBit() === 0 && bit < bitLength) zeros++;
+    let value = 1;
+    for (let i = 0; i < zeros; i++) value = value * 2 + readBit();
+    return value - 1;
+  };
+  readUe();
+  readUe();
+  const ppsId = readUe();
+  return bit <= bitLength ? ppsId : null;
 }
 
 /**

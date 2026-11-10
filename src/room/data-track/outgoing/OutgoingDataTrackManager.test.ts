@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type DecryptDataResponseMessage,
@@ -8,14 +7,14 @@ import {
 import { type BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { subscribeToEvents } from '../../../utils/subscribeToEvents';
 import RTCEngine from '../../RTCEngine';
-import Room from '../../Room';
+import { Room } from '../../Room';
 import { DataTrackHandle } from '../handle';
 import { DataTrackPacket, FrameMarker } from '../packet';
 import OutgoingDataTrackManager, {
   type DataTrackOutgoingManagerCallbacks,
   Descriptor,
 } from './OutgoingDataTrackManager';
-import { DataTrackPublishError } from './errors';
+import { DataTrackPublishError, DataTrackPushFrameErrorReason } from './errors';
 
 /** Fake encryption provider for testing e2ee data track features. */
 export class PrefixingEncryptionProvider implements BaseE2EEManager {
@@ -520,6 +519,46 @@ describe('DataTrackOutgoingManager', () => {
     // And now that the tracks are backed by the SFU again, pushes should function!
     await localDataTrack.tryPush({ payload: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]) });
     await managerEvents.waitFor('packetAvailable');
+  });
+
+  it('should unpublish a track when republish is rejected', async () => {
+    const manager = new OutgoingDataTrackManager();
+    const managerEvents = subscribeToEvents<DataTrackOutgoingManagerCallbacks>(manager, [
+      'sfuPublishRequest',
+    ]);
+
+    const localDataTrack = new LocalDataTrack({ name: 'track' }, manager);
+    const publishRequestPromise = localDataTrack.publish();
+
+    const sfuPublishEvent = await managerEvents.waitFor('sfuPublishRequest');
+    const handle = sfuPublishEvent.handle;
+
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'ok',
+      data: {
+        sid: 'bogus-sid',
+        pubHandle: handle,
+        name: 'track',
+        usesE2ee: false,
+      },
+    });
+    await publishRequestPromise;
+
+    // Simulate reconnect
+    manager.sfuWillRepublishTracks();
+    await managerEvents.waitFor('sfuPublishRequest');
+
+    // SFU rejects the republish
+    manager.receivedSfuPublishResponse(handle, {
+      type: 'error',
+      error: DataTrackPublishError.notAllowed(),
+    });
+
+    // Track is unpublished
+    expect(localDataTrack.isPublished()).toStrictEqual(false);
+    await expect(() =>
+      localDataTrack.tryPush({ payload: new Uint8Array([0xff]) }),
+    ).rejects.toMatchObject({ reason: DataTrackPushFrameErrorReason.TrackUnpublished });
   });
 
   it('should query currently active descriptors', async () => {

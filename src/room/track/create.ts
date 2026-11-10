@@ -1,26 +1,47 @@
 import DeviceManager from '../DeviceManager';
-import { audioDefaults, videoDefaults } from '../defaults';
-import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
-import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import { audioDefaults } from '../defaults';
+import { TrackInvalidError } from '../errors';
 import type { LoggerOptions } from '../types';
-import { isAudioTrack, isSafari17Based, isVideoTrack, unwrapConstraint } from '../utils';
+import { isAudioTrack, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
-import LocalVideoTrack from './LocalVideoTrack';
+import type LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import type {
-  AudioCaptureOptions,
-  CreateLocalTracksOptions,
-  ScreenShareCaptureOptions,
-  VideoCaptureOptions,
-} from './options';
-import { ScreenSharePresets } from './options';
-import {
-  constraintsForOptions,
-  extractProcessorsFromOptions,
-  mergeDefaultOptions,
-  screenCaptureToDisplayMediaStreamOptions,
-} from './utils';
+import type { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
+import { constraintsForOptions, extractProcessorsFromOptions, mergeDefaultOptions } from './utils';
+
+/**
+ * How core creates video tracks. The `video` extension (and the full entry) registers it; without
+ * it, requesting a video track throws.
+ * @internal
+ */
+export interface VideoCapture {
+  defaults: VideoCaptureOptions;
+  createTrack(
+    mediaStreamTrack: MediaStreamTrack,
+    constraints: MediaTrackConstraints | undefined,
+    userProvidedTrack: boolean,
+    loggerOptions?: LoggerOptions,
+  ): LocalVideoTrack;
+}
+
+let videoCapture: VideoCapture | undefined;
+
+/** @internal */
+export function setVideoCapture(capture: VideoCapture) {
+  videoCapture = capture;
+}
+
+/** @internal */
+export function getVideoCapture(): VideoCapture {
+  if (!videoCapture) {
+    // @throws-transformer ignore - programmer error
+    throw new TrackInvalidError(
+      'video capture is not available in this build, add the video extension',
+    );
+  }
+  return videoCapture;
+}
 
 /**
  * Creates a local video and audio track at the same time. When acquiring both
@@ -91,7 +112,11 @@ export async function createLocalTracks(
   } else if (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId) {
     internalOptions.video.deviceId = 'default';
   }
-  const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
+  const opts = mergeDefaultOptions(
+    internalOptions,
+    audioDefaults,
+    internalOptions.video ? getVideoCapture().defaults : undefined,
+  );
   const constraints = constraintsForOptions(opts);
 
   // Keep a reference to the promise on DeviceManager and await it in getLocalDevices()
@@ -129,7 +154,21 @@ export async function createLocalTracks(
           trackConstraints = { deviceId: newDeviceId };
         }
 
-        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, loggerOptions);
+        const track: LocalTrack =
+          mediaStreamTrack.kind === 'audio'
+            ? new LocalAudioTrack(
+                mediaStreamTrack,
+                trackConstraints,
+                false,
+                undefined,
+                loggerOptions,
+              )
+            : getVideoCapture().createTrack(
+                mediaStreamTrack,
+                trackConstraints,
+                false,
+                loggerOptions,
+              );
         if (track.kind === Track.Kind.Video) {
           track.source = Track.Source.Camera;
         } else if (track.kind === Track.Kind.Audio) {
@@ -161,20 +200,6 @@ export async function createLocalTracks(
   }
 }
 
-/**
- * Creates a [[LocalVideoTrack]] with getUserMedia()
- * @param options
- */
-export async function createLocalVideoTrack(
-  options?: VideoCaptureOptions,
-): Promise<LocalVideoTrack> {
-  const tracks = await createLocalTracks({
-    audio: false,
-    video: options ?? true,
-  });
-  return <LocalVideoTrack>tracks[0];
-}
-
 export async function createLocalAudioTrack(
   options?: AudioCaptureOptions,
 ): Promise<LocalAudioTrack> {
@@ -183,41 +208,4 @@ export async function createLocalAudioTrack(
     video: false,
   });
   return <LocalAudioTrack>tracks[0];
-}
-
-/**
- * Creates a screen capture tracks with getDisplayMedia().
- * A LocalVideoTrack is always created and returned.
- * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
- */
-export async function createLocalScreenTracks(
-  options?: ScreenShareCaptureOptions,
-): Promise<Array<LocalTrack>> {
-  if (options === undefined) {
-    options = {};
-  }
-  if (options.resolution === undefined && !isSafari17Based()) {
-    options.resolution = ScreenSharePresets.h1080fps30.resolution;
-  }
-
-  if (navigator.mediaDevices.getDisplayMedia === undefined) {
-    throw new DeviceUnsupportedError('getDisplayMedia not supported');
-  }
-
-  const constraints = screenCaptureToDisplayMediaStreamOptions(options);
-  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
-  const tracks = stream.getVideoTracks();
-  if (tracks.length === 0) {
-    throw new TrackInvalidError('no video track found');
-  }
-  const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
-  screenVideo.source = Track.Source.ScreenShare;
-  const localTracks: Array<LocalTrack> = [screenVideo];
-  if (stream.getAudioTracks().length > 0) {
-    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false);
-    screenAudio.source = Track.Source.ScreenShareAudio;
-    localTracks.push(screenAudio);
-  }
-  return localTracks;
 }

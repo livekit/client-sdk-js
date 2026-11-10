@@ -149,11 +149,6 @@ export interface TrackPublishDefaults {
    * @experimental
    */
   frameMetadata?: FrameMetadataPublishOptions;
-
-  /**
-   * @deprecated Use {@link TrackPublishDefaults.frameMetadata} instead.
-   */
-  packetTrailer?: FrameMetadataPublishOptions;
 }
 
 /**
@@ -441,9 +436,6 @@ export type BackupVideoCodec = (typeof backupVideoCodecs)[number];
 export function isBackupVideoCodec(codec: string): codec is BackupVideoCodec {
   return !!backupVideoCodecs.find((backup) => backup === codec);
 }
-
-/** @deprecated Use {@link isBackupVideoCodec} instead */
-export const isBackupCodec = isBackupVideoCodec;
 
 export enum BackupCodecPolicy {
   // codec regression is preferred, the sfu will try to regress codec if possible but not guaranteed

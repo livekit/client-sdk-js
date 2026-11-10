@@ -3,7 +3,7 @@ import DeviceManager from '../DeviceManager';
 import type LocalAudioTrack from '../track/LocalAudioTrack';
 import { Track } from '../track/Track';
 import { isChromiumBased, markDeviceAcquisitionFailure } from '../utils';
-import LocalParticipant from './LocalParticipant';
+import { LocalParticipant } from './LocalParticipant';
 
 vi.mock('../utils', async () => {
   const actual = await vi.importActual('../utils');

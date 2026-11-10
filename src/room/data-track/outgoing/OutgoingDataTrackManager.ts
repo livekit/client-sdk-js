@@ -1,9 +1,9 @@
 import { EventEmitter } from 'events';
-import type { Throws } from '@livekit/throws-transformer/throws';
 import type TypedEmitter from 'typed-emitter';
 import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
 import { LoggerNames, getLogger } from '../../../logger';
 import { abortSignalAny, abortSignalTimeout } from '../../../utils/abort-signal-polyfill';
+import type { Throws } from '../../../utils/throws';
 import { Future } from '../../utils';
 import LocalDataTrack from '../LocalDataTrack';
 import type { DataTrackFrameInternal } from '../frame';
@@ -343,7 +343,8 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
           return;
         }
         if (result.type === 'error') {
-          log.warn(`Republish failed for track ${handle}`);
+          log.warn(`Republish failed for track ${handle}: ${result.error}`);
+          descriptor.publishState = 'unpublished';
           return;
         }
 
@@ -380,6 +381,7 @@ export default class OutgoingDataTrackManager extends (EventEmitter as new () =>
    *
    * This must be sent after a full reconnect in order for existing publications
    * to be recognized by the SFU. Each republished track will be assigned a new SID.
+   * Tracks the SFU rejects are unpublished.
    * @internal
    */
   sfuWillRepublishTracks() {

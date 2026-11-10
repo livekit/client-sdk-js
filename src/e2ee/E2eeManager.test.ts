@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
-import Room from '../room/Room';
+import { Room } from '../room/Room';
 import { ParticipantEvent } from '../room/events';
 import { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';

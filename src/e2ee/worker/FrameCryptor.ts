@@ -25,8 +25,18 @@ import type {
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import { ErrorRateLimiter } from './ErrorRateLimiter';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
-import { normalizeAnnexBStartCodes, processNALUsForEncryption } from './naluUtils';
+import {
+  normalizeAnnexBStartCodes,
+  parseH264IdrPpsId,
+  processNALUsForEncryption,
+} from './naluUtils';
 import { identifySifPayload } from './sifPayload';
+
+/**
+ * With one bit of the PPS id encrypted, each attempt matches with probability 1/2, so 16 attempts
+ * all miss with probability 2^-16. After the last attempt the frame goes out as it is.
+ */
+const MAX_PPS_ID_ENCRYPT_ATTEMPTS = 16;
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
 
@@ -483,7 +493,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
-      const iv = this.makeIV(
+      let iv = this.makeIV(
         encodedFrame.getMetadata().synchronizationSource ?? -1,
         encodedFrame.timestamp,
       );
@@ -515,15 +525,44 @@ export class FrameCryptor extends BaseFrameCryptor {
       // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
       // ---------+-------------------------+-+---------+----
       try {
-        const cipherText = await crypto.subtle.encrypt(
-          {
-            name: ENCRYPTION_ALGORITHM,
-            iv,
-            additionalData: frameHeader,
-          },
-          encryptionKey,
-          new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
-        );
+        // Chrome reads pic_parameter_set_id from an H.264 IDR slice before the decrypt transform,
+        // and drops the keyframe if the id names an unknown PPS. Some encoders put the id past the
+        // unencrypted bytes (#2180), so encrypt again with a fresh IV until the sent bits still
+        // read as the true id. The receiver takes the IV from the trailer, so it needs no change.
+        const sliceStart = frameInfo.unencryptedBytes - 2;
+        const ppsId = frameInfo.requiresNALUProcessing
+          ? parseH264IdrPpsId(new Uint8Array(encodedFrame.data, sliceStart))
+          : null;
+        let cipherText: ArrayBuffer;
+        for (let attempt = 1; ; attempt++) {
+          cipherText = await crypto.subtle.encrypt(
+            {
+              name: ENCRYPTION_ALGORITHM,
+              iv,
+              additionalData: frameHeader,
+            },
+            encryptionKey,
+            new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
+          );
+
+          if (ppsId === null || attempt === MAX_PPS_ID_ENCRYPT_ATTEMPTS) {
+            break;
+          }
+          // The slice as the receiver sees it: its 2 unencrypted bytes, then the escaped
+          // ciphertext. writeRbsp works byte by byte, so escaping the first 16 bytes gives the
+          // start of the escaped frame, and a retry costs only the encryption.
+          const escapedStart = writeRbsp(new Uint8Array(cipherText, 0, 16));
+          const sentSlice = new Uint8Array(2 + escapedStart.byteLength);
+          sentSlice.set(new Uint8Array(encodedFrame.data, sliceStart, 2));
+          sentSlice.set(escapedStart, 2);
+          if (parseH264IdrPpsId(sentSlice) === ppsId) {
+            break;
+          }
+          iv = this.makeIV(
+            encodedFrame.getMetadata().synchronizationSource ?? -1,
+            encodedFrame.timestamp,
+          );
+        }
 
         let newDataWithoutHeader: NonSharedUint8Array = new Uint8Array(
           cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,

@@ -1,4 +1,4 @@
-import { ConnectionState } from '../../room/Room';
+import { ConnectionState } from '../../room/CoreRoom';
 import { RoomEvent } from '../../room/events';
 import { Checker } from './Checker';
 

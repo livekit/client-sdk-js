@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,10 +29,8 @@ try {
   if (produced.length !== 1) {
     throw new Error(`expected exactly one tarball, found ${produced.length}: ${produced.join(', ')}`);
   }
-  if (existsSync(tarballTarget)) {
-    rmSync(tarballTarget);
-  }
-  renameSync(join(stagingDir, produced[0]), tarballTarget);
+  // Copy, not rename: tmpdir() can be a separate filesystem (tmpfs on Ubuntu 26.04 runners).
+  copyFileSync(join(stagingDir, produced[0]), tarballTarget);
   console.log('[smoke] wrote', tarballTarget);
 } finally {
   rmSync(stagingDir, { recursive: true, force: true });

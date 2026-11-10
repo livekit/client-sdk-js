@@ -5,11 +5,14 @@ import {
   VideoQuality,
 } from '@livekit/protocol';
 import { describe, expect, it, vi } from 'vitest';
+import type { StructuredLogger } from '../../logger';
+import type { CoreRoom } from '../CoreRoom';
 import type LocalTrack from '../track/LocalTrack';
 import type LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
 import type { TrackPublishOptions } from '../track/options';
-import LocalParticipant from './LocalParticipant';
+import { publishAdditionalCodecForTrack } from '../video/publisher';
+import { LocalParticipant } from './LocalParticipant';
 
 type FrameMetadataTestParticipant = {
   canPublishFrameMetadata: () => boolean;
@@ -97,7 +100,6 @@ type BackupCodecTestParticipant = {
     negotiate: ReturnType<typeof vi.fn>;
   };
   log: { warn: ReturnType<typeof vi.fn>; debug: ReturnType<typeof vi.fn> };
-  publishAdditionalCodecForTrack: LocalParticipant['publishAdditionalCodecForTrack'];
 };
 
 // a resizing processor makes mediaStreamTrack (processed) and dimensions (raw capture) differ
@@ -141,6 +143,21 @@ function makeBackupCodecParticipant(track: LocalVideoTrack) {
   return participant;
 }
 
+// the method lives in the video extension and reads the participant, engine and options off the room
+function publishBackupCodec(participant: BackupCodecTestParticipant, track: LocalVideoTrack) {
+  const room = {
+    localParticipant: participant,
+    engine: participant.engine,
+    options: participant.roomOptions,
+  } as unknown as CoreRoom;
+  return publishAdditionalCodecForTrack(
+    room,
+    participant.log as unknown as StructuredLogger,
+    track,
+    'vp8',
+  );
+}
+
 function capturedRequest(participant: BackupCodecTestParticipant): AddTrackRequest {
   expect(participant.engine.addTrack).toHaveBeenCalledOnce();
   return participant.engine.addTrack.mock.calls[0][0] as AddTrackRequest;
@@ -151,7 +168,7 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     const track = makeBackupCodecTrack({ width: 1280, height: 720 });
     const participant = makeBackupCodecParticipant(track);
 
-    await participant.publishAdditionalCodecForTrack(track, 'vp8');
+    await publishBackupCodec(participant, track);
 
     const req = capturedRequest(participant);
     expect(req.width).toBe(1280);
@@ -173,7 +190,7 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     const track = makeBackupCodecTrack({ width: 1280, height: 720 }, Track.Source.ScreenShare);
     const participant = makeBackupCodecParticipant(track);
 
-    await participant.publishAdditionalCodecForTrack(track, 'vp8');
+    await publishBackupCodec(participant, track);
 
     const req = capturedRequest(participant);
     expect(req.layers).toHaveLength(1);
@@ -191,7 +208,7 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     });
     const participant = makeBackupCodecParticipant(track);
 
-    await participant.publishAdditionalCodecForTrack(track, 'vp8');
+    await publishBackupCodec(participant, track);
 
     const req = capturedRequest(participant);
     expect(req.width).toBe(640);
@@ -204,7 +221,7 @@ describe('LocalParticipant.publishAdditionalCodecForTrack', () => {
     const track = makeBackupCodecTrack({});
     const participant = makeBackupCodecParticipant(track);
 
-    await participant.publishAdditionalCodecForTrack(track, 'vp8');
+    await publishBackupCodec(participant, track);
 
     const req = capturedRequest(participant);
     expect(req.width).toBe(0);

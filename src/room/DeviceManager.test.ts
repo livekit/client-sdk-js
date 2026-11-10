@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import DeviceManager from './DeviceManager';
 
 class MockDeviceManager extends DeviceManager {
@@ -101,5 +101,59 @@ describe('Active device switch', () => {
 
     const normalizedID = await deviceManager.normalizeDeviceId('audiooutput', 'default');
     expect(normalizedID).toBe(undefined);
+  });
+});
+
+describe('getDevices', () => {
+  const labelledDevices = [
+    { deviceId: 'mic', kind: 'audioinput', label: 'Microphone', groupId: 'a' },
+    { deviceId: 'speaker', kind: 'audiooutput', label: 'Speakers', groupId: 'a' },
+    { deviceId: 'camera', kind: 'videoinput', label: 'Camera', groupId: 'b' },
+  ] as MediaDeviceInfo[];
+
+  const installMediaDevices = (devices: MediaDeviceInfo[]) => {
+    const mediaDevices = {
+      enumerateDevices: vi.fn(async () => devices),
+      getUserMedia: vi.fn(async () => ({ getTracks: () => [] }) as unknown as MediaStream),
+    };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: mediaDevices,
+    });
+    return mediaDevices;
+  };
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('does not request permissions for all kinds when every device already has a label', async () => {
+    const mediaDevices = installMediaDevices(labelledDevices);
+
+    const devices = await new DeviceManager().getDevices();
+
+    expect(devices).toEqual(labelledDevices);
+    expect(mediaDevices.getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it('requests permissions for all kinds when no devices are listed', async () => {
+    const mediaDevices = installMediaDevices([]);
+
+    await new DeviceManager().getDevices();
+
+    expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests permissions for a kind that has no listed devices', async () => {
+    const mediaDevices = installMediaDevices(
+      labelledDevices.filter((device) => device.kind !== 'videoinput'),
+    );
+
+    await new DeviceManager().getDevices('videoinput');
+
+    expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
   });
 });

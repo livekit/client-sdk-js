@@ -91,7 +91,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
-  protected audioContext?: AudioContext;
+  /** @internal */
+  audioContext?: AudioContext;
 
   protected log: StructuredLogger = log;
 
@@ -237,6 +238,25 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       return new Date(Number.parseInt(this.participantInfo.joinedAt.toString()) * 1000);
     }
     return new Date();
+  }
+
+  /**
+   * @internal
+   * Whether `info` belongs to an older session of this identity than the stored one.
+   * Uses the same order as the server: `joinedAt`, then `joinedAtMs` when both are set, then sid.
+   */
+  isOlderSession(info: ParticipantInfo): boolean {
+    const current = this.participantInfo;
+    if (!current || current.sid === info.sid) {
+      return false;
+    }
+    if (info.joinedAt !== current.joinedAt) {
+      return info.joinedAt < current.joinedAt;
+    }
+    if (info.joinedAtMs && current.joinedAtMs && info.joinedAtMs !== current.joinedAtMs) {
+      return info.joinedAtMs < current.joinedAtMs;
+    }
+    return info.sid < current.sid;
   }
 
   /** @internal */

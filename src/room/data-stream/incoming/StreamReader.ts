@@ -78,7 +78,12 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
     // already propagated through reader.read() to the consumer.
     reader.closed.catch(() => {});
 
-    const cleanup = () => {
+    // Runs when iteration stops early (abort, `break`/`return`, or an error). The stream is
+    // cancelled rather than just unlocked, so the manager stops buffering chunks nobody will read
+    // and unregisters the stream - later packets for it are then dropped.
+    const cleanup = (reason?: unknown) => {
+      // The stream may already be errored, in which case there is nothing left to cancel.
+      reader.cancel(reason).catch(() => {});
       reader.releaseLock();
       this.signal = undefined;
     };
@@ -117,7 +122,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
             return { done: false, value: result.value.content };
           }
         } catch (err) {
-          cleanup();
+          cleanup(err);
           throw err;
         }
       },
@@ -177,7 +182,12 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     const decoder = new TextDecoder('utf-8');
     const signal = this.signal;
 
-    const cleanup = () => {
+    // Runs when iteration stops early (abort, `break`/`return`, or an error). The stream is
+    // cancelled rather than just unlocked, so the manager stops buffering chunks nobody will read
+    // and unregisters the stream - later packets for it are then dropped.
+    const cleanup = (reason?: unknown) => {
+      // The stream may already be errored, in which case there is nothing left to cancel.
+      reader.cancel(reason).catch(() => {});
       reader.releaseLock();
       this.signal = undefined;
     };
@@ -229,7 +239,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             };
           }
         } catch (err) {
-          cleanup();
+          cleanup(err);
           throw err;
         }
       },

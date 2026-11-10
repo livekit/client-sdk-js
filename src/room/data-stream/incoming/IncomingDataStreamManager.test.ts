@@ -14,7 +14,7 @@ import {
   stubMissingDeflateRawSupport,
 } from '../../../test/compressionStreamStubs';
 import { deflateRawCompress } from '../compression';
-import { STREAM_CHUNK_SIZE_BYTES } from '../constants';
+import { DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT, STREAM_CHUNK_SIZE_BYTES } from '../constants';
 import IncomingDataStreamManager from './IncomingDataStreamManager';
 import type { ByteStreamReader, TextStreamReader } from './StreamReader';
 
@@ -1262,6 +1262,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed text stream', async () => {
@@ -1296,6 +1308,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should error on a gap in chunk indices on an uncompressed byte stream', async () => {
@@ -1329,6 +1353,18 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // The errored stream must be unregistered, so packets still in flight for it are dropped
+      // instead of throwing on a closed controller (#2166).
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new Uint8Array([1])),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
     });
 
     it('should drop a duplicate chunk index on an uncompressed text stream and still decode', async () => {
@@ -1524,6 +1560,45 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('Extra chunk(s)');
     });
 
+    it.each([
+      ['UNCOMPRESSED', DataStream_CompressionType.NONE],
+      ['COMPRESSED', DataStream_CompressionType.DEFLATE_RAW],
+    ])(
+      'should hold a v2 SINGLE PACKET + %s payload to its declared totalLength',
+      async (_, compression) => {
+        /** Reads an inline text stream that carries `text` and declares `totalLength`. */
+        const readInlineText = async (text: string, totalLength?: bigint) => {
+          const manager = new IncomingDataStreamManager();
+          manager.setConnected(true);
+
+          const readerPromise = new Promise<TextStreamReader>((resolve) => {
+            manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+          });
+
+          const encoded = new TextEncoder().encode(text);
+          manager.handleDataStreamPacket(
+            headerPacket(crypto.randomUUID(), 'textHeader', {
+              totalLength,
+              compression,
+              inlineContent:
+                compression === DataStream_CompressionType.DEFLATE_RAW
+                  ? await deflateRawCompress(encoded)
+                  : encoded,
+            }),
+            Encryption_Type.NONE,
+          );
+
+          const reader = await readerPromise;
+          return reader.readAll();
+        };
+
+        await expect(readInlineText('hello', 6n)).rejects.toThrow('Not enough chunk(s)');
+        await expect(readInlineText('hello', 4n)).rejects.toThrow('Extra chunk(s)');
+        await expect(readInlineText('hello', 5n)).resolves.toStrictEqual('hello');
+        await expect(readInlineText('hello')).resolves.toStrictEqual('hello');
+      },
+    );
+
     it('should merge trailer attributes on a compressed stream', async () => {
       const manager = new IncomingDataStreamManager();
       manager.setConnected(true);
@@ -1711,10 +1786,40 @@ describe('IncomingDataStreamManager', () => {
       await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
     });
 
+    it('should error with the trailer reason when a stream closes before the specified totalLength', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readerPromise = new Promise<TextStreamReader>((resolve) => {
+        manager.registerTextStreamHandler('my-topic', (reader) => resolve(reader));
+      });
+
+      const streamId = crypto.randomUUID();
+      const text = 'hello world';
+
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { totalLength: BigInt(text.length * 2) }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode(text)),
+        Encryption_Type.NONE,
+      );
+      // The sender stops halfway and gives a reason; that reason, not the missing bytes, is the
+      // error the reader gets.
+      manager.handleDataStreamPacket(
+        trailerPacket(streamId, undefined, 'cancelled'),
+        Encryption_Type.NONE,
+      );
+
+      const reader = await readerPromise;
+      await expect(reader.readAll()).rejects.toThrow('closed abnormally: cancelled');
+    });
+
     it('should error an inline compressed payload that inflates past the max payload size', async () => {
       // Decompression-bomb guard: a tiny compressed inline payload must not be allowed to
       // expand without bound.
-      const manager = new IncomingDataStreamManager(1_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 1_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -1740,7 +1845,7 @@ describe('IncomingDataStreamManager', () => {
     });
 
     it('should error a chunked compressed stream that inflates past the max payload size', async () => {
-      const manager = new IncomingDataStreamManager(50_000);
+      const manager = new IncomingDataStreamManager({ maxPayloadByteLength: 50_000 });
       manager.setConnected(true);
 
       const readerPromise = new Promise<TextStreamReader>((resolve) => {
@@ -1794,6 +1899,167 @@ describe('IncomingDataStreamManager', () => {
 
       const reader = await readerPromise;
       await expect(reader.readAll()).rejects.toThrow('Encryption type mismatch');
+    });
+
+    it('should treat packets for a stream that errored on a chunk index gap as an unknown stream (#2166)', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('first')),
+        Encryption_Type.NONE,
+      );
+      // Skip chunk index 1, which errors the stream.
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 2, new TextEncoder().encode('third')),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(1);
+      await expect(readers[0].readAll()).rejects.toThrow('Missing chunk(s)');
+
+      // Packets still in flight for the errored stream are dropped, just like packets for a stream
+      // that was never opened, rather than throwing on a closed controller.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 3, new TextEncoder().encode('fourth')),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(() =>
+        manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE),
+      ).not.toThrow();
+      expect(readers).toHaveLength(1);
+
+      // No state is left behind for the stream id: a header reusing it opens a brand new stream
+      // instead of failing with `AlreadyOpened`, and that stream reads cleanly from chunk 0.
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('fresh stream')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      expect(readers).toHaveLength(2);
+      expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+
+    it('should treat packets for a stream whose read was aborted as an unknown stream', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      const streamId = crypto.randomUUID();
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('first')),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(1);
+
+      // The consumer gives up on the stream part way through.
+      const abortController = new AbortController();
+      const readAllPromise = readers[0].readAll({ signal: abortController.signal });
+      abortController.abort(new Error('consumer aborted'));
+      await expect(readAllPromise).rejects.toThrow('consumer aborted');
+      // The cancel propagates back up the pipe chain to the source stream asynchronously.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Packets still in flight for the aborted stream are dropped, just like packets for a stream
+      // that was never opened, rather than buffering in a stream nobody reads.
+      expect(() =>
+        manager.handleDataStreamPacket(
+          chunkPacket(streamId, 1, new TextEncoder().encode('second')),
+          Encryption_Type.NONE,
+        ),
+      ).not.toThrow();
+      expect(readers).toHaveLength(1);
+
+      // No state is left behind for the stream id, even though no trailer has arrived to close it: a
+      // header reusing it opens a brand new stream instead of failing with `AlreadyOpened`, and that
+      // stream reads cleanly from chunk 0.
+      manager.handleDataStreamPacket(
+        headerPacket(streamId, 'textHeader', { compression: DataStream_CompressionType.NONE }),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(
+        chunkPacket(streamId, 0, new TextEncoder().encode('fresh stream')),
+        Encryption_Type.NONE,
+      );
+      manager.handleDataStreamPacket(trailerPacket(streamId), Encryption_Type.NONE);
+
+      expect(readers).toHaveLength(2);
+      expect(await readers[1].readAll()).toEqual('fresh stream');
+    });
+
+    it('drops headers from a participant that already has the maximum number of streams open', async () => {
+      const manager = new IncomingDataStreamManager();
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      // Fill alice's quota with streams that are never closed.
+      const aliceStreamIds = Array.from({ length: DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT }, () =>
+        crypto.randomUUID(),
+      );
+      for (const streamId of aliceStreamIds) {
+        manager.handleDataStreamPacket(headerPacket(streamId, 'textHeader'), Encryption_Type.NONE);
+      }
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // One more from alice is dropped.
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT);
+
+      // The limit is per participant, so bob can still open a stream.
+      const bobHeader = headerPacket(crypto.randomUUID(), 'textHeader');
+      bobHeader.participantIdentity = 'bob';
+      manager.handleDataStreamPacket(bobHeader, Encryption_Type.NONE);
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT + 1);
+
+      // Once one of alice's streams closes, she can open a new one.
+      manager.handleDataStreamPacket(trailerPacket(aliceStreamIds[0]), Encryption_Type.NONE);
+      expect(await readers[0].readAll()).toEqual('');
+      manager.handleDataStreamPacket(
+        headerPacket(crypto.randomUUID(), 'textHeader'),
+        Encryption_Type.NONE,
+      );
+      expect(readers).toHaveLength(DEFAULT_MAX_OPEN_STREAMS_PER_PARTICIPANT + 2);
+    });
+
+    it('respects a custom per participant open stream limit', () => {
+      const manager = new IncomingDataStreamManager({ maxOpenStreamsPerParticipant: 2 });
+      manager.setConnected(true);
+
+      const readers: Array<TextStreamReader> = [];
+      manager.registerTextStreamHandler('my-topic', (reader) => readers.push(reader));
+
+      for (let i = 0; i < 3; i++) {
+        manager.handleDataStreamPacket(
+          headerPacket(crypto.randomUUID(), 'textHeader'),
+          Encryption_Type.NONE,
+        );
+      }
+      expect(readers).toHaveLength(2);
     });
   });
 });

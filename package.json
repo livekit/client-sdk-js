@@ -25,17 +25,30 @@
       "types": "./dist/src/frameMetadata/worker/frameMetadata.worker.d.ts",
       "import": "./dist/livekit-client.fm.worker.mjs",
       "require": "./dist/livekit-client.fm.worker.js"
+    },
+    "./core": {
+      "types": "./dist/core/types/src/core.d.ts",
+      "import": "./dist/core/core.mjs"
     }
   },
   "files": [
     "dist",
     "src"
   ],
+  "sideEffects": [
+    "./dist/livekit-client.e2ee.worker.js",
+    "./dist/livekit-client.e2ee.worker.mjs",
+    "./dist/livekit-client.fm.worker.js",
+    "./dist/livekit-client.fm.worker.mjs"
+  ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
     "<4.8": {
       "./dist/src/index.d.ts": [
         "./dist/ts4.2/index.d.ts"
+      ],
+      "./dist/core/types/src/core.d.ts": [
+        "./dist/core/ts4.2/core.d.ts"
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
         "./dist/ts4.2/e2ee/worker/e2ee.worker.d.ts"
@@ -49,7 +62,7 @@
   "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && rollup --config rollup.config.fm-worker.js --bundleConfigAsCjs && pnpm downlevel-dts && node scripts/check-built-imports.mjs",
     "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
@@ -67,13 +80,16 @@
     "throws:check": "pnpm throws-check 'src/!(*.test).ts' 'src/**/!(*.test).ts'",
     "type:check": "tsc --noEmit",
     "ci:publish": "pnpm type:check && pnpm build && pnpm compat && changeset publish",
-    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2",
+    "downlevel-dts": "downlevel-dts ./dist/src ./dist/ts4.2 --to=4.2 && downlevel-dts ./dist/core/types/src ./dist/core/ts4.2 --to=4.2",
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
-    "size-limit": "size-limit"
+    "size-limit": "size-limit",
+    "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs",
+    "check:published-types": "node scripts/check-published-types.mjs"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
     "@livekit/protocol": "1.53.0",
+    "@types/sdp-transform": "^2.15.0",
     "events": "^3.3.0",
     "jose": "^6.1.0",
     "loglevel": "^1.9.2",
@@ -105,7 +121,6 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/events": "^3.0.3",
-    "@types/sdp-transform": "2.15.0",
     "@types/ua-parser-js": "0.7.39",
     "@typescript-eslint/eslint-plugin": "8.64.0",
     "@typescript-eslint/parser": "8.64.0",
@@ -121,7 +136,7 @@
     "eslint-plugin-prettier": "^5.5.4",
     "gh-pages": "6.3.0",
     "glob": "^13.0.6",
-    "happy-dom": "^20.0.0",
+    "happy-dom": "^21.0.0",
     "jsdom": "^26.1.0",
     "livekit-server-sdk": "^2.17.0",
     "machina-inspect": "^4.0.0",
@@ -139,8 +154,8 @@
     "typedoc-plugin-no-inherit": "1.6.1",
     "typescript": "catalog:",
     "typescript-eslint": "^8.47.0",
-    "vite": "8.1.5",
+    "vite": "8.1.6",
     "vitest": "^4.1.10"
   },
-  "packageManager": "pnpm@10.34.5"
+  "packageManager": "pnpm@10.34.7"
 }
