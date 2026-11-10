@@ -512,7 +512,7 @@ export class LocalParticipant extends Participant {
         for (const localTrack of localTracks) {
           const opts: TrackPublishOptions = {
             ...this.roomOptions.publishDefaults,
-            ...options,
+            ...publishOptions,
           };
           if (
             source === Track.Source.Microphone &&
