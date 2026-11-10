@@ -94,7 +94,11 @@ export const e2ee = /* @__PURE__ */ defineExtension(
                 await room.localParticipant.setE2EEEnabled(enabled);
 
                 if (room.localParticipant.identity !== '') {
-                  manager.setParticipantCryptorEnabled(enabled, room.localParticipant.identity);
+                  if (manager.setLocalParticipantCryptorEnabled) {
+                    manager.setLocalParticipantCryptorEnabled(enabled);
+                  } else {
+                    manager.setParticipantCryptorEnabled(enabled, room.localParticipant.identity);
+                  }
                 }
               }
             } else {

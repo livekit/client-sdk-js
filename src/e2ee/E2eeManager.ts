@@ -54,8 +54,17 @@ export interface BaseE2EEManager {
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
-  /** @internal */
+  /**
+   * @internal
+   * @deprecated use `setLocalParticipantCryptorEnabled`
+   */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  /**
+   * Sets whether the local participant encrypts. Optional so that existing managers still
+   * satisfy the interface: without it, `setParticipantCryptorEnabled` is called.
+   * @internal
+   */
+  setLocalParticipantCryptorEnabled?(enabled: boolean): void;
   /** @internal */
   setSifTrailer(trailer: NonSharedUint8Array): void;
   encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
@@ -236,9 +245,18 @@ export class E2EEManager
    * Sets whether the local participant encrypts.
    * @internal
    */
-  setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string) {
-    this.log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
-    this.postEnable(enabled, participantIdentity, true);
+  setLocalParticipantCryptorEnabled(enabled: boolean) {
+    this.log.debug(`set e2ee to ${enabled} for the local participant`);
+    this.postEnable(enabled, this.room?.localParticipant.identity ?? '', true);
+  }
+
+  /**
+   * @internal
+   * @deprecated use `setLocalParticipantCryptorEnabled`. The identity is ignored: this always
+   * sets the state of the local participant.
+   */
+  setParticipantCryptorEnabled(enabled: boolean, _participantIdentity: string) {
+    this.setLocalParticipantCryptorEnabled(enabled);
   }
 
   /**
@@ -411,10 +429,7 @@ export class E2EEManager
         keyProvider.getKeys().forEach((keyInfo) => {
           this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
         });
-        this.setParticipantCryptorEnabled(
-          this.room.localParticipant.isE2EEEnabled,
-          this.room.localParticipant.identity,
-        );
+        this.setLocalParticipantCryptorEnabled(this.room.localParticipant.isE2EEEnabled);
       });
 
     room.localParticipant.on(ParticipantEvent.LocalSenderCreated, async (sender, track) => {
