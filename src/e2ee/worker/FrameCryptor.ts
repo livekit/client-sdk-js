@@ -38,8 +38,6 @@ import { identifySifPayload } from './sifPayload';
  */
 const MAX_PPS_ID_ENCRYPT_ATTEMPTS = 16;
 
-export const encryptionEnabledMap: Map<string, boolean> = new Map();
-
 let localEncryptionEnabled: boolean | undefined;
 
 /** Sets whether local media is encrypted. */
@@ -85,6 +83,8 @@ export class FrameCryptor extends BaseFrameCryptor {
   private participantIdentity: string | undefined;
 
   private trackId: string | undefined;
+
+  private encrypted: boolean | undefined;
 
   private keys: ParticipantKeyHandler;
 
@@ -204,15 +204,19 @@ export class FrameCryptor extends BaseFrameCryptor {
     clearTimeout(this.undecryptedTrackTimeout);
     this.undecryptedTrackTimeout = undefined;
     this.participantIdentity = undefined;
+    this.encrypted = undefined;
     this.errorLimiter.reset();
   }
 
+  /**
+   * Sets whether the received track is encrypted, from the track's own publication.
+   */
+  setEncrypted(encrypted: boolean | undefined) {
+    this.encrypted = encrypted;
+  }
+
   isEnabled() {
-    if (this.participantIdentity) {
-      return encryptionEnabledMap.get(this.participantIdentity);
-    } else {
-      return undefined;
-    }
+    return this.participantIdentity ? this.encrypted : undefined;
   }
 
   getParticipantIdentity() {

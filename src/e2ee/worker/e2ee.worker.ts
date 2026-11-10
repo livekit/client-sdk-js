@@ -19,7 +19,7 @@ import type {
 } from '../types';
 import { DataCryptor } from './DataCryptor';
 import { ErrorRateLimiter } from './ErrorRateLimiter';
-import { FrameCryptor, encryptionEnabledMap, setLocalEncryptionEnabled } from './FrameCryptor';
+import { FrameCryptor, setLocalEncryptionEnabled } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 // senders and receivers have separate cryptors
@@ -76,8 +76,6 @@ onmessage = (ev) => {
       case 'enable':
         if (data.local) {
           setLocalEncryptionEnabled(data.enabled);
-        } else {
-          setEncryptionEnabled(data.enabled, data.participantIdentity);
         }
         workerLogger.info(
           `updated e2ee enabled status for ${data.participantIdentity} to ${data.enabled}`,
@@ -87,6 +85,7 @@ onmessage = (ev) => {
         break;
       case 'decode':
         let cryptor = getTrackCryptor(kind, data.participantIdentity, data.trackId);
+        cryptor.setEncrypted(data.encrypted);
         cryptor.setHasFrameMetadata(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
@@ -199,6 +198,9 @@ onmessage = (ev) => {
           trackCryptor.setVideoCodec(data.codec);
         }
         trackCryptor.setHasFrameMetadata(data.hasPacketTrailer);
+        if (data.operation !== 'encode') {
+          trackCryptor.setEncrypted(data.encrypted);
+        }
         workerLogger.info('updated codec', {
           participantIdentity: data.participantIdentity,
           trackId: data.trackId,
@@ -351,13 +353,6 @@ function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
   }
 }
 
-function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
-  workerLogger.debug(`setting encryption enabled for all tracks of ${participantIdentity}`, {
-    enable,
-  });
-  encryptionEnabledMap.set(participantIdentity, enable);
-}
-
 async function setSharedKey(key: CryptoKey, index?: number, updateCurrentKeyIndex?: boolean) {
   workerLogger.info('set shared key', { index });
   await getSharedKeyHandler().setKey(key, index, updateCurrentKeyIndex);
@@ -410,6 +405,9 @@ if (self.RTCTransformEvent) {
     const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
       const cryptor = getTrackCryptor(kind, participantIdentity, trackId);
+      if (kind === 'decode') {
+        cryptor.setEncrypted(options.encrypted);
+      }
       cryptor.setHasFrameMetadata(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(

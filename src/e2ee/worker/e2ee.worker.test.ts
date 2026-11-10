@@ -84,4 +84,52 @@ describe('e2ee worker', () => {
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0].data.byteLength).toBeGreaterThan(plainLength);
   });
+
+  it('keeps the encryption state of each received track separate', async () => {
+    const played: RTCEncodedVideoFrame[] = [];
+    let receive: (frame: RTCEncodedVideoFrame) => void = () => {};
+
+    post({
+      kind: 'init',
+      data: { keyProviderOptions: { ...KEY_PROVIDER_DEFAULTS, sharedKey: false }, loglevel: 4 },
+    });
+    post({
+      kind: 'decode',
+      data: {
+        participantIdentity: 'alice',
+        trackId: 'alice-mic',
+        encrypted: true,
+        hasPacketTrailer: false,
+        readableStream: new ReadableStream({
+          start: (c) => {
+            receive = (f) => c.enqueue(f);
+          },
+        }),
+        writableStream: new WritableStream({
+          write: (f) => {
+            played.push(f);
+          },
+        }),
+      },
+    });
+    post({ kind: 'enable', data: { enabled: false, participantIdentity: 'alice' } });
+    post({
+      kind: 'decode',
+      data: {
+        participantIdentity: 'alice',
+        trackId: 'alice-screen',
+        encrypted: false,
+        hasPacketTrailer: false,
+        readableStream: new ReadableStream(),
+        writableStream: new WritableStream(),
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // no key for alice: a frame of the encrypted track must not reach the decoder as it is
+    receive(mockFrame(new Uint8Array(32)));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(played).toHaveLength(0);
+  });
 });

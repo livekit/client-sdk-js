@@ -8,12 +8,7 @@ import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
-import {
-  FrameCryptor,
-  encryptionEnabledMap,
-  isFrameServerInjected,
-  setLocalEncryptionEnabled,
-} from './FrameCryptor';
+import { FrameCryptor, isFrameServerInjected, setLocalEncryptionEnabled } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { parseH264IdrPpsId } from './naluUtils';
 
@@ -105,7 +100,6 @@ function prepareParticipantTest(
   const keyProviderOptions = { ...KEY_PROVIDER_DEFAULTS, ...partialKeyProviderOptions };
   const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
 
-  encryptionEnabledMap.set(participantIdentity, true);
   setLocalEncryptionEnabled(true);
 
   const cryptor = new FrameCryptor({
@@ -114,6 +108,7 @@ function prepareParticipantTest(
     keyProviderOptions,
     sifTrailer: new Uint8Array(),
   });
+  cryptor.setEncrypted(true);
 
   const input = new TestUnderlyingSource<RTCEncodedVideoFrame>();
   const output = new TestUnderlyingSink<RTCEncodedVideoFrame>();
@@ -150,7 +145,6 @@ describe('FrameCryptor', () => {
 
   describe('encode', () => {
     afterEach(() => {
-      encryptionEnabledMap.clear();
       setLocalEncryptionEnabled(undefined);
     });
 
@@ -174,7 +168,6 @@ describe('FrameCryptor', () => {
       await keys.setKey(await createKeyMaterialFromString('key1'), 1);
       const plainLength = 16;
 
-      encryptionEnabledMap.clear();
       input.write(mockRTCEncodedVideoFrame(new Uint8Array(plainLength)));
       await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
 
@@ -534,17 +527,15 @@ describe('FrameCryptor', () => {
   });
 
   describe('decode', () => {
-    afterEach(() => {
-      encryptionEnabledMap.clear();
-    });
+    afterEach(() => {});
 
     it('passthrough if participant encryption disabled', async () => {
       vitest.useFakeTimers();
       try {
-        const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+        const { cryptor, input, output } = prepareParticipantTestDecoder(participantIdentity, {});
 
-        // disable encryption for participant
-        encryptionEnabledMap.set(participantIdentity, false);
+        // the track is published unencrypted
+        cryptor.setEncrypted(false);
 
         const frame = mockEncryptedRTCEncodedVideoFrame(1);
 
@@ -713,8 +704,8 @@ describe('FrameCryptor', () => {
         const { cryptor, input, output } = prepareParticipantTestDecoder(participantIdentity, {});
         const postMessage = vitest.fn();
         vitest.stubGlobal('postMessage', postMessage);
-        encryptionEnabledMap.set(participantIdentity, false);
         cryptor.setHasFrameMetadata(true);
+        cryptor.setEncrypted(false);
 
         const payload = Uint8Array.from([1, 2, 3, 4]);
         const trailer = appendPacketTrailer(payload, 1_744_249_600_123_456n, 0);

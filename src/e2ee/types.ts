@@ -53,6 +53,8 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
+    /** whether the publication of a received track is marked encrypted, unused on encode */
+    encrypted?: boolean;
     /**
      * Whether the published track advertises packet trailer features.
      * When false, the cryptor skips the per-frame trailer extraction path
@@ -89,6 +91,8 @@ export interface UpdateCodecMessage extends BaseMessage {
      */
     previousTrackId?: string;
     hasPacketTrailer: boolean;
+    /** whether the publication of a received track is marked encrypted, unused on encode */
+    encrypted?: boolean;
     /** which cryptor the update is for, a receiver's ('decode') when omitted */
     operation?: 'encode' | 'decode';
   };
@@ -273,6 +277,8 @@ export type ScriptTransformOptions = {
   participantIdentity: string;
   trackId: string;
   codec?: VideoCodec;
+  /** whether the publication of a received track is marked encrypted, unused on encode */
+  encrypted?: boolean;
   /**
    * Whether the published track advertises packet trailer features.
    * When false, the cryptor skips the per-frame trailer extraction path

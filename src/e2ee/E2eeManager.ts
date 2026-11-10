@@ -613,6 +613,7 @@ export class E2EEManager
       remoteId,
       track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
       hasPacketTrailer,
+      trackInfo.encryption !== Encryption_Type.NONE,
     );
   }
 
@@ -644,6 +645,7 @@ export class E2EEManager
     participantIdentity: string,
     codec: VideoCodec | undefined,
     hasPacketTrailer: boolean,
+    encrypted: boolean,
   ) {
     if (!this.worker) {
       return;
@@ -656,6 +658,7 @@ export class E2EEManager
         trackId,
         codec,
         hasPacketTrailer,
+        encrypted,
       };
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
@@ -674,6 +677,7 @@ export class E2EEManager
             codec,
             participantIdentity,
             hasPacketTrailer,
+            encrypted,
           },
         };
         this.worker.postMessage(msg);
@@ -705,6 +709,7 @@ export class E2EEManager
           codec,
           participantIdentity: participantIdentity,
           hasPacketTrailer,
+          encrypted,
         },
       };
       this.worker.postMessage(msg, [readable, writable]);
