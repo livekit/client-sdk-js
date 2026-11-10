@@ -306,9 +306,13 @@ describe('remote track subscription', () => {
     expect(replay).not.toHaveBeenCalled();
   });
 
-  it('does not subscribe a deferred track the server stopped sending before the room connected', () => {
+  it('subscribes a deferred track once the room connects', async () => {
+    // 1. Start connecting, and listen for track subscriptions
     const room = new Room();
     room.state = ConnectionState.Connecting;
+    const roomEvents = subscribeToEvents<RoomEventCallbacks>(room, [RoomEvent.TrackSubscribed]);
+
+    // 2. A remote participant with a video track joins
     room.engine.emit(EngineEvent.ParticipantUpdate, [
       new ParticipantInfo({
         sid: 'PA_remote',
@@ -317,26 +321,29 @@ describe('remote track subscription', () => {
         tracks: [new TrackInfo({ sid: 'TR_video', type: TrackType.VIDEO })],
       }),
     ]);
-    const trackSubscribed = vi.fn();
-    room.on(RoomEvent.TrackSubscribed, trackSubscribed);
 
-    // the track arrives while the room connects, so the room defers it
+    // 3. The track arrives while the room connects, so the room defers it
     const mediaTrack = new MockMediaStreamTrack();
     const stream = new MockMediaStream('PA_remote|TR_video', [mediaTrack]);
     room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.TrackSubscribed)).toStrictEqual(false);
 
-    // the subscription fails and the next answer stops the track, so the browser removes it
-    stream.removeTrack(mediaTrack);
-
+    // 4. The room connects
     room.state = ConnectionState.Connected;
     room.emit(RoomEvent.Connected);
 
-    expect(trackSubscribed).not.toHaveBeenCalled();
+    // 5. The deferred track is now subscribed
+    const track = await roomEvents.waitFor(RoomEvent.TrackSubscribed);
+    expect(track.sid).toStrictEqual('TR_video');
   });
 
-  it('subscribes a deferred track once the room connects', () => {
+  it('does not subscribe a deferred track the server stopped sending before the room connected', () => {
+    // 1. Start connecting, and listen for track subscriptions
     const room = new Room();
     room.state = ConnectionState.Connecting;
+    const roomEvents = subscribeToEvents<RoomEventCallbacks>(room, [RoomEvent.TrackSubscribed]);
+
+    // 2. A remote participant with a video track joins
     room.engine.emit(EngineEvent.ParticipantUpdate, [
       new ParticipantInfo({
         sid: 'PA_remote',
@@ -345,18 +352,21 @@ describe('remote track subscription', () => {
         tracks: [new TrackInfo({ sid: 'TR_video', type: TrackType.VIDEO })],
       }),
     ]);
-    const trackSubscribed = vi.fn();
-    room.on(RoomEvent.TrackSubscribed, trackSubscribed);
 
-    // the track arrives while the room connects, so the room defers it
+    // 3. The track arrives while the room connects, so the room defers it
     const mediaTrack = new MockMediaStreamTrack();
     const stream = new MockMediaStream('PA_remote|TR_video', [mediaTrack]);
     room.engine.emit(EngineEvent.MediaTrackAdded, mediaTrack, stream, {} as RTCRtpReceiver);
 
+    // 4. The subscription fails, and the browser removes the track from its stream
+    stream.removeTrack(mediaTrack); /* <-- DIFFERENCE */
+
+    // 5. The room connects
     room.state = ConnectionState.Connected;
     room.emit(RoomEvent.Connected);
 
-    expect(trackSubscribed).toHaveBeenCalledOnce();
+    // 6. The deferred track is not subscribed
+    expect(roomEvents.areThereBufferedEvents(RoomEvent.TrackSubscribed)).toStrictEqual(false);
   });
 });
 
