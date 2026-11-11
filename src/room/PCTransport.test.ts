@@ -473,6 +473,49 @@ a=fmtp:49 level-id=180;profile-id=1;tier-flag=0;tx-mode=SRST`);
     expect(fmtpOf(media, '4', 49)).toBe(fmtpOf(media, '3', 49)); // stale conformed
     expect(fmtpOf(media, '5', 49)).toBe(fmtpOf(media, '3', 49)); // placeholder conformed
   });
+
+  const vp8Bundle = (sendFmtp?: string, placeholderFmtp?: string) =>
+    parse(`v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+m=video 9 UDP/TLS/RTP/SAVPF 96
+a=mid:0
+a=sendonly
+a=msid:s screen
+a=ssrc:1 cname:a
+a=rtpmap:96 VP8/90000${sendFmtp ? `\na=fmtp:96 ${sendFmtp}` : ''}
+m=video 9 UDP/TLS/RTP/SAVPF 96
+a=mid:1
+a=recvonly
+a=rtpmap:96 VP8/90000${placeholderFmtp ? `\na=fmtp:96 ${placeholderFmtp}` : ''}`).media;
+
+  it('adds the fmtp to a placeholder that has none for the payload', () => {
+    const media = vp8Bundle('x-google-start-bitrate=1000');
+
+    conformBundledCodecFmtp(media, placeholders(['1']));
+
+    expect(fmtpOf(media, '1', 96)).toBe('x-google-start-bitrate=1000');
+  });
+
+  it('removes a placeholder fmtp when the real section has none', () => {
+    const media = vp8Bundle(undefined, 'x-google-start-bitrate=1000');
+
+    conformBundledCodecFmtp(media, placeholders(['1']));
+
+    expect(fmtpOf(media, '0', 96)).toBeUndefined();
+    expect(fmtpOf(media, '1', 96)).toBeUndefined();
+  });
+
+  it('does not add an fmtp for a codec the placeholder does not offer', () => {
+    const media = vp8Bundle('x-google-start-bitrate=1000');
+    media[1].rtp = [{ payload: 98, codec: 'VP9', rate: 90000 }];
+
+    conformBundledCodecFmtp(media, placeholders(['1']));
+
+    expect(media[1].fmtp ?? []).toEqual([]);
+  });
 });
 
 describe('fmtpConfigHasParam', () => {

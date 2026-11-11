@@ -54,16 +54,47 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
 
-    const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
+    // React Native has non spec-compliant behavior on close() before open:
+    // iOS sends only `close`, and only once the TCP connect settles.
+    // Android ignores the close and will open the socket anyway.
+    // To fix this, close() before open rejects `opened` immediately.
+    let closeRequested: WebSocketCloseInfo | undefined;
+    let rejectOpened!: (error: WebsocketError) => void;
+
+    const closeWithInfo = (closeInfo: WebSocketCloseInfo = {}) => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        closeRequested = closeInfo;
+        rejectOpened(ConnectionError.websocket('Websocket closed before the connection opened'));
+      }
+      const { closeCode: code, reason } = closeInfo;
       ws.close(code, reason === undefined ? undefined : truncateCloseReason(reason));
+    };
 
     this.opened = new TypedPromise<WebSocketConnection<T>, WebsocketError>((resolve, reject) => {
+      rejectOpened = reject;
       const rejectHandler = () => {
         reject(
           ConnectionError.websocket('Encountered websocket error during connection establishment'),
         );
       };
+      // Some WebSocket implementations (React Native on iOS, for one) report a handshake that ends
+      // before the socket opens as a bare `close` event with no `error` before it. Without this
+      // handler `opened` would stay pending forever in that case.
+      const closeBeforeOpenHandler = (ev: CloseEvent) => {
+        reject(
+          ConnectionError.websocket(
+            `Websocket closed during connection establishment with code ${ev.code}${
+              ev.reason ? `: ${ev.reason}` : ''
+            }`,
+          ),
+        );
+      };
       ws.onopen = () => {
+        if (closeRequested) {
+          // React Native on Android ignored the close() and opened the socket anyway
+          closeWithInfo(closeRequested);
+          return;
+        }
         resolve({
           readable: new ReadableStream<T>({
             start(controller) {
@@ -100,8 +131,10 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
           extensions: ws.extensions,
         });
         ws.removeEventListener('error', rejectHandler);
+        ws.removeEventListener('close', closeBeforeOpenHandler);
       };
       ws.addEventListener('error', rejectHandler);
+      ws.addEventListener('close', closeBeforeOpenHandler);
     });
 
     this.closed = new TypedPromise<WebSocketCloseInfo, WebsocketError>((resolve, reject) => {
@@ -139,7 +172,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
     });
 
     if (options.signal) {
-      options.signal.onabort = () => ws.close();
+      options.signal.onabort = () => closeWithInfo();
     }
 
     this.close = closeWithInfo;

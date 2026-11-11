@@ -1,5 +1,5 @@
-import { type Throws } from '@livekit/throws-transformer/throws';
 import type { BaseE2EEManager } from '../../../e2ee/E2eeManager';
+import { type Throws } from '../../../utils/throws';
 import { type DataTrackFrameInternal } from '../frame';
 import { DataTrackPacket } from '../packet';
 import { DataTrackE2eeExtension } from '../packet/extensions';

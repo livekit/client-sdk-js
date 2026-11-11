@@ -144,9 +144,11 @@ describe('Document Picture-in-Picture detection', () => {
   /**
    * Creates a frame in the given document and returns its document. happy-dom implements
    * neither frameElement nor a correct top on a frame's window, so both are wired up here.
+   * The empty srcdoc gives the frame a document: happy-dom does not load a src page by default.
    */
   function createFrame(parentDocument: Document, topWindow: Window) {
     const frame = parentDocument.createElement('iframe');
+    frame.srcdoc = '';
     parentDocument.body.appendChild(frame);
     const frameDocument = frame.contentDocument!;
     Object.defineProperties(frameDocument.defaultView!, {

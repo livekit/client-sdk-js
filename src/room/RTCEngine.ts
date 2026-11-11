@@ -233,6 +233,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectAbortController?: AbortController;
 
+  /**
+   * the attempt of a full reconnect on one region, handed out with `SignalRestarted`. Aborted when
+   * the next attempt begins, on the next region or in a later restart, and on close
+   */
+  private restartAttemptController?: AbortController;
+
   private reconnectPolicy: ReconnectPolicy;
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
@@ -494,6 +500,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async close(reason?: string) {
     this.reconnectAbortController?.abort();
     this.reconnectAbortController = undefined;
+    this.restartAttemptController?.abort();
+    this.restartAttemptController = undefined;
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
       unlock();
@@ -617,7 +625,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (!joinResponse) {
       const rtcConfig = this.makeRTCConfiguration();
-      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, rtcConfig);
+      this.pcManager = new PCTransportManager('publisher-only', this.loggerOptions, {
+        rtcConfig,
+        peerConnectionTimeout: this.peerConnectionTimeout,
+      });
     } else {
       this.participantSid = joinResponse.participant?.sid;
       const rtcConfig = this.makeRTCConfiguration(joinResponse);
@@ -628,7 +639,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             ? 'subscriber-primary'
             : 'publisher-primary',
         this.loggerOptions,
-        rtcConfig,
+        { rtcConfig, peerConnectionTimeout: this.peerConnectionTimeout },
       );
     }
 
@@ -717,14 +728,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
+      // an answer to an older offer is never applied by the publisher transport, so
+      // neither its mapping nor anything else in it may replace the current answer's state
+      if (this.pcManager.publisher.isStaleAnswer(offerId)) {
+        this.log.warn('ignoring answer for old offer', {
+          offerId,
+          latestOfferId: this.pcManager.publisher.latestOfferId,
+        });
+        return;
+      }
       this.log.debug('received server answer', {
         RTCSdpType: sd.type,
         sdp: sd.sdp,
         midToTrackId,
       });
       // in dual PC mode the publisher answer carries no mapping (the server's publisher
-      // transport has no sending tracks) and must not clobber the subscriber offer mapping
-      if (this.pcManager.mode === 'publisher-only') {
+      // transport has no sending tracks) and must not clobber the subscriber offer mapping.
+      // an empty mapping is decoded as `{}` and would wipe the current one as well, so it is
+      // ignored the same way the Rust SDK does
+      if (this.pcManager.mode === 'publisher-only' && Object.keys(midToTrackId).length > 0) {
         this.midToTrackId = midToTrackId;
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
@@ -1479,6 +1501,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.restartAttemptController?.abort();
+      const restartAttempt = new AbortController();
+      this.restartAttemptController = restartAttempt;
       this.emit(EngineEvent.Restarting);
 
       if (!this.client.isDisconnected) {
@@ -1526,7 +1551,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.client.setReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse);
+      this.emit(EngineEvent.SignalRestarted, joinResponse, restartAttempt.signal);
 
       await this.waitForPCReconnected();
       if (abortSignal.aborted) {
@@ -1645,7 +1670,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('PC manager is closed');
     }
-    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
+    // A full reconnect during the initial connection replaces the transports polled below, so its
+    // `Restarted` completes the initial connection too. The engine closing (e.g. giving up) fails it.
+    let restarting = false;
+    const onRestarting = () => {
+      restarting = true;
+    };
+    let onRestarted!: () => void;
+    let onClosing!: () => void;
+    let onAbort!: () => void;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const engineOutcome = new Promise<void>((resolve, reject) => {
+      onRestarted = resolve;
+      onClosing = () => reject(ConnectionError.internal('could not establish pc connection'));
+      onAbort = () => reject(ConnectionError.cancelled('room connection has been cancelled'));
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Closing, onClosing);
+      // The transport wait below enforces these too, but not once it has resolved.
+      abortController?.signal.addEventListener('abort', onAbort);
+      deadline = CriticalTimers.setTimeout(onClosing, timeout ?? this.peerConnectionTimeout);
+    });
+    this.once(EngineEvent.Restarting, onRestarting);
+    try {
+      await Promise.race([
+        this.pcManager.ensurePCTransportConnection(abortController, timeout),
+        engineOutcome,
+      ]);
+      if (restarting) {
+        // Transports that connected once a restart had begun are about to be closed; follow it.
+        await engineOutcome;
+      }
+    } finally {
+      CriticalTimers.clearTimeout(deadline);
+      abortController?.signal.removeEventListener('abort', onAbort);
+      this.off(EngineEvent.Restarting, onRestarting);
+      this.off(EngineEvent.Restarted, onRestarted);
+      this.off(EngineEvent.Closing, onClosing);
+    }
   }
 
   private async waitForPCReconnected() {
@@ -1666,21 +1727,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  waitForRestarted = () => {
-    return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
-        resolve();
+  /**
+   * resolves to whether the attempt `SignalRestarted` handed out restarted the connection. Call it
+   * while handling that event, before `Restarted` can fire
+   */
+  waitForRestarted = (restartAttempt: AbortSignal) => {
+    return new Promise<boolean>((resolve) => {
+      if (restartAttempt.aborted) {
+        resolve(false);
+        return;
       }
       const onRestarted = () => {
-        this.off(EngineEvent.Disconnected, onDisconnected);
-        resolve();
+        restartAttempt.removeEventListener('abort', onAborted);
+        resolve(true);
       };
-      const onDisconnected = () => {
+      const onAborted = () => {
+        restartAttempt.removeEventListener('abort', onAborted);
         this.off(EngineEvent.Restarted, onRestarted);
-        reject();
+        resolve(false);
       };
       this.once(EngineEvent.Restarted, onRestarted);
-      this.once(EngineEvent.Disconnected, onDisconnected);
+      restartAttempt.addEventListener('abort', onAborted);
     });
   };
 
@@ -2092,6 +2159,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       CriticalTimers.clearTimeout(this.reconnectTimeout);
+      // `pendingReconnect` is derived from this handle, so it must not outlive the timer
       this.reconnectTimeout = undefined;
     }
   }
@@ -2161,7 +2229,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   getTrackIdForReceiver(receiver: RTCRtpReceiver): string | undefined {
-    const mid = this.pcManager?.getMidForReceiver(receiver);
+    const mid = this.pcManager?.getTransceiverForReceiver(receiver)?.mid;
     if (mid) {
       const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
       if (match) {
@@ -2179,7 +2247,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: () => void;
   signalResumed: () => void;
-  signalRestarted: (joinResp: JoinResponse) => void;
+  signalRestarted: (joinResp: JoinResponse, restartAttempt: AbortSignal) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

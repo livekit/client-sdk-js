@@ -1,0 +1,47 @@
+import { describe, expect, it } from 'vitest';
+import { writeRbsp } from './utils';
+
+describe('writeRbsp', () => {
+  it('inserts an emulation prevention byte before every byte <= 3 after two zeros', () => {
+    const cases: Array<[number[], number[]]> = [
+      // No escapes.
+      [[], []],
+      [
+        [0x00, 0x04, 0x00, 0x00, 0x04, 0xff],
+        [0x00, 0x04, 0x00, 0x00, 0x04, 0xff],
+      ],
+      // One escape.
+      [
+        [0x11, 0x00, 0x00, 0x01, 0x22],
+        [0x11, 0x00, 0x00, 0x03, 0x01, 0x22],
+      ],
+      // Consecutive zero runs: the zero count resets after each escape.
+      [
+        [0x00, 0x00, 0x00, 0x00, 0x00, 0x02],
+        [0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x02],
+      ],
+      [
+        [0x00, 0x00, 0x03, 0x00, 0x00, 0x00],
+        [0x00, 0x00, 0x03, 0x03, 0x00, 0x00, 0x03, 0x00],
+      ],
+      // Trailing zeros are not escaped, because no byte follows them.
+      [
+        [0xaa, 0x00, 0x00],
+        [0xaa, 0x00, 0x00],
+      ],
+      [
+        [0xaa, 0x00, 0x00, 0x00, 0x00],
+        [0xaa, 0x00, 0x00, 0x03, 0x00, 0x00],
+      ],
+    ];
+
+    for (const [input, expected] of cases) {
+      expect(writeRbsp(new Uint8Array(input))).toEqual(new Uint8Array(expected));
+    }
+  });
+
+  it('returns the input itself when nothing needs escaping', () => {
+    const input = new Uint8Array([0x00, 0x00, 0x04, 0xff]);
+    expect(writeRbsp(input)).toBe(input);
+  });
+});

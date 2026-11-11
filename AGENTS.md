@@ -24,6 +24,11 @@ selection. Cancellation must cover continuations after awaited cleanup and late 
 engine close removes room listeners, so room-event guards cannot catch those continuations.
 Regression tests live in `RTCEngine.test.ts` and `SignalClient.test.ts`.
 
+Each region attempt of a full reconnect has its own `AbortSignal`, passed as the second argument of
+`EngineEvent.SignalRestarted`. The engine aborts it when the next attempt begins (next region or a
+later restart) and on close. `CoreRoom.handleSignalRestarted` awaits a republish, so it checks that
+signal before it reports the recovery. Failover regression tests live in `Room.test.ts`.
+
 ### Data transport APIs
 
 LiveKit has four data transport mechanisms, each suited to different patterns:
@@ -64,6 +69,12 @@ user-facing API.
 - **Run all tests:** `npx vitest run`
 - **Run specific test file:** `npx vitest run path/to/file.test.ts`
 - **Format:** `npm run format`
+- **Published types:** `pnpm check:published-types` (after `pnpm build`) installs the packed tarball
+  into a temp project outside the repo and type-checks every entry with `skipLibCheck` off and
+  `exactOptionalPropertyTypes` on. Declarations must name only packages in `dependencies`, and their
+  `@types/*` packages must be there too. Import `Throws` from `src/utils/throws.ts`, never from
+  `@livekit/throws-transformer` (a devDependency). If `dist` still shows an old inferred type after
+  a type-only change, delete `node_modules/.cache/rollup-plugin-typescript2`: its cache misses those.
 
 ## Examples
 

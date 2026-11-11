@@ -156,7 +156,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   /**
    * Explicitly set the video dimensions for this track.
    *
-   * This will take precedence over adaptive stream dimensions.
+   * With adaptive stream, the SDK requests the smaller of these and the adaptive stream dimensions
+   * (by pixel count).
+   * It clears a quality that was requested with `setVideoQuality()`.
    *
    * @param dimensions The video dimensions to set.
    */
@@ -195,6 +197,17 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emitTrackUpdate();
   }
 
+  /**
+   * The maximum video quality that was requested with `setVideoQuality()`.
+   * When no quality was requested, it is `VideoQuality.HIGH`. `setVideoDimensions()` clears the
+   * requested quality, so it is `VideoQuality.HIGH` after that call too.
+   *
+   * This value does not show the layer that the server sends. Adaptive stream and network
+   * bandwidth can make the server send a lower layer, and this value does not change.
+   *
+   * @see `RemoteVideoTrack.getReceiverStats()` (`frameWidth` and `frameHeight`) for the size of
+   * the video that the client receives.
+   */
   get videoQuality(): VideoQuality | undefined {
     return this.requestedMaxQuality ?? VideoQuality.HIGH;
   }

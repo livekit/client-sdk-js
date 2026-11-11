@@ -251,6 +251,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private bufferedEvents: Array<any> = [];
 
+  /**
+   * the room as it was before the current full reconnect. Every region the full reconnect tries
+   * starts from it, so the region it connects to reports every change since the outage
+   */
+  private roomInfoBeforeRestart?: RoomModel;
+
   private isResuming: boolean = false;
 
   private pendingTrackAddedCallbacks = new Map<Track.SID, Set<() => void>>();
@@ -349,17 +355,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // Wrap the listener in a WeakRef closure so navigator.mediaDevices does not
         // strongly retain the Room. When the user drops their Room ref, the
         // FinalizationRegistry callback aborts the controller and removes the listener.
-        const roomRef = new WeakRef(this);
-        onDeviceChange = () => {
-          const self = roomRef.deref();
-          if (!self) {
-            return;
-          }
-          self.handleDeviceChange();
-        };
-        cleanupRegistry.register(this, () => {
-          cleanupController.abort();
-        });
+        onDeviceChange = CoreRoom.createWeakDeviceChangeListener(new WeakRef(this));
+        cleanupRegistry.register(this, cleanupController);
       } else {
         // Legacy browsers without WeakRef/FinalizationRegistry: fall back to a
         // direct listener (matches pre-#1944 behavior).
@@ -560,7 +557,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.debug('Resuming signal connection');
-        if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (
+          !this.connectFuture &&
+          this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)
+        ) {
           this.emit(RoomEvent.SignalReconnecting);
         }
       })
@@ -569,6 +570,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         this.isResuming = false;
         this.log.debug('Resumed signal connection');
         this.updateSubscriptions();
+        if (this.connectFuture) {
+          // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+          this.bufferedEvents = [];
+          return;
+        }
         if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
           this.emit(RoomEvent.Reconnected);
         }
@@ -582,8 +588,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
+      .on(EngineEvent.Restarted, () => {
+        // normally handleSignalRestarted flushes after the restart, but if the room already
+        // reports connected, anything buffered since then would otherwise wait for the next reconnect
+        if (this.state === ConnectionState.Connected) {
+          this.emitBufferedEvents();
+        }
+      })
       .on(EngineEvent.Offline, () => {
-        if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+        // During connect(), the room stays `Connecting` and connect() reports the outcome.
+        if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })
@@ -664,9 +678,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   static cleanupRegistry =
     typeof FinalizationRegistry !== 'undefined' &&
     typeof WeakRef !== 'undefined' &&
-    new FinalizationRegistry((cleanup: () => void) => {
-      cleanup();
+    new FinalizationRegistry((cleanupController: AbortController) => {
+      cleanupController.abort();
     });
+
+  /**
+   * Builds the constructor's `devicechange` listener. It lives outside the constructor so that
+   * its closure only captures `roomRef`, not the constructor's context (which holds the Room).
+   */
+  private static createWeakDeviceChangeListener(roomRef: WeakRef<CoreRoom>) {
+    return () => {
+      roomRef.deref()?.handleDeviceChange();
+    };
+  }
 
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
@@ -1549,6 +1573,19 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       });
       const reconnectedHandler = () => {
         cleanup();
+        // the server can stop sending the track before the room connects, e.g. when the
+        // subscription failed. The subscription error cannot always cancel the deferral: it can
+        // arrive before the `track` event, and in single peer connection mode the deferral is
+        // not keyed by the track sid, as only the answer's mid mapping carries it.
+        // When the server stops sending, the browser removes the track from its stream,
+        // the same signal that ends a track once it is subscribed
+        if (!stream.getTracks().includes(mediaTrack)) {
+          this.log.debug('skipping deferred track, the server no longer sends it', {
+            mediaTrackId: mediaTrack.id,
+            mediaStreamId: stream.id,
+          });
+          return;
+        }
         this.onTrackAdded(mediaTrack, stream, receiver);
       };
       const cleanup = () => {
@@ -1723,21 +1760,32 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
 
+    // a region that failed after its join leaves its room state and held back events behind
+    this.roomInfoBeforeRestart ??= this.roomInfo;
+    this.roomInfo = this.roomInfoBeforeRestart;
+    this.bufferedEvents = [];
+
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
       this.handleParticipantDisconnected(p.identity, p);
     }
 
-    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+    // During connect(), the room stays `Connecting` and connect() reports the outcome.
+    if (!this.connectFuture && this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
   };
 
-  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
+  private handleSignalRestarted = async (
+    joinResponse: JoinResponse,
+    restartAttempt: AbortSignal,
+  ) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
       region: joinResponse.serverRegion,
     });
     this.bufferedEvents = [];
+    const initialConnection = this.connectFuture !== undefined;
+    const restarted = this.engine.waitForRestarted(restartAttempt);
 
     this.applyJoinResponse(joinResponse);
 
@@ -1748,11 +1796,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.error('error trying to re-publish tracks after reconnection', { error });
     }
 
-    try {
-      await this.engine.waitForRestarted();
-      this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
-    } catch {
-      // reconnection failed, handleDisconnect is being invoked already, just return here
+    // the attempt is aborted when a newer attempt began, on the next region or in a later
+    // restart, or when the engine closed; whatever replaced it reports the outcome
+    if (!(await restarted) || restartAttempt.aborted) {
+      return;
+    }
+    this.log.debug(`fully reconnected to server`, { region: joinResponse.serverRegion });
+    this.roomInfoBeforeRestart = undefined;
+    if (initialConnection) {
+      // connect() emits `Connected`; as on any initial join, events from before it are dropped.
+      this.bufferedEvents = [];
       return;
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -1765,6 +1818,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
+    this.roomInfoBeforeRestart = undefined;
     this.transcriptionReceivedTimes.clear();
     this.extensionResults.forEach((result) => result.onDisconnect?.());
     if (this.state === ConnectionState.Disconnected) {
@@ -1849,9 +1903,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
+    const appliedInfos: ParticipantInfo[] = [];
     for (const info of participantInfos) {
       if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
+        appliedInfos.push(info);
         continue;
       }
 
@@ -1862,6 +1918,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       }
 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
+
+      // a late update for an older session of this identity must not change the current session
+      if (remoteParticipant?.isOlderSession(info)) {
+        this.log.debug('ignoring update from an older participant session', {
+          remoteIdentity: info.identity,
+          staleSid: info.sid,
+          currentSid: remoteParticipant.sid,
+        });
+        continue;
+      }
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
@@ -1876,9 +1942,10 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         // create participant if doesn't exist
         this.getOrCreateParticipant(info.identity, info);
       }
+      appliedInfos.push(info);
     }
 
-    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(participantInfos));
+    this.extensionResults.forEach((result) => result.onParticipantUpdates?.(appliedInfos));
   };
 
   private handleParticipantDisconnected(
@@ -2538,7 +2605,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private getRemoteParticipantBySid(sid: string): RemoteParticipant | undefined {
     const identity = this.sidToIdentity.get(sid);
     if (identity) {
-      return this.remoteParticipants.get(identity);
+      const participant = this.remoteParticipants.get(identity);
+      // an older session's sid must not resolve to the current session of the same identity
+      if (participant?.sid === sid) {
+        return participant;
+      }
     }
   }
 
