@@ -127,13 +127,10 @@ function setupRoomWithE2EE() {
 }
 
 describe('subscriber black screen', () => {
-  beforeEach(() => {
-    encryptionEnabledMap.clear();
-  });
+  beforeEach(() => {});
 
   afterEach(() => {
     vi.restoreAllMocks();
-    encryptionEnabledMap.clear();
   });
 
   // -------------------------------------------------------------------------
@@ -243,7 +240,6 @@ describe('subscriber black screen', () => {
     it('rebuilds a dead pipeline instead of leaving the track undecrypted', async () => {
       const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
       await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
-      encryptionEnabledMap.set('jake', true);
 
       const cryptor = new FrameCryptor({
         participantIdentity: 'jake',
@@ -251,6 +247,7 @@ describe('subscriber black screen', () => {
         keyProviderOptions: KEY_PROVIDER_DEFAULTS,
         sifTrailer: new Uint8Array(),
       });
+      cryptor.setEncrypted(true);
 
       // a pipeline whose readable ends on its own, e.g. the swallowed
       // 'Destination stream closed'
@@ -282,7 +279,6 @@ describe('subscriber black screen', () => {
     it('must not forward ciphertext to the decoder', async () => {
       const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
       await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
-      encryptionEnabledMap.set('jake', true);
 
       const cryptor = new FrameCryptor({
         participantIdentity: 'jake',
@@ -290,6 +286,7 @@ describe('subscriber black screen', () => {
         keyProviderOptions: KEY_PROVIDER_DEFAULTS,
         sifTrailer: new Uint8Array(),
       });
+      cryptor.setEncrypted(true);
 
       const frames: RTCEncodedVideoFrame[] = [];
       let push!: (f: RTCEncodedVideoFrame) => void;
@@ -337,7 +334,6 @@ describe('subscriber black screen', () => {
     it('drops silently rather than reporting an error on a normal disconnect', async () => {
       const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
       await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
-      encryptionEnabledMap.set('jake', true);
 
       const cryptor = new FrameCryptor({
         participantIdentity: 'jake',
@@ -345,6 +341,7 @@ describe('subscriber black screen', () => {
         keyProviderOptions: KEY_PROVIDER_DEFAULTS,
         sifTrailer: new Uint8Array(),
       });
+      cryptor.setEncrypted(true);
 
       const errors: Error[] = [];
       cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
@@ -386,7 +383,6 @@ describe('subscriber black screen', () => {
       const keys = new ParticipantKeyHandler('bob', KEY_PROVIDER_DEFAULTS);
       await keys.setKey(await createKeyMaterialFromString('shared-password'), 0);
       // explicitly NOT encrypted, as opposed to "we don't know yet"
-      encryptionEnabledMap.set('bob', false);
 
       const cryptor = new FrameCryptor({
         participantIdentity: 'bob',
@@ -394,6 +390,7 @@ describe('subscriber black screen', () => {
         keyProviderOptions: KEY_PROVIDER_DEFAULTS,
         sifTrailer: new Uint8Array(),
       });
+      cryptor.setEncrypted(false);
 
       const frames: RTCEncodedVideoFrame[] = [];
       let push!: (f: RTCEncodedVideoFrame) => void;
@@ -430,7 +427,6 @@ describe('subscriber black screen', () => {
       vi.useFakeTimers();
       try {
         const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
-        encryptionEnabledMap.set('jake', true);
 
         const cryptor = new FrameCryptor({
           participantIdentity: 'jake',
@@ -438,6 +434,7 @@ describe('subscriber black screen', () => {
           keyProviderOptions: KEY_PROVIDER_DEFAULTS,
           sifTrailer: new Uint8Array(),
         });
+        cryptor.setEncrypted(true);
 
         const errors: Error[] = [];
         cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
@@ -468,7 +465,6 @@ describe('subscriber black screen', () => {
       vi.useFakeTimers();
       try {
         const keys = new ParticipantKeyHandler('me', KEY_PROVIDER_DEFAULTS);
-        encryptionEnabledMap.set('me', true);
 
         const cryptor = new FrameCryptor({
           participantIdentity: 'me',
@@ -476,6 +472,7 @@ describe('subscriber black screen', () => {
           keyProviderOptions: KEY_PROVIDER_DEFAULTS,
           sifTrailer: new Uint8Array(),
         });
+        cryptor.setEncrypted(true);
 
         const errors: Error[] = [];
         cryptor.on(CryptorEvent.Error, (e) => errors.push(e));
@@ -506,7 +503,6 @@ describe('subscriber black screen', () => {
       vi.useFakeTimers();
       try {
         const keys = new ParticipantKeyHandler('jake', KEY_PROVIDER_DEFAULTS);
-        encryptionEnabledMap.set('jake', true);
 
         const cryptor = new FrameCryptor({
           participantIdentity: 'jake',
@@ -514,6 +510,7 @@ describe('subscriber black screen', () => {
           keyProviderOptions: KEY_PROVIDER_DEFAULTS,
           sifTrailer: new Uint8Array(),
         });
+        cryptor.setEncrypted(true);
 
         const errors: Error[] = [];
         cryptor.on(CryptorEvent.Error, (e) => errors.push(e));

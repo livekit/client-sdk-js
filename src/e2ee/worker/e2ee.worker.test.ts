@@ -88,4 +88,64 @@ describe('e2ee worker', () => {
     expect(sentFrames).toHaveLength(1);
     expect(sentFrames[0].data.byteLength).toBeGreaterThan(16);
   });
+
+  it('keeps the encryption state of each received track separate', async () => {
+    // Set up the worker. The remote participant "alice" has no key
+    post({
+      kind: 'init',
+      data: { keyProviderOptions: { ...KEY_PROVIDER_DEFAULTS, sharedKey: false }, loglevel: 4 },
+    });
+
+    // Set up a receiver for an encrypted track of alice
+    let receiverInput!: ReadableStreamDefaultController<RTCEncodedVideoFrame>;
+    const decodedFrames: RTCEncodedVideoFrame[] = [];
+    post({
+      kind: 'decode',
+      data: {
+        participantIdentity: 'alice',
+        trackId: 'alice-mic',
+        encrypted: true,
+        hasPacketTrailer: false,
+        readableStream: new ReadableStream({
+          start: (controller) => {
+            receiverInput = controller;
+          },
+        }),
+        writableStream: new WritableStream({
+          write: (frame) => {
+            decodedFrames.push(frame);
+          },
+        }),
+      },
+    });
+
+    // Set up a receiver for a second track of alice, which is not encrypted
+    post({ kind: 'enable', data: { enabled: false, participantIdentity: 'alice' } });
+    post({
+      kind: 'decode',
+      data: {
+        participantIdentity: 'alice',
+        trackId: 'alice-screen',
+        encrypted: false /* <-- DIFFERENCE */,
+        hasPacketTrailer: false,
+        readableStream: new ReadableStream(),
+        writableStream: new WritableStream(),
+      },
+    });
+
+    // The worker handles its messages one after the other: wait until it is through
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Receive a frame on the encrypted track
+    receiverInput.enqueue({
+      data: new Uint8Array(32).buffer,
+      timestamp: 1,
+      type: 'key',
+      getMetadata: () => ({}),
+    } as RTCEncodedVideoFrame);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // The frame cannot be decrypted without a key, so it does not reach the decoder
+    expect(decodedFrames).toStrictEqual([]);
+  });
 });

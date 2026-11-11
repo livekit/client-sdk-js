@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
-import { FrameCryptor, encryptionEnabledMap, setLocalEncryptionEnabled } from './FrameCryptor';
+import { FrameCryptor, setLocalEncryptionEnabled } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 function mockRTCEncodedVideoFrame(data: Uint8Array): RTCEncodedVideoFrame {
@@ -46,7 +46,6 @@ function createCryptor(
 ) {
   const keyProviderOptions = { ...KEY_PROVIDER_DEFAULTS, ...partialKeyProviderOptions };
   const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
-  encryptionEnabledMap.set(participantIdentity, true);
   setLocalEncryptionEnabled(true);
 
   const cryptor = new FrameCryptor({
@@ -55,6 +54,7 @@ function createCryptor(
     keyProviderOptions,
     sifTrailer: new Uint8Array(),
   });
+  cryptor.setEncrypted(true);
 
   return { cryptor, keys };
 }
@@ -65,7 +65,6 @@ describe('FrameCryptor Race Conditions', () => {
   });
 
   afterEach(() => {
-    encryptionEnabledMap.clear();
     vitest.useRealTimers();
   });
 
@@ -131,7 +130,6 @@ describe('FrameCryptor Race Conditions', () => {
       // Now switch to participant2 (transceiver reuse scenario)
       const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
       await keys2.setKey(await createKeyMaterialFromString('key2'), 0);
-      encryptionEnabledMap.set('participant2', true);
 
       cryptor.setParticipant('participant2', keys2);
 
@@ -168,7 +166,6 @@ describe('FrameCryptor Race Conditions', () => {
       const consoleWarnSpy = vitest.spyOn(console, 'warn').mockImplementation(() => {});
 
       const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
-      encryptionEnabledMap.set('participant2', true);
 
       // FIXED: setParticipant now automatically cleans up previous participant
       cryptor.setParticipant('participant2', keys2);
@@ -394,7 +391,6 @@ describe('FrameCryptor Race Conditions', () => {
       // Immediately switch participant (simulating transceiver reuse)
       const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
       await keys2.setKey(await createKeyMaterialFromString('key2'), 0);
-      encryptionEnabledMap.set('participant2', true);
 
       cryptor.setParticipant('participant2', keys2);
 
@@ -507,7 +503,6 @@ describe('FrameCryptor Race Conditions', () => {
       // Immediately subscribe to participant2 (transceiver reuse)
       const keys2 = new ParticipantKeyHandler('participant2', KEY_PROVIDER_DEFAULTS);
       await keys2.setKey(await createKeyMaterialFromString('key2'), 0);
-      encryptionEnabledMap.set('participant2', true);
 
       cryptor.setParticipant('participant2', keys2);
 
