@@ -1197,6 +1197,6 @@ describe('rpc', () => {
 
     await room.disconnect();
 
-    expect(await settled).toBe('Recipient disconnected');
+    expect(await settled).toBe('Connection closed');
   });
 });

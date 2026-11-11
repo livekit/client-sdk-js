@@ -358,8 +358,8 @@ describe('RpcClientManager', () => {
 
         rpcClientManager.handleRoomDisconnected();
 
-        await expect(ackedPromise).rejects.toThrow('Recipient disconnected');
-        await expect(unackedPromise).rejects.toThrow('Recipient disconnected');
+        await expect(ackedPromise).rejects.toThrow('Connection closed');
+        await expect(unackedPromise).rejects.toThrow('Connection closed');
         expect(vi.getTimerCount()).toBe(0);
       } finally {
         vi.useRealTimers();

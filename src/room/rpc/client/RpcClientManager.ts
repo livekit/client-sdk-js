@@ -296,7 +296,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     this.pendingAcks.clear();
 
     for (const { completionFuture } of this.pendingResponses.values()) {
-      completionFuture.reject?.(RpcError.builtIn('RECIPIENT_DISCONNECTED'));
+      completionFuture.reject?.(RpcError.builtIn('CONNECTION_CLOSED'));
     }
     this.pendingResponses.clear();
   }
