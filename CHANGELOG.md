@@ -1,5 +1,85 @@
 # Change Log
 
+## 2.24.0
+
+### Minor Changes
+
+- Create the publisher data channels as negotiated (fixed IDs) in single peer connection mode when the server supports it (protocol 18), saving the data channel open round trip. Falls back to in-band channels against older servers. - [#2160](https://github.com/livekit/client-sdk-js/pull/2160) ([@lukasIO](https://github.com/lukasIO))
+
+- Split `Room` into `CoreRoom` plus extensions. `createRoom(options, [extensions])` from `livekit-client/core` builds a room with only the extensions an application needs; `e2ee`, `frameMetadata` and `dataStreams` take their options directly. `Room.dispose()` releases a room for good. Video publishing (camera, screen share, simulcast, SVC, backup codecs) is the `video` extension; receiving video stays in core. The new `livekit-client/core` entry (ESM only, experimental) exports `CoreRoom` and the extensions. `simulateParticipants` and the legacy chat messages are extensions too; the core entry does not offer legacy chat. - [#2141](https://github.com/livekit/client-sdk-js/pull/2141) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- If the server disconnects the participant while `room.connect()` is still waiting for the transports (e.g. a `DUPLICATE_IDENTITY` leave), the connection attempt is now cancelled. Previously it kept waiting until `peerConnectionTimeout`, then failed over to another region and rejoined with the same token after the room had already emitted `Disconnected`; `room.disconnect()` could not stop it because the room already looked disconnected. - [#2177](https://github.com/livekit/client-sdk-js/pull/2177) ([@tobelesa](https://github.com/tobelesa))
+
+- Cancel an incoming data stream when its reader stops early (an aborted `signal`, a `break` out of `for await`, or a read error), so the stream is unregistered and later packets for it are dropped instead of buffering until the trailer arrives. A reader can no longer resume a stream after leaving its iteration early. - [#2168](https://github.com/livekit/client-sdk-js/pull/2168) ([@1egoman](https://github.com/1egoman))
+
+- Conform placeholder fmtp for codecs without an fmtp line - [#2182](https://github.com/livekit/client-sdk-js/pull/2182) ([@eleboucher](https://github.com/eleboucher))
+
+- add datatrack data channel to sync state info - [#2159](https://github.com/livekit/client-sdk-js/pull/2159) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix data packet decryption after the sender ratchets its key: `DataCryptor` now retries with the ratcheted key instead of the stored one - [#2188](https://github.com/livekit/client-sdk-js/pull/2188) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- Mark data track unpublished after republish fail - [#2170](https://github.com/livekit/client-sdk-js/pull/2170) ([@1egoman](https://github.com/1egoman))
+
+- Fix an unhandled promise rejection when the signal passed to `dataTracks.getDeferred()` aborts, even though the caller catches the rejected promise. - [#2156](https://github.com/livekit/client-sdk-js/pull/2156) ([@Abhishek-B-R](https://github.com/Abhishek-B-R))
+
+- Stop playing a remote audio track in Chrome once it is detached. - [#2234](https://github.com/livekit/client-sdk-js/pull/2234) ([@murilo-teleo](https://github.com/murilo-teleo))
+
+- Fix a memory leak where a `Room` was never garbage collected after the application dropped it. - [#2222](https://github.com/livekit/client-sdk-js/pull/2222) ([@1egoman](https://github.com/1egoman))
+
+- Keep the H.264 PPS id readable in E2EE keyframes, so that Chrome no longer drops keyframes from encoders such as Intel Quick Sync - [#2181](https://github.com/livekit/client-sdk-js/pull/2181) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(e2ee): keep the encryption state of received tracks per track - [#2246](https://github.com/livekit/client-sdk-js/pull/2246) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(e2ee): track the local encryption state separately from remote participants - [#2245](https://github.com/livekit/client-sdk-js/pull/2245) ([@lukasIO](https://github.com/lukasIO))
+
+- Speed up the emulation prevention step for encrypted H.264 and H.265 frames. `writeRbsp` now returns the input unchanged when no byte needs escaping, and otherwise copies runs of bytes instead of building a JS array. The output does not change. - [#2184](https://github.com/livekit/client-sdk-js/pull/2184) ([@lukasIO](https://github.com/lukasIO))
+
+- Stop `Room.getLocalDevices()` without a kind from calling `getUserMedia` when every device is already listed with a label. - [#2232](https://github.com/livekit/client-sdk-js/pull/2232) ([@RaphaelFakhri](https://github.com/RaphaelFakhri))
+
+- Ignore a late participant update for an older session of a remote participant, so it no longer removes or replaces the participant's current session in `room.remoteParticipants`. - [#2229](https://github.com/livekit/client-sdk-js/pull/2229) ([@Brian-1812](https://github.com/Brian-1812))
+
+- Follow a full reconnect that happens during the initial connection (e.g. after the server moves a client off dead UDP) instead of timing out on the closed transports and tearing down the recovered session. The room stays `Connecting` while a resume, a restart or a browser offline event happens inside `connect()` and emits no `SignalReconnecting`, `Reconnecting` or `Reconnected`. Also stop polling the transports after the connection timeout, and reject an already-aborted transport wait as cancelled instead of leaving it pending. - [#2135](https://github.com/livekit/client-sdk-js/pull/2135) ([@rafaelhutter](https://github.com/rafaelhutter))
+
+- Limit each remote participant to 500 concurrently open incoming data streams by default. Headers for new streams beyond the limit are dropped with an error log, so a participant can no longer exhaust a receiver's memory by opening streams it never closes. The limit can be changed with the `dataStream.maxOpenStreamsPerParticipant` room option. - [#2214](https://github.com/livekit/client-sdk-js/pull/2214) ([@1egoman](https://github.com/1egoman))
+
+- Fixes an issue where if a data stream runs into a terminal error, any packets delivered afterwards will be treated as if the stream doesn't exist (and not throw a sync error) - [#2167](https://github.com/livekit/client-sdk-js/pull/2167) ([@1egoman](https://github.com/1egoman))
+
+- Apply the `peerConnectionTimeout` connect option to the negotiation deadline - [#2189](https://github.com/livekit/client-sdk-js/pull/2189) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- Fix the microphone pre-connect buffer never starting when `preConnectBuffer` is passed via publish options. - [#2252](https://github.com/livekit/client-sdk-js/pull/2252) ([@1egoman](https://github.com/1egoman))
+
+- fix published type declarations for consumers with `skipLibCheck: false` or `exactOptionalPropertyTypes` - [#2175](https://github.com/livekit/client-sdk-js/pull/2175) ([@lukasIO](https://github.com/lukasIO))
+
+- Stop a disconnected `SignalClient` from logging a spurious "ping timeout triggered" warning 15 s after `room.disconnect()`. - [#2239](https://github.com/livekit/client-sdk-js/pull/2239) ([@Brian-1812](https://github.com/Brian-1812))
+
+- Stop logging `error reading from signal stream` at error level when the signal socket was closed by the client or replaced; the read failure is now logged at debug level with the ignored close - [#2192](https://github.com/livekit/client-sdk-js/pull/2192) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- The debug log for a ratcheted E2EE key no longer includes the ratchet result, so the chain key and the new key material stay out of the console and out of log extensions. - [#2213](https://github.com/livekit/client-sdk-js/pull/2213) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep `engine.pendingReconnect` accurate across reconnect attempts. A failed attempt no longer clears the handle of the retry it just scheduled (which made `pendingReconnect` read `false` while a retry was pending), and the flag now clears as soon as the reconnect timer is cleared. Buffered room events are also flushed when the engine finishes restarting if the room already reports connected. - [#2193](https://github.com/livekit/client-sdk-js/pull/2193) ([@1egoman](https://github.com/1egoman))
+
+- Emit `Reconnected` once and keep room metadata and recording changes when a full reconnect fails over to another region - [#2165](https://github.com/livekit/client-sdk-js/pull/2165) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix dynacast never pausing video layers on React Native: save sender encodings before skipping the stats monitor - [#2163](https://github.com/livekit/client-sdk-js/pull/2163) ([@davidliu](https://github.com/davidliu))
+
+- Wait for the first frame of a screen share before reading its dimensions, so its simulcast layers are announced at the size the capture delivers instead of the requested resolution. - [#2217](https://github.com/livekit/client-sdk-js/pull/2217) ([@CSantosM](https://github.com/CSantosM))
+
+- Ignore signal messages received after the WebSocket is closed on React Native - [#2173](https://github.com/livekit/client-sdk-js/pull/2173) ([@davidliu](https://github.com/davidliu))
+
+- fix(room): skip a deferred track the server stopped sending - [#2225](https://github.com/livekit/client-sdk-js/pull/2225) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep the mid to track id mapping of the current publisher answer when an answer to an older offer or an answer with an empty mapping arrives in single peer connection mode, so remote tracks whose `track` event fires later are no longer dropped - [#2196](https://github.com/livekit/client-sdk-js/pull/2196) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- If `room.disconnect()` runs during the signal join, the connection attempt now rejects as cancelled instead of with a `TypeError`. A stale connection attempt no longer closes the engine of a newer connection or disconnects the room. - [#2151](https://github.com/livekit/client-sdk-js/pull/2151) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix `TokenSource` caching: a failed fetch no longer leaves the previous response cached under the new options, and `participantAttributes` is compared by content - [#2198](https://github.com/livekit/client-sdk-js/pull/2198) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- Document that `RemoteTrackPublication.videoQuality` returns the quality requested with `setVideoQuality()`. It does not show the layer that adaptive stream or network bandwidth selects. - [#2220](https://github.com/livekit/client-sdk-js/pull/2220) ([@Brian-1812](https://github.com/Brian-1812))
+
+- Reject `WebSocketStream.opened` when the socket closes before it opens, so that a failed, timed-out or aborted signal (re)connect on React Native no longer holds the connection lock. - [#2179](https://github.com/livekit/client-sdk-js/pull/2179) ([@sarankumar1325](https://github.com/sarankumar1325))
+
 ## 2.23.0
 
 ### Minor Changes
