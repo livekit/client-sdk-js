@@ -14,10 +14,40 @@ export function kebabCaseToPascalCase(string = '') {
 }
 
 /**
+ * machina calls `Object.hasOwn` (Safari 15.4) and `WeakRef` (Safari 14.1) when a state machine is
+ * created. Babel converts syntax only, so this rewrites both calls in the bundled copy. Without
+ * `WeakRef` the shim holds a strong reference: `createFsm` has one client, the machine itself, so
+ * nothing outlives the machine. Remove this when machina supports these browsers upstream.
+ * The core entry leaves machina external, so this does not reach it.
+ * @type {import('rollup').Plugin}
+ */
+const machinaBrowserCompat = {
+  name: 'machina-browser-compat',
+  transform(code, id) {
+    if (!/node_modules[\\/]machina[\\/]/.test(id)) {
+      return null;
+    }
+    const rewritten = code
+      .replaceAll('Object.hasOwn(', 'Object.prototype.hasOwnProperty.call(')
+      .replaceAll('new WeakRef(', 'new __lkWeakRef(');
+    if (rewritten === code || /Object\.hasOwn|\bWeakRef\b/.test(rewritten)) {
+      // Fail loudly: a machina upgrade changed what this plugin expects.
+      this.error(`machina-browser-compat: unexpected Object.hasOwn/WeakRef usage in ${id}`);
+    }
+    const shim =
+      "const __lkWeakRef = typeof WeakRef !== 'undefined' ? WeakRef : " +
+      'class { constructor(target) { this.target = target; } deref() { return this.target; } };';
+    // The shim stays on the first line (no newline), so the source map lines still match.
+    return { code: shim + rewritten, map: null };
+  },
+};
+
+/**
  * @type {import('rollup').InputPluginOption}
  */
 export const commonPlugins = [
   nodeResolve({ browser: true, preferBuiltins: false }),
+  machinaBrowserCompat,
   commonjs(),
   json(),
   babel({
