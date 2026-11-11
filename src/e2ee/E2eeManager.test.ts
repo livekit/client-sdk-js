@@ -4,8 +4,10 @@ import { Room } from '../room/Room';
 import { ParticipantEvent } from '../room/events';
 import { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
+import { subscribeToEvents } from '../utils/subscribeToEvents';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
+import { type E2EEManagerCallbacks, EncryptionEvent } from './events';
 
 /**
  * Install just enough of the DOM to let isE2EESupported() return true so
@@ -235,5 +237,72 @@ describe('E2EEManager sender codec seeding', () => {
     const encode = publishVideo('vp8');
     expect(encode).toBeDefined();
     expect(encode.data.codec).toBeUndefined();
+  });
+});
+
+describe('E2EEManager local encryption state', () => {
+  it('posts the local state from setLocalParticipantCryptorEnabled', () => {
+    // Create a manager with a worker that records its messages
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+
+    // Enable encryption for the local participant
+    manager.setLocalParticipantCryptorEnabled(true);
+
+    // The worker got an enable message that is marked as local
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      kind: 'enable',
+      data: { enabled: true, participantIdentity: '', local: true },
+    });
+
+    manager.dispose();
+  });
+
+  it('posts the local state from the deprecated setParticipantCryptorEnabled', () => {
+    // Create a manager with a worker that records its messages
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+
+    // Enable encryption with the deprecated method, which ignores the identity
+    manager.setParticipantCryptorEnabled(true, 'someone-else'); /* <-- DIFFERENCE */
+
+    // The worker got an enable message that is marked as local
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      kind: 'enable',
+      data: { enabled: true, participantIdentity: '', local: true },
+    });
+
+    manager.dispose();
+  });
+
+  it('emits the local status once when the worker confirms the same state twice', async () => {
+    // Create a manager with a worker that records its messages
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+    const managerEvents = subscribeToEvents<E2EEManagerCallbacks>(manager, [
+      EncryptionEvent.ParticipantEncryptionStatusChanged,
+    ]);
+    const workerReplies = worker.onmessage as (ev: { data: unknown }) => void;
+
+    // The worker confirms that local encryption is enabled
+    workerReplies({
+      data: { kind: 'enable', data: { enabled: true, participantIdentity: '', local: true } },
+    });
+
+    // The manager reports the new status
+    const enabled = await managerEvents.waitFor(EncryptionEvent.ParticipantEncryptionStatusChanged);
+    expect(enabled).toStrictEqual(true);
+
+    // The worker confirms the same state again, as it does after the room connects
+    workerReplies({
+      data: { kind: 'enable', data: { enabled: true, participantIdentity: 'me', local: true } },
+    });
+
+    // The manager does not report the status a second time
+    expect(
+      managerEvents.areThereBufferedEvents(EncryptionEvent.ParticipantEncryptionStatusChanged),
+    ).toStrictEqual(false);
+
+    manager.dispose();
   });
 });

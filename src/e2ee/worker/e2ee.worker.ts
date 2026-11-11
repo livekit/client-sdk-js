@@ -19,10 +19,11 @@ import type {
 } from '../types';
 import { DataCryptor } from './DataCryptor';
 import { ErrorRateLimiter } from './ErrorRateLimiter';
-import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
+import { FrameCryptor, encryptionEnabledMap, setLocalEncryptionEnabled } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
-const participantCryptors: FrameCryptor[] = [];
+// senders and receivers have separate cryptors
+const cryptorsByOperation: Record<'encode' | 'decode', FrameCryptor[]> = { encode: [], decode: [] };
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
 let sharedKeyHandler: ParticipantKeyHandler | undefined;
 let messageQueue = new AsyncQueue();
@@ -73,7 +74,11 @@ onmessage = (ev) => {
         workerLogger.setLevel(data.level);
         break;
       case 'enable':
-        setEncryptionEnabled(data.enabled, data.participantIdentity);
+        if (data.local) {
+          setLocalEncryptionEnabled(data.enabled);
+        } else {
+          setEncryptionEnabled(data.enabled, data.participantIdentity);
+        }
         workerLogger.info(
           `updated e2ee enabled status for ${data.participantIdentity} to ${data.enabled}`,
         );
@@ -81,7 +86,7 @@ onmessage = (ev) => {
         postMessage(ev.data);
         break;
       case 'decode':
-        let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        let cryptor = getTrackCryptor(kind, data.participantIdentity, data.trackId);
         cryptor.setHasFrameMetadata(data.hasPacketTrailer);
         cryptor.setupTransform(
           kind,
@@ -92,7 +97,7 @@ onmessage = (ev) => {
         );
         break;
       case 'encode':
-        let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        let pubCryptor = getTrackCryptor(kind, data.participantIdentity, data.trackId);
         pubCryptor.setHasFrameMetadata(data.hasPacketTrailer);
         pubCryptor.setupTransform(
           kind,
@@ -185,6 +190,7 @@ onmessage = (ev) => {
         break;
       case 'updateCodec':
         const trackCryptor = getTrackCryptor(
+          data.operation ?? 'decode',
           data.participantIdentity,
           data.trackId,
           data.previousTrackId,
@@ -214,10 +220,8 @@ onmessage = (ev) => {
       case 'setRTPMap':
         // this is only used for the local participant
         rtpMap = data.map;
-        participantCryptors.forEach((cr) => {
-          if (cr.getParticipantIdentity() === data.participantIdentity) {
-            cr.setRtpMap(data.map);
-          }
+        cryptorsByOperation.encode.forEach((cr) => {
+          cr.setRtpMap(data.map);
         });
         break;
       case 'ratchetRequest':
@@ -248,7 +252,13 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   }
 }
 
-function getTrackCryptor(participantIdentity: string, trackId: string, previousTrackId?: string) {
+function getTrackCryptor(
+  operation: 'encode' | 'decode',
+  participantIdentity: string,
+  trackId: string,
+  previousTrackId?: string,
+) {
+  const participantCryptors = cryptorsByOperation[operation];
   let cryptors = participantCryptors.filter((c) => c.getTrackId() === trackId);
 
   if (cryptors.length === 0 && previousTrackId !== undefined && previousTrackId !== trackId) {
@@ -324,7 +334,7 @@ function getSharedKeyHandler() {
 }
 
 function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
-  const cryptors = participantCryptors.filter(
+  const cryptors = cryptorsByOperation.decode.filter(
     (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
   );
   if (cryptors.length > 1) {
@@ -384,7 +394,7 @@ function emitRatchetedKeys(
 
 function handleSifTrailer(trailer: NonSharedUint8Array) {
   sifTrailer = trailer;
-  participantCryptors.forEach((c) => {
+  cryptorsByOperation.decode.forEach((c) => {
     c.setSifTrailer(trailer);
   });
 }
@@ -399,7 +409,7 @@ if (self.RTCTransformEvent) {
     const options = transformer.options as ScriptTransformOptions;
     const { kind, participantIdentity, trackId, codec, hasPacketTrailer } = options;
     messageQueue.run(async () => {
-      const cryptor = getTrackCryptor(participantIdentity, trackId);
+      const cryptor = getTrackCryptor(kind, participantIdentity, trackId);
       cryptor.setHasFrameMetadata(hasPacketTrailer);
       workerLogger.debug('onrtctransform setup', { participantIdentity, trackId, codec });
       cryptor.setupTransform(
