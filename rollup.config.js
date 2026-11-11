@@ -18,12 +18,24 @@ export function kebabCaseToPascalCase(string = '') {
  * created. Babel converts syntax only, so this rewrites both calls in the bundled copy. Without
  * `WeakRef` the shim holds a strong reference: `createFsm` has one client, the machine itself, so
  * nothing outlives the machine. Remove this when machina supports these browsers upstream.
- * The core entry leaves machina external, so this does not reach it.
+ * The core entry leaves machina external, so this does not reach it. `isBrowserSupported` reports
+ * that: where machina is bundled, the plugin sets `machinaNeedsNativeApis` in utils.ts to `false`.
  * @type {import('rollup').Plugin}
  */
 const machinaBrowserCompat = {
   name: 'machina-browser-compat',
-  transform(code, id) {
+  async transform(code, id) {
+    if (/src[\\/]room[\\/]utils\.ts$/.test(id)) {
+      // `isBrowserSupported` requires the native APIs only where machina stays external.
+      if ((await this.resolve('machina', id))?.external) {
+        return null;
+      }
+      const flag = 'const machinaNeedsNativeApis = true';
+      if (!code.includes(flag)) {
+        this.error(`machina-browser-compat: "${flag}" not found in ${id}`);
+      }
+      return { code: code.replace(flag, flag.replace('true', 'false')), map: null };
+    }
     if (!/node_modules[\\/]machina[\\/]/.test(id)) {
       return null;
     }

@@ -81,6 +81,7 @@ user-facing API.
   `machina-browser-compat` plugin in `rollup.config.js` rewrites machina's `Object.hasOwn` and
   `WeakRef` calls in the main bundle. If a machina upgrade changes those calls, the build fails.
   The core entry leaves machina external, so the rewrite does not reach it.
+  `isBrowserSupported()` reports that: it requires both APIs only where machina is not rewritten.
 
 ## Examples
 
