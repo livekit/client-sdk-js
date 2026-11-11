@@ -200,7 +200,8 @@ export class SignalClient {
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
 
-  onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
+  /** `fullSnapshot` is set when `updates` lists every visible participant */
+  onParticipantUpdate?: (updates: ParticipantInfo[], fullSnapshot: boolean) => void;
 
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
 
@@ -1040,7 +1041,7 @@ export class SignalClient {
       }
     } else if (msg.case === 'update') {
       if (this.onParticipantUpdate) {
-        this.onParticipantUpdate(msg.value.participants ?? []);
+        this.onParticipantUpdate(msg.value.participants ?? [], msg.value.fullSnapshot);
       }
     } else if (msg.case === 'trackPublished') {
       if (this.onLocalTrackPublished) {

@@ -1122,3 +1122,39 @@ describe('participant updates for an earlier session (#2228)', () => {
     expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
   });
 });
+
+describe('full snapshot participant updates', () => {
+  // the server marks the roster it sends after a resume as a full snapshot, so a remote
+  // participant whose disconnect update was lost while the signal connection was down is
+  // removed instead of staying in the roster until the next full reconnect
+  function setup() {
+    const room = new Room();
+    const info = (identity: string) =>
+      new ParticipantInfo({ sid: `PA_${identity}`, identity, state: ParticipantInfo_State.ACTIVE });
+    (
+      room as unknown as { handleParticipantUpdates: (infos: ParticipantInfo[]) => void }
+    ).handleParticipantUpdates([info('alice'), info('bob')]);
+    const disconnected: string[] = [];
+    room.on(RoomEvent.ParticipantDisconnected, (p) => disconnected.push(p.identity));
+    return { room, info, disconnected };
+  }
+
+  it('drops the remote participants that a full snapshot does not list', () => {
+    const { room, info, disconnected } = setup();
+
+    room.engine.emit(EngineEvent.ParticipantUpdate, [info('alice')], true);
+
+    expect([...room.remoteParticipants.keys()]).toEqual(['alice']);
+    expect(disconnected).toEqual(['bob']);
+  });
+
+  it('keeps every remote participant on an incremental update', () => {
+    const { room, info, disconnected } = setup();
+
+    room.engine.emit(EngineEvent.ParticipantUpdate, [info('alice')]);
+    room.engine.emit(EngineEvent.ParticipantUpdate, [info('alice')], false);
+
+    expect([...room.remoteParticipants.keys()].sort()).toEqual(['alice', 'bob']);
+    expect(disconnected).toEqual([]);
+  });
+});

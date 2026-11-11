@@ -319,8 +319,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.DCBufferStatusChanged, isLow, kind),
     });
 
-    this.client.onParticipantUpdate = (updates) =>
-      this.emit(EngineEvent.ParticipantUpdate, updates);
+    this.client.onParticipantUpdate = (updates, fullSnapshot) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates, fullSnapshot);
     this.client.onConnectionQuality = (update) => {
       this.handleLocalConnectionQuality(update);
       this.emit(EngineEvent.ConnectionQualityUpdate, update);
@@ -333,8 +333,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
     this.client.onRequestResponse = (response) =>
       this.emit(EngineEvent.SignalRequestResponse, response);
-    this.client.onParticipantUpdate = (updates) =>
-      this.emit(EngineEvent.ParticipantUpdate, updates);
     this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
 
     const abortPendingNegotiations = () => {
@@ -2269,7 +2267,8 @@ export type EngineEventCallbacks = {
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataChannelKind) => void;
-  participantUpdate: (infos: ParticipantInfo[]) => void;
+  /** `fullSnapshot` is set when `infos` lists every visible participant */
+  participantUpdate: (infos: ParticipantInfo[], fullSnapshot?: boolean) => void;
   roomUpdate: (room: RoomModel) => void;
   roomMoved: (room: RoomMovedResponse) => void;
   connectionQualityUpdate: (update: ConnectionQualityUpdate) => void;

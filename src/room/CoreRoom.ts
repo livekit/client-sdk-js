@@ -1888,7 +1888,20 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   }
 
-  private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
+  private handleParticipantUpdates = (
+    participantInfos: ParticipantInfo[],
+    fullSnapshot = false,
+  ) => {
+    if (fullSnapshot) {
+      // the server lists everyone present, so a remote participant it does not list left
+      // while this client could not receive its disconnect update
+      const listed = new Set(participantInfos.map((info) => info.identity));
+      for (const [identity, participant] of this.remoteParticipants) {
+        if (!listed.has(identity)) {
+          this.handleParticipantDisconnected(identity, participant);
+        }
+      }
+    }
     // handle changes to participant state, and send events
     const appliedInfos: ParticipantInfo[] = [];
     for (const info of participantInfos) {
