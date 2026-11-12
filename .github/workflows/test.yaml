@@ -35,6 +35,12 @@ jobs:
     - name: Run Tests
       run: pnpm test
 
+    - name: Run public tests
+      run: pnpm test:public
+
+    - name: Check the public tests of the last release for breaking changes
+      run: pnpm check:breaks
+
     - name: Check browser target compatibility
       run: |
         pnpm build:clean
