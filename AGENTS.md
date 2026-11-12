@@ -76,6 +76,12 @@ user-facing API.
   `@livekit/throws-transformer` (a devDependency). If `dist` still shows an old inferred type after
   a type-only change, delete `node_modules/.cache/rollup-plugin-typescript2`: its cache misses those.
 
+- **Public tests:** `tests/public` is the compatibility contract. `pnpm test:public` runs it against
+  the current source. `pnpm check:breaks` (break-check) restores the folder from the newest release
+  tag and runs it again: a failing restored test needs a `major` changeset. Tests there import only
+  from `src/index` and `src/core`. Record a new value export in `tests/public/exports.json`.
+  break-check needs a clean working tree, untracked files included.
+
 ## Examples
 
 Standalone example apps live in `examples/`. Each has its own `package.json`, `vite.config.js`,
