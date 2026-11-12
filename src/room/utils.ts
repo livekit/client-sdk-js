@@ -506,7 +506,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
 export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
   const info = new ClientInfo({
     capabilities,
-    sdk: ClientInfo_SDK.JS,
+    sdk: isReactNative() ? ClientInfo_SDK.REACT_NATIVE : ClientInfo_SDK.JS,
     protocol: protocolVersion,
     clientProtocol,
     version,
