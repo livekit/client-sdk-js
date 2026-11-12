@@ -1,4 +1,4 @@
-import { ClientInfo_Capability } from '@livekit/protocol';
+import { ClientInfo_Capability, ClientInfo_SDK } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   stubMissingCompressionStreams,
@@ -47,6 +47,21 @@ describe('getClientInfo', () => {
     expect(getClientInfo([ClientInfo_Capability.CAP_PACKET_TRAILER]).capabilities).toEqual([
       ClientInfo_Capability.CAP_PACKET_TRAILER,
     ]);
+  });
+
+  describe('sdk', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('reports JS in a browser', () => {
+      expect(getClientInfo().sdk).toEqual(ClientInfo_SDK.JS);
+    });
+
+    it('reports REACT_NATIVE on react native', () => {
+      vi.stubGlobal('navigator', { userAgent: '', product: 'ReactNative' });
+      expect(getClientInfo().sdk).toEqual(ClientInfo_SDK.REACT_NATIVE);
+    });
   });
 });
 
