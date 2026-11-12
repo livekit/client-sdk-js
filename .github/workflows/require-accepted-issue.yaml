@@ -39,7 +39,14 @@ jobs:
 
             // A closed PR is only ours to touch if this workflow closed it.
             if (pr.state === 'closed' && !wasBlocked) return;
-            if (['MEMBER', 'OWNER'].includes(pr.author_association) || pr.user.type === 'Bot') return;
+            if (pr.user.type === 'Bot') return;
+            // author_association hides a private org membership, so read the repo permission.
+            const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner,
+              repo,
+              username: pr.user.login,
+            });
+            if (['admin', 'write'].includes(access.permission)) return;
 
             async function allowed() {
               if (labels.includes(OVERRIDE)) return true;
