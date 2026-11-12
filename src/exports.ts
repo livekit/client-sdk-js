@@ -44,7 +44,7 @@ import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import { type PublicationEventCallbacks, TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo, TextStreamInfo } from './room/types';
-import type { AudioAnalyserOptions } from './room/utils';
+import type { AudioAnalyserOptions, WrapperSdkInfo } from './room/utils';
 import {
   compareVersions,
   createAudioAnalyser,
@@ -61,6 +61,7 @@ import {
   isVideoCodec,
   isVideoTrack,
   releaseEmptyAudioStreamTrack,
+  setWrapperSdkInfo,
   supportsAV1,
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
@@ -142,6 +143,8 @@ export {
   isBrowserSupported,
   setLogExtension,
   setLogLevel,
+  /** @internal */
+  setWrapperSdkInfo,
   supportsAV1,
   supportsAdaptiveStream,
   supportsAudioOutputSelection,
@@ -163,6 +166,7 @@ export {
 };
 export type {
   AudioAnalyserOptions,
+  WrapperSdkInfo,
   ElementInfo,
   LiveKitReactNativeInfo,
   TextStreamInfo,

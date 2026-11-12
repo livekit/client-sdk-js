@@ -503,13 +503,37 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
+export type WrapperSdkInfo = {
+  /** The `ClientInfo.SDK` enum name of the wrapping SDK, e.g. `'UNITY_WEB'` */
+  sdk: keyof typeof ClientInfo_SDK;
+  /** The wrapping SDK's own version */
+  version: string;
+};
+
+let wrapperSdkInfo: WrapperSdkInfo | undefined;
+
+/**
+ * For LiveKit SDKs built on top of livekit-client (e.g. Unity WebGL).
+ * Reports the wrapper as the client SDK to the server, and moves livekit-client's
+ * own version to `ClientInfo.other_sdks`. Pass `undefined` to reset.
+ * @internal
+ */
+export function setWrapperSdkInfo(info: WrapperSdkInfo | undefined) {
+  wrapperSdkInfo = info;
+}
+
 export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
+  let sdk = isReactNative() ? ClientInfo_SDK.REACT_NATIVE : ClientInfo_SDK.JS;
+  if (wrapperSdkInfo) {
+    sdk = ClientInfo_SDK[wrapperSdkInfo.sdk];
+  }
   const info = new ClientInfo({
     capabilities,
-    sdk: isReactNative() ? ClientInfo_SDK.REACT_NATIVE : ClientInfo_SDK.JS,
+    sdk,
     protocol: protocolVersion,
     clientProtocol,
-    version,
+    version: wrapperSdkInfo?.version ?? version,
+    otherSdks: wrapperSdkInfo ? `js:${version}` : undefined,
   });
 
   if (isReactNative()) {
