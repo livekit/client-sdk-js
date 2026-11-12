@@ -516,7 +516,8 @@ let wrapperSdkInfo: WrapperSdkInfo | undefined;
  * For LiveKit SDKs built on top of livekit-client (e.g. Unity WebGL).
  * Reports the wrapper as the client SDK to the server, and moves livekit-client's
  * own version to `ClientInfo.other_sdks`. Pass `undefined` to reset.
- * @internal
+ * Meant for wrapper SDKs, not for apps.
+ * @experimental
  */
 export function setWrapperSdkInfo(info: WrapperSdkInfo | undefined) {
   wrapperSdkInfo = info;
