@@ -54,8 +54,17 @@ export interface BaseE2EEManager {
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
   isDataChannelEncryptionEnabled: boolean;
-  /** @internal */
+  /**
+   * @internal
+   * @deprecated use `setLocalParticipantCryptorEnabled`
+   */
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  /**
+   * Sets whether the local participant encrypts. Optional so that existing managers still
+   * satisfy the interface: without it, `setParticipantCryptorEnabled` is called.
+   * @internal
+   */
+  setLocalParticipantCryptorEnabled?(enabled: boolean): void;
   /** @internal */
   setSifTrailer(trailer: NonSharedUint8Array): void;
   encryptData(data: NonSharedUint8Array): Promise<EncryptDataResponseMessage['data']>;
@@ -233,11 +242,21 @@ export class E2EEManager
   }
 
   /**
+   * Sets whether the local participant encrypts.
    * @internal
    */
-  setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string) {
-    this.log.debug(`set e2ee to ${enabled} for participant ${participantIdentity}`);
-    this.postEnable(enabled, participantIdentity);
+  setLocalParticipantCryptorEnabled(enabled: boolean) {
+    this.log.debug(`set e2ee to ${enabled} for the local participant`);
+    this.postEnable(enabled, this.room?.localParticipant.identity ?? '', true);
+  }
+
+  /**
+   * @internal
+   * @deprecated use `setLocalParticipantCryptorEnabled`. The identity is ignored: this always
+   * sets the state of the local participant.
+   */
+  setParticipantCryptorEnabled(enabled: boolean, _participantIdentity: string) {
+    this.setLocalParticipantCryptorEnabled(enabled);
   }
 
   /**
@@ -288,16 +307,15 @@ export class E2EEManager
             this.postKey(keyInfo, false);
           });
         }
-        if (
-          this.encryptionEnabled !== data.enabled &&
-          data.participantIdentity === this.room?.localParticipant.identity
-        ) {
-          this.emit(
-            EncryptionEvent.ParticipantEncryptionStatusChanged,
-            data.enabled,
-            this.room!.localParticipant,
-          );
-          this.encryptionEnabled = data.enabled;
+        if (data.local) {
+          if (this.encryptionEnabled !== data.enabled) {
+            this.emit(
+              EncryptionEvent.ParticipantEncryptionStatusChanged,
+              data.enabled,
+              this.room!.localParticipant,
+            );
+            this.encryptionEnabled = data.enabled;
+          }
         } else if (data.participantIdentity) {
           const participant = this.room?.getParticipantByIdentity(data.participantIdentity);
           if (!participant) {
@@ -413,10 +431,7 @@ export class E2EEManager
         keyProvider.getKeys().forEach((keyInfo) => {
           this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
         });
-        this.setParticipantCryptorEnabled(
-          this.room.localParticipant.isE2EEEnabled,
-          this.room.localParticipant.identity,
-        );
+        this.setLocalParticipantCryptorEnabled(this.room.localParticipant.isE2EEEnabled);
       });
 
     room.localParticipant.on(ParticipantEvent.LocalSenderCreated, async (sender, track) => {
@@ -435,6 +450,7 @@ export class E2EEManager
           codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
           participantIdentity: this.room!.localParticipant.identity,
           hasPacketTrailer: false,
+          operation: 'encode',
         },
       };
 
@@ -532,13 +548,14 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postEnable(enabled: boolean, participantIdentity: string) {
+  private postEnable(enabled: boolean, participantIdentity: string, local = false) {
     if (this.worker) {
       const enableMsg: EnableMessage = {
         kind: 'enable',
         data: {
           enabled,
           participantIdentity,
+          local,
         },
       };
       this.worker.postMessage(enableMsg);
@@ -593,10 +610,7 @@ export class E2EEManager
       });
       return;
     }
-    this.setParticipantCryptorEnabled(
-      pub.trackInfo.encryption !== Encryption_Type.NONE,
-      participantIdentity,
-    );
+    this.postEnable(pub.trackInfo.encryption !== Encryption_Type.NONE, participantIdentity);
   }
 
   private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {
@@ -616,6 +630,7 @@ export class E2EEManager
       remoteId,
       track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
       hasPacketTrailer,
+      trackInfo.encryption !== Encryption_Type.NONE,
     );
   }
 
@@ -647,6 +662,7 @@ export class E2EEManager
     participantIdentity: string,
     codec: VideoCodec | undefined,
     hasPacketTrailer: boolean,
+    encrypted: boolean,
   ) {
     if (!this.worker) {
       return;
@@ -659,6 +675,7 @@ export class E2EEManager
         trackId,
         codec,
         hasPacketTrailer,
+        encrypted,
       };
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
@@ -677,6 +694,7 @@ export class E2EEManager
             codec,
             participantIdentity,
             hasPacketTrailer,
+            encrypted,
           },
         };
         this.worker.postMessage(msg);
@@ -708,6 +726,7 @@ export class E2EEManager
           codec,
           participantIdentity: participantIdentity,
           hasPacketTrailer,
+          encrypted,
         },
       };
       this.worker.postMessage(msg, [readable, writable]);

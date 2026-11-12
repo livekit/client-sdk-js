@@ -329,14 +329,11 @@ export class PCTransportManager {
     return this.publisher.addTransceiverOfKind(kind, transceiverInit);
   }
 
-  getMidForReceiver(receiver: RTCRtpReceiver): string | null | undefined {
+  getTransceiverForReceiver(receiver: RTCRtpReceiver): RTCRtpTransceiver | undefined {
     const transceivers = this.subscriber
       ? this.subscriber.getTransceivers()
       : this.publisher.getTransceivers();
-    const matchingTransceiver = transceivers.find(
-      (transceiver) => transceiver.receiver === receiver,
-    );
-    return matchingTransceiver?.mid;
+    return transceivers.find((transceiver) => transceiver.receiver === receiver);
   }
 
   getMaxPublisherMessageSize() {

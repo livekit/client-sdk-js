@@ -67,6 +67,7 @@ import type { InternalRoomOptions } from '../options';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../utils/TypedPromise';
 import { TTLMap } from '../utils/ttlmap';
+import { PROTOCOL_NEGOTIATED_DATA_CHANNELS } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -387,7 +388,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // createInitialOffer() defers setLocalDescription (via pendingInitialOffer) until the
           // answer is applied, after updateConfiguration() has set the server's TURN servers.
           await this.configure();
-          this.applyInitialPublisherLayout();
+          // The server protocol is unknown until the join response, so assume negotiated data
+          // channels and fall back to in-band ones below if the server is too old.
+          this.applyInitialPublisherLayout(true);
         }
         const offer = await this.pcManager?.publisher.createInitialOffer();
         if (offer) {
@@ -422,6 +425,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (sendOfferWithJoin) {
         this.pcManager?.updateConfiguration(this.makeRTCConfiguration(joinResponse));
+        if (this.dataChannels.publisherChannelsNegotiated && !this.useNegotiatedDataChannels()) {
+          // The SCTP section is already in the offer, so in-band channels can be opened on it
+          // without renegotiation.
+          this.log.debug('server does not support negotiated data channels, using in-band ones');
+          this.createDataChannels(false);
+        }
       } else {
         if (!this.pcManager) {
           // Deferred path (Firefox, and V0): configure with the join response so the PC picks up
@@ -926,8 +935,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    * present in that first offer, and the offer-with-join path needs the sections to
    * build a meaningful initial offer. Must be called on a configured pcManager.
    */
-  private applyInitialPublisherLayout() {
-    this.createDataChannels();
+  private applyInitialPublisherLayout(negotiatedDataChannels?: boolean) {
+    this.createDataChannels(negotiatedDataChannels);
     /**
      * Native libwebrtc does not support pre-populating the media sections,
      * so we skip it for React Native.
@@ -956,7 +965,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private createDataChannels() {
+  /**
+   * Whether to create the publisher data channels as negotiated (fixed SCTP stream IDs), which
+   * lets the server send on them without waiting for our DCEP OPEN. Only in single peer
+   * connection mode: with dual peer connections the server opens its own channels anyway.
+   */
+  private useNegotiatedDataChannels() {
+    return (
+      this.pcManager?.mode === 'publisher-only' &&
+      (this.latestJoinResponse?.serverInfo?.protocol ?? 0) >= PROTOCOL_NEGOTIATED_DATA_CHANNELS
+    );
+  }
+
+  private createDataChannels(negotiated: boolean = this.useNegotiatedDataChannels()) {
     if (!this.pcManager) {
       return;
     }
@@ -967,7 +988,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // them to open.
       this.publisherConnectionPromise = undefined;
     }
-    this.dataChannels.createPublisherChannels(this.pcManager);
+    this.dataChannels.createPublisherChannels(this.pcManager, negotiated);
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -2234,7 +2255,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   getTrackIdForReceiver(receiver: RTCRtpReceiver): string | undefined {
-    const mid = this.pcManager?.getMidForReceiver(receiver);
+    const mid = this.pcManager?.getTransceiverForReceiver(receiver)?.mid;
     if (mid) {
       const match = Object.entries(this.midToTrackId).find(([key]) => key === mid);
       if (match) {
