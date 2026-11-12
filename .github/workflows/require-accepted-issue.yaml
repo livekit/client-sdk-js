@@ -23,6 +23,8 @@ jobs:
             const TRIVIAL = 'trivial';                 // set by this workflow
             const BLOCKED = 'needs-accepted-issue';    // set by this workflow
             const MAX_TRIVIAL_LINES = 20;
+            // Test phase: fail this step and leave the PR open. Set to false to close PRs.
+            const DRY_RUN = true;
             const CHECKBOX = /- \[x\] This PR only fixes typos or documentation/i;
             // File names only. A package.json edit that changes scripts also passes.
             // Parse the diff for version-only changes if misuse appears.
@@ -72,6 +74,11 @@ jobs:
                   await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'open' });
                 }
               }
+              return;
+            }
+
+            if (DRY_RUN) {
+              core.setFailed(`This PR does not link to an issue with the "${ACCEPTED}" label. See ${rules}`);
               return;
             }
 
