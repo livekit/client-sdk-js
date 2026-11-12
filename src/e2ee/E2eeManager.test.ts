@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
 import { Room } from '../room/Room';
-import { ParticipantEvent } from '../room/events';
+import { ParticipantEvent, RoomEvent } from '../room/events';
 import { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { subscribeToEvents } from '../utils/subscribeToEvents';
@@ -309,7 +309,7 @@ describe('E2EEManager local encryption state', () => {
   });
 });
 
-describe('E2EEManager key replay on enable acknowledgements', () => {
+describe('E2EEManager key posting', () => {
   class TestKeyProvider extends BaseKeyProvider {
     async setKey(passphrase: string, keyIndex: number, participantIdentity?: string) {
       this.onSetEncryptionKey(
@@ -320,38 +320,73 @@ describe('E2EEManager key replay on enable acknowledgements', () => {
     }
   }
 
-  async function acknowledgeEnableAfterTwoKeys(options: Partial<KeyProviderOptions>) {
+  function makeKeyManager(options: Partial<KeyProviderOptions>) {
     installE2EEShims();
     const room = new Room();
     room.localParticipant.identity = 'me';
     const worker = new FakeWorker();
     const keyProvider = new TestKeyProvider(options);
     const manager = new E2EEManager({ keyProvider, worker: worker as unknown as Worker }, false);
-    manager.setup(room);
-    const participantIdentity = options.sharedKey ? undefined : 'me';
-    await keyProvider.setKey('first', 0, participantIdentity);
-    await keyProvider.setKey('second', 1, participantIdentity);
-    worker.postMessage.mockClear();
-
-    worker.onmessage?.(
-      new MessageEvent('message', {
-        data: { kind: 'enable', data: { enabled: true, participantIdentity: 'me', local: true } },
-      }),
-    );
-    manager.dispose();
-
-    return worker.postMessage.mock.calls.map(([m]) => m).filter((m: any) => m?.kind === 'setKey');
+    return { room, worker, keyProvider, manager };
   }
 
-  it('does not re-send the shared keys the worker already holds', async () => {
-    expect(await acknowledgeEnableAfterTwoKeys({ sharedKey: true })).toEqual([]);
+  function takePostedKeys(worker: FakeWorker) {
+    const postedKeys = worker.postMessage.mock.calls
+      .map(([m]) => m)
+      .filter((m: any) => m?.kind === 'setKey')
+      .map((m: any) => [m.data.keyIndex, m.data.updateCurrentKeyIndex]);
+    worker.postMessage.mockClear();
+    return postedKeys;
+  }
+
+  it.each([{ sharedKey: true }, { sharedKey: false }])(
+    'does not re-send keys on an enable acknowledgement (sharedKey: $sharedKey)',
+    async (options) => {
+      const { room, worker, keyProvider, manager } = makeKeyManager(options);
+      manager.setup(room);
+      const participantIdentity = options.sharedKey ? undefined : 'me';
+      await keyProvider.setKey('first', 0, participantIdentity);
+      await keyProvider.setKey('second', 1, participantIdentity);
+      takePostedKeys(worker);
+
+      worker.onmessage?.(
+        new MessageEvent('message', {
+          data: { kind: 'enable', data: { enabled: true, participantIdentity: 'me', local: true } },
+        }),
+      );
+
+      expect(takePostedKeys(worker)).toEqual([]);
+      manager.dispose();
+    },
+  );
+
+  it('posts the keys set before setup on the first SignalConnected only', async () => {
+    const { room, worker, keyProvider, manager } = makeKeyManager({ sharedKey: true });
+    await keyProvider.setKey('first', 0);
+    await keyProvider.setKey('second', 1);
+    manager.setup(room);
+    takePostedKeys(worker);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([
+      [0, false],
+      [1, true],
+    ]);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([]);
+    manager.dispose();
   });
 
-  it('re-sends the participant keys without changing the active key', async () => {
-    const setKeys = await acknowledgeEnableAfterTwoKeys({ sharedKey: false });
-    expect(setKeys.map((m: any) => [m.data.keyIndex, m.data.updateCurrentKeyIndex])).toEqual([
-      [0, false],
-      [1, false],
-    ]);
+  it('does not re-send on SignalConnected the keys set after setup', async () => {
+    const { room, worker, keyProvider, manager } = makeKeyManager({ sharedKey: true });
+    await keyProvider.setKey('first', 0);
+    manager.setup(room);
+    await keyProvider.setKey('second', 1);
+    expect(takePostedKeys(worker)).toEqual([[1, true]]);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([[0, false]]);
+    manager.dispose();
   });
 });
