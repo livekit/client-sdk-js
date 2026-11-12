@@ -6,6 +6,7 @@ import { DataChannelKind } from '../data-channel/types';
 import { dataStreams } from '../data-stream/extension';
 import { RoomEvent } from '../events';
 import type {
+  ConnectionHooks,
   DataPacketOwner,
   ExtensionContext,
   LocalParticipantApiProvider,
@@ -85,7 +86,8 @@ export const rpc = {
     ctx: ExtensionContext,
   ): RoomApiProvider<RpcRoomApi> &
     LocalParticipantApiProvider<RpcLocalParticipantApi> &
-    DataPacketOwner {
+    DataPacketOwner &
+    ConnectionHooks {
     const { incoming, outgoing } = ctx.get(dataStreams);
     const clientProtocol = (identity: string) =>
       room.remoteParticipants.get(identity)?.clientProtocol ?? CLIENT_PROTOCOL_DEFAULT;
@@ -149,6 +151,7 @@ export const rpc = {
         },
         rpcAck: (ack) => client.handleIncomingRpcAck(ack.requestId),
       },
+      onDisconnect: () => client.handleRoomDisconnected(),
       room: { registerRpcMethod, unregisterRpcMethod },
       localParticipant: {
         performRpc: (params) =>
