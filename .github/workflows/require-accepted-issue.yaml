@@ -1,0 +1,96 @@
+# Closes a PR from outside the organization that does not link to an accepted issue.
+# The rules are in CONTRIBUTING.md.
+# SECURITY: pull_request_target runs with a write token. Never add a checkout of PR code here.
+name: Require accepted issue
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const ACCEPTED = 'accepted';               // maintainers set this on issues
+            const OVERRIDE = 'no-issue-needed';        // maintainers set this on PRs
+            const TRIVIAL = 'trivial';                 // set by this workflow
+            const BLOCKED = 'needs-accepted-issue';    // set by this workflow
+            const MAX_TRIVIAL_LINES = 20;
+            // Test phase: fail this step and leave the PR open. Set to false to close PRs.
+            const DRY_RUN = true;
+            const CHECKBOX = /- \[x\] This PR only fixes typos or documentation/i;
+            // File names only. A package.json edit that changes scripts also passes.
+            // Parse the diff for version-only changes if misuse appears.
+            const DEPS = /(^|\/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/;
+
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+            const ref = { owner, repo, issue_number: pr.number };
+            const rules = `https://github.com/${owner}/${repo}/blob/${pr.base.ref}/CONTRIBUTING.md`;
+            const labels = pr.labels.map((l) => l.name);
+            const wasBlocked = labels.includes(BLOCKED);
+
+            // A closed PR is only ours to touch if this workflow closed it.
+            if (pr.state === 'closed' && !wasBlocked) return;
+            if (['MEMBER', 'OWNER'].includes(pr.author_association) || pr.user.type === 'Bot') return;
+
+            async function allowed() {
+              if (labels.includes(OVERRIDE)) return true;
+
+              if (CHECKBOX.test(pr.body || '') && pr.additions + pr.deletions <= MAX_TRIVIAL_LINES) {
+                await github.rest.issues.addLabels({ ...ref, labels: [TRIVIAL] });
+                return true;
+              }
+
+              const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number });
+              if (files.length && files.every((f) => DEPS.test(f.filename))) return true;
+
+              const data = await github.graphql(
+                `query($owner: String!, $repo: String!, $number: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $number) {
+                      closingIssuesReferences(first: 20) { nodes { labels(first: 50) { nodes { name } } } }
+                    }
+                  }
+                }`,
+                { owner, repo, number: pr.number },
+              );
+              return data.repository.pullRequest.closingIssuesReferences.nodes.some((issue) =>
+                issue.labels.nodes.some((l) => l.name === ACCEPTED),
+              );
+            }
+
+            if (await allowed()) {
+              if (wasBlocked) {
+                await github.rest.issues.removeLabel({ ...ref, name: BLOCKED });
+                if (pr.state === 'closed') {
+                  await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'open' });
+                }
+              }
+              return;
+            }
+
+            if (DRY_RUN) {
+              core.setFailed(`This PR does not link to an issue with the "${ACCEPTED}" label. See ${rules}`);
+              return;
+            }
+
+            if (pr.state === 'open') {
+              await github.rest.issues.createComment({
+                ...ref,
+                body:
+                  `Thank you for the contribution. This PR does not link to an issue with the \`${ACCEPTED}\` label, ` +
+                  `so I closed it. See the [contribution rules](${rules}).\n\n` +
+                  `After a maintainer accepts the issue, edit the PR description to link it (for example \`Fixes #123\`). ` +
+                  `I then open the PR again.`,
+              });
+              await github.rest.issues.addLabels({ ...ref, labels: [BLOCKED] });
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' });
+            }
