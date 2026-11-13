@@ -263,8 +263,18 @@ export function supportsAudioOutputSelection(): boolean {
   return supportsSetSinkId();
 }
 
+/**
+ * machina, the signalling state machine, calls `WeakRef` and `Object.hasOwn`. A build that bundles
+ * machina rewrites those calls and sets this to `false` (`machina-browser-compat` in
+ * rollup.config.js). The core entry leaves machina external, so there the browser must have both.
+ */
+const machinaNeedsNativeApis = true;
+
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
+    return false;
+  }
+  if (machinaNeedsNativeApis && (typeof WeakRef === 'undefined' || !('hasOwn' in Object))) {
     return false;
   }
   return supportsTransceiver() || supportsAddTrack();

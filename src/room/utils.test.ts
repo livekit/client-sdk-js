@@ -10,6 +10,7 @@ import {
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isAppleMobile,
+  isBrowserSupported,
   isCompressionStreamSupported,
   isDeflateRawCompressionSupported,
   isIPadOS,
@@ -630,5 +631,24 @@ describe('empty audio stream track refcounting', () => {
 
     await releaseEmptyAudioStreamTrack(getEmptyAudioStreamTrack());
     expect(closedContexts).toBe(2);
+  });
+});
+
+describe('isBrowserSupported', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('requires WeakRef where machina is not rewritten (source and core entry)', () => {
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTransceiver() {}
+      },
+    );
+    expect(isBrowserSupported()).toBe(true);
+
+    vi.stubGlobal('WeakRef', undefined);
+    expect(isBrowserSupported()).toBe(false);
   });
 });

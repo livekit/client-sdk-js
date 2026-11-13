@@ -76,6 +76,13 @@ user-facing API.
   `@livekit/throws-transformer` (a devDependency). If `dist` still shows an old inferred type after
   a type-only change, delete `node_modules/.cache/rollup-plugin-typescript2`: its cache misses those.
 
+- **Browser APIs in dependencies:** Babel converts syntax only and adds no polyfills, so a
+  dependency that calls a newer runtime API breaks the browsers in `browserslist`. The
+  `machina-browser-compat` plugin in `rollup.config.js` rewrites machina's `Object.hasOwn` and
+  `WeakRef` calls in the main bundle. If a machina upgrade changes those calls, the build fails.
+  The core entry leaves machina external, so the rewrite does not reach it.
+  `isBrowserSupported()` reports that: it requires both APIs only where machina is not rewritten.
+
 ## Examples
 
 Standalone example apps live in `examples/`. Each has its own `package.json`, `vite.config.js`,
