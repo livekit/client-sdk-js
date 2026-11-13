@@ -328,10 +328,14 @@ describe('restartTrack', () => {
         // the server unpublishes the track while the processor restarts, which stops it
         restart: async () => track.stop(),
       },
+      // a stop doesn't detach the sender, so it is still live here
+      _sender: { replaceTrack: vi.fn(async () => {}), transport: { state: 'connected' } },
     });
 
     await expect(track.restartTrack()).resolves.toBeUndefined();
-    // the track was stopped during the restart, so the re-acquired capture is stopped too
+    // the track was stopped during the restart, so the re-acquired capture is stopped too, and
+    // it was never published without the processor
     expect(newCapture.stop).toHaveBeenCalled();
+    expect(track.sender!.replaceTrack).not.toHaveBeenCalled();
   });
 });

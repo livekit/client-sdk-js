@@ -212,8 +212,13 @@ export default abstract class LocalTrack<
         audioContext: this.audioContext,
         localTrack: this,
       });
-      // the track can be stopped while the processor restarts, which clears the processor
-      processedTrack = this.processor?.processedTrack;
+      if (!this.processor) {
+        // the track was stopped while the processor restarted. Don't publish the unprocessed
+        // capture: adopt it only, so that the stop in restart() ends it
+        this._mediaStreamTrack = newTrack;
+        return;
+      }
+      processedTrack = this.processor.processedTrack;
     }
     if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
