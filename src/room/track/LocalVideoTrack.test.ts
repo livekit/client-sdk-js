@@ -298,3 +298,40 @@ describe('waitForDimensions', () => {
     expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
   });
 });
+
+describe('restartTrack', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('does not throw when the track is stopped while its processor restarts', async () => {
+    // a capture that can be stopped and re-acquired
+    const capture = () =>
+      Object.assign(videoCapture({ width: 640, height: 480 }), {
+        stop: vi.fn(),
+        applyConstraints: vi.fn(async () => {}),
+      }) as unknown as MediaStreamTrack;
+    const newCapture = capture();
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      mediaDevices: { getUserMedia: vi.fn(async () => ({ getTracks: () => [newCapture] })) },
+    });
+    const track = new LocalVideoTrack(capture());
+    // let the constructor finish adopting its track before a processor is set
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    Object.assign(track, {
+      processor: {
+        name: 'effect',
+        processedTrack: capture(),
+        init: async () => {},
+        destroy: async () => {},
+        // the server unpublishes the track while the processor restarts, which stops it
+        restart: async () => track.stop(),
+      },
+    });
+
+    await expect(track.restartTrack()).resolves.toBeUndefined();
+    // the track was stopped during the restart, so the re-acquired capture is stopped too
+    expect(newCapture.stop).toHaveBeenCalled();
+  });
+});
