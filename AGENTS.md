@@ -24,6 +24,12 @@ selection. Cancellation must cover continuations after awaited cleanup and late 
 engine close removes room listeners, so room-event guards cannot catch those continuations.
 Regression tests live in `RTCEngine.test.ts` and `SignalClient.test.ts`.
 
+Microphone enable/disable intent spans capture and publication, not just the track's mute lock.
+When testing device recovery, hold capture, processor restart, sender adoption, or republish
+promises and assert the raw source stays disabled after a later mute. Processor output remains
+enabled so a subsequent unmute can restore the raw source. Audio transition regressions live
+beside `LocalParticipant`, `LocalAudioTrack`, and `CoreRoom`.
+
 Each region attempt of a full reconnect has its own `AbortSignal`, passed as the second argument of
 `EngineEvent.SignalRestarted`. The engine aborts it when the next attempt begins (next region or a
 later restart) and on close. `CoreRoom.handleSignalRestarted` awaits a republish, so it checks that

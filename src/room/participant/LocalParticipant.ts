@@ -128,6 +128,14 @@ export class LocalParticipant extends Participant {
   /** @internal */
   activeDeviceMap: Map<MediaDeviceKind, string>;
 
+  private microphoneIntentVersion = 0;
+
+  private microphoneEnabledIntent = true;
+
+  private pendingMicrophoneTracks = new Set<LocalTrack>();
+
+  private pendingMicrophoneEnable?: Promise<LocalTrackPublication | undefined>;
+
   /** @internal */
   pendingPublishing = new Set<Track.Source>();
 
@@ -272,6 +280,9 @@ export class LocalParticipant extends Participant {
   };
 
   private handleClosing = () => {
+    this.microphoneIntentVersion++;
+    this.microphoneEnabledIntent = false;
+    this.pendingMicrophoneTracks.forEach((track) => track.stop());
     if (this.reconnectFuture) {
       // @throws-transformer ignore - introduced due to adding Throws into Future, investigate this
       // further
@@ -402,12 +413,45 @@ export class LocalParticipant extends Participant {
    * If a track has already published, it'll mute or unmute the track.
    * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setMicrophoneEnabled(
+  async setMicrophoneEnabled(
     enabled: boolean,
     options?: AudioCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
+    const intentVersion = ++this.microphoneIntentVersion;
+    this.microphoneEnabledIntent = enabled;
+    if (!enabled) {
+      // Silence tracks already handed to publication before awaiting SDK locks.
+      const tracks = new Set(this.pendingMicrophoneTracks);
+      const publication = this.getTrackPublication(Track.Source.Microphone);
+      if (publication?.track) {
+        tracks.add(publication.track);
+      }
+      await Promise.all(Array.from(tracks, (track) => track.mute()));
+      return this.getTrackPublication(Track.Source.Microphone);
+    }
+    if (this.pendingMicrophoneEnable) {
+      try {
+        await this.pendingMicrophoneEnable;
+      } catch (error) {
+        // A newer explicit enable may retry a failed capture.
+        if (intentVersion !== this.microphoneIntentVersion) {
+          throw error;
+        }
+      }
+      if (intentVersion !== this.microphoneIntentVersion) {
+        return this.getTrackPublication(Track.Source.Microphone);
+      }
+    }
+    const pending = this.setTrackEnabled(Track.Source.Microphone, true, options, publishOptions);
+    this.pendingMicrophoneEnable = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.pendingMicrophoneEnable === pending) {
+        this.pendingMicrophoneEnable = undefined;
+      }
+    }
   }
 
   /** @internal */
@@ -458,9 +502,16 @@ export class LocalParticipant extends Participant {
     options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ) {
+    const microphoneIntentVersion = this.microphoneIntentVersion;
     this.log.debug('setTrackEnabled', { source, enabled });
     if (this.republishPromise) {
       await this.republishPromise;
+    }
+    if (
+      source === Track.Source.Microphone &&
+      microphoneIntentVersion !== this.microphoneIntentVersion
+    ) {
+      return this.getTrackPublication(source);
     }
     let track = this.getTrackPublication(source);
     if (enabled) {
@@ -473,7 +524,12 @@ export class LocalParticipant extends Participant {
           if (!pendingTrack) {
             this.log.info('waiting for pending publication promise timed out', { source });
           }
-          await pendingTrack?.unmute();
+          if (
+            source !== Track.Source.Microphone ||
+            microphoneIntentVersion === this.microphoneIntentVersion
+          ) {
+            await pendingTrack?.unmute();
+          }
           return pendingTrack;
         }
         this.pendingPublishing.add(source);
@@ -509,6 +565,19 @@ export class LocalParticipant extends Participant {
           throw e;
         }
 
+        if (source === Track.Source.Microphone) {
+          // Capture may finish long after a newer request disabled the microphone.
+          if (!this.microphoneEnabledIntent) {
+            localTracks.forEach((localTrack) => {
+              localTrack.mediaStreamTrack.enabled = false;
+              localTrack.stop();
+            });
+            this.pendingPublishing.delete(source);
+            return undefined;
+          }
+          localTracks.forEach((localTrack) => this.pendingMicrophoneTracks.add(localTrack));
+        }
+
         for (const localTrack of localTracks) {
           const opts: TrackPublishOptions = {
             ...this.roomOptions.publishDefaults,
@@ -542,6 +611,9 @@ export class LocalParticipant extends Participant {
           });
           throw e;
         } finally {
+          if (source === Track.Source.Microphone) {
+            localTracks.forEach((localTrack) => this.pendingMicrophoneTracks.delete(localTrack));
+          }
           this.pendingPublishing.delete(source);
         }
       }
@@ -1310,21 +1382,28 @@ export class LocalParticipant extends Participant {
         await Promise.all(
           localPubs.map(async (pub) => {
             const track = pub.track!;
-            await this.unpublishTrack(track, false);
-            if (
-              restartTracks &&
-              !track.isMuted &&
-              track.source !== Track.Source.ScreenShare &&
-              track.source !== Track.Source.ScreenShareAudio &&
-              (isLocalAudioTrack(track) || isLocalVideoTrack(track)) &&
-              !track.isUserProvided
-            ) {
-              // generally we need to restart the track before publishing, often a full reconnect
-              // is necessary because computer had gone to sleep.
-              this.log.debug('restarting existing track', { track: pub.trackSid });
-              await track.restartTrack();
+            if (track.source === Track.Source.Microphone) {
+              this.pendingMicrophoneTracks.add(track);
             }
-            await this.publishOrRepublishTrack(track, pub.options, true);
+            try {
+              await this.unpublishTrack(track, false);
+              if (
+                restartTracks &&
+                !track.isMuted &&
+                track.source !== Track.Source.ScreenShare &&
+                track.source !== Track.Source.ScreenShareAudio &&
+                (isLocalAudioTrack(track) || isLocalVideoTrack(track)) &&
+                !track.isUserProvided
+              ) {
+                // generally we need to restart the track before publishing, often a full reconnect
+                // is necessary because computer had gone to sleep.
+                this.log.debug('restarting existing track', { track: pub.trackSid });
+                await track.restartTrack();
+              }
+              await this.publishOrRepublishTrack(track, pub.options, true);
+            } finally {
+              this.pendingMicrophoneTracks.delete(track);
+            }
           }),
         );
         resolve();
@@ -1551,6 +1630,7 @@ export class LocalParticipant extends Participant {
   };
 
   private handleTrackEnded = async (track: LocalTrack) => {
+    const muteIntentVersion = isLocalAudioTrack(track) ? track.muteIntentVersion : undefined;
     if (
       track.source === Track.Source.ScreenShare ||
       track.source === Track.Source.ScreenShareAudio
@@ -1558,7 +1638,11 @@ export class LocalParticipant extends Participant {
       this.log.debug('unpublishing local track due to TrackEnded', getLogContextFromTrack(track));
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
-      await track.mute();
+      if (isLocalAudioTrack(track)) {
+        await track.mute(muteIntentVersion);
+      } else {
+        await track.mute();
+      }
     } else if (isLocalAudioTrack(track) || isLocalVideoTrack(track)) {
       try {
         if (isWeb()) {
@@ -1602,7 +1686,11 @@ export class LocalParticipant extends Participant {
         }
       } catch (e) {
         this.log.warn(`could not restart track, muting instead`, getLogContextFromTrack(track));
-        await track.mute();
+        if (isLocalAudioTrack(track)) {
+          await track.mute(muteIntentVersion);
+        } else {
+          await track.mute();
+        }
       }
     }
   };

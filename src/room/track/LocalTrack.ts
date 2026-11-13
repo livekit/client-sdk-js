@@ -168,6 +168,10 @@ export default abstract class LocalTrack<
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
+    // Keep replacement audio silent before asynchronous processor/sender adoption.
+    if (this.kind === Track.Kind.Audio && this.source === Track.Source.Microphone && newTrack) {
+      newTrack.enabled = false;
+    }
     if (this._mediaStreamTrack) {
       // detach
       this.attachedElements.forEach((el) => {
