@@ -494,9 +494,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
           if (media.type === 'audio') {
-            const receivingAudioMids =
-              media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
-            ensureAudioNackAndStereo(media, [], receivingAudioMids);
+            ensureAudioNackAndStereo(media, [], recvonlyMids(media));
           }
         });
         this.log.debug('setting pending initial offer before processing answer');
@@ -635,9 +633,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          const receivingAudioMids =
-            media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
-          ensureAudioNackAndStereo(media, [], receivingAudioMids);
+          ensureAudioNackAndStereo(media, [], recvonlyMids(media));
         }
       });
       offer.sdp = write(sdpParsed);
@@ -711,9 +707,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          const receivingAudioMids =
-            media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
-          ensureAudioNackAndStereo(media, ['all'], receivingAudioMids);
+          ensureAudioNackAndStereo(media, ['all'], recvonlyMids(media));
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
@@ -1317,6 +1311,10 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
       media.connection.version = 4;
     }
   }
+}
+
+function recvonlyMids(media: MediaDescription) {
+  return media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
 }
 
 function getMidString(mid: string | number) {
