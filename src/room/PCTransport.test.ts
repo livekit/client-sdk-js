@@ -824,7 +824,7 @@ const opusNackCount = (sdp: string, mid: string) =>
   sectionOf(parse(sdp).media, mid).rtcpFb?.filter((fb) => fb.payload === 111 && fb.type === 'nack')
     .length ?? 0;
 
-const stubPeerConnectionReturning = (sdp: string) =>
+const stubPeerConnectionReturning = (sdp: string, { rejectsMungedLocalDescription = false } = {}) =>
   vi.stubGlobal(
     'RTCPeerConnection',
     class {
@@ -843,6 +843,9 @@ const stubPeerConnectionReturning = (sdp: string) =>
       }
 
       async setLocalDescription(description: RTCSessionDescriptionInit) {
+        if (rejectsMungedLocalDescription && description.sdp !== sdp) {
+          throw new Error('munged local description rejected');
+        }
         this.localDescription = description;
       }
 
@@ -920,6 +923,19 @@ describe('audio NACK negotiation', () => {
       );
 
       expect(transport.getLocalDescription()?.sdp).toBe(initial.offer.sdp);
+    });
+
+    it("falls back to the browser's own offer when the munged one is rejected", async () => {
+      stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER, { rejectsMungedLocalDescription: true });
+      const transport = new PCTransport();
+      const initial = (await transport.createInitialOffer())!;
+
+      await transport.setRemoteDescription(
+        { type: 'answer', sdp: SUBSCRIBER_AUDIO_ANSWER },
+        initial.offerId,
+      );
+
+      expect(transport.getLocalDescription()?.sdp).toBe(SINGLE_PC_AUDIO_OFFER);
     });
   });
 

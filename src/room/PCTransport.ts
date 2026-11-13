@@ -493,6 +493,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         const sdpParsed = parse(initialOffer.sdp ?? '');
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
+          if (media.type === 'audio') {
+            const receivingAudioMids =
+              media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
+            ensureAudioNackAndStereo(media, [], receivingAudioMids);
+          }
         });
         this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(initialOffer, write(sdpParsed));
@@ -625,6 +630,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
+      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
@@ -635,7 +641,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         }
       });
       offer.sdp = write(sdpParsed);
-      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
       return { offer, offerId };
     } finally {
       unlock();
