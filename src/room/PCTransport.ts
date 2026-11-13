@@ -625,12 +625,17 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
-      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
+        if (media.type === 'audio') {
+          const receivingAudioMids =
+            media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
+          ensureAudioNackAndStereo(media, [], receivingAudioMids);
+        }
       });
       offer.sdp = write(sdpParsed);
+      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
       return { offer, offerId };
     } finally {
       unlock();
@@ -701,7 +706,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, ['all'], []);
+          const receivingAudioMids =
+            media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
+          ensureAudioNackAndStereo(media, ['all'], receivingAudioMids);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
