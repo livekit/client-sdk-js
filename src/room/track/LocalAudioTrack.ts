@@ -14,6 +14,9 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   /** @internal */
   stopOnMute: boolean = false;
 
+  /** @internal Invalidates asynchronous recovery when explicit mute intent changes. */
+  muteIntentVersion: number = 0;
+
   private prevStats?: AudioSenderStats;
 
   private isKrispNoiseFilterEnabled = false;
@@ -51,9 +54,18 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     this.checkForSilence();
   }
 
-  async mute(): Promise<typeof this> {
+  async mute(expectedIntentVersion?: number): Promise<typeof this> {
+    const intentVersion = expectedIntentVersion ?? ++this.muteIntentVersion;
+    // Explicit mute silences raw capture immediately, including while adoption holds the lock.
+    // Leave processor output enabled: normal unmute only restores the raw source.
+    if (expectedIntentVersion === undefined) {
+      this._mediaStreamTrack.enabled = false;
+    }
     const unlock = await this.muteLock.lock();
     try {
+      if (intentVersion !== this.muteIntentVersion) {
+        return this;
+      }
       if (this.isMuted) {
         this.log.debug('Track already muted', this.logContext);
         return this;
@@ -73,9 +85,13 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   }
 
   async unmute(): Promise<typeof this> {
+    const intentVersion = ++this.muteIntentVersion;
     const unlock = await this.muteLock.lock();
     try {
-      if (!this.isMuted) {
+      if (intentVersion !== this.muteIntentVersion) {
+        return this;
+      }
+      if (!this.isMuted && this._mediaStreamTrack.enabled) {
         this.log.debug('Track already unmuted', this.logContext);
         return this;
       }
@@ -87,8 +103,19 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
           this.pendingDeviceChange) &&
         !this.isUserProvided
       ) {
+        // A superseded mute may have silenced capture before updating isMuted.
+        // Keep replacement capture muted until this unmute is still current after restart.
+        if (!this.isMuted) {
+          await super.mute();
+          if (intentVersion !== this.muteIntentVersion) {
+            return this;
+          }
+        }
         this.log.debug('reacquiring mic track', this.logContext);
-        await this.restart(undefined, true);
+        await this.restart();
+      }
+      if (intentVersion !== this.muteIntentVersion) {
+        return this;
       }
       await super.unmute();
 
