@@ -751,3 +751,129 @@ describe('isDuplicateAnswer', () => {
     expect(isDuplicateAnswer(0, undefined, 0, 'stable', true)).toBe(false);
   });
 });
+
+const SINGLE_PC_AUDIO_OFFER = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1 2
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sendonly
+a=msid:s mic
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=mid:1
+a=recvonly
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=mid:2
+a=sendrecv
+a=msid:s legacy-mic
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1`;
+
+const SERVER_ANSWER = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=mid:1
+a=sendonly
+a=rtpmap:111 opus/48000/2`;
+
+const opusNackMids = (sdp: string) =>
+  parse(sdp)
+    .media.filter((media) => media.rtcpFb?.some((fb) => fb.payload === 111 && fb.type === 'nack'))
+    .map((media) => `${media.mid}`);
+
+const stubPeerConnectionReturning = (sdp: string, { rejectsMungedLocalDescription = false } = {}) =>
+  vi.stubGlobal(
+    'RTCPeerConnection',
+    class {
+      signalingState: RTCSignalingState = 'stable';
+
+      localDescription?: RTCSessionDescriptionInit;
+
+      remoteDescription?: RTCSessionDescriptionInit;
+
+      async createOffer() {
+        return { type: 'offer' as const, sdp };
+      }
+
+      async setLocalDescription(description: RTCSessionDescriptionInit) {
+        if (rejectsMungedLocalDescription && description.sdp !== sdp) {
+          throw new Error('munged local description rejected');
+        }
+        this.localDescription = description;
+      }
+
+      async setRemoteDescription(description: RTCSessionDescriptionInit) {
+        this.remoteDescription = description;
+      }
+
+      getTransceivers() {
+        return [];
+      }
+    },
+  );
+
+describe('audio NACK negotiation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('offers Opus NACK only on audio sections that receive subscribed tracks', async () => {
+    stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER);
+    const transport = new PCTransport();
+    let sentSdp = '';
+    transport.onOffer = (offer) => {
+      sentSdp = offer.sdp ?? '';
+    };
+
+    await transport.createAndSendOffer();
+
+    expect(opusNackMids(sentSdp)).toEqual(['1']);
+  });
+
+  describe('initial offer sent with the join', () => {
+    const initialOfferAndTransport = async () => {
+      stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER);
+      const transport = new PCTransport();
+      return { transport, initial: (await transport.createInitialOffer())! };
+    };
+
+    it('offers Opus NACK only on audio sections that receive subscribed tracks', async () => {
+      const { initial } = await initialOfferAndTransport();
+
+      expect(opusNackMids(initial.offer.sdp ?? '')).toEqual(['1']);
+    });
+
+    it('sets the same offer locally that it sent once the answer arrives', async () => {
+      const { transport, initial } = await initialOfferAndTransport();
+
+      await transport.setRemoteDescription({ type: 'answer', sdp: SERVER_ANSWER }, initial.offerId);
+
+      expect(transport.getLocalDescription()?.sdp).toBe(initial.offer.sdp);
+    });
+
+    it("falls back to the browser's own offer when the munged one is rejected", async () => {
+      stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER, { rejectsMungedLocalDescription: true });
+      const transport = new PCTransport();
+      const initial = (await transport.createInitialOffer())!;
+
+      await transport.setRemoteDescription({ type: 'answer', sdp: SERVER_ANSWER }, initial.offerId);
+
+      expect(transport.getLocalDescription()?.sdp).toBe(SINGLE_PC_AUDIO_OFFER);
+    });
+  });
+});

@@ -493,6 +493,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         const sdpParsed = parse(initialOffer.sdp ?? '');
         sdpParsed.media.forEach((media) => {
           ensureIPAddrMatchVersion(media);
+          if (media.type === 'audio') {
+            ensureAudioNackAndStereo(media, [], recvonlyMids(media));
+          }
         });
         this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(initialOffer, write(sdpParsed));
@@ -629,6 +632,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
+        if (media.type === 'audio') {
+          ensureAudioNackAndStereo(media, [], recvonlyMids(media));
+        }
       });
       offer.sdp = write(sdpParsed);
       return { offer, offerId };
@@ -701,7 +707,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, ['all'], []);
+          ensureAudioNackAndStereo(media, ['all'], recvonlyMids(media));
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
@@ -1305,6 +1311,10 @@ function ensureIPAddrMatchVersion(media: MediaDescription) {
       media.connection.version = 4;
     }
   }
+}
+
+function recvonlyMids(media: MediaDescription) {
+  return media.direction === 'recvonly' ? [getMidString(media.mid!)] : [];
 }
 
 function getMidString(mid: string | number) {
