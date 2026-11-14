@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.24.1
+
+### Patch Changes
+
+- Stop re-sending the whole keyring to the E2EE worker on each `enable` acknowledgement, which made the worker re-derive every key once per remote publication and delayed new keys behind that work. On `SignalConnected`, only post the keys the worker has not received yet. Log the per-frame missing key warning only when the throttled `MissingKey` error is emitted. - [#2250](https://github.com/livekit/client-sdk-js/pull/2250) ([@facupedrazzini](https://github.com/facupedrazzini))
+
+- Fix connecting on browsers without `Object.hasOwn` or `WeakRef` (Safari before 15.4) - [#2258](https://github.com/livekit/client-sdk-js/pull/2258) ([@lukasIO](https://github.com/lukasIO))
+
+- Report `REACT_NATIVE` as the SDK in the v1 join request's `ClientInfo`, matching the `sdk=reactnative` query param sent on the v0 signal path - [#2262](https://github.com/livekit/client-sdk-js/pull/2262) ([@MaxHeimbrock](https://github.com/MaxHeimbrock))
+
+- Guard `instanceof Event` in the signal connect abort handler so React Native (no global `Event`) can still time out a hanging signal dial instead of throwing `ReferenceError`. - [#2224](https://github.com/livekit/client-sdk-js/pull/2224) ([@ninglinLiu](https://github.com/ninglinLiu))
+
+- `performRpc` now rejects with the new `CONNECTION_CLOSED` (1506) error when the local participant disconnects from the room. Previously a pending call stayed pending until its `responseTimeout`, then rejected with `RESPONSE_TIMEOUT`. - [#2251](https://github.com/livekit/client-sdk-js/pull/2251) ([@u9g](https://github.com/u9g))
+
 ## 2.24.0
 
 ### Minor Changes
