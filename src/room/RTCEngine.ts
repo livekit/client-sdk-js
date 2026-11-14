@@ -1330,17 +1330,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // since the current engine may have inherited a regional url
       this.emit(EngineEvent.TokenRefreshed, this.token);
     }
-    const reconnectTimeout = CriticalTimers.setTimeout(
-      () =>
-        this.attemptReconnect(disconnectReason).finally(() => {
-          // a failed attempt schedules its retry before this runs; don't clear the retry's handle
-          if (this.reconnectTimeout === reconnectTimeout) {
-            this.reconnectTimeout = undefined;
-          }
-        }),
-      delay,
-    );
-    this.reconnectTimeout = reconnectTimeout;
+    this.reconnectTimeout = CriticalTimers.setTimeout(() => {
+      this.reconnectTimeout = undefined;
+      this.attemptReconnect(disconnectReason);
+    }, delay);
   };
 
   /**
