@@ -403,7 +403,8 @@ export async function publishAdditionalCodecForTrack(
   const req = new AddTrackRequest({
     cid: simulcastTrack.mediaStreamTrack.id,
     type: Track.kindToProto(track.kind),
-    muted: track.isMuted,
+    // match the primary publish request, the backup sender starts without a paused track
+    muted: track.isMuted || track.isUpstreamPaused,
     source: Track.sourceToProto(track.source),
     sid: track.sid,
     width: dims?.width,
