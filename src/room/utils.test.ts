@@ -17,6 +17,7 @@ import {
   isPermissionDeniedError,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
+  isStopTransceiverSupportedByServer,
   negotiateDependencyDescriptor,
   resetDeflateRawCompressionSupportCache,
   splitUtf8,
@@ -349,6 +350,17 @@ describe('isSVCSimulcastSupportedByServer', () => {
   it('treats an unknown version as unsupported', () => {
     expect(isSVCSimulcastSupportedByServer(undefined)).toBe(false);
     expect(isSVCSimulcastSupportedByServer('')).toBe(false);
+  });
+});
+
+describe('isStopTransceiverSupportedByServer', () => {
+  it('requires server protocol 19', () => {
+    expect(isStopTransceiverSupportedByServer(19)).toBe(true);
+    expect(isStopTransceiverSupportedByServer(18)).toBe(false);
+  });
+
+  it('treats an unknown protocol as unsupported', () => {
+    expect(isStopTransceiverSupportedByServer(undefined)).toBe(false);
   });
 });
 
