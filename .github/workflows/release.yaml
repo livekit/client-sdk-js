@@ -4,9 +4,11 @@
 name: Release
 
 on:
+  # No `branches` filter: an rc PR from pre-release.yaml targets the branch
+  # the workflow was run on. The condition on the first job decides which
+  # PRs release.
   pull_request:
     types: [closed]
-    branches: [main]
   # Without `snapshot`: re-run after a fix. `verwalter release` resumes
   # from the current state and skips what is done.
   workflow_dispatch:
@@ -77,10 +79,12 @@ jobs:
         with:
           command: publish
           releases: ${{ needs.release.outputs.releases }}
-      # The docs site shows the latest stable version: an rc does not replace it.
+      # The docs site shows the latest stable version: a pre-release does not
+      # replace it. `outcomes` carries the version this run published, also
+      # on a re-run by hand, where `releases` is empty.
       - name: Build Docs
         id: docs
-        if: contains(steps.publish.outputs.published, 'livekit-client') && !contains(needs.release.outputs.releases, '-rc.')
+        if: contains(steps.publish.outputs.published, 'livekit-client') && !contains(steps.publish.outputs.outcomes, '-rc.')
         continue-on-error: true
         run: pnpm build-docs
       - name: S3 Upload
