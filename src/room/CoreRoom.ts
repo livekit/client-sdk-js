@@ -1492,7 +1492,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       try {
         if (this.options.webAudioMix) {
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
-          this.audioContext?.setSinkId(deviceId);
+          await this.audioContext?.setSinkId(deviceId);
         }
 
         // also set audio output on all audio elements, even if webAudioMix is enabled in order to workaround echo cancellation not working on chrome with non-default output devices

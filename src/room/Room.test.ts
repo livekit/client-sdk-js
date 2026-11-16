@@ -59,6 +59,54 @@ describe('Active device switch', () => {
     expect(deviceId).toBe('test');
     expect(kind).toBe('audioinput');
   });
+
+  describe('audiooutput with webAudioMix', () => {
+    function roomWithMixedAudioContext(setSinkId: (deviceId: string) => Promise<void>) {
+      const room = new Room({ webAudioMix: true });
+      (room as unknown as { audioContext: { setSinkId: typeof setSinkId } }).audioContext = {
+        setSinkId,
+      };
+      return room;
+    }
+
+    it('waits for the audio context to finish routing before confirming the switch', async () => {
+      const route = new Future<void, never>();
+      const room = roomWithMixedAudioContext(() => route.promise);
+      const deviceChanged = vi.fn();
+      room.on(RoomEvent.ActiveDeviceChanged, deviceChanged);
+
+      let settled = false;
+      const switchPromise = room.switchActiveDevice('audiooutput', 'speaker').then(() => {
+        settled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(settled).toBe(false);
+      expect(deviceChanged).not.toHaveBeenCalled();
+
+      route.resolve?.();
+      await switchPromise;
+      expect(deviceChanged).toHaveBeenCalledWith('audiooutput', 'speaker');
+      expect(room.getActiveDevice('audiooutput')).toBe('speaker');
+    });
+
+    it('rejects and keeps the previous output when the audio context fails to route', async () => {
+      const room = roomWithMixedAudioContext(async (deviceId) => {
+        if (deviceId === 'broken') {
+          throw new Error('setSinkId failed');
+        }
+      });
+      await room.switchActiveDevice('audiooutput', 'speaker');
+
+      const deviceChanged = vi.fn();
+      room.on(RoomEvent.ActiveDeviceChanged, deviceChanged);
+      await expect(room.switchActiveDevice('audiooutput', 'broken')).rejects.toThrow(
+        'setSinkId failed',
+      );
+      expect(deviceChanged).not.toHaveBeenCalled();
+      expect(room.getActiveDevice('audiooutput')).toBe('speaker');
+      expect(room.options.audioOutput?.deviceId).toBe('speaker');
+    });
+  });
 });
 
 describe('Room signaling options', () => {
