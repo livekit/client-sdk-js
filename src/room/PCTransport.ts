@@ -864,17 +864,30 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
    * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
    * Returns true if a transceiver stopped.
+   *
+   * The last live m-section stays. The browser drops the ICE and DTLS transport of a connection
+   * when all its m-sections are rejected, and the next publish then needs a new transport, which
+   * the server cannot set up on the same connection.
    */
   stopTransceivers(senders: RTCRtpSender[]): boolean {
     let stopped = false;
-    for (const transceiver of this.getTransceivers()) {
+    const transceivers = this.getTransceivers();
+    // a negotiated data channel section also keeps the transport
+    let liveSections =
+      transceivers.filter((t) => t.direction !== 'stopped' && t.currentDirection !== 'stopped')
+        .length + (this._pc?.sctp ? 1 : 0);
+    for (const transceiver of transceivers) {
       // RTCRtpTransceiver.stop() is not available before Chrome 88
       if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
+        continue;
+      }
+      if (liveSections <= 1) {
         continue;
       }
       try {
         transceiver.stop();
         stopped = true;
+        liveSections -= 1;
       } catch (e) {
         this.log.warn('could not stop transceiver', { error: e });
       }
