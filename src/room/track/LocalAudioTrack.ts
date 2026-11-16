@@ -1,4 +1,5 @@
 import { AudioTrackFeature } from '@livekit/protocol';
+import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
@@ -258,9 +259,13 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
       await processor.init(processorOptions);
       this.processor = processor;
-      if (this.processor.processedTrack) {
-        await this.sender?.replaceTrack(this.processor.processedTrack);
-        this.observeProcessedTrack(this.processor.processedTrack);
+      if (processor.processedTrack) {
+        await this.sender?.replaceTrack(processor.processedTrack);
+        // `stop()` doesn't wait for the trackChangeLock and ends the processor
+        if (this.processor !== processor) {
+          throw new TrackInvalidError('track was stopped while its processor was being set');
+        }
+        this.observeProcessedTrack(processor.processedTrack);
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
@@ -307,15 +312,20 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         return;
       }
       this.log.debug('restarting audio processor on new audio context', this.logContext);
-      await this.processor.restart({
+      const processor = this.processor;
+      await processor.restart({
         kind: this.kind,
         track: this._mediaStreamTrack,
         audioContext,
         localTrack: this,
       });
-      if (this.processor.processedTrack) {
-        await this.sender?.replaceTrack(this.processor.processedTrack);
-        this.observeProcessedTrack(this.processor.processedTrack);
+      // `stop()` doesn't wait for the trackChangeLock, the processor is gone with the track
+      if (this.processor !== processor) {
+        return;
+      }
+      if (processor.processedTrack) {
+        await this.sender?.replaceTrack(processor.processedTrack);
+        this.observeProcessedTrack(processor.processedTrack);
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {

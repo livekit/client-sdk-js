@@ -203,7 +203,8 @@ export default abstract class LocalTrack<
         // ensure the processorElement itself stays muted
         this.processorElement.muted = true;
       }
-      await this.processor.restart({
+      const processor = this.processor;
+      await processor.restart({
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
@@ -212,7 +213,12 @@ export default abstract class LocalTrack<
         audioContext: this.audioContext,
         localTrack: this,
       });
-      processedTrack = this.processor.processedTrack;
+      // `stop()` doesn't wait for the trackChangeLock, so an unpublish can end the processor
+      // while it restarts
+      if (this.processor !== processor) {
+        throw new TrackInvalidError('track was stopped while its processor was restarting');
+      }
+      processedTrack = processor.processedTrack;
     }
     if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
