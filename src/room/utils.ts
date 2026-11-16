@@ -513,6 +513,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
+/** @hidden */
 export type WrapperSdkInfo = {
   /** The `ClientInfo.SDK` enum name of the wrapping SDK, e.g. `'UNITY_WEB'` */
   sdk: keyof typeof ClientInfo_SDK;
@@ -527,7 +528,7 @@ let wrapperSdkInfo: WrapperSdkInfo | undefined;
  * Reports the wrapper as the client SDK to the server, and moves livekit-client's
  * own version to `ClientInfo.other_sdks`. Pass `undefined` to reset.
  * Meant for wrapper SDKs, not for apps.
- * @experimental
+ * @hidden
  */
 export function setWrapperSdkInfo(info: WrapperSdkInfo | undefined) {
   wrapperSdkInfo = info;
