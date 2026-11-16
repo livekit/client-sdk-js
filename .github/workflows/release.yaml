@@ -1,6 +1,14 @@
+# After a release PR merges: tag and create the GitHub release, then
+# publish to npm. The step that cannot be undone comes last.
+# The file name stays release.yaml: npm trusted publishing names it.
 name: Release
 
 on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  # Without `snapshot`: re-run after a fix. `verwalter release` resumes
+  # from the current state and skips what is done.
   workflow_dispatch:
     inputs:
       snapshot:
@@ -11,25 +19,47 @@ on:
         description: 'A prefix that will appended to the published version'
         type: string
         default: ''
-  push:
-    branches:
-      - main
-
-concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  id-token: write  # Required for OIDC
-  contents: write # Required to create GH releases
-  pull-requests: write # Required to interact with PRs
+  contents: write
+  id-token: write # npm trusted publishing
 
 jobs:
   release:
-    if: ${{ github.event.inputs.snapshot != 'true' }}
-    name: Release
+    # Only a release PR the tool opened: the branch prefix alone would let
+    # any pushed `release/*` branch trigger a publish.
+    if: (github.event_name == 'workflow_dispatch' && !inputs.snapshot) || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.user.login == 'verwalter-release[bot]' && contains(github.event.pull_request.body, '<!-- verwalter release -->'))
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.verwalter.outputs.released }}
+      releases: ${{ steps.verwalter.outputs.releases }}
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # The merge commit itself: a push to main right after the merge
+          # must not move the tags.
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0
+      - id: verwalter
+        uses: livekit/verwalter@359985c1e5567b17ae84db0241fbb305c383f89e # v0.30.0
+        with:
+          command: release
+          app-client-id: ${{ secrets.VERWALTER_RELEASE_CLIENT_ID }}
+          app-private-key: ${{ secrets.VERWALTER_RELEASE_APP_KEY }}
+
+  # Skips a version npm already has, so a re-run is safe.
+  publish:
+    needs: release
+    if: needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the tool flips the draft release after the publish
+      id-token: write # npm trusted publishing
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0 # tags decide what is published
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - name: Use Node.js 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -38,26 +68,33 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
-        with:
-          publish: pnpm ci:publish
+      - name: Build
+        run: pnpm type:check && pnpm build && pnpm compat
+      - id: publish
+        uses: livekit/verwalter@359985c1e5567b17ae84db0241fbb305c383f89e # v0.30.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        with:
+          command: publish
+          releases: ${{ needs.release.outputs.releases }}
+      # The docs site shows the latest stable version: an rc does not replace it.
       - name: Build Docs
-        if: steps.changesets.outputs.published == 'true'
+        id: docs
+        if: contains(steps.publish.outputs.published, 'livekit-client') && !contains(needs.release.outputs.releases, '-rc.')
+        continue-on-error: true
         run: pnpm build-docs
       - name: S3 Upload
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.docs.outcome == 'success'
+        continue-on-error: true
         run: aws s3 cp docs/ s3://livekit-docs/client-sdk-js --recursive
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
           AWS_DEFAULT_REGION: "us-east-1"
 
+  # verwalter never sees this version: no tag, no GitHub release.
   snapshot-release:
-    if: ${{ github.event.inputs.snapshot == 'true' }}
+    if: github.event_name == 'workflow_dispatch' && inputs.snapshot
     name: Snapshot Release
     runs-on: ubuntu-latest
     steps:
@@ -73,10 +110,8 @@ jobs:
         run: pnpm install
       - name: Publish snapshot release
         run: |
-            pnpm build
-            pnpm changeset version --snapshot ${{ github.event.inputs.snapshot-prefix }}
-            pnpm publish --tag dev --no-git-checks
+          npm version --no-git-tag-version "0.0.0-${PREFIX:+$PREFIX-}$(date -u +%Y%m%d%H%M%S)"
+          pnpm build
+          pnpm publish --tag dev --no-git-checks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-     
+          PREFIX: ${{ inputs.snapshot-prefix }}
