@@ -1,5 +1,5 @@
-# After a release PR merges: tag and create the GitHub release, then
-# publish to npm. The step that cannot be undone comes last.
+# After a release PR merges: build, then tag and create the GitHub
+# release, then publish to npm. The step that cannot be undone comes last.
 # The file name stays release.yaml: npm trusted publishing names it.
 name: Release
 
@@ -27,10 +27,36 @@ permissions:
   id-token: write # npm trusted publishing
 
 jobs:
-  release:
+  # Before the tag: a commit that does not build is never tagged.
+  build:
     # Only a release PR the tool opened: the branch prefix alone would let
     # any pushed `release/*` branch trigger a publish.
     if: (github.event_name == 'workflow_dispatch' && !inputs.snapshot) || (github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.user.login == 'verwalter-release[bot]' && contains(github.event.pull_request.body, '<!-- verwalter release -->'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - name: Use Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm type:check && pnpm build && pnpm compat
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+
+  release:
+    needs: build
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.verwalter.outputs.released }}
@@ -49,14 +75,23 @@ jobs:
           app-client-id: ${{ secrets.VERWALTER_RELEASE_CLIENT_ID }}
           app-private-key: ${{ secrets.VERWALTER_RELEASE_APP_KEY }}
 
-  # Skips a version npm already has, so a re-run is safe.
+  # Publishes the `dist` of the build job. Skips a version npm already
+  # has, so a re-run is safe.
   publish:
     needs: release
     if: needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # One writer per release: a second run for the same tag waits. A run
+    # with nothing to release gets a group of its own.
+    concurrency:
+      group: publish-${{ fromJson(needs.release.outputs.releases || '[]')[0].tag || github.run_id }}
+      cancel-in-progress: false
     permissions:
       contents: write # the tool flips the draft release after the publish
       id-token: write # npm trusted publishing
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+      outcomes: ${{ steps.publish.outputs.outcomes }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -67,11 +102,10 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install
-      - name: Build
-        run: pnpm type:check && pnpm build && pnpm compat
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
       - id: publish
         uses: livekit/verwalter@359985c1e5567b17ae84db0241fbb305c383f89e # v0.30.0
         env:
@@ -79,17 +113,32 @@ jobs:
         with:
           command: publish
           releases: ${{ needs.release.outputs.releases }}
-      # The docs site shows the latest stable version: a pre-release does not
-      # replace it. `outcomes` carries the version this run published, also
-      # on a re-run by hand, where `releases` is empty.
+
+  # After the publish, in its own job: a failure here is red, and the
+  # release jobs stay green. The docs site shows the latest stable version,
+  # so a pre-release does not replace it. `outcomes` carries the version
+  # this run published, also on a re-run by hand, where `releases` is empty.
+  docs:
+    needs: publish
+    if: contains(needs.publish.outputs.published, 'livekit-client') && !contains(needs.publish.outputs.outcomes, '-rc.')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - name: Use Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24 # NPM v11.5.1 or later is required for OIDC, which ships with node v24
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
       - name: Build Docs
-        id: docs
-        if: contains(steps.publish.outputs.published, 'livekit-client') && !contains(steps.publish.outputs.outcomes, '-rc.')
-        continue-on-error: true
         run: pnpm build-docs
       - name: S3 Upload
-        if: steps.docs.outcome == 'success'
-        continue-on-error: true
         run: aws s3 cp docs/ s3://livekit-docs/client-sdk-js --recursive
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
