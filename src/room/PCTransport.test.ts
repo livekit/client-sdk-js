@@ -13,6 +13,7 @@ import PCTransport, {
   isDuplicateAnswer,
   placeholderMidsFromTransceivers,
 } from './PCTransport';
+import { PCTransportManager } from './PCTransportManager';
 import { ddExtensionURI } from './utils';
 
 /** Parse the `key[=value]` pairs of an fmtp config into a comparable set. */
@@ -573,6 +574,14 @@ describe('ensureAudioNackAndStereo', () => {
 
     expect(paramSet(media.fmtp.find((f) => f.payload === 111)!.config)).toContain('stereo=1');
   });
+
+  it('adds Opus NACK to any section when given all', () => {
+    const media = audioSection('a=rtpmap:111 opus/48000/2', 'a=fmtp:111 minptime=10');
+
+    ensureAudioNackAndStereo(media as any, [], ['all']);
+
+    expect(media.rtcpFb).toContainEqual({ payload: 111, type: 'nack' });
+  });
 });
 
 describe('extractStereoAndNackAudioFromOffer', () => {
@@ -752,7 +761,7 @@ describe('isDuplicateAnswer', () => {
   });
 });
 
-const SINGLE_PC_AUDIO_OFFER = `v=0
+const AUDIO_OFFER_IN_EVERY_DIRECTION = `v=0
 o=- 0 0 IN IP4 127.0.0.1
 s=-
 t=0 0
@@ -777,6 +786,24 @@ c=IN IP4 0.0.0.0
 a=mid:2
 a=sendrecv
 a=msid:s legacy-mic
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1`;
+
+const MIC_FIRST_OFFER = `v=0
+o=- 0 0 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+c=IN IP4 0.0.0.0
+a=mid:0
+a=sctp-port:5000
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=mid:1
+a=sendonly
+a=msid:s mic
 a=rtpmap:111 opus/48000/2
 a=rtcp-fb:111 transport-cc
 a=fmtp:111 minptime=10;useinbandfec=1`;
@@ -832,30 +859,50 @@ describe('audio NACK negotiation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('offers Opus NACK only on audio sections that receive subscribed tracks', async () => {
-    stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER);
-    const transport = new PCTransport();
+  const publisherOfferSdp = async (mode: ConstructorParameters<typeof PCTransportManager>[0]) => {
+    const manager = new PCTransportManager(mode, {});
     let sentSdp = '';
-    transport.onOffer = (offer) => {
+    manager.onPublisherOffer = (offer) => {
       sentSdp = offer.sdp ?? '';
     };
+    await manager.publisher.createAndSendOffer();
+    return sentSdp;
+  };
 
-    await transport.createAndSendOffer();
+  it('offers Opus NACK on every audio section with a single peer connection', async () => {
+    stubPeerConnectionReturning(AUDIO_OFFER_IN_EVERY_DIRECTION);
 
-    expect(opusNackMids(sentSdp)).toEqual(['1']);
+    expect(opusNackMids(await publisherOfferSdp('publisher-only'))).toEqual(['0', '1', '2']);
+  });
+
+  it.each(['publisher-primary', 'subscriber-primary'] as const)(
+    'offers no Opus NACK from a %s publisher',
+    async (mode) => {
+      stubPeerConnectionReturning(AUDIO_OFFER_IN_EVERY_DIRECTION);
+
+      expect(opusNackMids(await publisherOfferSdp(mode))).toEqual([]);
+    },
+  );
+
+  it('offers Opus NACK on a mic published before any subscribed audio section, as on React Native', async () => {
+    stubPeerConnectionReturning(MIC_FIRST_OFFER);
+
+    expect(opusNackMids(await publisherOfferSdp('publisher-only'))).toEqual(['1']);
   });
 
   describe('initial offer sent with the join', () => {
-    const initialOfferAndTransport = async () => {
-      stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER);
-      const transport = new PCTransport();
+    const initialOfferAndTransport = async (
+      stubOptions?: Parameters<typeof stubPeerConnectionReturning>[1],
+    ) => {
+      stubPeerConnectionReturning(AUDIO_OFFER_IN_EVERY_DIRECTION, stubOptions);
+      const transport = new PCTransport(undefined, {}, { singlePeerConnection: true });
       return { transport, initial: (await transport.createInitialOffer())! };
     };
 
-    it('offers Opus NACK only on audio sections that receive subscribed tracks', async () => {
+    it('offers Opus NACK on every audio section', async () => {
       const { initial } = await initialOfferAndTransport();
 
-      expect(opusNackMids(initial.offer.sdp ?? '')).toEqual(['1']);
+      expect(opusNackMids(initial.offer.sdp ?? '')).toEqual(['0', '1', '2']);
     });
 
     it('sets the same offer locally that it sent once the answer arrives', async () => {
@@ -866,14 +913,14 @@ describe('audio NACK negotiation', () => {
       expect(transport.getLocalDescription()?.sdp).toBe(initial.offer.sdp);
     });
 
-    it("falls back to the browser's own offer when the munged one is rejected", async () => {
-      stubPeerConnectionReturning(SINGLE_PC_AUDIO_OFFER, { rejectsMungedLocalDescription: true });
-      const transport = new PCTransport();
-      const initial = (await transport.createInitialOffer())!;
+    it("sets the browser's own offer locally when the munged one is rejected", async () => {
+      const { transport, initial } = await initialOfferAndTransport({
+        rejectsMungedLocalDescription: true,
+      });
 
       await transport.setRemoteDescription({ type: 'answer', sdp: SERVER_ANSWER }, initial.offerId);
 
-      expect(transport.getLocalDescription()?.sdp).toBe(SINGLE_PC_AUDIO_OFFER);
+      expect(transport.getLocalDescription()?.sdp).toBe(AUDIO_OFFER_IN_EVERY_DIRECTION);
     });
   });
 });
