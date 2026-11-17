@@ -63,6 +63,24 @@ describe('PCTransport.stopTransceivers', () => {
     expect(pc.localDescription!.sdp).not.toContain('m=video 0 ');
   });
 
+  it('keeps the last transceiver of each kind', async () => {
+    publisher = new PCTransport();
+    remote = new RTCPeerConnection();
+    const video = publisher.addTransceiver(videoTrack(), { direction: 'sendonly' });
+    const audio = publisher.addTransceiverOfKind('audio', { direction: 'sendonly' });
+    const secondVideo = publisher.addTransceiver(videoTrack(), { direction: 'sendonly' });
+    await negotiate(publisher, remote);
+
+    publisher.removeTrack(video.sender, true);
+    publisher.removeTrack(audio.sender, true);
+    publisher.removeTrack(secondVideo.sender, true);
+    await negotiate(publisher, remote);
+
+    expect(video.direction).toBe('stopped');
+    expect(audio.direction).not.toBe('stopped');
+    expect(secondVideo.direction).not.toBe('stopped');
+  });
+
   it('returns false when no transceiver has the sender', async () => {
     publisher = new PCTransport();
     remote = new RTCPeerConnection();
