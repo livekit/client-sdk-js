@@ -213,11 +213,6 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
   `src/room/rpc/client/` contains `RpcClientManager.ts`, `events.ts`, and
   `RpcClientManager.test.ts`.
 
-`SignalClient` follows the same pattern for incoming signal messages: it is a typed emitter
-(`SignalClientCallbacks` in `src/api/events.ts`). `RTCEngine` registers the per-session
-listeners in `setupSignalClientCallbacks()` and removes them in `removeSignalClientCallbacks()`,
-which setup calls first because it runs again on every join and resume.
-
 ### Testing managers
 
 - Tests construct managers directly — no mock engine needed.

@@ -5,28 +5,44 @@ import {
   ClientInfo,
   ClientInfo_Capability,
   ClientInfo_SDK,
+  type ConnectionQualityUpdate,
   ConnectionSettings,
+  type DataTrackSubscriberHandles,
   DisconnectReason,
   Encryption_Type,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  type MediaSectionsRequirement,
   MuteTrackRequest,
+  type ParticipantInfo,
   Ping,
   PublishDataTrackRequest,
+  type PublishDataTrackResponse,
   ReconnectReason,
   ReconnectResponse,
+  type RequestResponse,
+  type Room,
+  type RoomMovedResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
   SignalTarget,
   SimulateScenario,
+  type SpeakerInfo,
+  type StreamStateUpdate,
+  type SubscribedQualityUpdate,
   SubscriptionPermission,
+  type SubscriptionPermissionUpdate,
+  type SubscriptionResponse,
   SyncState,
   TrackPermission,
+  type TrackPublishedResponse,
+  type TrackUnpublishedResponse,
   TrickleRequest,
   UnpublishDataTrackRequest,
+  type UnpublishDataTrackResponse,
   UpdateDataSubscription,
   UpdateDataSubscription_Update,
   UpdateLocalAudioTrack,
@@ -59,7 +75,6 @@ import {
   createSignalMachine,
 } from './SignalClientStateMachine';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
-import type { SignalClientCallbacks } from './events';
 import {
   createRtcUrl,
   createValidateUrl,
@@ -156,6 +171,46 @@ const MAX_WS_CLOSE_TIME = 250;
  * How long (in ms) to wait for the first message after the WebSocket upgrade.
  */
 const JOIN_RESPONSE_TIMEOUT = 5_000;
+
+export type SignalClientCallbacks = {
+  /** The transport was lost without the client asking for it. */
+  close: (reason: string) => void;
+  /** The join response arrived, before `join()` resolves. */
+  joined: (joinResponse: JoinResponse) => void;
+  answer: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
+  offer: (
+    sd: RTCSessionDescriptionInit,
+    offerId: number,
+    midToTrackId: { [key: string]: string },
+  ) => void;
+  /** The server sent an ICE candidate. */
+  trickle: (candidate: RTCIceCandidateInit, target: SignalTarget) => void;
+  participantUpdate: (updates: ParticipantInfo[]) => void;
+  localTrackPublished: (res: TrackPublishedResponse) => void;
+  localTrackUnpublished: (res: TrackUnpublishedResponse) => void;
+  localTrackSubscribed: (trackSid: string) => void;
+  speakersChanged: (speakers: SpeakerInfo[]) => void;
+  remoteMuteChanged: (trackSid: string, muted: boolean) => void;
+  roomUpdate: (room: Room) => void;
+  connectionQuality: (update: ConnectionQualityUpdate) => void;
+  streamStateUpdate: (update: StreamStateUpdate) => void;
+  subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
+  subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
+  subscriptionError: (res: SubscriptionResponse) => void;
+  /** A `refreshToken` message, or the new token carried by a `roomMoved` message. */
+  tokenRefresh: (token: string) => void;
+  leave: (leave: LeaveRequest) => void;
+  requestResponse: (response: RequestResponse) => void;
+  roomMoved: (res: RoomMovedResponse) => void;
+  mediaSectionsRequirement: (requirement: MediaSectionsRequirement) => void;
+  publishDataTrackResponse: (res: PublishDataTrackResponse) => void;
+  unpublishDataTrackResponse: (res: UnpublishDataTrackResponse) => void;
+  dataTrackSubscriberHandles: (handles: DataTrackSubscriberHandles) => void;
+};
 
 /** @internal */
 export class SignalClient extends (EventEmitter as new () => TypedEmitter<SignalClientCallbacks>) {
