@@ -325,23 +325,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.DCBufferStatusChanged, isLow, kind),
     });
 
-    this.client.onParticipantUpdate = (updates) =>
-      this.emit(EngineEvent.ParticipantUpdate, updates);
-    this.client.onConnectionQuality = (update) => {
+    this.client.on('participantUpdate', (updates) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates),
+    );
+    this.client.on('connectionQuality', (update) => {
       this.handleLocalConnectionQuality(update);
       this.emit(EngineEvent.ConnectionQualityUpdate, update);
-    };
-    this.client.onRoomUpdate = (update) => this.emit(EngineEvent.RoomUpdate, update);
-    this.client.onSubscriptionError = (resp) => this.emit(EngineEvent.SubscriptionError, resp);
-    this.client.onSubscriptionPermissionUpdate = (update) =>
-      this.emit(EngineEvent.SubscriptionPermissionUpdate, update);
-    this.client.onSpeakersChanged = (update) => this.emit(EngineEvent.SpeakersChanged, update);
-    this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
-    this.client.onRequestResponse = (response) =>
-      this.emit(EngineEvent.SignalRequestResponse, response);
-    this.client.onParticipantUpdate = (updates) =>
-      this.emit(EngineEvent.ParticipantUpdate, updates);
-    this.client.onJoined = (joinResponse) => this.emit(EngineEvent.Joined, joinResponse);
+    });
+    this.client.on('roomUpdate', (update) => this.emit(EngineEvent.RoomUpdate, update));
+    this.client.on('subscriptionError', (resp) => this.emit(EngineEvent.SubscriptionError, resp));
+    this.client.on('subscriptionPermissionUpdate', (update) =>
+      this.emit(EngineEvent.SubscriptionPermissionUpdate, update),
+    );
+    this.client.on('speakersChanged', (update) => this.emit(EngineEvent.SpeakersChanged, update));
+    this.client.on('streamStateUpdate', (update) =>
+      this.emit(EngineEvent.StreamStateChanged, update),
+    );
+    this.client.on('requestResponse', (response) =>
+      this.emit(EngineEvent.SignalRequestResponse, response),
+    );
+    this.client.on('joined', (joinResponse) => this.emit(EngineEvent.Joined, joinResponse));
 
     const abortPendingNegotiations = () => {
       // Iterate a copy: each handler removes itself from the set as its negotiation settles.
@@ -555,7 +558,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   async cleanupClient(reason?: string) {
     await this.client.close(true, reason);
-    this.client.resetCallbacks();
+    this.removeSignalClientCallbacks();
     // Any in-flight addTrack requests are orphaned by the signal reconnect — the new session
     // won't deliver `trackPublishedResponse` for them, so reject the pending resolvers and
     // clear the map. Otherwise a subsequent `addTrack` call with the same client id (e.g. a
@@ -738,8 +741,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private setupSignalClientCallbacks() {
+    // setup runs again for every join and resume, so the previous session's listeners go first
+    this.removeSignalClientCallbacks();
+
     // configure signaling client
-    this.client.onAnswer = async (sd, offerId, midToTrackId) => {
+    this.client.on('answer', async (sd, offerId, midToTrackId) => {
       if (!this.pcManager) {
         return;
       }
@@ -766,19 +772,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       await this.pcManager.setPublisherAnswer(sd, offerId);
       this.emit(EngineEvent.RequestSubscribedCodecRefresh);
-    };
+    });
 
     // add candidate on trickle
-    this.client.onTrickle = (candidate, target) => {
+    this.client.on('trickle', (candidate, target) => {
       if (!this.pcManager) {
         return;
       }
       this.log.debug('got ICE candidate from peer', { candidate, target });
       this.pcManager.addIceCandidate(candidate, target);
-    };
+    });
 
     // when server creates an offer for the client
-    this.client.onOffer = async (sd, offerId, midToTrackId) => {
+    this.client.on('offer', async (sd, offerId, midToTrackId) => {
       this.latestRemoteOfferId = offerId;
       if (!this.pcManager) {
         return;
@@ -788,9 +794,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (answer) {
         this.client.sendAnswer(answer, offerId);
       }
-    };
+    });
 
-    this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
+    this.client.on('localTrackPublished', (res: TrackPublishedResponse) => {
       this.log.debug('received trackPublishedResponse', {
         cid: res.cid,
         track: res.track?.sid,
@@ -802,61 +808,61 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const { resolve } = this.pendingTrackResolvers[res.cid];
       delete this.pendingTrackResolvers[res.cid];
       resolve(res.track!);
-    };
+    });
 
-    this.client.onLocalTrackUnpublished = (response: TrackUnpublishedResponse) => {
+    this.client.on('localTrackUnpublished', (response: TrackUnpublishedResponse) => {
       this.emit(EngineEvent.LocalTrackUnpublished, response);
-    };
+    });
 
-    this.client.onLocalTrackSubscribed = (trackSid: string) => {
+    this.client.on('localTrackSubscribed', (trackSid: string) => {
       this.emit(EngineEvent.LocalTrackSubscribed, trackSid);
-    };
+    });
 
-    this.client.onTokenRefresh = (token: string) => {
+    this.client.on('tokenRefresh', (token: string) => {
       this.token = token;
       this.emit(EngineEvent.TokenRefreshed, token);
-    };
+    });
 
-    this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
+    this.client.on('remoteMuteChanged', (trackSid: string, muted: boolean) => {
       this.emit(EngineEvent.RemoteMute, trackSid, muted);
-    };
+    });
 
-    this.client.onSubscribedQualityUpdate = (update: SubscribedQualityUpdate) => {
+    this.client.on('subscribedQualityUpdate', (update: SubscribedQualityUpdate) => {
       this.emit(EngineEvent.SubscribedQualityUpdate, update);
-    };
+    });
 
-    this.client.onRoomMoved = (res: RoomMovedResponse) => {
+    this.client.on('roomMoved', (res: RoomMovedResponse) => {
       this.participantSid = res.participant?.sid;
       if (this.latestJoinResponse) {
         this.latestJoinResponse.room = res.room;
       }
       this.emit(EngineEvent.RoomMoved, res);
-    };
+    });
 
-    this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
+    this.client.on('mediaSectionsRequirement', (requirement: MediaSectionsRequirement) => {
       this.addMediaSections(requirement.numAudios, requirement.numVideos);
       this.negotiate().catch((err) => {
         this.log.error(err);
       });
-    };
+    });
 
-    this.client.onPublishDataTrackResponse = (event: PublishDataTrackResponse) => {
+    this.client.on('publishDataTrackResponse', (event: PublishDataTrackResponse) => {
       this.emit(EngineEvent.PublishDataTrackResponse, event);
-    };
+    });
 
-    this.client.onUnPublishDataTrackResponse = (event: UnpublishDataTrackResponse) => {
+    this.client.on('unpublishDataTrackResponse', (event: UnpublishDataTrackResponse) => {
       this.emit(EngineEvent.UnPublishDataTrackResponse, event);
-    };
+    });
 
-    this.client.onDataTrackSubscriberHandles = (event: DataTrackSubscriberHandles) => {
+    this.client.on('dataTrackSubscriberHandles', (event: DataTrackSubscriberHandles) => {
       this.emit(EngineEvent.DataTrackSubscriberHandles, event);
-    };
+    });
 
-    this.client.onClose = () => {
+    this.client.on('close', () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
-    };
+    });
 
-    this.client.onLeave = (leave: LeaveRequest) => {
+    this.client.on('leave', (leave: LeaveRequest) => {
       this.log.info(`client leave request received (action=${leave?.action})`, {
         reason: leave?.reason,
       });
@@ -880,7 +886,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         default:
           break;
       }
-    };
+    });
+  }
+
+  /** Removes the listeners `setupSignalClientCallbacks()` adds. */
+  private removeSignalClientCallbacks() {
+    this.client.removeAllListeners('answer');
+    this.client.removeAllListeners('trickle');
+    this.client.removeAllListeners('offer');
+    this.client.removeAllListeners('localTrackPublished');
+    this.client.removeAllListeners('localTrackUnpublished');
+    this.client.removeAllListeners('localTrackSubscribed');
+    this.client.removeAllListeners('tokenRefresh');
+    this.client.removeAllListeners('remoteMuteChanged');
+    this.client.removeAllListeners('subscribedQualityUpdate');
+    this.client.removeAllListeners('roomMoved');
+    this.client.removeAllListeners('mediaSectionsRequirement');
+    this.client.removeAllListeners('publishDataTrackResponse');
+    this.client.removeAllListeners('unpublishDataTrackResponse');
+    this.client.removeAllListeners('dataTrackSubscriberHandles');
+    this.client.removeAllListeners('close');
+    this.client.removeAllListeners('leave');
   }
 
   private makeRTCConfiguration(

@@ -978,7 +978,8 @@ describe('server leave during connect()', () => {
 
   /** What the signal client does with a server `leave` (another session took this identity). */
   function receiveDuplicateIdentityLeave(room: Room) {
-    room.engine.client.onLeave?.(
+    room.engine.client.emit(
+      'leave',
       new LeaveRequest({
         action: LeaveRequest_Action.DISCONNECT,
         reason: DisconnectReason.DUPLICATE_IDENTITY,

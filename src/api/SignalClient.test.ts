@@ -283,7 +283,7 @@ describe('SignalClient.connect', () => {
         connection: { readable, writable, protocol: '', extensions: '' },
       });
       const onJoined = vi.fn();
-      signalClient.onJoined = onJoined;
+      signalClient.on('joined', onJoined);
 
       const joining = signalClient.join(
         'wss://test.livekit.io',
@@ -976,7 +976,7 @@ describe('SignalClient.connect', () => {
       });
 
       const closeReasons: Array<string> = [];
-      signalClient.onClose = (reason) => closeReasons.push(reason);
+      signalClient.on('close', (reason) => closeReasons.push(reason));
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
 
@@ -1016,7 +1016,7 @@ describe('SignalClient.connect', () => {
         ),
       });
       const closeReasons: Array<string> = [];
-      signalClient.onClose = (reason) => closeReasons.push(reason);
+      signalClient.on('close', (reason) => closeReasons.push(reason));
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
       return closeReasons;

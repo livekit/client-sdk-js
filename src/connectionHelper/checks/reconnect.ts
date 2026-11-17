@@ -31,10 +31,7 @@ export class ReconnectCheck extends Checker {
       });
 
     room.engine.client.ws?.close();
-    const onClose = room.engine.client.onClose;
-    if (onClose) {
-      onClose('');
-    }
+    room.engine.client.emit('close', '');
 
     await reconnectTimeout;
 

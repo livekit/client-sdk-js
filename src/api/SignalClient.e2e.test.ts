@@ -29,14 +29,14 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 /** Resolves with the reason passed to onClose (register before the event can fire). */
 function captureClose(client: SignalClient): Promise<string> {
   return new Promise((resolve) => {
-    client.onClose = (reason) => resolve(reason);
+    client.once('close', (reason) => resolve(reason));
   });
 }
 
 /** Resolves with the LeaveRequest passed to onLeave. */
 function captureLeave(client: SignalClient): Promise<LeaveRequest> {
   return new Promise((resolve) => {
-    client.onLeave = (leave) => resolve(leave);
+    client.once('leave', (leave) => resolve(leave));
   });
 }
 

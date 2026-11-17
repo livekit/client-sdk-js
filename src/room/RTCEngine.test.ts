@@ -1663,7 +1663,7 @@ describe('RTCEngine', () => {
       const { engine, publisher, setPublisherAnswer, trackIdFor } = primeEngine();
       publisher.latestOfferId = 2;
 
-      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+      engine.client.emit('answer', answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
 
       expect(setPublisherAnswer).toHaveBeenCalledWith(answer, 2);
       expect(trackIdFor('1')).toBe('TR_video');
@@ -1672,9 +1672,9 @@ describe('RTCEngine', () => {
     it('keeps the current mapping when an answer to an older offer arrives', async () => {
       const { engine, publisher, trackIdFor } = primeEngine();
       publisher.latestOfferId = 2;
-      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+      engine.client.emit('answer', answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
 
-      await engine.client.onAnswer!(answer, 1, { '0': 'TR_audio' });
+      engine.client.emit('answer', answer, 1, { '0': 'TR_audio' });
 
       expect(trackIdFor('0')).toBe('TR_audio');
       expect(trackIdFor('1')).toBe('TR_video');
@@ -1686,7 +1686,7 @@ describe('RTCEngine', () => {
       const refresh = vi.fn();
       engine.on(EngineEvent.RequestSubscribedCodecRefresh, refresh);
 
-      await engine.client.onAnswer!(answer, 1, { '0': 'TR_audio' });
+      engine.client.emit('answer', answer, 1, { '0': 'TR_audio' });
 
       expect(setPublisherAnswer).not.toHaveBeenCalled();
       expect(refresh).not.toHaveBeenCalled();
@@ -1695,10 +1695,10 @@ describe('RTCEngine', () => {
     it('keeps the current mapping when the current answer carries an empty one', async () => {
       const { engine, publisher, setPublisherAnswer, trackIdFor } = primeEngine();
       publisher.latestOfferId = 2;
-      await engine.client.onAnswer!(answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
+      engine.client.emit('answer', answer, 2, { '0': 'TR_audio', '1': 'TR_video' });
 
       publisher.latestOfferId = 3;
-      await engine.client.onAnswer!(answer, 3, {});
+      engine.client.emit('answer', answer, 3, {});
 
       expect(setPublisherAnswer).toHaveBeenLastCalledWith(answer, 3);
       expect(trackIdFor('1')).toBe('TR_video');

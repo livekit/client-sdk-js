@@ -5,44 +5,28 @@ import {
   ClientInfo,
   ClientInfo_Capability,
   ClientInfo_SDK,
-  ConnectionQualityUpdate,
   ConnectionSettings,
-  DataTrackSubscriberHandles,
   DisconnectReason,
   Encryption_Type,
   JoinRequest,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
-  MediaSectionsRequirement,
   MuteTrackRequest,
-  ParticipantInfo,
   Ping,
   PublishDataTrackRequest,
-  PublishDataTrackResponse,
   ReconnectReason,
   ReconnectResponse,
-  RequestResponse,
-  Room,
-  RoomMovedResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
   SignalTarget,
   SimulateScenario,
-  SpeakerInfo,
-  StreamStateUpdate,
-  SubscribedQualityUpdate,
   SubscriptionPermission,
-  SubscriptionPermissionUpdate,
-  SubscriptionResponse,
   SyncState,
   TrackPermission,
-  TrackPublishedResponse,
-  TrackUnpublishedResponse,
   TrickleRequest,
   UnpublishDataTrackRequest,
-  UnpublishDataTrackResponse,
   UpdateDataSubscription,
   UpdateDataSubscription_Update,
   UpdateLocalAudioTrack,
@@ -55,6 +39,8 @@ import {
   WrappedJoinRequest_Compression,
   protoInt64,
 } from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { DataTrackHandle } from '../room/data-track/handle';
 import type { DataTrackSid } from '../room/data-track/types';
@@ -73,6 +59,7 @@ import {
   createSignalMachine,
 } from './SignalClientStateMachine';
 import { type WebSocketConnection, WebSocketStream } from './WebSocketStream';
+import type { SignalClientCallbacks } from './events';
 import {
   createRtcUrl,
   createValidateUrl,
@@ -171,7 +158,7 @@ const MAX_WS_CLOSE_TIME = 250;
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
 /** @internal */
-export class SignalClient {
+export class SignalClient extends (EventEmitter as new () => TypedEmitter<SignalClientCallbacks>) {
   requestQueue: AsyncQueue;
 
   queuedRequests: Array<() => Promise<void>>;
@@ -183,67 +170,6 @@ export class SignalClient {
 
   /** simulate signaling latency by delaying messages */
   signalLatency?: number;
-
-  onClose?: (reason: string) => void;
-
-  onAnswer?: (
-    sd: RTCSessionDescriptionInit,
-    offerId: number,
-    midToTrackId: { [key: string]: string },
-  ) => void;
-
-  onOffer?: (
-    sd: RTCSessionDescriptionInit,
-    offerId: number,
-    midToTrackId: { [key: string]: string },
-  ) => void;
-
-  // when a new ICE candidate is made available
-  onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
-
-  onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
-
-  onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
-
-  onNegotiateRequested?: () => void;
-
-  onSpeakersChanged?: (res: SpeakerInfo[]) => void;
-
-  onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
-
-  onRoomUpdate?: (room: Room) => void;
-
-  onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
-
-  onStreamStateUpdate?: (update: StreamStateUpdate) => void;
-
-  onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
-
-  onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
-
-  onSubscriptionError?: (update: SubscriptionResponse) => void;
-
-  onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
-
-  onTokenRefresh?: (token: string) => void;
-
-  onLeave?: (leave: LeaveRequest) => void;
-
-  onRequestResponse?: (response: RequestResponse) => void;
-
-  onLocalTrackSubscribed?: (trackSid: string) => void;
-
-  onRoomMoved?: (res: RoomMovedResponse) => void;
-
-  onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
-
-  onPublishDataTrackResponse?: (event: PublishDataTrackResponse) => void;
-
-  onUnPublishDataTrackResponse?: (event: UnpublishDataTrackResponse) => void;
-
-  onDataTrackSubscriberHandles?: (event: DataTrackSubscriberHandles) => void;
-
-  onJoined?: (event: JoinResponse) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -325,6 +251,7 @@ export class SignalClient {
   private useV0SignalPath = false;
 
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
+    super();
     this.loggerContextCb = loggerOptions.loggerContextCb;
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal, () => this.logContext);
     this.useJSON = useJSON;
@@ -701,9 +628,7 @@ export class SignalClient {
               });
             }
 
-            if (this.onJoined) {
-              this.onJoined(firstSignalResponse.message.value);
-            }
+            this.emit('joined', firstSignalResponse.message.value);
           }
 
           this.handleSignalConnected(connection, wsTimeout, attemptId);
@@ -740,22 +665,6 @@ export class SignalClient {
       }
     }
   }
-
-  /** @internal */
-  resetCallbacks = () => {
-    this.onAnswer = undefined;
-    this.onLeave = undefined;
-    this.onLocalTrackPublished = undefined;
-    this.onLocalTrackUnpublished = undefined;
-    this.onNegotiateRequested = undefined;
-    this.onOffer = undefined;
-    this.onRemoteMuteChanged = undefined;
-    this.onSubscribedQualityUpdate = undefined;
-    this.onTokenRefresh = undefined;
-    this.onTrickle = undefined;
-    this.onClose = undefined;
-    this.onMediaSectionsRequirement = undefined;
-  };
 
   async close(updateState: boolean = true, reason = 'Close method called on signal client') {
     // when the lifecycle is already shutting down (or another close owns it), only the transport
@@ -1031,107 +940,61 @@ export class SignalClient {
     let pingHandled = false;
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
-      if (this.onAnswer) {
-        this.onAnswer(sd, msg.value.id, msg.value.midToTrackId);
-      }
+      this.emit('answer', sd, msg.value.id, msg.value.midToTrackId);
     } else if (msg.case === 'offer') {
       const sd = fromProtoSessionDescription(msg.value);
-      if (this.onOffer) {
-        this.onOffer(sd, msg.value.id, msg.value.midToTrackId);
-      }
+      this.emit('offer', sd, msg.value.id, msg.value.midToTrackId);
     } else if (msg.case === 'trickle') {
       const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
-      if (this.onTrickle) {
-        this.onTrickle(candidate, msg.value.target);
-      }
+      this.emit('trickle', candidate, msg.value.target);
     } else if (msg.case === 'update') {
-      if (this.onParticipantUpdate) {
-        this.onParticipantUpdate(msg.value.participants ?? []);
-      }
+      this.emit('participantUpdate', msg.value.participants ?? []);
     } else if (msg.case === 'trackPublished') {
-      if (this.onLocalTrackPublished) {
-        this.onLocalTrackPublished(msg.value);
-      }
+      this.emit('localTrackPublished', msg.value);
     } else if (msg.case === 'speakersChanged') {
-      if (this.onSpeakersChanged) {
-        this.onSpeakersChanged(msg.value.speakers ?? []);
-      }
+      this.emit('speakersChanged', msg.value.speakers ?? []);
     } else if (msg.case === 'leave') {
-      if (this.onLeave) {
-        this.onLeave(msg.value);
-      }
+      this.emit('leave', msg.value);
     } else if (msg.case === 'mute') {
-      if (this.onRemoteMuteChanged) {
-        this.onRemoteMuteChanged(msg.value.sid, msg.value.muted);
-      }
+      this.emit('remoteMuteChanged', msg.value.sid, msg.value.muted);
     } else if (msg.case === 'roomUpdate') {
-      if (this.onRoomUpdate && msg.value.room) {
-        this.onRoomUpdate(msg.value.room);
+      if (msg.value.room) {
+        this.emit('roomUpdate', msg.value.room);
       }
     } else if (msg.case === 'connectionQuality') {
-      if (this.onConnectionQuality) {
-        this.onConnectionQuality(msg.value);
-      }
+      this.emit('connectionQuality', msg.value);
     } else if (msg.case === 'streamStateUpdate') {
-      if (this.onStreamStateUpdate) {
-        this.onStreamStateUpdate(msg.value);
-      }
+      this.emit('streamStateUpdate', msg.value);
     } else if (msg.case === 'subscribedQualityUpdate') {
-      if (this.onSubscribedQualityUpdate) {
-        this.onSubscribedQualityUpdate(msg.value);
-      }
+      this.emit('subscribedQualityUpdate', msg.value);
     } else if (msg.case === 'subscriptionPermissionUpdate') {
-      if (this.onSubscriptionPermissionUpdate) {
-        this.onSubscriptionPermissionUpdate(msg.value);
-      }
+      this.emit('subscriptionPermissionUpdate', msg.value);
     } else if (msg.case === 'refreshToken') {
-      if (this.onTokenRefresh) {
-        this.onTokenRefresh(msg.value);
-      }
+      this.emit('tokenRefresh', msg.value);
     } else if (msg.case === 'trackUnpublished') {
-      if (this.onLocalTrackUnpublished) {
-        this.onLocalTrackUnpublished(msg.value);
-      }
+      this.emit('localTrackUnpublished', msg.value);
     } else if (msg.case === 'subscriptionResponse') {
-      if (this.onSubscriptionError) {
-        this.onSubscriptionError(msg.value);
-      }
+      this.emit('subscriptionError', msg.value);
     } else if (msg.case === 'pong') {
     } else if (msg.case === 'pongResp') {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
     } else if (msg.case === 'requestResponse') {
-      if (this.onRequestResponse) {
-        this.onRequestResponse(msg.value);
-      }
+      this.emit('requestResponse', msg.value);
     } else if (msg.case === 'trackSubscribed') {
-      if (this.onLocalTrackSubscribed) {
-        this.onLocalTrackSubscribed(msg.value.trackSid);
-      }
+      this.emit('localTrackSubscribed', msg.value.trackSid);
     } else if (msg.case === 'roomMoved') {
-      if (this.onTokenRefresh) {
-        this.onTokenRefresh(msg.value.token);
-      }
-      if (this.onRoomMoved) {
-        this.onRoomMoved(msg.value);
-      }
+      this.emit('tokenRefresh', msg.value.token);
+      this.emit('roomMoved', msg.value);
     } else if (msg.case === 'mediaSectionsRequirement') {
-      if (this.onMediaSectionsRequirement) {
-        this.onMediaSectionsRequirement(msg.value);
-      }
+      this.emit('mediaSectionsRequirement', msg.value);
     } else if (msg.case === 'publishDataTrackResponse') {
-      if (this.onPublishDataTrackResponse) {
-        this.onPublishDataTrackResponse(msg.value);
-      }
+      this.emit('publishDataTrackResponse', msg.value);
     } else if (msg.case === 'unpublishDataTrackResponse') {
-      if (this.onUnPublishDataTrackResponse) {
-        this.onUnPublishDataTrackResponse(msg.value);
-      }
+      this.emit('unpublishDataTrackResponse', msg.value);
     } else if (msg.case === 'dataTrackSubscriberHandles') {
-      if (this.onDataTrackSubscriberHandles) {
-        this.onDataTrackSubscriberHandles(msg.value);
-      }
+      this.emit('dataTrackSubscriberHandles', msg.value);
     } else {
       this.log.debug('unsupported message', { msgCase: msg.case });
     }
@@ -1160,7 +1023,9 @@ export class SignalClient {
     simulateReconnectDelay?: number,
     readError?: unknown,
   ) {
-    const onCloseCallback = this.onClose;
+    // taken before the teardown below awaits, so the listeners present when the transport was
+    // lost are the ones told about it
+    const closeListeners = this.listeners('close');
     if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
       // a close we caused ourselves, or one from a transport that has since been replaced: logged
       // rather than dropped silently, because a close that goes unnoticed leaves the client writing
@@ -1182,8 +1047,8 @@ export class SignalClient {
       this.log.info(`waiting for ${simulateReconnectDelay}ms until reconnecting signal`);
       await sleep(simulateReconnectDelay);
     }
-    if (onCloseCallback) {
-      onCloseCallback(reason);
+    for (const listener of closeListeners) {
+      listener(reason);
     }
   }
 
