@@ -177,6 +177,7 @@ export type PublicationEventCallbacks = {
     prevStatus: TrackPublication.SubscriptionStatus,
   ) => void;
   subscriptionFailed: (error: SubscriptionError) => void;
+  /** @deprecated Use a text stream handler for the `lk.transcription` topic instead. */
   transcriptionReceived: (transcription: TranscriptionSegment[]) => void;
   timeSyncUpdate: (timestamp: number) => void;
   cpuConstrained: (track: LocalVideoTrack) => void;
