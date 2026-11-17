@@ -44,6 +44,25 @@ describe('PCTransport.stopTransceivers', () => {
     expect(kept.currentDirection).toBe('sendonly');
   });
 
+  it('keeps the only transceiver, so the connection keeps its transport', async () => {
+    publisher = new PCTransport();
+    remote = new RTCPeerConnection();
+    const pc = (publisher as unknown as { pc: RTCPeerConnection }).pc;
+    const { sender } = publisher.addTransceiver(videoTrack(), { direction: 'sendonly' });
+    await negotiate(publisher, remote);
+    const transport = sender.transport;
+
+    publisher.removeTrack(sender, true);
+    await negotiate(publisher, remote);
+    publisher.addTransceiver(videoTrack(), { direction: 'sendonly' });
+    await negotiate(publisher, remote);
+
+    expect(transport).not.toBeNull();
+    expect(publisher.getTransceivers()).toHaveLength(2);
+    expect(publisher.getTransceivers()[1].sender.transport).toBe(transport);
+    expect(pc.localDescription!.sdp).not.toContain('m=video 0 ');
+  });
+
   it('returns false when no transceiver has the sender', async () => {
     publisher = new PCTransport();
     remote = new RTCPeerConnection();
