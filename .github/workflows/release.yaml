@@ -118,9 +118,11 @@ jobs:
   # release jobs stay green. The docs site shows the latest stable version,
   # so a pre-release does not replace it. `outcomes` carries the version
   # this run published, also on a re-run by hand, where `releases` is empty.
+  # Only from main: the site holds one version, and a release from another
+  # branch must not replace it.
   docs:
     needs: publish
-    if: contains(needs.publish.outputs.published, 'livekit-client') && !contains(needs.publish.outputs.outcomes, '-rc.')
+    if: contains(needs.publish.outputs.published, 'livekit-client') && !contains(needs.publish.outputs.outcomes, '-rc.') && (github.event.pull_request.base.ref == 'main' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
