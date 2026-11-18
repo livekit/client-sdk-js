@@ -173,6 +173,35 @@ const MAX_WS_CLOSE_TIME = 250;
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
 /** @internal */
+export enum SignalClientEvent {
+  Close = 'close',
+  Joined = 'joined',
+  Answer = 'answer',
+  Offer = 'offer',
+  Trickle = 'trickle',
+  ParticipantUpdate = 'participantUpdate',
+  LocalTrackPublished = 'localTrackPublished',
+  LocalTrackUnpublished = 'localTrackUnpublished',
+  LocalTrackSubscribed = 'localTrackSubscribed',
+  SpeakersChanged = 'speakersChanged',
+  RemoteMuteChanged = 'remoteMuteChanged',
+  RoomUpdate = 'roomUpdate',
+  ConnectionQuality = 'connectionQuality',
+  StreamStateUpdate = 'streamStateUpdate',
+  SubscribedQualityUpdate = 'subscribedQualityUpdate',
+  SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
+  SubscriptionError = 'subscriptionError',
+  TokenRefresh = 'tokenRefresh',
+  Leave = 'leave',
+  RequestResponse = 'requestResponse',
+  RoomMoved = 'roomMoved',
+  MediaSectionsRequirement = 'mediaSectionsRequirement',
+  PublishDataTrackResponse = 'publishDataTrackResponse',
+  UnpublishDataTrackResponse = 'unpublishDataTrackResponse',
+  DataTrackSubscriberHandles = 'dataTrackSubscriberHandles',
+}
+
+/** @internal */
 export type SignalClientCallbacks = {
   /** The transport was lost without the client asking for it. */
   close: (reason: string) => void;
@@ -684,7 +713,7 @@ export class SignalClient extends (EventEmitter as new () => TypedEmitter<Signal
               });
             }
 
-            this.emit('joined', firstSignalResponse.message.value);
+            this.emit(SignalClientEvent.Joined, firstSignalResponse.message.value);
           }
 
           this.handleSignalConnected(connection, wsTimeout, attemptId);
@@ -996,61 +1025,61 @@ export class SignalClient extends (EventEmitter as new () => TypedEmitter<Signal
     let pingHandled = false;
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
-      this.emit('answer', sd, msg.value.id, msg.value.midToTrackId);
+      this.emit(SignalClientEvent.Answer, sd, msg.value.id, msg.value.midToTrackId);
     } else if (msg.case === 'offer') {
       const sd = fromProtoSessionDescription(msg.value);
-      this.emit('offer', sd, msg.value.id, msg.value.midToTrackId);
+      this.emit(SignalClientEvent.Offer, sd, msg.value.id, msg.value.midToTrackId);
     } else if (msg.case === 'trickle') {
       const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
-      this.emit('trickle', candidate, msg.value.target);
+      this.emit(SignalClientEvent.Trickle, candidate, msg.value.target);
     } else if (msg.case === 'update') {
-      this.emit('participantUpdate', msg.value.participants ?? []);
+      this.emit(SignalClientEvent.ParticipantUpdate, msg.value.participants ?? []);
     } else if (msg.case === 'trackPublished') {
-      this.emit('localTrackPublished', msg.value);
+      this.emit(SignalClientEvent.LocalTrackPublished, msg.value);
     } else if (msg.case === 'speakersChanged') {
-      this.emit('speakersChanged', msg.value.speakers ?? []);
+      this.emit(SignalClientEvent.SpeakersChanged, msg.value.speakers ?? []);
     } else if (msg.case === 'leave') {
-      this.emit('leave', msg.value);
+      this.emit(SignalClientEvent.Leave, msg.value);
     } else if (msg.case === 'mute') {
-      this.emit('remoteMuteChanged', msg.value.sid, msg.value.muted);
+      this.emit(SignalClientEvent.RemoteMuteChanged, msg.value.sid, msg.value.muted);
     } else if (msg.case === 'roomUpdate') {
       if (msg.value.room) {
-        this.emit('roomUpdate', msg.value.room);
+        this.emit(SignalClientEvent.RoomUpdate, msg.value.room);
       }
     } else if (msg.case === 'connectionQuality') {
-      this.emit('connectionQuality', msg.value);
+      this.emit(SignalClientEvent.ConnectionQuality, msg.value);
     } else if (msg.case === 'streamStateUpdate') {
-      this.emit('streamStateUpdate', msg.value);
+      this.emit(SignalClientEvent.StreamStateUpdate, msg.value);
     } else if (msg.case === 'subscribedQualityUpdate') {
-      this.emit('subscribedQualityUpdate', msg.value);
+      this.emit(SignalClientEvent.SubscribedQualityUpdate, msg.value);
     } else if (msg.case === 'subscriptionPermissionUpdate') {
-      this.emit('subscriptionPermissionUpdate', msg.value);
+      this.emit(SignalClientEvent.SubscriptionPermissionUpdate, msg.value);
     } else if (msg.case === 'refreshToken') {
-      this.emit('tokenRefresh', msg.value);
+      this.emit(SignalClientEvent.TokenRefresh, msg.value);
     } else if (msg.case === 'trackUnpublished') {
-      this.emit('localTrackUnpublished', msg.value);
+      this.emit(SignalClientEvent.LocalTrackUnpublished, msg.value);
     } else if (msg.case === 'subscriptionResponse') {
-      this.emit('subscriptionError', msg.value);
+      this.emit(SignalClientEvent.SubscriptionError, msg.value);
     } else if (msg.case === 'pong') {
     } else if (msg.case === 'pongResp') {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
     } else if (msg.case === 'requestResponse') {
-      this.emit('requestResponse', msg.value);
+      this.emit(SignalClientEvent.RequestResponse, msg.value);
     } else if (msg.case === 'trackSubscribed') {
-      this.emit('localTrackSubscribed', msg.value.trackSid);
+      this.emit(SignalClientEvent.LocalTrackSubscribed, msg.value.trackSid);
     } else if (msg.case === 'roomMoved') {
-      this.emit('tokenRefresh', msg.value.token);
-      this.emit('roomMoved', msg.value);
+      this.emit(SignalClientEvent.TokenRefresh, msg.value.token);
+      this.emit(SignalClientEvent.RoomMoved, msg.value);
     } else if (msg.case === 'mediaSectionsRequirement') {
-      this.emit('mediaSectionsRequirement', msg.value);
+      this.emit(SignalClientEvent.MediaSectionsRequirement, msg.value);
     } else if (msg.case === 'publishDataTrackResponse') {
-      this.emit('publishDataTrackResponse', msg.value);
+      this.emit(SignalClientEvent.PublishDataTrackResponse, msg.value);
     } else if (msg.case === 'unpublishDataTrackResponse') {
-      this.emit('unpublishDataTrackResponse', msg.value);
+      this.emit(SignalClientEvent.UnpublishDataTrackResponse, msg.value);
     } else if (msg.case === 'dataTrackSubscriberHandles') {
-      this.emit('dataTrackSubscriberHandles', msg.value);
+      this.emit(SignalClientEvent.DataTrackSubscriberHandles, msg.value);
     } else {
       this.log.debug('unsupported message', { msgCase: msg.case });
     }
@@ -1081,7 +1110,7 @@ export class SignalClient extends (EventEmitter as new () => TypedEmitter<Signal
   ) {
     // taken before the teardown below awaits, so the listeners present when the transport was
     // lost are the ones told about it
-    const closeListeners = this.listeners('close');
+    const closeListeners = this.listeners(SignalClientEvent.Close);
     if (!this.sendLifecycleInput({ type: 'transportFailed', attemptId, reason })) {
       // a close we caused ourselves, or one from a transport that has since been replaced: logged
       // rather than dropped silently, because a close that goes unnoticed leaves the client writing

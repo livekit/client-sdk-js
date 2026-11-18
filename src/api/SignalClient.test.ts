@@ -17,7 +17,7 @@ import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import { Future, setWrapperSdkInfo } from '../room/utils';
 import { version } from '../version';
-import { SignalClient, SignalConnectionState } from './SignalClient';
+import { SignalClient, SignalClientEvent, SignalConnectionState } from './SignalClient';
 import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
 
@@ -283,7 +283,7 @@ describe('SignalClient.connect', () => {
         connection: { readable, writable, protocol: '', extensions: '' },
       });
       const onJoined = vi.fn();
-      signalClient.on('joined', onJoined);
+      signalClient.on(SignalClientEvent.Joined, onJoined);
 
       const joining = signalClient.join(
         'wss://test.livekit.io',
@@ -976,7 +976,7 @@ describe('SignalClient.connect', () => {
       });
 
       const closeReasons: Array<string> = [];
-      signalClient.on('close', (reason) => closeReasons.push(reason));
+      signalClient.on(SignalClientEvent.Close, (reason) => closeReasons.push(reason));
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
 
@@ -1016,7 +1016,7 @@ describe('SignalClient.connect', () => {
         ),
       });
       const closeReasons: Array<string> = [];
-      signalClient.on('close', (reason) => closeReasons.push(reason));
+      signalClient.on(SignalClientEvent.Close, (reason) => closeReasons.push(reason));
       await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
       expect(signalClient.currentState).toBe(SignalConnectionState.CONNECTED);
       return closeReasons;

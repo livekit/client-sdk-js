@@ -4,7 +4,12 @@ import { ConnectionErrorReason } from '../room/errors';
 import { sleep } from '../room/utils';
 import { isPending } from '../test/promiseState';
 import { createInvalidToken, createToken } from '../test/signalToken';
-import { SignalClient, SignalConnectionState, type SignalOptions } from './SignalClient';
+import {
+  SignalClient,
+  SignalClientEvent,
+  SignalConnectionState,
+  type SignalOptions,
+} from './SignalClient';
 
 // Provided by src/test/signalServerSetup.ts (spawns the livekit-server test-server).
 const serverUrl = inject('serverUrl');
@@ -29,14 +34,14 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 /** Resolves with the reason passed to onClose (register before the event can fire). */
 function captureClose(client: SignalClient): Promise<string> {
   return new Promise((resolve) => {
-    client.once('close', (reason) => resolve(reason));
+    client.once(SignalClientEvent.Close, (reason) => resolve(reason));
   });
 }
 
 /** Resolves with the LeaveRequest passed to onLeave. */
 function captureLeave(client: SignalClient): Promise<LeaveRequest> {
   return new Promise((resolve) => {
-    client.once('leave', (leave) => resolve(leave));
+    client.once(SignalClientEvent.Leave, (leave) => resolve(leave));
   });
 }
 
