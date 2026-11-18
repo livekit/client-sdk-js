@@ -172,6 +172,7 @@ const MAX_WS_CLOSE_TIME = 250;
  */
 const JOIN_RESPONSE_TIMEOUT = 5_000;
 
+/** @internal */
 export type SignalClientCallbacks = {
   /** The transport was lost without the client asking for it. */
   close: (reason: string) => void;
