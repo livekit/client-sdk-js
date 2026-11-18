@@ -94,6 +94,8 @@ export class E2EEManager
 
   private keyProvider: BaseKeyProvider;
 
+  private keysPostedToWorker = new WeakSet<KeyInfo>();
+
   private decryptDataRequests: Map<string, Future<DecryptDataResponseMessage['data'], Error>> =
     new Map();
 
@@ -302,11 +304,6 @@ export class E2EEManager
         break;
 
       case 'enable':
-        if (data.enabled) {
-          this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo, false);
-          });
-        }
         if (data.local) {
           if (this.encryptionEnabled !== data.enabled) {
             this.emit(
@@ -428,9 +425,12 @@ export class E2EEManager
           throw new TypeError(`expected room to be present on signal connect`);
         }
         const latestKeyIndex = keyProvider.getLatestManuallySetKeyIndex();
-        keyProvider.getKeys().forEach((keyInfo) => {
-          this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
-        });
+        keyProvider
+          .getKeys()
+          .filter((keyInfo) => !this.keysPostedToWorker.has(keyInfo))
+          .forEach((keyInfo) => {
+            this.postKey(keyInfo, latestKeyIndex === (keyInfo.keyIndex ?? 0));
+          });
         this.setLocalParticipantCryptorEnabled(this.room.localParticipant.isE2EEEnabled);
       });
 
@@ -531,10 +531,11 @@ export class E2EEManager
     this.worker.postMessage(msg);
   }
 
-  private postKey({ key, participantIdentity, keyIndex }: KeyInfo, updateCurrentKeyIndex: boolean) {
+  private postKey(keyInfo: KeyInfo, updateCurrentKeyIndex: boolean) {
     if (!this.worker) {
       throw Error('could not set key, worker is missing');
     }
+    const { key, participantIdentity, keyIndex } = keyInfo;
     const msg: SetKeyMessage = {
       kind: 'setKey',
       data: {
@@ -546,6 +547,7 @@ export class E2EEManager
       },
     };
     this.worker.postMessage(msg);
+    this.keysPostedToWorker.add(keyInfo);
   }
 
   private postEnable(enabled: boolean, participantIdentity: string, local = false) {

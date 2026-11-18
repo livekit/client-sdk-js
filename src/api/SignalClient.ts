@@ -4,6 +4,7 @@ import {
   AudioTrackFeature,
   ClientInfo,
   ClientInfo_Capability,
+  ClientInfo_SDK,
   ConnectionQualityUpdate,
   ConnectionSettings,
   DataTrackSubscriberHandles,
@@ -60,7 +61,7 @@ import type { DataTrackSid } from '../room/data-track/types';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isCompressionStreamSupported, isReactNative, sleep } from '../room/utils';
+import { getClientInfo, isCompressionStreamSupported, sleep } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import { AsyncQueue } from '../utils/AsyncQueue';
 import { abortSignalTimeout } from '../utils/abort-signal-polyfill';
@@ -467,7 +468,12 @@ export class SignalClient {
             return;
           }
           alreadyAborted = true;
-          const target = eventOrError instanceof Event ? eventOrError.currentTarget : eventOrError;
+          // React Native has no global Event; `instanceof Event` throws ReferenceError there and
+          // leaves the timeout/abort path unable to close the socket or reject the connect.
+          const target =
+            typeof Event !== 'undefined' && eventOrError instanceof Event
+              ? eventOrError.currentTarget
+              : eventOrError;
           const reason = getAbortReasonAsString(target, 'Abort handler called');
           // send leave if we have an active stream writer (connection is open)
           if (this.streamWriter && !this.isDisconnected) {
@@ -1426,7 +1432,8 @@ function createConnectionParams(
   params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
 
   // ClientInfo
-  params.set('sdk', isReactNative() ? 'reactnative' : 'js');
+  // the server expects the enum name lowercased without underscores, e.g. 'js', 'reactnative', 'unityweb'
+  params.set('sdk', ClientInfo_SDK[info.sdk!].toLowerCase().replace(/_/g, ''));
   params.set('version', info.version!);
   params.set('protocol', info.protocol!.toString());
   params.set('client_protocol', info.clientProtocol!.toString());

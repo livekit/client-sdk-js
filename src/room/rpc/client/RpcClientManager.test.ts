@@ -337,6 +337,35 @@ describe('RpcClientManager', () => {
       await expect(completionPromise).rejects.toThrow('Recipient disconnected');
     });
 
+    it('rejects every pending RPC and clears its timers when the room disconnects', async () => {
+      vi.useFakeTimers();
+
+      try {
+        const [ackedId, ackedPromise] = await rpcClientManager.performRpc({
+          destinationIdentity: 'remote-a',
+          method: 'm',
+          payload: 'p',
+          responseTimeout: 300_000,
+        });
+        rpcClientManager.handleIncomingRpcAck(ackedId);
+
+        const [, unackedPromise] = await rpcClientManager.performRpc({
+          destinationIdentity: 'remote-b',
+          method: 'm',
+          payload: 'p',
+          responseTimeout: 300_000,
+        });
+
+        rpcClientManager.handleRoomDisconnected();
+
+        await expect(ackedPromise).rejects.toThrow('Connection closed');
+        await expect(unackedPromise).rejects.toThrow('Connection closed');
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should send V2 RPC request and ensure that a non matching response does not complete the RPC', async () => {
       // Step 1: send an example rpc request
       const [, completionPromise] = await rpcClientManager.performRpc({

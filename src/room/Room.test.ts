@@ -1,6 +1,12 @@
 import {
   ClientInfo_Capability,
+  DataPacket,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_TextHeader,
+  DataStream_Trailer,
   DisconnectReason,
+  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -11,7 +17,10 @@ import {
   SubscriptionError,
   SubscriptionResponse,
   TrackInfo,
+  TrackSource,
   TrackType,
+  Transcription,
+  TranscriptionSegment as TranscriptionSegmentModel,
 } from '@livekit/protocol';
 import v8 from 'node:v8';
 import { runInNewContext } from 'node:vm';
@@ -25,9 +34,10 @@ import { BackOffStrategy } from './BackOffStrategy';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import { ConnectionState, Room, type RoomEventCallbacks } from './Room';
+import { dataStreams } from './data-stream/extension';
 import { roomConnectOptionDefaults, roomOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
-import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
+import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import RemoteVideoTrack from './track/RemoteVideoTrack';
@@ -58,6 +68,54 @@ describe('Active device switch', () => {
 
     expect(deviceId).toBe('test');
     expect(kind).toBe('audioinput');
+  });
+
+  describe('audiooutput with webAudioMix', () => {
+    function roomWithMixedAudioContext(setSinkId: (deviceId: string) => Promise<void>) {
+      const room = new Room({ webAudioMix: true });
+      (room as unknown as { audioContext: { setSinkId: typeof setSinkId } }).audioContext = {
+        setSinkId,
+      };
+      return room;
+    }
+
+    it('waits for the audio context to finish routing before confirming the switch', async () => {
+      const route = new Future<void, never>();
+      const room = roomWithMixedAudioContext(() => route.promise);
+      const deviceChanged = vi.fn();
+      room.on(RoomEvent.ActiveDeviceChanged, deviceChanged);
+
+      let settled = false;
+      const switchPromise = room.switchActiveDevice('audiooutput', 'speaker').then(() => {
+        settled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(settled).toBe(false);
+      expect(deviceChanged).not.toHaveBeenCalled();
+
+      route.resolve?.();
+      await switchPromise;
+      expect(deviceChanged).toHaveBeenCalledWith('audiooutput', 'speaker');
+      expect(room.getActiveDevice('audiooutput')).toBe('speaker');
+    });
+
+    it('rejects and keeps the previous output when the audio context fails to route', async () => {
+      const room = roomWithMixedAudioContext(async (deviceId) => {
+        if (deviceId === 'broken') {
+          throw new Error('setSinkId failed');
+        }
+      });
+      await room.switchActiveDevice('audiooutput', 'speaker');
+
+      const deviceChanged = vi.fn();
+      room.on(RoomEvent.ActiveDeviceChanged, deviceChanged);
+      await expect(room.switchActiveDevice('audiooutput', 'broken')).rejects.toThrow(
+        'setSinkId failed',
+      );
+      expect(deviceChanged).not.toHaveBeenCalled();
+      expect(room.getActiveDevice('audiooutput')).toBe('speaker');
+      expect(room.options.audioOutput?.deviceId).toBe('speaker');
+    });
   });
 });
 
@@ -1174,5 +1232,203 @@ describe('participant updates for an earlier session (#2228)', () => {
     expect(room.remoteParticipants.has('tutor')).toBe(false);
     expect(disconnected).toEqual(['PA_old']);
     expect(forwardedSids()).toEqual(['PA_old', 'PA_new']);
+  });
+});
+
+describe('rpc', () => {
+  it('rejects a pending performRpc when the room disconnects', async () => {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    vi.spyOn(room.engine, 'sendDataPacket').mockResolvedValue(undefined);
+
+    const response = room.localParticipant.performRpc({
+      destinationIdentity: 'remote',
+      method: 'm',
+      payload: 'p',
+      responseTimeout: 300_000,
+    });
+    const settled = response.then(
+      () => 'resolved',
+      (e: Error) => e.message,
+    );
+    await vi.waitFor(() => expect(room.engine.sendDataPacket).toHaveBeenCalled());
+
+    await room.disconnect();
+
+    expect(await settled).toBe('Connection closed');
+  });
+});
+
+describe('transcription back-conversion', () => {
+  const agentIdentity = 'agent-1';
+  const trackSid = 'TR_mic';
+
+  /** A connected room with one remote participant publishing a microphone track. */
+  function setupRoom() {
+    const room = new Room();
+    room.state = ConnectionState.Connected;
+    (
+      room as unknown as {
+        installedExtensions: Map<symbol, { incoming: { setConnected: (c: boolean) => void } }>;
+      }
+    ).installedExtensions
+      .get(dataStreams.key)!
+      .incoming.setConnected(true);
+
+    const participant = new RemoteParticipant(room.engine.client, 'PA_agent', agentIdentity);
+    const publication = new RemoteTrackPublication(
+      Track.Kind.Audio,
+      new TrackInfo({
+        sid: trackSid,
+        type: TrackType.AUDIO,
+        name: 'roomio_audio',
+        source: TrackSource.MICROPHONE,
+      }),
+      true,
+    );
+    participant.trackPublications.set(trackSid, publication);
+    (
+      room as unknown as { remoteParticipants: Map<string, RemoteParticipant> }
+    ).remoteParticipants.set(agentIdentity, participant);
+
+    return { room, participant, publication };
+  }
+
+  function pushPacket(room: Room, packet: DataPacket) {
+    (
+      room as unknown as {
+        handleDataPacket: (packet: DataPacket, encryptionType: Encryption_Type) => void;
+      }
+    ).handleDataPacket(packet, Encryption_Type.NONE);
+  }
+
+  /** Publishes a complete single-chunk `lk.transcription` stream from `senderIdentity`. */
+  function pushTranscriptionStream(
+    room: Room,
+    senderIdentity: string,
+    text: string,
+    attributes: Record<string, string>,
+  ) {
+    const streamId = crypto.randomUUID();
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamHeader',
+          value: new DataStream_Header({
+            streamId,
+            topic: 'lk.transcription',
+            mimeType: 'text/plain',
+            timestamp: 0n,
+            attributes,
+            contentHeader: { case: 'textHeader', value: new DataStream_TextHeader({}) },
+          }),
+        },
+      }),
+    );
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamChunk',
+          value: new DataStream_Chunk({
+            streamId,
+            chunkIndex: 0n,
+            content: new TextEncoder().encode(text),
+          }),
+        },
+      }),
+    );
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: senderIdentity,
+        value: {
+          case: 'streamTrailer',
+          value: new DataStream_Trailer({ streamId }),
+        },
+      }),
+    );
+  }
+
+  it('ignores legacy Transcription data packets', () => {
+    const { room } = setupRoom();
+    const received: Array<unknown> = [];
+    room.on(RoomEvent.TranscriptionReceived, (segments) => received.push(segments));
+
+    pushPacket(
+      room,
+      new DataPacket({
+        participantIdentity: agentIdentity,
+        value: {
+          case: 'transcription',
+          value: new Transcription({
+            transcribedParticipantIdentity: agentIdentity,
+            trackId: trackSid,
+            segments: [
+              new TranscriptionSegmentModel({ id: 'SG_legacy', text: 'legacy', final: true }),
+            ],
+          }),
+        },
+      }),
+    );
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('emits TranscriptionReceived from an lk.transcription stream', async () => {
+    const { room, participant, publication } = setupRoom();
+    const roomEvents: Array<{ segments: Array<{ text: string }>; identity?: string }> = [];
+    const trackEvents: Array<Array<{ text: string }>> = [];
+    room.on(RoomEvent.TranscriptionReceived, (segments, p) =>
+      roomEvents.push({ segments, identity: p?.identity }),
+    );
+    publication.on(TrackEvent.TranscriptionReceived, (segments) => trackEvents.push(segments));
+
+    pushTranscriptionStream(room, agentIdentity, 'Hello world', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcribed_track_id': trackSid,
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(roomEvents.length).toBeGreaterThan(0);
+    expect(roomEvents[0].segments[0].text).toBe('Hello world');
+    expect(roomEvents[0].identity).toBe(participant.identity);
+    expect(trackEvents.length).toBeGreaterThan(0);
+    expect(trackEvents[0][0].text).toBe('Hello world');
+  });
+
+  it("resolves the publication from the speaker's mic track when the attribute is absent", async () => {
+    const { room, publication } = setupRoom();
+    const trackEvents: Array<Array<{ text: string }>> = [];
+    publication.on(TrackEvent.TranscriptionReceived, (segments) => trackEvents.push(segments));
+
+    pushTranscriptionStream(room, agentIdentity, 'No track attribute', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(trackEvents.length).toBeGreaterThan(0);
+    expect(trackEvents[0][0].text).toBe('No track attribute');
+  });
+
+  it('still delivers lk.transcription to an application text stream handler', async () => {
+    const { room } = setupRoom();
+    const appTexts: Array<string> = [];
+    room.registerTextStreamHandler('lk.transcription', async (reader) => {
+      appTexts.push(await reader.readAll());
+    });
+
+    pushTranscriptionStream(room, agentIdentity, 'Hello world', {
+      'lk.segment_id': 'SG_1',
+      'lk.transcription_final': 'true',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(appTexts).toEqual(['Hello world']);
   });
 });

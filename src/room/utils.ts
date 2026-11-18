@@ -244,6 +244,21 @@ export function isSVCSimulcastSupportedByServer(serverVersion?: string): boolean
   return compareVersions(serverVersion, svcSimulcastMinServerVersion) > 0;
 }
 
+/**
+ * First server protocol that matches publisher m-sections by mid, not by position
+ * (livekit/livekit#5122). A stopped transceiver lets the browser put a later one into its
+ * m-section, so an older server can match that section to the wrong track.
+ */
+const stopTransceiverMinServerProtocol = 19;
+
+/**
+ * Whether the connected server handles stopped publisher transceivers. An unknown protocol is
+ * treated as unsupported, so the transceivers stay inactive as before.
+ */
+export function isStopTransceiverSupportedByServer(serverProtocol?: number): boolean {
+  return (serverProtocol ?? 0) >= stopTransceiverMinServerProtocol;
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;
@@ -263,8 +278,18 @@ export function supportsAudioOutputSelection(): boolean {
   return supportsSetSinkId();
 }
 
+/**
+ * machina, the signalling state machine, calls `WeakRef` and `Object.hasOwn`. A build that bundles
+ * machina rewrites those calls and sets this to `false` (`machina-browser-compat` in
+ * rollup.config.js). The core entry leaves machina external, so there the browser must have both.
+ */
+const machinaNeedsNativeApis = true;
+
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
+    return false;
+  }
+  if (machinaNeedsNativeApis && (typeof WeakRef === 'undefined' || !('hasOwn' in Object))) {
     return false;
   }
   return supportsTransceiver() || supportsAddTrack();
@@ -503,13 +528,39 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
+/** @hidden */
+export type WrapperSdkInfo = {
+  /** The `ClientInfo.SDK` enum name of the wrapping SDK, e.g. `'UNITY_WEB'` */
+  sdk: keyof typeof ClientInfo_SDK;
+  /** The wrapping SDK's own version */
+  version: string;
+};
+
+let wrapperSdkInfo: WrapperSdkInfo | undefined;
+
+/**
+ * For LiveKit SDKs built on top of livekit-client (e.g. Unity WebGL).
+ * Reports the wrapper as the client SDK to the server, and moves livekit-client's
+ * own version to `ClientInfo.other_sdks`. Pass `undefined` to reset.
+ * Meant for wrapper SDKs, not for apps.
+ * @hidden
+ */
+export function setWrapperSdkInfo(info: WrapperSdkInfo | undefined) {
+  wrapperSdkInfo = info;
+}
+
 export function getClientInfo(capabilities?: ClientInfo_Capability[]): ClientInfo {
+  let sdk = isReactNative() ? ClientInfo_SDK.REACT_NATIVE : ClientInfo_SDK.JS;
+  if (wrapperSdkInfo) {
+    sdk = ClientInfo_SDK[wrapperSdkInfo.sdk];
+  }
   const info = new ClientInfo({
     capabilities,
-    sdk: ClientInfo_SDK.JS,
+    sdk,
     protocol: protocolVersion,
     clientProtocol,
-    version,
+    version: wrapperSdkInfo?.version ?? version,
+    otherSdks: wrapperSdkInfo ? `js:${version}` : undefined,
   });
 
   if (isReactNative()) {

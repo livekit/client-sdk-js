@@ -619,6 +619,32 @@ describe('FrameCryptor', () => {
       }
     });
 
+    it('logs a missing key at most once per throttle interval', async () => {
+      vitest.useFakeTimers();
+      const warn = vitest.spyOn(workerLogger, 'warn');
+      try {
+        const { input } = prepareParticipantTestDecoder(participantIdentity, {
+          failureTolerance: -1,
+        });
+        const missingKeyWarnings = () =>
+          warn.mock.calls.filter(([message]) => String(message).startsWith('skipping decryption'));
+
+        for (let frame = 0; frame < 3; frame++) {
+          input.write(mockEncryptedRTCEncodedVideoFrame(1));
+          await vitest.advanceTimersToNextTimerAsync();
+        }
+        expect(missingKeyWarnings()).toHaveLength(1);
+
+        vitest.advanceTimersByTime(1001);
+        input.write(mockEncryptedRTCEncodedVideoFrame(1));
+        await vitest.advanceTimersToNextTimerAsync();
+        expect(missingKeyWarnings()).toHaveLength(2);
+      } finally {
+        warn.mockRestore();
+        vitest.useRealTimers();
+      }
+    });
+
     it('immediately drops frame if no key', async () => {
       vitest.useFakeTimers();
       try {

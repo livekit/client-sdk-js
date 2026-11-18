@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogLevel, getWorkerLogLevelListenerCount, setLogLevel, workerLogger } from '../logger';
 import { Room } from '../room/Room';
-import { ParticipantEvent } from '../room/events';
+import { ParticipantEvent, RoomEvent } from '../room/events';
 import { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { subscribeToEvents } from '../utils/subscribeToEvents';
 import { E2EEManager } from './E2eeManager';
 import { BaseKeyProvider } from './KeyProvider';
 import { type E2EEManagerCallbacks, EncryptionEvent } from './events';
+import type { KeyProviderOptions } from './types';
+import { createKeyMaterialFromString } from './utils';
 
 /**
  * Install just enough of the DOM to let isE2EESupported() return true so
@@ -24,7 +26,7 @@ function installE2EEShims() {
 class FakeWorker {
   postMessage = vi.fn();
 
-  onmessage: unknown = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
 
   onerror: unknown = null;
 
@@ -303,6 +305,88 @@ describe('E2EEManager local encryption state', () => {
       managerEvents.areThereBufferedEvents(EncryptionEvent.ParticipantEncryptionStatusChanged),
     ).toStrictEqual(false);
 
+    manager.dispose();
+  });
+});
+
+describe('E2EEManager key posting', () => {
+  class TestKeyProvider extends BaseKeyProvider {
+    async setKey(passphrase: string, keyIndex: number, participantIdentity?: string) {
+      this.onSetEncryptionKey(
+        await createKeyMaterialFromString(passphrase),
+        participantIdentity,
+        keyIndex,
+      );
+    }
+  }
+
+  function makeKeyManager(options: Partial<KeyProviderOptions>) {
+    installE2EEShims();
+    const room = new Room();
+    room.localParticipant.identity = 'me';
+    const worker = new FakeWorker();
+    const keyProvider = new TestKeyProvider(options);
+    const manager = new E2EEManager({ keyProvider, worker: worker as unknown as Worker }, false);
+    return { room, worker, keyProvider, manager };
+  }
+
+  function takePostedKeys(worker: FakeWorker) {
+    const postedKeys = worker.postMessage.mock.calls
+      .map(([m]) => m)
+      .filter((m: any) => m?.kind === 'setKey')
+      .map((m: any) => [m.data.keyIndex, m.data.updateCurrentKeyIndex]);
+    worker.postMessage.mockClear();
+    return postedKeys;
+  }
+
+  it.each([{ sharedKey: true }, { sharedKey: false }])(
+    'does not re-send keys on an enable acknowledgement (sharedKey: $sharedKey)',
+    async (options) => {
+      const { room, worker, keyProvider, manager } = makeKeyManager(options);
+      manager.setup(room);
+      const participantIdentity = options.sharedKey ? undefined : 'me';
+      await keyProvider.setKey('first', 0, participantIdentity);
+      await keyProvider.setKey('second', 1, participantIdentity);
+      takePostedKeys(worker);
+
+      worker.onmessage?.(
+        new MessageEvent('message', {
+          data: { kind: 'enable', data: { enabled: true, participantIdentity: 'me', local: true } },
+        }),
+      );
+
+      expect(takePostedKeys(worker)).toEqual([]);
+      manager.dispose();
+    },
+  );
+
+  it('posts the keys set before setup on the first SignalConnected only', async () => {
+    const { room, worker, keyProvider, manager } = makeKeyManager({ sharedKey: true });
+    await keyProvider.setKey('first', 0);
+    await keyProvider.setKey('second', 1);
+    manager.setup(room);
+    takePostedKeys(worker);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([
+      [0, false],
+      [1, true],
+    ]);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([]);
+    manager.dispose();
+  });
+
+  it('does not re-send on SignalConnected the keys set after setup', async () => {
+    const { room, worker, keyProvider, manager } = makeKeyManager({ sharedKey: true });
+    await keyProvider.setKey('first', 0);
+    manager.setup(room);
+    await keyProvider.setKey('second', 1);
+    expect(takePostedKeys(worker)).toEqual([[1, true]]);
+
+    room.emit(RoomEvent.SignalConnected);
+    expect(takePostedKeys(worker)).toEqual([[0, false]]);
     manager.dispose();
   });
 });

@@ -1,4 +1,4 @@
-import { ClientInfo_Capability } from '@livekit/protocol';
+import { ClientInfo_Capability, ClientInfo_SDK } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   stubMissingCompressionStreams,
@@ -10,12 +10,14 @@ import {
   extractMaxAgeFromRequestHeaders,
   getClientInfo,
   isAppleMobile,
+  isBrowserSupported,
   isCompressionStreamSupported,
   isDeflateRawCompressionSupported,
   isIPadOS,
   isPermissionDeniedError,
   isSVCSimulcast,
   isSVCSimulcastSupportedByServer,
+  isStopTransceiverSupportedByServer,
   negotiateDependencyDescriptor,
   resetDeflateRawCompressionSupportCache,
   splitUtf8,
@@ -47,6 +49,21 @@ describe('getClientInfo', () => {
     expect(getClientInfo([ClientInfo_Capability.CAP_PACKET_TRAILER]).capabilities).toEqual([
       ClientInfo_Capability.CAP_PACKET_TRAILER,
     ]);
+  });
+
+  describe('sdk', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('reports JS in a browser', () => {
+      expect(getClientInfo().sdk).toEqual(ClientInfo_SDK.JS);
+    });
+
+    it('reports REACT_NATIVE on react native', () => {
+      vi.stubGlobal('navigator', { userAgent: '', product: 'ReactNative' });
+      expect(getClientInfo().sdk).toEqual(ClientInfo_SDK.REACT_NATIVE);
+    });
   });
 });
 
@@ -336,6 +353,17 @@ describe('isSVCSimulcastSupportedByServer', () => {
   });
 });
 
+describe('isStopTransceiverSupportedByServer', () => {
+  it('requires server protocol 19', () => {
+    expect(isStopTransceiverSupportedByServer(19)).toBe(true);
+    expect(isStopTransceiverSupportedByServer(18)).toBe(false);
+  });
+
+  it('treats an unknown protocol as unsupported', () => {
+    expect(isStopTransceiverSupportedByServer(undefined)).toBe(false);
+  });
+});
+
 describe('usesLegacySVCEncodings', () => {
   const stubUserAgent = (userAgent: string) =>
     vi.stubGlobal('navigator', { userAgent, product: 'Gecko' });
@@ -615,5 +643,24 @@ describe('empty audio stream track refcounting', () => {
 
     await releaseEmptyAudioStreamTrack(getEmptyAudioStreamTrack());
     expect(closedContexts).toBe(2);
+  });
+});
+
+describe('isBrowserSupported', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('requires WeakRef where machina is not rewritten (source and core entry)', () => {
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        addTransceiver() {}
+      },
+    );
+    expect(isBrowserSupported()).toBe(true);
+
+    vi.stubGlobal('WeakRef', undefined);
+    expect(isBrowserSupported()).toBe(false);
   });
 });

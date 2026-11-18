@@ -1,5 +1,6 @@
 import {
   ClientInfo_Capability,
+  ClientInfo_SDK,
   DisconnectReason,
   JoinRequest,
   JoinResponse,
@@ -10,11 +11,12 @@ import {
   WrappedJoinRequest,
   WrappedJoinRequest_Compression,
 } from '@livekit/protocol';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mutex } from '@livekit/mutex';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { Future } from '../room/utils';
+import { Future, setWrapperSdkInfo } from '../room/utils';
+import { version } from '../version';
 import { SignalClient, SignalConnectionState } from './SignalClient';
 import type { WebSocketCloseInfo, WebSocketConnection } from './WebSocketStream';
 import { WebSocketStream } from './WebSocketStream';
@@ -526,6 +528,68 @@ describe('SignalClient.connect', () => {
         expect(new URL(capturedUrl).searchParams.get('subscriber_allow_pause')).toBe(expected);
       },
     );
+
+    describe('sdk identity', () => {
+      afterEach(() => {
+        setWrapperSdkInfo(undefined);
+        vi.unstubAllGlobals();
+      });
+
+      async function joinAndCaptureUrl(useV0Path: boolean): Promise<string> {
+        const signalResponse = createSignalResponse('join', createJoinResponse());
+        const mockConnection = createMockConnection(createMockReadableStream([signalResponse]));
+        let capturedUrl = '';
+        mockWebSocketStream({
+          connection: mockConnection,
+          onUrl: (url) => {
+            capturedUrl = url;
+          },
+        });
+        await signalClient.join(
+          'wss://test.livekit.io',
+          'test-token',
+          defaultOptions,
+          undefined,
+          useV0Path,
+        );
+        return capturedUrl;
+      }
+
+      it.each([
+        ['js', undefined],
+        ['reactnative', 'react-native'],
+        ['unityweb', 'unity-web'],
+      ] as const)('sends sdk=%s on the v0 path (%s)', async (expected, scenario) => {
+        if (scenario === 'react-native') {
+          vi.stubGlobal('navigator', { userAgent: '', product: 'ReactNative' });
+        }
+        if (scenario === 'unity-web') {
+          setWrapperSdkInfo({ sdk: 'UNITY_WEB', version: '2.0.1' });
+        }
+
+        const url = await joinAndCaptureUrl(true);
+
+        expect(new URL(url).searchParams.get('sdk')).toBe(expected);
+      });
+
+      it('sends the wrapper version on the v0 path', async () => {
+        setWrapperSdkInfo({ sdk: 'UNITY_WEB', version: '2.0.1' });
+
+        const url = await joinAndCaptureUrl(true);
+
+        expect(new URL(url).searchParams.get('version')).toBe('2.0.1');
+      });
+
+      it('reports the wrapper sdk in the v1 join request', async () => {
+        setWrapperSdkInfo({ sdk: 'UNITY_WEB', version: '2.0.1' });
+
+        const joinRequest = await decodeJoinRequestFromUrl(await joinAndCaptureUrl(false));
+
+        expect(joinRequest.clientInfo?.sdk).toBe(ClientInfo_SDK.UNITY_WEB);
+        expect(joinRequest.clientInfo?.version).toBe('2.0.1');
+        expect(joinRequest.clientInfo?.otherSdks).toBe(`js:${version}`);
+      });
+    });
   });
 
   describe('Happy Path - Reconnect', () => {
@@ -1230,6 +1294,49 @@ describe('SignalClient.connect', () => {
         vi.useRealTimers();
         // drop the unused hanging fetches so they don't leak into later tests
         vi.mocked(fetch).mockReset();
+      }
+    });
+  });
+
+  describe('Failure Case - No global Event (React Native)', () => {
+    // Hermes/React Native does not define global Event. The connect abort handler used to
+    // evaluate `instanceof Event` unconditionally, which threw ReferenceError and left the
+    // timeout unable to reject the join (see #2223). WebSocketStream.opened already rejects on
+    // close-before-open (#2179); this covers the remaining Event guard.
+    function mockHangingWebSocket() {
+      vi.mocked(WebSocketStream).mockImplementationOnce(function () {
+        let rejectOpened!: (e: unknown) => void;
+        let resolveClosed!: (info: WebSocketCloseInfo) => void;
+        return {
+          url: 'wss://test.livekit.io',
+          opened: new Promise((_, reject) => (rejectOpened = reject)),
+          closed: new Promise((resolve) => (resolveClosed = resolve)),
+          close: vi.fn(() => {
+            rejectOpened(new Error('aborted during handshake'));
+            resolveClosed({ closeCode: 1006, reason: '' });
+          }),
+          readyState: 0,
+        } as any;
+      });
+    }
+
+    it('still times out a hanging join when global Event is undefined', async () => {
+      const originalEvent = globalThis.Event;
+      vi.useFakeTimers();
+      try {
+        // @ts-expect-error intentional RN-like environment
+        delete globalThis.Event;
+        mockHangingWebSocket();
+
+        const join = expect(
+          signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions),
+        ).rejects.toMatchObject({ reason: ConnectionErrorReason.Timeout });
+        await vi.waitFor(() => expect(WebSocketStream).toHaveBeenCalledTimes(1));
+        await vi.advanceTimersByTimeAsync(defaultOptions.websocketTimeout);
+        await join;
+      } finally {
+        globalThis.Event = originalEvent;
+        vi.useRealTimers();
       }
     });
   });

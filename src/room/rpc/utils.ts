@@ -106,6 +106,7 @@ export class RpcError extends Error {
     RECIPIENT_DISCONNECTED: 1503,
     RESPONSE_PAYLOAD_TOO_LARGE: 1504,
     SEND_FAILED: 1505,
+    CONNECTION_CLOSED: 1506,
 
     UNSUPPORTED_METHOD: 1400,
     RECIPIENT_NOT_FOUND: 1401,
@@ -124,6 +125,7 @@ export class RpcError extends Error {
     RECIPIENT_DISCONNECTED: 'Recipient disconnected',
     RESPONSE_PAYLOAD_TOO_LARGE: 'Response payload too large',
     SEND_FAILED: 'Failed to send',
+    CONNECTION_CLOSED: 'Connection closed',
 
     UNSUPPORTED_METHOD: 'Method not supported at destination',
     RECIPIENT_NOT_FOUND: 'Recipient not found',
