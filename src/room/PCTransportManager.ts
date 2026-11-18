@@ -96,9 +96,10 @@ export class PCTransportManager {
 
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
-    this.publisher = new PCTransport(rtcConfig, loggerOptions);
+    const singlePeerConnection = mode === 'publisher-only';
+    this.publisher = new PCTransport(rtcConfig, loggerOptions, { singlePeerConnection });
     this._mode = mode;
-    if (mode !== 'publisher-only') {
+    if (!singlePeerConnection) {
       this.subscriber = new PCTransport(rtcConfig, loggerOptions);
       this.subscriber.onConnectionStateChange = this.updateState;
       this.subscriber.onIceConnectionStateChange = this.updateState;

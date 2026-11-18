@@ -278,6 +278,10 @@ export const PCEvents = {
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
+export interface PCTransportOptions {
+  singlePeerConnection?: boolean;
+}
+
 export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
@@ -309,7 +313,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private offerLock: Mutex;
 
-  private pendingInitialOffer?: RTCSessionDescriptionInit;
+  private pendingInitialOffer?: { original: RTCSessionDescriptionInit; munged: string };
+
+  private readonly offeredAudioNackMids: string[];
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -362,8 +368,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   onTrack?: (ev: RTCTrackEvent) => void;
 
-  constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
+  constructor(
+    config?: RTCConfiguration,
+    loggerOptions: LoggerOptions = {},
+    options: PCTransportOptions = {},
+  ) {
     super();
+    this.offeredAudioNackMids = options.singlePeerConnection ? ['all'] : [];
     this.loggerOptions = loggerOptions;
     this.log = getLogger(
       loggerOptions.loggerName ?? LoggerNames.PCTransport,
@@ -488,14 +499,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
       if (this.pendingInitialOffer && this._pc) {
-        const initialOffer = this.pendingInitialOffer;
+        const { original, munged } = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
-        const sdpParsed = parse(initialOffer.sdp ?? '');
-        sdpParsed.media.forEach((media) => {
-          ensureIPAddrMatchVersion(media);
-        });
         this.log.debug('setting pending initial offer before processing answer');
-        await this.setMungedSDP(initialOffer, write(sdpParsed));
+        await this.setMungedSDP(original, munged);
       }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -625,12 +632,16 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
-      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
+      const original = { sdp: offer.sdp, type: offer.type };
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
+        if (media.type === 'audio') {
+          ensureAudioNackAndStereo(media, [], this.offeredAudioNackMids);
+        }
       });
       offer.sdp = write(sdpParsed);
+      this.pendingInitialOffer = { original, munged: offer.sdp };
       return { offer, offerId };
     } finally {
       unlock();
@@ -701,7 +712,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, ['all'], []);
+          ensureAudioNackAndStereo(media, ['all'], this.offeredAudioNackMids);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
@@ -1155,6 +1166,8 @@ export function ensureAudioNackAndStereo(
 ) {
   // sdp-transform types don't include number however the parser outputs mids as numbers in some cases
   const mid = getMidString(media.mid!);
+  const includesThisSection = (mids: string[]) =>
+    mids.includes(mid) || (mids.length === 1 && mids[0] === 'all');
 
   // found opus codec to add nack fb
   let opusPayload = 0;
@@ -1174,7 +1187,7 @@ export function ensureAudioNackAndStereo(
     }
 
     if (
-      nackMids.includes(mid) &&
+      includesThisSection(nackMids) &&
       !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
     ) {
       media.rtcpFb.push({
@@ -1183,7 +1196,7 @@ export function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
+    if (includesThisSection(stereoMids)) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtpConfigHasParam(fmtp.config, 'stereo=1')) {
