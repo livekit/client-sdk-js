@@ -81,11 +81,14 @@ jobs:
     needs: release
     if: needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # One writer per release: a second run for the same tag waits. A run
-    # with nothing to release gets a group of its own.
+    # One publish at a time, in arrival order. A waiting publish checks out
+    # after the running one ends, so it sees the newer tag and picks the
+    # right npm dist-tag. `queue: max` keeps every waiting run: without it,
+    # a third run cancels the waiting one.
     concurrency:
-      group: publish-${{ fromJson(needs.release.outputs.releases || '[]')[0].tag || github.run_id }}
+      group: npm-publish
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write # the tool flips the draft release after the publish
       id-token: write # npm trusted publishing
