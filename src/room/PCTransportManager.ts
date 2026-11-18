@@ -96,9 +96,10 @@ export class PCTransportManager {
 
     this.isPublisherConnectionRequired = mode !== 'subscriber-primary';
     this.isSubscriberConnectionRequired = mode === 'subscriber-primary';
-    this.publisher = new PCTransport(rtcConfig, loggerOptions);
+    const singlePeerConnection = mode === 'publisher-only';
+    this.publisher = new PCTransport(rtcConfig, loggerOptions, { singlePeerConnection });
     this._mode = mode;
-    if (mode !== 'publisher-only') {
+    if (!singlePeerConnection) {
       this.subscriber = new PCTransport(rtcConfig, loggerOptions);
       this.subscriber.onConnectionStateChange = this.updateState;
       this.subscriber.onIceConnectionStateChange = this.updateState;
@@ -154,8 +155,8 @@ export class PCTransportManager {
     return this.publisher.setRemoteDescription(sd, offerId);
   }
 
-  removeTrack(sender: RTCRtpSender) {
-    return this.publisher.removeTrack(sender);
+  removeTrack(sender: RTCRtpSender, stop?: boolean) {
+    return this.publisher.removeTrack(sender, stop);
   }
 
   async close() {

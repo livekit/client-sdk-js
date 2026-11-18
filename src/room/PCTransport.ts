@@ -278,6 +278,10 @@ export const PCEvents = {
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
+export interface PCTransportOptions {
+  singlePeerConnection?: boolean;
+}
+
 export default class PCTransport extends (EventEmitter as new () => TypedEmitter<PCTransportEventCallbacks>) {
   private _pc: RTCPeerConnection | null;
 
@@ -309,7 +313,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private offerLock: Mutex;
 
-  private pendingInitialOffer?: RTCSessionDescriptionInit;
+  private pendingInitialOffer?: { original: RTCSessionDescriptionInit; munged: string };
+
+  private readonly offeredAudioNackMids: string[];
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -362,8 +368,13 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   onTrack?: (ev: RTCTrackEvent) => void;
 
-  constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
+  constructor(
+    config?: RTCConfiguration,
+    loggerOptions: LoggerOptions = {},
+    options: PCTransportOptions = {},
+  ) {
     super();
+    this.offeredAudioNackMids = options.singlePeerConnection ? ['all'] : [];
     this.loggerOptions = loggerOptions;
     this.log = getLogger(
       loggerOptions.loggerName ?? LoggerNames.PCTransport,
@@ -488,14 +499,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
       if (this.pendingInitialOffer && this._pc) {
-        const initialOffer = this.pendingInitialOffer;
+        const { original, munged } = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
-        const sdpParsed = parse(initialOffer.sdp ?? '');
-        sdpParsed.media.forEach((media) => {
-          ensureIPAddrMatchVersion(media);
-        });
         this.log.debug('setting pending initial offer before processing answer');
-        await this.setMungedSDP(initialOffer, write(sdpParsed));
+        await this.setMungedSDP(original, munged);
       }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -625,12 +632,16 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       const offerId = this.latestOfferId + 1;
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
-      this.pendingInitialOffer = { sdp: offer.sdp, type: offer.type };
+      const original = { sdp: offer.sdp, type: offer.type };
       const sdpParsed = parse(offer.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
+        if (media.type === 'audio') {
+          ensureAudioNackAndStereo(media, [], this.offeredAudioNackMids);
+        }
       });
       offer.sdp = write(sdpParsed);
+      this.pendingInitialOffer = { original, munged: offer.sdp };
       return { offer, offerId };
     } finally {
       unlock();
@@ -701,7 +712,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       sdpParsed.media.forEach((media) => {
         ensureIPAddrMatchVersion(media);
         if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, ['all'], []);
+          ensureAudioNackAndStereo(media, ['all'], this.offeredAudioNackMids);
         } else if (media.type === 'video') {
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.cid) {
@@ -730,8 +741,10 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
         }
       });
       // Conform the placeholder sections (pre-populated, or reverted after an
-      // unpublish) so every shared payload type carries identical fmtp across the
-      // bundle, otherwise libwebrtc flags a "bundled payload type collision".
+      // unpublish on a server below protocol 19, which keeps the transceiver; from
+      // protocol 19 unpublish stops it) so every shared payload type carries
+      // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
+      // payload type collision".
       // Detection is by transceiver (mids are stable across renegotiations) since
       // an unpublished section keeps its `a=msid`.
       const placeholderMids = this.getPlaceholderMids();
@@ -781,8 +794,9 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * Returns the mids of transceivers that carry no outgoing track on this
    * (publisher) connection: the pre-populated placeholders added by
    * `RTCEngine.applyInitialPublisherLayout`, plus any transceiver that was used
-   * for a track and reverted on unpublish. Their codec fmtp is conformed to the
-   * published tracks so a shared payload type stays consistent across the bundle.
+   * for a track and reverted on unpublish (below server protocol 19; from protocol
+   * 19 unpublish stops it). Their codec fmtp is conformed to the published tracks
+   * so a shared payload type stays consistent across the bundle.
    */
   private getPlaceholderMids(): Set<string> {
     return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
@@ -846,8 +860,50 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return !!this._pc?.removeTrack;
   }
 
-  removeTrack(sender: RTCRtpSender) {
-    return this._pc?.removeTrack(sender);
+  /**
+   * Removes `sender` from the connection. With `stop`, it then stops the transceiver of `sender`.
+   */
+  removeTrack(sender: RTCRtpSender, stop = false) {
+    this._pc?.removeTrack(sender);
+    if (stop) {
+      this.stopTransceivers([sender]);
+    }
+  }
+
+  /**
+   * Stops the transceivers of `senders`. `removeTrack` keeps the transceiver and its encoder,
+   * and each publish adds a new transceiver. A transceiver that is not stopped stays until the
+   * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
+   * Returns true if a transceiver stopped.
+   *
+   * The last live m-section stays. The browser drops the ICE and DTLS transport of a connection
+   * when all its m-sections are rejected, and the next publish then needs a new transport, which
+   * the server cannot set up on the same connection.
+   */
+  stopTransceivers(senders: RTCRtpSender[]): boolean {
+    let stopped = false;
+    const transceivers = this.getTransceivers();
+    // a negotiated data channel section also keeps the transport
+    let liveSections =
+      transceivers.filter((t) => t.direction !== 'stopped' && t.currentDirection !== 'stopped')
+        .length + (this._pc?.sctp ? 1 : 0);
+    for (const transceiver of transceivers) {
+      // RTCRtpTransceiver.stop() is not available before Chrome 88
+      if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
+        continue;
+      }
+      if (liveSections <= 1) {
+        continue;
+      }
+      try {
+        transceiver.stop();
+        stopped = true;
+        liveSections -= 1;
+      } catch (e) {
+        this.log.warn('could not stop transceiver', { error: e });
+      }
+    }
+    return stopped;
   }
 
   getConnectionState() {
@@ -1110,6 +1166,8 @@ export function ensureAudioNackAndStereo(
 ) {
   // sdp-transform types don't include number however the parser outputs mids as numbers in some cases
   const mid = getMidString(media.mid!);
+  const includesThisSection = (mids: string[]) =>
+    mids.includes(mid) || (mids.length === 1 && mids[0] === 'all');
 
   // found opus codec to add nack fb
   let opusPayload = 0;
@@ -1129,7 +1187,7 @@ export function ensureAudioNackAndStereo(
     }
 
     if (
-      nackMids.includes(mid) &&
+      includesThisSection(nackMids) &&
       !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
     ) {
       media.rtcpFb.push({
@@ -1138,7 +1196,7 @@ export function ensureAudioNackAndStereo(
       });
     }
 
-    if (stereoMids.includes(mid) || (stereoMids.length === 1 && stereoMids[0] === 'all')) {
+    if (includesThisSection(stereoMids)) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (!fmtpConfigHasParam(fmtp.config, 'stereo=1')) {
@@ -1155,10 +1213,11 @@ export function ensureAudioNackAndStereo(
 /**
  * Returns the mids of transceivers that carry no outgoing track: the
  * pre-populated placeholders added by `RTCEngine.applyInitialPublisherLayout`,
- * plus any transceiver that was used for a track and reverted on unpublish. The
- * `sender.track` check is the reliable signal — an unpublished section keeps its
- * `a=msid` (and its stale send-derived fmtp), so it can't be told apart from a
- * real send by SDP alone. Transceiver mids are stable across renegotiations, so
+ * plus any transceiver that was used for a track and reverted on unpublish (below
+ * server protocol 19; from protocol 19 unpublish stops it). The `sender.track`
+ * check is the reliable signal — an unpublished section keeps its `a=msid` (and
+ * its stale send-derived fmtp), so it can't be told apart from a real send by SDP
+ * alone. Transceiver mids are stable across renegotiations, so
  * this works for every offer/answer after the first.
  * @internal
  */

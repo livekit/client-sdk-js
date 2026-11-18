@@ -4,6 +4,7 @@ import type {
   ParticipantInfo,
   PublishDataTrackResponse,
   Room as RoomModel,
+  Transcription as TranscriptionModel,
 } from '@livekit/protocol';
 import type { BaseE2EEManager } from '../e2ee/E2eeManager';
 import type { FrameMetadataOptions } from '../frameMetadata/FrameMetadataManager';
@@ -199,6 +200,8 @@ export interface ExtensionContext {
   simulateConnected(roomInfo: RoomModel, localParticipantInfo: ParticipantInfo): void;
   /** A silent audio track the room hands back to the shared source on disconnect. */
   acquireEmptyAudioStreamTrack(): MediaStreamTrack;
+  /** Emits the transcription events for a transcription rebuilt from `lk.transcription` streams. */
+  handleTranscription(transcription: TranscriptionModel): void;
 }
 
 type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void

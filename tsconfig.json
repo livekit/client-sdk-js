@@ -35,6 +35,7 @@
     "dist",
     "**/*.test.ts",
     "test/**",
+    "tests/**",
     "src/room/token-source/test-tokens.ts",
     "src/test/signalServerSetup.ts"
   ],

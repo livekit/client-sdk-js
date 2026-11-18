@@ -244,6 +244,21 @@ export function isSVCSimulcastSupportedByServer(serverVersion?: string): boolean
   return compareVersions(serverVersion, svcSimulcastMinServerVersion) > 0;
 }
 
+/**
+ * First server protocol that matches publisher m-sections by mid, not by position
+ * (livekit/livekit#5122). A stopped transceiver lets the browser put a later one into its
+ * m-section, so an older server can match that section to the wrong track.
+ */
+const stopTransceiverMinServerProtocol = 19;
+
+/**
+ * Whether the connected server handles stopped publisher transceivers. An unknown protocol is
+ * treated as unsupported, so the transceivers stay inactive as before.
+ */
+export function isStopTransceiverSupportedByServer(serverProtocol?: number): boolean {
+  return (serverProtocol ?? 0) >= stopTransceiverMinServerProtocol;
+}
+
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   if (!document || isSafariBased()) {
     return false;
@@ -513,6 +528,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
+/** @hidden */
 export type WrapperSdkInfo = {
   /** The `ClientInfo.SDK` enum name of the wrapping SDK, e.g. `'UNITY_WEB'` */
   sdk: keyof typeof ClientInfo_SDK;
@@ -527,7 +543,7 @@ let wrapperSdkInfo: WrapperSdkInfo | undefined;
  * Reports the wrapper as the client SDK to the server, and moves livekit-client's
  * own version to `ClientInfo.other_sdks`. Pass `undefined` to reset.
  * Meant for wrapper SDKs, not for apps.
- * @experimental
+ * @hidden
  */
 export function setWrapperSdkInfo(info: WrapperSdkInfo | undefined) {
   wrapperSdkInfo = info;
