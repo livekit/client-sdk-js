@@ -129,6 +129,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: ^4.1.10
         version: 4.1.10(playwright@1.61.1)(vite@8.1.6(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.4.2)(terser@5.39.2)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.11)
+      break-check:
+        specifier: 0.8.2
+        version: 0.8.2
       eslint:
         specifier: 10.7.0
         version: 10.7.0(jiti@2.4.2)
@@ -225,6 +228,12 @@ packages:
 
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
+
+  '@ark/schema@0.56.6':
+    resolution: {integrity: sha512-OmLv80BCF2ib+zjecrXDosip/CSnZSYBGjblhqWYZWFOzdLQka6QymHToE9u7Z/HZW2KA8Hwc8MCNXoI3uGSIA==}
+
+  '@ark/util@0.56.6':
+    resolution: {integrity: sha512-mHqq0f0HyDd9YadpFl25w0QECAP7d8HGIUpEC85duD+L+xr4i/CwfOid/Z7zJFFF/47oLt6+pZB9RbqWpBYTYg==}
 
   '@asamuzakjp/css-color@3.1.7':
     resolution: {integrity: sha512-Ok5fYhtwdyJQmU1PpEv6Si7Y+A4cYb8yNM9oiIJC9TzXPMuN9fvdonKJqcnz9TbFqV6bQ8z0giRq0iaOpGZV2g==}
@@ -1114,6 +1123,12 @@ packages:
   '@jridgewell/trace-mapping@0.3.29':
     resolution: {integrity: sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ==}
 
+  '@kwsites/file-exists@1.1.1':
+    resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
+
+  '@kwsites/promise-deferred@1.1.1':
+    resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
+
   '@livekit/changesets-changelog-github@0.2.0':
     resolution: {integrity: sha512-HWgR0biITeIaLeBRIUpqYJ0Wacmx7JJjlqhiJtqYrGItqw0kRUe6tTB6vN0fU7tK1oh08hlgr3iYdGLNLNbrNQ==}
 
@@ -1497,6 +1512,12 @@ packages:
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
+
+  '@simple-git/args-pathspec@1.0.4':
+    resolution: {integrity: sha512-EtMX6XjRWSastG2SdkmSQByPtJ9dx/NIjnHbpQPCYt62j4RmSx5rgLTGpw0YCjF5h191gZOmBfheOT23cRSFdw==}
+
+  '@simple-git/argv-parser@2.0.1':
+    resolution: {integrity: sha512-M++IaVWrN+vYalilOHfwvT2IL3wYZtVEBQpmX6DLSOJLtxbZ+SUeIDE3IiPogzhPACLajwtxfa5rp+ZX1FczzQ==}
 
   '@size-limit/file@12.1.0':
     resolution: {integrity: sha512-eGwDcIufnNnvJRzv3liDOn6MAOGgmOTUdpeGQ2KuRTlgIgO54AJH1ilvktlJc6PIjNfwpYY0dOGyap1QgM1swQ==}
@@ -2187,6 +2208,12 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
+  arkregex@0.0.12:
+    resolution: {integrity: sha512-sOxL0eX50pnRYO4OyajKZChGuuj/iHwC5tysiAaGOPBu+zJwJQckWn7/DRH2++ol5uaKpyRn7N0hKT7nDqGmgg==}
+
+  arktype@2.2.7:
+    resolution: {integrity: sha512-AbgM5SQvwCTURSR+ENfPtOG7cL5VZ0hqOVtoWyXKw2SviFddZhCBEUAjjVJYKCNFlPPR1VX5LGUKxsSqqc4Kdw==}
+
   array-buffer-byte-length@1.0.2:
     resolution: {integrity: sha512-LHE+8BuR7RYGDKvnrmcuSq3tDcKv9OFEXQt/HpbZhY7V6h0zlUXutnAD82GiFx9rdieCMjkvtcsPqBwgUl1Iiw==}
     engines: {node: '>= 0.4'}
@@ -2282,6 +2309,11 @@ packages:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
     engines: {node: '>=8'}
 
+  break-check@0.8.2:
+    resolution: {integrity: sha512-Ff4qfyry4IX4ZwRdk9M+IbF+ZFDbb5D3RCWHC5FlMM5fRiyZnLnzoGCAmHStLrsSKJGmHt9zu0MGdqzg0OFLPQ==}
+    deprecated: \
+    hasBin: true
+
   browserslist@4.28.2:
     resolution: {integrity: sha512-48xSriZYYg+8qXna9kwqjIVzuQxi+KYWp2+5nCYnYKPTr0LvD89Jqk2Or5ogxz0NUMfIjhh2lIUX/LyX9B4oIg==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
@@ -2327,6 +2359,17 @@ packages:
   clean-stack@2.2.0:
     resolution: {integrity: sha512-4diC9HaTE+KRAMWhDhrGOECgWZxoevMc5TlkObMqNSsVU62PYzXZ/SMTjzyGAFF1YusgxGcSWTEXBhp0CPwQ1A==}
     engines: {node: '>=6'}
+
+  comline@0.9.0:
+    resolution: {integrity: sha512-PB6CjpeJqSzKL4XZ6kjlGE3G5bcBDZjRQcDoPwKsQT1VloTOQ9Q4EhkJFi0Ng39bFDB7I928qfOZ9LrDYaDc5A==}
+    peerDependencies:
+      arktype: ^2.1.28
+      zod: ^4.2.0
+    peerDependenciesMeta:
+      arktype:
+        optional: true
+      zod:
+        optional: true
 
   commander@13.0.0:
     resolution: {integrity: sha512-oPYleIY8wmTVzkvQq10AEok6YcTC4sRUBl8F9gVuwchGVUCTbl/vhLTaQqutuuySYOsu8YTgV+OxKc/8Yvx+mQ==}
@@ -4110,6 +4153,9 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
+  simple-git@4.0.2:
+    resolution: {integrity: sha512-l0sIsv9VrPwovKELFDBOj/lhmIcbMvxBk2B+hRhsMM4/VL3gKtuZvYnBNixVo+N/0HnqQx2cBdLvxnAbygHpqA==}
+
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
     engines: {node: '>=18'}
@@ -4203,6 +4249,9 @@ packages:
   synckit@0.11.13:
     resolution: {integrity: sha512-eNRKgb3z66Yp3D2CixVujOUvXLFUTij/zVnV8KRyvFdQwpz7I5DS8UfRkTeLzb64u+dkzDSdelE24izu+zSSUg==}
     engines: {node: ^14.18.0 || >=16.0.0}
+
+  takua@0.2.3:
+    resolution: {integrity: sha512-X/UsrLMSttBXrgAthtDZW9iuorphm7dgm5h6AskgpONCtpwd59zo8dN3sPHzi9LkEZ2mfxTVWMqAZpsoeEIt1Q==}
 
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
@@ -4301,6 +4350,9 @@ packages:
   tr46@5.1.1:
     resolution: {integrity: sha512-hdF5ZgjTqgAntKkklYw0R03MG2x/bSzTtkxmIRw/sTNV8YXsCJ1tfLAX23lhxhHJlEf3CRCOCGGWw3vI3GaSPw==}
     engines: {node: '>=18'}
+
+  treetrunks@0.1.12:
+    resolution: {integrity: sha512-x9XbZAus9Y4y7WRke6DwOrxmAxrwXNVv/wSmO9aNEfO92gu4Jau/4lmfXE1untxNle1WygPX2wriCtf+oYKMmg==}
 
   trim-repeated@1.0.0:
     resolution: {integrity: sha512-pkonvlKk8/ZuR0D5tLW8ljt5I8kmxp2XKymhepUeOdCEfKpZaktSArkLHZt76OB1ZvO9bssUsDty4SWhLvZpLg==}
@@ -4653,6 +4705,12 @@ snapshots:
     dependencies:
       package-manager-detector: 1.6.0
       tinyexec: 1.3.1
+
+  '@ark/schema@0.56.6':
+    dependencies:
+      '@ark/util': 0.56.6
+
+  '@ark/util@0.56.6': {}
 
   '@asamuzakjp/css-color@3.1.7':
     dependencies:
@@ -5725,6 +5783,14 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.1
       '@jridgewell/sourcemap-codec': 1.6.0
 
+  '@kwsites/file-exists@1.1.1':
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@kwsites/promise-deferred@1.1.1': {}
+
   '@livekit/changesets-changelog-github@0.2.0':
     dependencies:
       '@changesets/get-github-info': 1.0.0-next.3
@@ -6014,6 +6080,12 @@ snapshots:
       '@types/hast': 3.0.4
 
   '@shikijs/vscode-textmate@10.0.2': {}
+
+  '@simple-git/args-pathspec@1.0.4': {}
+
+  '@simple-git/argv-parser@2.0.1':
+    dependencies:
+      '@simple-git/args-pathspec': 1.0.4
 
   '@size-limit/file@12.1.0(size-limit@12.1.0(jiti@2.4.2))':
     dependencies:
@@ -6708,6 +6780,16 @@ snapshots:
 
   argparse@2.0.1: {}
 
+  arkregex@0.0.12:
+    dependencies:
+      '@ark/util': 0.56.6
+
+  arktype@2.2.7:
+    dependencies:
+      '@ark/schema': 0.56.6
+      '@ark/util': 0.56.6
+      arkregex: 0.0.12
+
   array-buffer-byte-length@1.0.2:
     dependencies:
       call-bound: 1.0.4
@@ -6837,6 +6919,17 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
+  break-check@0.8.2:
+    dependencies:
+      arktype: 2.2.7
+      comline: 0.9.0(arktype@2.2.7)
+      minimatch: 10.2.6
+      simple-git: 4.0.2
+      takua: 0.2.3
+    transitivePeerDependencies:
+      - supports-color
+      - zod
+
   browserslist@4.28.2:
     dependencies:
       baseline-browser-mapping: 2.10.27
@@ -6882,6 +6975,13 @@ snapshots:
   chrome-trace-event@1.0.3: {}
 
   clean-stack@2.2.0: {}
+
+  comline@0.9.0(arktype@2.2.7):
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      treetrunks: 0.1.12
+    optionalDependencies:
+      arktype: 2.2.7
 
   commander@13.0.0: {}
 
@@ -8903,6 +9003,16 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
+  simple-git@4.0.2:
+    dependencies:
+      '@kwsites/file-exists': 1.1.1
+      '@kwsites/promise-deferred': 1.1.1
+      '@simple-git/args-pathspec': 1.0.4
+      '@simple-git/argv-parser': 2.0.1
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   sirv@3.0.2:
     dependencies:
       '@polka/url': 1.0.0-next.29
@@ -9002,6 +9112,8 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.3.6
 
+  takua@0.2.3: {}
+
   tapable@2.3.3: {}
 
   term-size@2.2.1: {}
@@ -9055,6 +9167,8 @@ snapshots:
   tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
+
+  treetrunks@0.1.12: {}
 
   trim-repeated@1.0.0:
     dependencies:

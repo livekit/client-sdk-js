@@ -73,6 +73,7 @@
     "dev": "pnpm examples:demo",
     "lint": "eslint src",
     "test": "vitest run src",
+    "test:public": "vitest run tests/public && tsc -p tests/public 1>&2",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "deploy": "gh-pages -d examples/demo/dist",
     "format": "prettier --write src examples/**/*.ts",
@@ -84,7 +85,8 @@
     "compat": "eslint --config ./eslint.config.dist.mjs --no-inline-config  ./dist/livekit-client.esm.mjs",
     "size-limit": "size-limit",
     "check:core": "node scripts/check-core-imports.mjs && node scripts/check-core-types.mjs",
-    "check:published-types": "node scripts/check-published-types.mjs"
+    "check:published-types": "node scripts/check-published-types.mjs",
+    "check:breaks": "sh scripts/check-breaks.sh"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
@@ -127,6 +129,7 @@
     "@typescript/native": "catalog:",
     "@vitest/browser": "^4.1.10",
     "@vitest/browser-playwright": "^4.1.10",
+    "break-check": "0.8.2",
     "eslint": "10.7.0",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "10.1.8",
