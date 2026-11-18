@@ -331,3 +331,26 @@ describe('restartTrack', () => {
     await expect(restart).rejects.toBeInstanceOf(TrackInvalidError);
   });
 });
+
+describe('setProcessor', () => {
+  it('rejects with a TrackInvalidError and destroys the processor when the track is stopped during init', async () => {
+    const track = new LocalVideoTrack(Object.assign(videoCapture({}), { stop: vi.fn() }));
+    let processorInitialized!: () => void;
+    const destroy = vi.fn(async () => {});
+
+    const setProcessor = track.setProcessor({
+      name: 'slow',
+      processedTrack: videoCapture({}),
+      init: () => new Promise<void>((resolve) => (processorInitialized = resolve)),
+      destroy,
+      restart: async () => {},
+    });
+    await vi.waitFor(() => expect(processorInitialized).toBeDefined());
+    track.stop();
+    processorInitialized();
+
+    await expect(setProcessor).rejects.toBeInstanceOf(TrackInvalidError);
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(track.getProcessor()).toBeUndefined();
+  });
+});

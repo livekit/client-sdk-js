@@ -238,6 +238,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
    */
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.trackChangeLock.lock();
+    const stops = this.stopCount;
     try {
       if (!isReactNative() && !this.audioContext) {
         throw Error(
@@ -258,11 +259,15 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 
       await processor.init(processorOptions);
+      if (this.stopCount !== stops) {
+        await this.destroyUnusedProcessor(processor);
+        throw new TrackInvalidError('track was stopped while its processor was being set');
+      }
       this.processor = processor;
       if (processor.processedTrack) {
         await this.sender?.replaceTrack(processor.processedTrack);
-        // `stop()` doesn't wait for the trackChangeLock and ends the processor
-        if (this.processor !== processor) {
+        // the stop destroyed the processor
+        if (this.stopCount !== stops) {
           throw new TrackInvalidError('track was stopped while its processor was being set');
         }
         this.observeProcessedTrack(processor.processedTrack);
@@ -301,6 +306,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       return;
     }
     const unlock = await this.trackChangeLock.lock();
+    const stops = this.stopCount;
     try {
       this.audioContext = audioContext;
       if (!this.processor || isReactNative()) {
@@ -319,8 +325,8 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         audioContext,
         localTrack: this,
       });
-      // `stop()` doesn't wait for the trackChangeLock, the processor is gone with the track
-      if (this.processor !== processor) {
+      // the stop destroyed the processor
+      if (this.stopCount !== stops) {
         return;
       }
       if (processor.processedTrack) {
