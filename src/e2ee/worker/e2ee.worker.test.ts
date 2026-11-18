@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { E2EEWorkerMessage } from '../types';
 import { createKeyMaterialFromString } from '../utils';
@@ -82,10 +82,9 @@ describe('e2ee worker', () => {
       type: 'key',
       getMetadata: () => ({}),
     } as RTCEncodedVideoFrame);
-    await new Promise((resolve) => setTimeout(resolve, 20));
 
     // The sent frame is longer, because encryption appends the IV and the trailer
-    expect(sentFrames).toHaveLength(1);
+    await vi.waitFor(() => expect(sentFrames).toHaveLength(1));
     expect(sentFrames[0].data.byteLength).toBeGreaterThan(16);
   });
 
