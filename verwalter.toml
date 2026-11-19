@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/livekit/verwalter/main/schemas/v1.json
+
+[packages.livekit-client]
+path = "."
+versioning.files = ["package.json"]
+publish.registry = "npm"
