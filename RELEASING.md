@@ -56,7 +56,16 @@ Find the cause first. The paths by cause are in the
 | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | A job failed for a transient reason                             | `gh run rerun <run-id> --failed`                                           |
 | The workflow file needed a fix, and the fix is on `main`        | `gh workflow run release.yaml -f ref=<tag>`                                |
+| The docs upload failed                                          | `gh run rerun <run-id> --failed`                                           |
 | The released commit is wrong, and npm does not have the version | `verwalter release --abandon <tag>`, then a changeset and the next version |
+
+A re-run of failed jobs keeps the merge commit. Prefer it to a run by
+hand. Set `ref` on a run by hand: an empty `ref` releases the head of
+the branch. If no tag exists yet, set `ref` to the merge commit of the
+release PR.
+
+`publish` skips a version that npm has. It fails when the files of the
+package changed since the tag.
 
 A version that npm has cannot be replaced. Deprecate it with
 `npm deprecate`, then release the next version.
