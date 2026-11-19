@@ -12,6 +12,7 @@ import {
   ParticipantInfo,
   RequestResponse,
   RequestResponse_Reason,
+  SimulcastCodec,
   SipDTMF,
   TrackInfo,
   TrackUnpublishedResponse,
@@ -51,6 +52,8 @@ import { Track } from '../track/Track';
 import { createLocalTracks, getVideoCapture } from '../track/create';
 import type {
   AudioCaptureOptions,
+  AudioCodec,
+  AudioCodecOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   TrackPublishOptions,
@@ -764,6 +767,20 @@ export class LocalParticipant extends Participant {
       ...this.roomOptions.publishDefaults,
       ...options,
     };
+    const isAudio = track.kind === Track.Kind.Audio;
+    const audioCodecOption = isAudio ? opts.audioCodec : undefined;
+    const selection: AudioCodecOptions | undefined =
+      typeof audioCodecOption === 'string' ? { codec: audioCodecOption } : audioCodecOption;
+    const audioCodec = selection?.codec;
+    const isG711 = audioCodec === 'pcma' || audioCodec === 'pcmu';
+    if (selection) {
+      const audioParams = isG711 ? { dtx: false, stereo: false } : selection;
+      opts.red = audioCodec === 'red';
+      opts.dtx = audioParams.dtx ?? opts.dtx;
+      opts.forceStereo = audioParams.stereo ?? opts.forceStereo;
+    }
+    const audioMaxBitrate =
+      isAudio && !isG711 ? (selection?.maxBitrate ?? opts.audioPreset?.maxBitrate) : undefined;
     const isStereoInput =
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
@@ -815,11 +832,23 @@ export class LocalParticipant extends Participant {
           if (publicationTimedOut) {
             return;
           }
-          const publication = await this.publish(track, opts, isStereo);
+          const publication = await this.publish(
+            track,
+            opts,
+            isStereo,
+            audioCodec,
+            audioMaxBitrate,
+          );
           resolve(publication);
         } else {
           try {
-            const publication = await this.publish(track, opts, isStereo);
+            const publication = await this.publish(
+              track,
+              opts,
+              isStereo,
+              audioCodec,
+              audioMaxBitrate,
+            );
             resolve(publication);
           } catch (e) {
             reject(e);
@@ -872,7 +901,13 @@ export class LocalParticipant extends Participant {
     return false;
   }
 
-  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+    audioCodec: AudioCodec | undefined,
+    audioMaxBitrate: number | undefined,
+  ) {
     if (!this.hasPermissionsToPublish(track)) {
       throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
     }
@@ -946,9 +981,12 @@ export class LocalParticipant extends Participant {
     if (isLocalVideoTrack(track)) {
       encodings = await this.requireVideoPublisher().prepare(track, opts, req);
     } else if (track.kind === Track.Kind.Audio) {
+      if (audioCodec && (audioCodec !== 'red' || !req.disableRed)) {
+        req.simulcastCodecs = [new SimulcastCodec({ codec: audioCodec, cid: req.cid })];
+      }
       encodings = [
         {
-          maxBitrate: opts.audioPreset?.maxBitrate,
+          maxBitrate: audioMaxBitrate,
           priority: opts.audioPreset?.priority ?? 'high',
           networkPriority: opts.audioPreset?.priority ?? 'high',
         },
