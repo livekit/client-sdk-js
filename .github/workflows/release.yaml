@@ -9,10 +9,16 @@ on:
   # PRs release.
   pull_request:
     types: [closed]
-  # Without `snapshot`: re-run after a fix. `verwalter release` resumes
-  # from the current state and skips what is done.
+  # A failed job is re-run with "Re-run failed jobs" on the run itself: that
+  # keeps the merge commit. Without `snapshot`, this trigger is for a run
+  # that needs a fixed workflow file from the branch. `verwalter release`
+  # resumes from the current state and skips what is done.
   workflow_dispatch:
     inputs:
+      ref:
+        description: 'Commit or tag to build and publish. Set it to the release tag when the tag exists. Empty is the branch head.'
+        type: string
+        default: ''
       snapshot:
         description: 'Publish a snapshot release'
         type: boolean
@@ -38,7 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          # On a run by hand, `ref` is the released tag: the branch head can
+          # hold newer source than the version that is published. `publish`
+          # fails when the files changed since the tag.
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - name: Use Node.js 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -66,10 +75,10 @@ jobs:
         with:
           # The merge commit itself: a push to main right after the merge
           # must not move the tags.
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
           fetch-depth: 0
       - id: verwalter
-        uses: livekit/verwalter@359985c1e5567b17ae84db0241fbb305c383f89e # v0.30.0
+        uses: livekit/verwalter@39e3d7c57c2b6d96cf2d4b7771f3ab199490faba # v0.31.0
         with:
           command: release
           app-client-id: ${{ secrets.VERWALTER_RELEASE_CLIENT_ID }}
@@ -98,7 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
           fetch-depth: 0 # tags decide what is published
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - name: Use Node.js 24
@@ -110,7 +119,7 @@ jobs:
           name: dist
           path: dist
       - id: publish
-        uses: livekit/verwalter@359985c1e5567b17ae84db0241fbb305c383f89e # v0.30.0
+        uses: livekit/verwalter@39e3d7c57c2b6d96cf2d4b7771f3ab199490faba # v0.31.0
         env:
           GH_TOKEN: ${{ github.token }}
         with:
@@ -132,7 +141,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - name: Use Node.js 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -149,6 +158,24 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
           AWS_DEFAULT_REGION: "us-east-1"
+
+  # The end state, asserted: `status --check` fails when the tag is not on
+  # the remote, the GitHub release is missing or still a draft, or npm does
+  # not have the version. A step that was skipped without an error ends here.
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # reads only. A draft release is visible only with write access
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
+          fetch-depth: 0
+      - uses: livekit/verwalter@39e3d7c57c2b6d96cf2d4b7771f3ab199490faba # v0.31.0
+        with:
+          command: status
+          args: --check
 
   # verwalter never sees this version: no tag, no GitHub release.
   snapshot-release:
