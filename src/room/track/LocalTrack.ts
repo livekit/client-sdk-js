@@ -70,6 +70,13 @@ export default abstract class LocalTrack<
 
   protected manuallyStopped: boolean = false;
 
+  /**
+   * Counts the calls to `stop()`. `stop()` doesn't wait for the trackChangeLock, so an operation
+   * that holds the lock compares this after each await to find out that the track stopped.
+   * `manuallyStopped` can't tell it, because a queued restart resets it.
+   */
+  protected stopCount = 0;
+
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
   protected trackChangeLock: Mutex;
@@ -203,7 +210,9 @@ export default abstract class LocalTrack<
         // ensure the processorElement itself stays muted
         this.processorElement.muted = true;
       }
-      await this.processor.restart({
+      const processor = this.processor;
+      const stops = this.stopCount;
+      await processor.restart({
         track: newTrack,
         kind: this.kind,
         element: this.processorElement,
@@ -212,7 +221,10 @@ export default abstract class LocalTrack<
         audioContext: this.audioContext,
         localTrack: this,
       });
-      processedTrack = this.processor.processedTrack;
+      if (this.stopCount !== stops) {
+        throw new TrackInvalidError('track was stopped while its processor was restarting');
+      }
+      processedTrack = processor.processedTrack;
     }
     if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
@@ -520,6 +532,7 @@ export default abstract class LocalTrack<
 
   stop() {
     this.manuallyStopped = true;
+    this.stopCount += 1;
     super.stop();
 
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
@@ -616,6 +629,7 @@ export default abstract class LocalTrack<
    */
   async setProcessor(processor: TrackProcessor<TrackKind>, showProcessedStreamLocally = true) {
     const unlock = await this.trackChangeLock.lock();
+    const stops = this.stopCount;
     try {
       this.log.debug('setting up processor', this.logContext);
 
@@ -633,6 +647,10 @@ export default abstract class LocalTrack<
 
       if (this.processor) {
         await this.internalStopProcessor();
+      }
+      if (this.stopCount !== stops) {
+        await this.destroyUnusedProcessor(processor);
+        throw new TrackInvalidError('track was stopped while its processor was being set');
       }
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
@@ -668,12 +686,23 @@ export default abstract class LocalTrack<
           }
         }
         await this.sender?.replaceTrack(this.processor.processedTrack);
+        // the stop destroyed the processor
+        if (this.stopCount !== stops) {
+          throw new TrackInvalidError('track was stopped while its processor was being set');
+        }
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
       unlock();
     }
     await this.onSenderTrackSwapped();
+  }
+
+  /** Destroys a processor that never became the track's processor */
+  protected async destroyUnusedProcessor(processor: TrackProcessor<TrackKind, any>) {
+    await processor.destroy().catch((error) => {
+      this.log.error('failed to destroy processor', { ...this.logContext, error });
+    });
   }
 
   /**

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TrackInvalidError } from '../errors';
 import { isChromiumBased } from '../utils';
 import LocalVideoTrack, { videoLayersFromEncodings } from './LocalVideoTrack';
 import type { SimulcastTrackInfo } from './LocalVideoTrack';
@@ -296,5 +297,60 @@ describe('waitForDimensions', () => {
 
     await expect(track.waitForDimensions()).resolves.toEqual({ width: 1536, height: 664 });
     expect(waitForFirstVideoFrame).not.toHaveBeenCalled();
+  });
+});
+
+describe('restartTrack', () => {
+  afterEach(() => {
+    // @ts-expect-error removes the own property again, which uncovers happy-dom's
+    delete navigator.mediaDevices;
+  });
+
+  it('rejects with a TrackInvalidError when the track is stopped while its processor restarts', async () => {
+    const restarted = Object.assign(videoCapture({}), { stop: vi.fn(), applyConstraints: vi.fn() });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [restarted] }) },
+    });
+    const track = new LocalVideoTrack(Object.assign(videoCapture({}), { stop: vi.fn() }));
+    let processorRestarted!: () => void;
+    // a processor whose restart() is still pending when the server unpublishes the track
+    await track.setProcessor({
+      name: 'slow',
+      processedTrack: videoCapture({}),
+      init: async () => {},
+      destroy: async () => {},
+      restart: () => new Promise<void>((resolve) => (processorRestarted = resolve)),
+    });
+
+    const restart = track.restartTrack();
+    await vi.waitFor(() => expect(processorRestarted).toBeDefined());
+    track.stop();
+    processorRestarted();
+
+    await expect(restart).rejects.toBeInstanceOf(TrackInvalidError);
+  });
+});
+
+describe('setProcessor', () => {
+  it('rejects with a TrackInvalidError and destroys the processor when the track is stopped during init', async () => {
+    const track = new LocalVideoTrack(Object.assign(videoCapture({}), { stop: vi.fn() }));
+    let processorInitialized!: () => void;
+    const destroy = vi.fn(async () => {});
+
+    const setProcessor = track.setProcessor({
+      name: 'slow',
+      processedTrack: videoCapture({}),
+      init: () => new Promise<void>((resolve) => (processorInitialized = resolve)),
+      destroy,
+      restart: async () => {},
+    });
+    await vi.waitFor(() => expect(processorInitialized).toBeDefined());
+    track.stop();
+    processorInitialized();
+
+    await expect(setProcessor).rejects.toBeInstanceOf(TrackInvalidError);
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(track.getProcessor()).toBeUndefined();
   });
 });

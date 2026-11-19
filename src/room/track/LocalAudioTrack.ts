@@ -1,4 +1,5 @@
 import { AudioTrackFeature } from '@livekit/protocol';
+import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
@@ -237,6 +238,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
    */
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.trackChangeLock.lock();
+    const stops = this.stopCount;
     try {
       if (!isReactNative() && !this.audioContext) {
         throw Error(
@@ -257,10 +259,18 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 
       await processor.init(processorOptions);
+      if (this.stopCount !== stops) {
+        await this.destroyUnusedProcessor(processor);
+        throw new TrackInvalidError('track was stopped while its processor was being set');
+      }
       this.processor = processor;
-      if (this.processor.processedTrack) {
-        await this.sender?.replaceTrack(this.processor.processedTrack);
-        this.observeProcessedTrack(this.processor.processedTrack);
+      if (processor.processedTrack) {
+        await this.sender?.replaceTrack(processor.processedTrack);
+        // the stop destroyed the processor
+        if (this.stopCount !== stops) {
+          throw new TrackInvalidError('track was stopped while its processor was being set');
+        }
+        this.observeProcessedTrack(processor.processedTrack);
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
@@ -296,6 +306,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       return;
     }
     const unlock = await this.trackChangeLock.lock();
+    const stops = this.stopCount;
     try {
       this.audioContext = audioContext;
       if (!this.processor || isReactNative()) {
@@ -307,15 +318,20 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         return;
       }
       this.log.debug('restarting audio processor on new audio context', this.logContext);
-      await this.processor.restart({
+      const processor = this.processor;
+      await processor.restart({
         kind: this.kind,
         track: this._mediaStreamTrack,
         audioContext,
         localTrack: this,
       });
-      if (this.processor.processedTrack) {
-        await this.sender?.replaceTrack(this.processor.processedTrack);
-        this.observeProcessedTrack(this.processor.processedTrack);
+      // the stop destroyed the processor
+      if (this.stopCount !== stops) {
+        return;
+      }
+      if (processor.processedTrack) {
+        await this.sender?.replaceTrack(processor.processedTrack);
+        this.observeProcessedTrack(processor.processedTrack);
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
