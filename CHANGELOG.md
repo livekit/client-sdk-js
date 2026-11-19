@@ -1,5 +1,31 @@
 # Change Log
 
+## 2.25.0
+
+### Minor Changes
+
+- Rebuild transcription events from `lk.transcription` data streams and advertise client protocol 3 - [#2093](https://github.com/livekit/client-sdk-js/pull/2093) ([@1egoman](https://github.com/1egoman))
+
+### Patch Changes
+
+- Retransmit lost audio in single peer connection mode when RED is off, for example with E2EE. - [#2270](https://github.com/livekit/client-sdk-js/pull/2270) ([@jamesdawsonWD](https://github.com/jamesdawsonWD))
+
+- Await `AudioContext.setSinkId()` when switching the audio output with `webAudioMix` enabled, so the switch only resolves (and emits `ActiveDeviceChanged`) once routing succeeds, and routing failures reject instead of becoming unhandled rejections - [#2276](https://github.com/livekit/client-sdk-js/pull/2276) ([@1egoman](https://github.com/1egoman))
+
+- Deprecate the `TranscriptionReceived` room, participant and track events and the `TranscriptionSegment` type in favor of a text stream handler for the `lk.transcription` topic - [#2093](https://github.com/livekit/client-sdk-js/pull/2093) ([@1egoman](https://github.com/1egoman))
+
+- Room events emitted right after a reconnect are no longer held back. The room went back to `Connected` and emitted `Reconnected` while the engine still reported a pending reconnect until its attempt settled, so events such as `RoomMetadataChanged` or `ActiveSpeakersChanged` sent in that window were buffered and never emitted. - [#2186](https://github.com/livekit/client-sdk-js/pull/2186) ([@ANDROIDHASSAN](https://github.com/ANDROIDHASSAN))
+
+- Keep the last transceiver of the publisher connection when you unpublish its track. A stop of the only transceiver made the browser drop the transport of the connection, and the next publish sent no media. - [#2282](https://github.com/livekit/client-sdk-js/pull/2282) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep the last audio transceiver and the last video transceiver of the publisher connection when you unpublish their tracks. After a stop of all transceivers, some browsers gave the next track new header extension ids, and the publish failed. - [#2284](https://github.com/livekit/client-sdk-js/pull/2284) ([@lukasIO](https://github.com/lukasIO))
+
+- Reject with a `TrackInvalidError` for a track stopped during a processor restart or `setProcessor()` - [#2280](https://github.com/livekit/client-sdk-js/pull/2280) ([@lukasIO](https://github.com/lukasIO))
+
+- Stop the transceivers of a track when you unpublish it or when the server rejects its publish. Chrome then frees their encoders (about 95 MB per screen share) before the room disconnects. This needs a server with protocol 19 or higher; with an older server the transceivers stay inactive as before. - [#2249](https://github.com/livekit/client-sdk-js/pull/2249) ([@lukasIO](https://github.com/lukasIO))
+
+- Add internal `setWrapperSdkInfo` so SDKs built on top of livekit-client (e.g. Unity WebGL) report their own SDK and version in `ClientInfo`, with livekit-client's version in `other_sdks` - [#2265](https://github.com/livekit/client-sdk-js/pull/2265) ([@MaxHeimbrock](https://github.com/MaxHeimbrock))
+
 ## 2.24.1
 
 ### Patch Changes
