@@ -290,7 +290,8 @@ export class PCTransportManager {
       };
 
       const onAnswered = (offerId: number) => {
-        if (offerId > checkpoint) {
+        // offerId is 0 by default when connecting to older server versions
+        if (offerId === 0 || offerId > checkpoint) {
           cleanup();
           resolve();
         }
