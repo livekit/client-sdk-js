@@ -876,29 +876,31 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * connection closes. Call this after `removeTrack`, as `removeTrack(sender, true)` does.
    * Returns true if a transceiver stopped.
    *
-   * The last live m-section stays. The browser drops the ICE and DTLS transport of a connection
-   * when all its m-sections are rejected, and the next publish then needs a new transport, which
-   * the server cannot set up on the same connection.
+   * The last live transceiver of each kind stays. The server cannot follow two changes that some
+   * browsers make after all transceivers of a kind stop. The browser drops the ICE and DTLS
+   * transport when all m-sections are rejected. Some browsers also give the next transceiver new
+   * header extension ids.
    */
   stopTransceivers(senders: RTCRtpSender[]): boolean {
     let stopped = false;
     const transceivers = this.getTransceivers();
-    // a negotiated data channel section also keeps the transport
-    let liveSections =
-      transceivers.filter((t) => t.direction !== 'stopped' && t.currentDirection !== 'stopped')
-        .length + (this._pc?.sctp ? 1 : 0);
+    const isLive = (t: RTCRtpTransceiver) =>
+      t.direction !== 'stopped' && t.currentDirection !== 'stopped';
     for (const transceiver of transceivers) {
       // RTCRtpTransceiver.stop() is not available before Chrome 88
       if (!senders.includes(transceiver.sender) || typeof transceiver.stop !== 'function') {
         continue;
       }
-      if (liveSections <= 1) {
+      // the sender has no track after removeTrack, the receiver always has one
+      const { kind } = transceiver.receiver.track;
+      if (
+        !transceivers.some((t) => t !== transceiver && isLive(t) && t.receiver.track.kind === kind)
+      ) {
         continue;
       }
       try {
         transceiver.stop();
         stopped = true;
-        liveSections -= 1;
       } catch (e) {
         this.log.warn('could not stop transceiver', { error: e });
       }
