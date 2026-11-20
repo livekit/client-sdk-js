@@ -221,8 +221,22 @@ export class RegionUrlProvider {
     let cachedSettings = RegionUrlProvider.cache.get(this.serverUrl.hostname);
 
     if (!cachedSettings || Date.now() - cachedSettings.updatedAtInMs > cachedSettings.maxAgeInMs) {
-      cachedSettings = await this.fetchRegionSettings(abortSignal);
-      RegionUrlProvider.updateCachedRegionSettings(this.serverUrl, this.token, cachedSettings);
+      try {
+        const freshSettings = await this.fetchRegionSettings(abortSignal);
+        RegionUrlProvider.updateCachedRegionSettings(this.serverUrl, this.token, freshSettings);
+        cachedSettings = freshSettings;
+      } catch (error: unknown) {
+        // A stale region list beats no region list, but a cancel or a rejected token is final.
+        if (
+          !cachedSettings ||
+          (error instanceof ConnectionError &&
+            (error.reason === ConnectionErrorReason.Cancelled ||
+              error.reason === ConnectionErrorReason.NotAllowed))
+        ) {
+          throw error;
+        }
+        log.warn('could not refresh region settings, using expired cache', { error });
+      }
     }
 
     const regionsLeft = cachedSettings.regionSettings.regions.filter(
