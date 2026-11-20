@@ -50,6 +50,15 @@ export interface TrackPublishDefaults {
   videoCodec?: VideoCodec;
 
   /**
+   * Audio codec selection. A per-track selection overrides `RoomOptions.publishDefaults`.
+   * `'opus'` disables RED and `'red'` enables Opus redundancy when supported.
+   * Opus and RED accept `dtx`, `stereo` and `maxBitrate`. PCMA and PCMU use mono G.711
+   * and require browser codec preferences and support for the codec on the server.
+   * Omit this option at both levels to keep normal audio negotiation.
+   */
+  audioCodec?: AudioCodec | AudioCodecOptions;
+
+  /**
    * which audio preset should be used for publishing (audio) tracks
    * defaults to [[AudioPresets.music]]
    */
@@ -57,16 +66,19 @@ export interface TrackPublishDefaults {
 
   /**
    * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
+   * @deprecated Use the `dtx` option of an Opus or RED `audioCodec`.
    */
   dtx?: boolean;
 
   /**
    * red (Redundant Audio Data), enabled by default for mono tracks.
+   * @deprecated Use `audioCodec: 'red'` or `audioCodec: 'opus'`.
    */
   red?: boolean;
 
   /**
    * publish track in stereo mode (or set to false to disable). defaults determined by capture channel count.
+   * @deprecated Use the `stereo` option of an Opus or RED `audioCodec`.
    */
   forceStereo?: boolean;
 
@@ -421,9 +433,22 @@ export interface AudioPreset {
 }
 
 // `red` is not technically a codec, but treated as one in signalling protocol
-export const audioCodecs = ['opus', 'red'] as const;
+export const audioCodecs = ['opus', 'red', 'pcma', 'pcmu'] as const;
 
 export type AudioCodec = (typeof audioCodecs)[number];
+
+interface OpusParams {
+  dtx?: boolean;
+  stereo?: boolean;
+  /** Maximum encoder bitrate in bits per second. */
+  maxBitrate?: number;
+}
+
+export type AudioCodecOptions =
+  | ({ codec: 'opus' } & OpusParams)
+  | ({ codec: 'red' } & OpusParams)
+  | { codec: 'pcma' }
+  | { codec: 'pcmu' };
 
 const backupVideoCodecs = ['vp8', 'h264'] as const;
 

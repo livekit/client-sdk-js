@@ -12,6 +12,7 @@ import {
   ParticipantInfo,
   RequestResponse,
   RequestResponse_Reason,
+  SimulcastCodec,
   SipDTMF,
   TrackInfo,
   TrackUnpublishedResponse,
@@ -51,6 +52,7 @@ import { Track } from '../track/Track';
 import { createLocalTracks, getVideoCapture } from '../track/create';
 import type {
   AudioCaptureOptions,
+  AudioCodecOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   TrackPublishOptions,
@@ -73,6 +75,7 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isPermissionDeniedError,
+  isStopTransceiverSupportedByServer,
   isVideoTrack,
   isWeb,
   sleep,
@@ -764,6 +767,23 @@ export class LocalParticipant extends Participant {
       ...this.roomOptions.publishDefaults,
       ...options,
     };
+    let g711Codec: 'pcma' | 'pcmu' | undefined;
+    if (track.kind === Track.Kind.Audio && opts.audioCodec) {
+      const selection: AudioCodecOptions =
+        typeof opts.audioCodec === 'string' ? { codec: opts.audioCodec } : opts.audioCodec;
+      opts.red = selection.codec === 'red';
+      if (selection.codec === 'pcma' || selection.codec === 'pcmu') {
+        g711Codec = selection.codec;
+        opts.dtx = false;
+        opts.forceStereo = false;
+      } else {
+        opts.dtx = selection.dtx ?? opts.dtx;
+        opts.forceStereo = selection.stereo ?? opts.forceStereo;
+        if (selection.maxBitrate !== undefined) {
+          opts.audioPreset = { ...opts.audioPreset, maxBitrate: selection.maxBitrate };
+        }
+      }
+    }
     const isStereoInput =
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
@@ -815,11 +835,11 @@ export class LocalParticipant extends Participant {
           if (publicationTimedOut) {
             return;
           }
-          const publication = await this.publish(track, opts, isStereo);
+          const publication = await this.publish(track, opts, isStereo, g711Codec);
           resolve(publication);
         } else {
           try {
-            const publication = await this.publish(track, opts, isStereo);
+            const publication = await this.publish(track, opts, isStereo, g711Codec);
             resolve(publication);
           } catch (e) {
             reject(e);
@@ -834,6 +854,9 @@ export class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
+      if (g711Codec) {
+        track.off(TrackEvent.Ended, this.handleTrackEnded);
+      }
       if (!hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
         this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
           error: e,
@@ -872,7 +895,12 @@ export class LocalParticipant extends Participant {
     return false;
   }
 
-  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+    g711Codec?: 'pcma' | 'pcmu',
+  ) {
     if (!this.hasPermissionsToPublish(track)) {
       throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
     }
@@ -885,17 +913,40 @@ export class LocalParticipant extends Participant {
         getLogContextFromTrack(track),
       );
     }
+    const g711MimeType = g711Codec && `audio/${g711Codec}`;
+    let audioCodecPreference: RTCRtpCapabilities['codecs'][number] | undefined;
+    if (g711MimeType) {
+      if (
+        !this.engine.latestJoinResponse?.enabledPublishCodecs.some(
+          (codec) => codec.mime.toLowerCase() === g711MimeType && !codec.fmtpLine,
+        )
+      ) {
+        throw new PublishTrackError(`server does not advertise audio codec ${g711Codec}`, 415);
+      }
+      audioCodecPreference = globalThis.RTCRtpSender?.getCapabilities?.('audio')?.codecs.find(
+        (codec) => codec.mimeType.toLowerCase() === g711MimeType,
+      );
+      if (
+        !audioCodecPreference ||
+        !globalThis.RTCPeerConnection?.prototype.addTransceiver ||
+        !globalThis.RTCRtpTransceiver?.prototype.setCodecPreferences
+      ) {
+        throw new PublishTrackError(`browser cannot publish audio codec ${g711Codec}`, 415);
+      }
+    }
     if (opts.stopMicTrackOnMute && isAudioTrack(track)) {
       track.stopOnMute = true;
     }
 
-    // handle track actions
-    track.on(TrackEvent.Muted, this.onTrackMuted);
-    track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.on(TrackEvent.Ended, this.handleTrackEnded);
-    track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
-    track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
-    track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
+    const addTrackListeners = () => {
+      track.on(TrackEvent.Muted, this.onTrackMuted);
+      track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+      track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+      track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
+    };
+    if (!g711Codec) addTrackListeners();
 
     const audioFeatures: AudioTrackFeature[] = [];
     const disableDtx = !(opts.dtx ?? true);
@@ -911,7 +962,11 @@ export class LocalParticipant extends Participant {
     if (settings.noiseSuppression) {
       audioFeatures.push(AudioTrackFeature.TF_NOISE_SUPPRESSION);
     }
-    if (settings.channelCount && settings.channelCount > 1) {
+    const stereoFeature =
+      track.kind === Track.Kind.Audio && opts.audioCodec
+        ? isStereo
+        : (settings.channelCount ?? 0) > 1;
+    if (stereoFeature) {
       audioFeatures.push(AudioTrackFeature.TF_STEREO);
     }
     if (disableDtx) {
@@ -946,9 +1001,12 @@ export class LocalParticipant extends Participant {
     if (isLocalVideoTrack(track)) {
       encodings = await this.requireVideoPublisher().prepare(track, opts, req);
     } else if (track.kind === Track.Kind.Audio) {
+      if (g711Codec) {
+        req.simulcastCodecs = [new SimulcastCodec({ codec: g711Codec, cid: req.cid })];
+      }
       encodings = [
         {
-          maxBitrate: opts.audioPreset?.maxBitrate,
+          maxBitrate: g711Codec ? undefined : opts.audioPreset?.maxBitrate,
           priority: opts.audioPreset?.priority ?? 'high',
           networkPriority: opts.audioPreset?.priority ?? 'high',
         },
@@ -959,12 +1017,12 @@ export class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const negotiate = async () => {
+    const createSender = async () => {
       if (!this.engine.pcManager) {
         throw new UnexpectedConnectionState('pcManager is not ready');
       }
 
-      track.sender = await this.engine.createSender(track, opts, encodings);
+      track.sender = await this.engine.createSender(track, opts, encodings, audioCodecPreference);
       if (isLocalVideoTrack(track)) {
         track.publishOptions = opts;
       }
@@ -975,7 +1033,7 @@ export class LocalParticipant extends Participant {
       }
 
       if (encodings) {
-        if (isFireFox() && track.kind === Track.Kind.Audio) {
+        if (!g711Codec && isFireFox() && track.kind === Track.Kind.Audio) {
           /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
              livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
              publish high quality audio track. But firefox always uses this value as the actual
@@ -999,15 +1057,15 @@ export class LocalParticipant extends Participant {
           }
         }
       }
-
+    };
+    const negotiate = async () => {
+      await createSender();
       await this.engine.negotiate();
     };
 
-    let ti: TrackInfo;
-    const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
+    const addTrack = async () => {
       try {
-        ti = await this.engine.addTrack(req);
-        resolve(ti);
+        return await this.engine.addTrack(req);
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
           try {
@@ -1030,14 +1088,46 @@ export class LocalParticipant extends Participant {
             );
           });
         }
-        reject(err);
+        throw err;
       }
-    });
-    if (this.enabledPublishVideoCodecs.length > 0 && packetTrailerFeatures.length === 0) {
-      const rets = await Promise.all([addTrackPromise, negotiate()]);
-      ti = rets[0];
+    };
+    let ti: TrackInfo;
+    if (g711Codec) {
+      const engine = this.engine;
+      const transport = engine.pcManager;
+      // Restrict the media section before associating the codec and track ID on the SFU.
+      await createSender();
+      try {
+        ti = await engine.addTrack(req);
+        if (ti.codecs[0]?.mimeType.toLowerCase() !== g711MimeType) {
+          throw new PublishTrackError(`server did not accept audio codec ${g711Codec}`, 415);
+        }
+        await engine.negotiate();
+      } catch (err) {
+        const sender = track.sender;
+        track.sender = undefined;
+        if (sender && transport && transport === engine.pcManager) {
+          try {
+            if (!sender.track) {
+              this.deactivateTransceiver(sender, transport.publisher.getTransceivers());
+            }
+            // Remove this sender without cancelling another AddTrack request for the same CID.
+            transport.removeTrack(
+              sender,
+              isStopTransceiverSupportedByServer(engine.serverProtocol),
+            );
+            await engine.negotiate();
+          } catch (error) {
+            this.log.warn('failed to remove an unpublished audio sender', { error });
+          }
+        }
+        throw err;
+      }
+      addTrackListeners();
+    } else if (this.enabledPublishVideoCodecs.length > 0 && packetTrailerFeatures.length === 0) {
+      [ti] = await Promise.all([addTrack(), negotiate()]);
     } else {
-      ti = await addTrackPromise;
+      ti = await addTrack();
       if (isLocalVideoTrack(track)) {
         // the server may answer with another primary codec
         encodings =
@@ -1056,6 +1146,10 @@ export class LocalParticipant extends Participant {
     // save options for when it needs to be republished again
     publication.options = opts;
     track.sid = ti.sid;
+    if (g711Codec) {
+      const muted = track.isMuted || track.isUpstreamPaused;
+      if (muted !== req.muted) this.onTrackMuted(track, muted);
+    }
 
     // keep publish options on the video track so that it can recompute encoding
     // parameters when the MediaStreamTrack is restarted (e.g. after switching cameras).
@@ -1231,16 +1325,7 @@ export class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
-        for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
-          // if sender is not currently sending (after replaceTrack(null))
-          // removeTrack would have no effect.
-          // to ensure we end up successfully removing the track, manually set
-          // the transceiver to inactive
-          if (transceiver.sender === trackSender) {
-            transceiver.direction = 'inactive';
-            negotiationNeeded = true;
-          }
-        }
+        this.deactivateTransceiver(trackSender, this.engine.pcManager.publisher.getTransceivers());
         try {
           negotiationNeeded = this.engine.removeTrack(trackSender);
         } catch (e) {
@@ -1287,6 +1372,14 @@ export class LocalParticipant extends Participant {
       await this.engine.negotiate();
     }
     return publication;
+  }
+
+  private deactivateTransceiver(sender: RTCRtpSender, transceivers: RTCRtpTransceiver[]) {
+    const transceiver = transceivers.find((candidate) => candidate.sender === sender);
+    if (transceiver) {
+      // removeTrack has no effect once replaceTrack(null) detaches the track.
+      transceiver.direction = 'inactive';
+    }
   }
 
   async unpublishTracks(
@@ -1561,7 +1654,12 @@ export class LocalParticipant extends Participant {
       track.source === Track.Source.ScreenShareAudio
     ) {
       this.log.debug('unpublishing local track due to TrackEnded', getLogContextFromTrack(track));
-      this.unpublishTrack(track);
+      await this.unpublishTrack(track).catch((error) => {
+        this.log.warn('failed to unpublish a local track that ended', {
+          ...getLogContextFromTrack(track),
+          error,
+        });
+      });
     } else if (track.isUserProvided) {
       await track.mute();
     } else if (isLocalAudioTrack(track) || isLocalVideoTrack(track)) {

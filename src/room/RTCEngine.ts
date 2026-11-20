@@ -82,6 +82,7 @@ import {
   ConnectionErrorReason,
   NegotiationError,
   PublishDataError,
+  PublishTrackError,
   SignalReconnectError,
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -1133,10 +1134,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
+    codecPreference?: RTCRtpCapabilities['codecs'][number],
   ) {
     let sender: RTCRtpSender;
     if (supportsTransceiver()) {
-      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+      sender = await this.createTransceiverRTCRtpSender(track, opts, encodings, codecPreference);
     } else if (supportsAddTrack()) {
       this.log.warn('using add-track fallback');
       sender = await this.createRTCRtpSender(track.mediaStreamTrack);
@@ -1225,8 +1227,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
+    codecPreference?: RTCRtpCapabilities['codecs'][number],
   ) {
-    if (!this.pcManager) {
+    const pcManager = this.pcManager;
+    if (!pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
@@ -1245,11 +1249,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addPublisherTransceiver(
+    const transceiver = await pcManager.addPublisherTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );
 
+    if (codecPreference) {
+      try {
+        transceiver.setCodecPreferences([codecPreference]);
+      } catch (cause) {
+        try {
+          pcManager.removeTrack(
+            transceiver.sender,
+            isStopTransceiverSupportedByServer(this.serverProtocol),
+          );
+        } catch (error) {
+          this.log.warn('failed to remove sender after audio codec setup failed', { error });
+        }
+        const error = new PublishTrackError(`browser rejected ${codecPreference.mimeType}`, 415);
+        error.cause = cause;
+        throw error;
+      }
+    }
     return transceiver.sender;
   }
 

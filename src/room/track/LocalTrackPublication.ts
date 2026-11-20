@@ -102,7 +102,10 @@ export default class LocalTrackPublication extends TrackPublication {
       if (settings.noiseSuppression) {
         features.add(AudioTrackFeature.TF_NOISE_SUPPRESSION);
       }
-      if (settings.channelCount && settings.channelCount > 1) {
+      const stereo = this.options?.audioCodec
+        ? this.trackInfo?.stereo
+        : (settings.channelCount ?? 0) > 1;
+      if (stereo) {
         features.add(AudioTrackFeature.TF_STEREO);
       }
       if (!this.options?.dtx) {
