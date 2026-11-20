@@ -64,3 +64,33 @@ export async function join(url: string, token: string): Promise<void> {
 
 // The core entry: a room with only the listed extensions.
 export const coreRoom: CoreRoom = createRoom({ adaptiveStream: true }, [rpc]);
+
+// Reservation configuration is available without device access, including core-only audio.
+export async function joinWithPreparedPublications(url: string, token: string): Promise<void> {
+  const audio = coreRoom.preparePublication({
+    source: Track.Source.Microphone,
+    format: { channelCount: 2 },
+    publishOptions: { forceStereo: true, audioPreset: { maxBitrate: 96000 } },
+  });
+  await coreRoom.connect(url, token, { initialPublications: [audio] });
+  await audio.cancel();
+  const camera = room.preparePublication({
+    source: Track.Source.Camera,
+    format: { width: 1280, height: 720, frameRate: 30 },
+    publishOptions: {
+      videoCodec: 'h264',
+      simulcast: false,
+      videoEncoding: { maxBitrate: 1000000 },
+    },
+  });
+  const connecting = room.connect(url, token, { initialPublications: [camera] });
+  const tracks = await createLocalTracks({
+    audio: false,
+    video: { resolution: { width: 1280, height: 720 } },
+  });
+  await connecting;
+  if (tracks[0]) {
+    const publication: LocalTrackPublication = await camera.attachTrack(tracks[0]);
+    publication.trackSid.toUpperCase();
+  }
+}

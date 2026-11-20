@@ -1,5 +1,6 @@
 import type { E2EEOptions } from './e2ee/types';
 import type { FrameMetadataOptions } from './frameMetadata/FrameMetadataManager';
+import type { PreparedPublication } from './room/PreparedPublication';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -164,6 +165,9 @@ export interface RoomOptions extends Partial<InternalRoomOptions> {}
 
 /** The resolved connect options. `RoomConnectOptions` is the partial form apps pass in. */
 export interface InternalRoomConnectOptions {
+  /** Device-free publications to include in the initial JOIN. Connection never waits for capture. @experimental */
+  initialPublications?: ReadonlyArray<PreparedPublication>;
+
   /** autosubscribe to room tracks after joining, defaults to true */
   autoSubscribe: boolean;
 

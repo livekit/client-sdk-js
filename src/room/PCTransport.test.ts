@@ -899,6 +899,22 @@ describe('audio NACK negotiation', () => {
       return { transport, initial: (await transport.createInitialOffer())! };
     };
 
+    it('applies video start bitrate and conforms placeholders on an initial reservation', async () => {
+      const sdp = TWO_VIDEO_SECTIONS.replace('a=sendonly', 'a=recvonly').replace(
+        'a=msid:PA_remote|camera other-track',
+        '',
+      );
+      stubPeerConnectionReturning(sdp);
+      const transport = new PCTransport(undefined, {}, { singlePeerConnection: true });
+      const initial = await transport.createInitialOffer(() => {
+        transport.setTrackCodecBitrate({ cid: 'camera-cid', codec: 'vp8', maxbr: 3000 });
+      });
+      expect(initial?.offer.sdp).toContain('x-google-start-bitrate=');
+      expect(transport.getLocalDescription()).toBeUndefined();
+      const media = parse(initial!.offer.sdp!).media;
+      expect(fmtpOf(media, '0', 96)).toBe(fmtpOf(media, '1', 96));
+    });
+
     it('offers Opus NACK on every audio section', async () => {
       const { initial } = await initialOfferAndTransport();
 

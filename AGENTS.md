@@ -238,3 +238,13 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
   `resolve`/`reject` callbacks and a `.promise` property.
 - Error classes use a `Reasoned` pattern: `DataTrackSubscribeError<Reason>` with a `reason` enum
   and static factory methods (`.timeout()`, `.cancelled()`, `.disconnected()`).
+
+### Initial prepared publications
+
+`Room.preparePublication()` snapshots device-free intent; the V1 offer builder derives each
+trackless sender's CID from its unique stream MSID before munging SDP. JOIN response waiters
+must exist before signaling opens. `PreparedPublicationState` owns the sender until normal
+publication commits; room teardown or cancellation reconciles it. Initial offers share codec
+and start-bitrate processing with later publisher offers. Session integration lives in the
+components repo and must start JOIN independently of capture. Legacy V0, Firefox, encryption,
+and unsupported configurations defer to ordinary publication.

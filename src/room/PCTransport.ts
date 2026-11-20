@@ -313,7 +313,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
 
   private offerLock: Mutex;
 
-  private pendingInitialOffer?: { original: RTCSessionDescriptionInit; munged: string };
+  private pendingInitialOffer?: {
+    original: RTCSessionDescriptionInit;
+    munged: string;
+    appliedVideoStartBitrate: boolean;
+  };
 
   private readonly offeredAudioNackMids: string[];
 
@@ -499,10 +503,12 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.remoteNackMids = nackMids;
     } else if (sd.type === 'answer') {
       if (this.pendingInitialOffer && this._pc) {
-        const { original, munged } = this.pendingInitialOffer;
+        const { original, munged, appliedVideoStartBitrate } = this.pendingInitialOffer;
         this.pendingInitialOffer = undefined;
         this.log.debug('setting pending initial offer before processing answer');
         await this.setMungedSDP(original, munged);
+        if (appliedVideoStartBitrate && original.sdp === munged)
+          this.hasAppliedVideoStartBitrate = true;
       }
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
@@ -622,7 +628,75 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     }
   }, debounceInterval);
 
-  async createInitialOffer() {
+  /** Applies the same codec and start-bitrate policy to initial and later publisher offers. */
+  private preparePublisherOffer(
+    sdpParsed: ReturnType<typeof parse>,
+    stereo = true,
+    initial = false,
+  ) {
+    // One value for every video m-section, written only on the first offer that carries
+    // local video: the hint is connection-level in libwebrtc, so differing per-section
+    // values would be last-writer-wins on m-section order. Offers before any video is
+    // published (data channel or audio only) find no target and leave the latch unset.
+    const connectionStartBitrate = this.hasAppliedVideoStartBitrate
+      ? undefined
+      : computeConnectionStartBitrate(
+          sdpParsed.media,
+          this.trackBitrates,
+          this.connectionSetupTimeEstimateMs(),
+        );
+    let appliedVideoStartBitrate = false;
+    sdpParsed.media.forEach((media) => {
+      ensureIPAddrMatchVersion(media);
+      if (media.type === 'audio') {
+        ensureAudioNackAndStereo(media, stereo ? ['all'] : [], this.offeredAudioNackMids);
+      } else if (media.type === 'video') {
+        this.trackBitrates.some((trackbr): boolean => {
+          if (!trackbr.cid) {
+            return false;
+          }
+
+          const codecPayload = findTrackCodecPayload(media, trackbr.cid, trackbr.codec);
+          if (codecPayload === undefined) {
+            return false;
+          }
+
+          if (codecPayload > 0) {
+            if (connectionStartBitrate !== undefined) {
+              appliedVideoStartBitrate =
+                applyVideoStartBitrate(media, codecPayload, connectionStartBitrate) ||
+                appliedVideoStartBitrate;
+            }
+
+            if (isSVCCodec(trackbr.codec) && !isSafari()) {
+              this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
+            }
+          }
+
+          return true;
+        });
+      }
+    });
+    // Conform the placeholder sections (pre-populated, or reverted after an
+    // unpublish on a server below protocol 19, which keeps the transceiver; from
+    // protocol 19 unpublish stops it) so every shared payload type carries
+    // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
+    // payload type collision".
+    // Detection is by transceiver (mids are stable across renegotiations) since
+    // an unpublished section keeps its `a=msid`.
+    const placeholderMids = this.getPlaceholderMids();
+    if (initial || placeholderMids.size > 0) {
+      conformBundledCodecFmtp(
+        sdpParsed.media,
+        (media) =>
+          placeholderMids.has(getMidString(media.mid!)) ||
+          (initial && media.direction === 'recvonly'),
+      );
+    }
+    return { connectionStartBitrate, appliedVideoStartBitrate };
+  }
+
+  async createInitialOffer(prepare?: (sdp: string) => void) {
     const unlock = await this.offerLock.lock();
     try {
       if (this.pc.signalingState !== 'stable') {
@@ -633,15 +707,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
       const original = { sdp: offer.sdp, type: offer.type };
+      prepare?.(offer.sdp ?? '');
       const sdpParsed = parse(offer.sdp ?? '');
-      sdpParsed.media.forEach((media) => {
-        ensureIPAddrMatchVersion(media);
-        if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, [], this.offeredAudioNackMids);
-        }
-      });
+      const { appliedVideoStartBitrate } = this.preparePublisherOffer(sdpParsed, false, true);
       offer.sdp = write(sdpParsed);
-      this.pendingInitialOffer = { original, munged: offer.sdp };
+      this.pendingInitialOffer = { original, munged: offer.sdp, appliedVideoStartBitrate };
       return { offer, offerId };
     } finally {
       unlock();
@@ -697,62 +767,8 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.log.debug('original offer', { sdp: offer.sdp });
 
       const sdpParsed = parse(offer.sdp ?? '');
-      // One value for every video m-section, written only on the first offer that carries
-      // local video: the hint is connection-level in libwebrtc, so differing per-section
-      // values would be last-writer-wins on m-section order. Offers before any video is
-      // published (data channel or audio only) find no target and leave the latch unset.
-      const connectionStartBitrate = this.hasAppliedVideoStartBitrate
-        ? undefined
-        : computeConnectionStartBitrate(
-            sdpParsed.media,
-            this.trackBitrates,
-            this.connectionSetupTimeEstimateMs(),
-          );
-      let appliedVideoStartBitrate = false;
-      sdpParsed.media.forEach((media) => {
-        ensureIPAddrMatchVersion(media);
-        if (media.type === 'audio') {
-          ensureAudioNackAndStereo(media, ['all'], this.offeredAudioNackMids);
-        } else if (media.type === 'video') {
-          this.trackBitrates.some((trackbr): boolean => {
-            if (!trackbr.cid) {
-              return false;
-            }
-
-            const codecPayload = findTrackCodecPayload(media, trackbr.cid, trackbr.codec);
-            if (codecPayload === undefined) {
-              return false;
-            }
-
-            if (codecPayload > 0) {
-              if (connectionStartBitrate !== undefined) {
-                appliedVideoStartBitrate =
-                  applyVideoStartBitrate(media, codecPayload, connectionStartBitrate) ||
-                  appliedVideoStartBitrate;
-              }
-
-              if (isSVCCodec(trackbr.codec) && !isSafari()) {
-                this.ddExtID = ensureVideoDDExtension(media, sdpParsed, this.ddExtID);
-              }
-            }
-
-            return true;
-          });
-        }
-      });
-      // Conform the placeholder sections (pre-populated, or reverted after an
-      // unpublish on a server below protocol 19, which keeps the transceiver; from
-      // protocol 19 unpublish stops it) so every shared payload type carries
-      // identical fmtp across the bundle, otherwise libwebrtc flags a "bundled
-      // payload type collision".
-      // Detection is by transceiver (mids are stable across renegotiations) since
-      // an unpublished section keeps its `a=msid`.
-      const placeholderMids = this.getPlaceholderMids();
-      if (placeholderMids.size > 0) {
-        conformBundledCodecFmtp(sdpParsed.media, (media) =>
-          placeholderMids.has(getMidString(media.mid!)),
-        );
-      }
+      const { connectionStartBitrate, appliedVideoStartBitrate } =
+        this.preparePublisherOffer(sdpParsed);
       if (this.latestOfferId > offerId) {
         this.log.warn('latestOfferId mismatch', {
           latestOfferId: this.latestOfferId,
