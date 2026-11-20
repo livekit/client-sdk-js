@@ -43,6 +43,11 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
+import {
+  type PreparePublicationOptions,
+  type PreparedPublication,
+  PreparedPublicationState,
+} from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -451,6 +456,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return;
     }
     this.disposed = true;
+    for (const prepared of this.preparedPublications) prepared.disconnected();
     if (this.state !== ConnectionState.Disconnected) {
       await this.disconnect();
     }
@@ -726,6 +732,27 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   }
 
+  private readonly preparedPublications = new Set<PreparedPublicationState>();
+
+  private readonly pendingInitialTrackSubscriptions = new Set<string>();
+
+  /** Prepares publication metadata without opening a device. Supply the handle to connect. @experimental */
+  preparePublication(options: PreparePublicationOptions): PreparedPublication {
+    if (this.disposed || this.state !== ConnectionState.Disconnected) {
+      throw new UnexpectedConnectionState('prepare publications before connecting');
+    }
+    const prepared = this.localParticipant.preparePublication(options, (p) => {
+      this.preparedPublications.delete(p);
+      if (this.preparedPublications.size === 0) this.pendingInitialTrackSubscriptions.clear();
+      if (this.engine)
+        this.engine.initialPublications = this.engine.initialPublications.filter(
+          (plan) => plan !== p,
+        );
+    });
+    this.preparedPublications.add(prepared);
+    return prepared;
+  }
+
   connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
@@ -760,6 +787,25 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       unlockDisconnect();
       return this.connectFuture.promise;
     }
+
+    const initialPublications = opts?.initialPublications ?? [];
+    if (new Set(initialPublications).size !== initialPublications.length) {
+      unlockDisconnect();
+      throw new UnexpectedConnectionState('a preparation can only be supplied once');
+    }
+    for (const prepared of initialPublications) {
+      if (
+        !(prepared instanceof PreparedPublicationState) ||
+        !this.preparedPublications.has(prepared) ||
+        prepared.claimed ||
+        prepared.isCancelled
+      ) {
+        unlockDisconnect();
+        throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
+      }
+    }
+    for (const prepared of opts?.initialPublications ?? [])
+      (prepared as PreparedPublicationState).claimed = true;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -976,6 +1022,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
+    engine.initialPublications = (this.connOptions.initialPublications ??
+      []) as PreparedPublicationState[];
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;
@@ -1046,6 +1094,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    for (const prepared of this.preparedPublications) prepared.connectionReady();
+    this.connOptions.initialPublications = undefined;
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1063,6 +1113,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
+        for (const prepared of this.preparedPublications) prepared.disconnected();
         this.log.debug('already disconnected');
         return;
       }
@@ -1710,6 +1761,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return;
     }
 
+    if (Array.from(this.preparedPublications).some((plan) => plan.claimed)) {
+      // Device permission can take arbitrarily long. The preparation/room lifecycle,
+      // rather than the ordinary publish timeout, owns these deferred notifications.
+      this.pendingInitialTrackSubscriptions.add(subscribedSid);
+      return;
+    }
+
     // the track publication may not be registered yet if the server signals
     // the subscription before publishTrack has finished adding the publication.
     // defer with a timeout until LocalTrackPublished fires for the matching trackSid
@@ -1816,6 +1874,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
+    this.pendingInitialTrackSubscriptions.clear();
+    for (const prepared of this.preparedPublications) prepared.disconnected();
+
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
@@ -2787,6 +2848,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     pub.track?.getProcessor()?.onPublish?.(this);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+    if (this.pendingInitialTrackSubscriptions.delete(pub.trackSid))
+      this.emitLocalTrackSubscribed(pub);
 
     if (isLocalAudioTrack(pub.track)) {
       const trackIsSilent = await pub.track.checkForSilence();

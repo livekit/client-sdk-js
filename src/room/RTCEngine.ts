@@ -45,6 +45,7 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
+import { parse as parseInitialSDP } from 'sdp-transform';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -70,6 +71,7 @@ import { TTLMap } from '../utils/ttlmap';
 import { PROTOCOL_NEGOTIATED_DATA_CHANNELS } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
+import type { PreparedPublicationState } from './PreparedPublication';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DataChannelManager } from './data-channel/DataChannelManager';
 import type { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
@@ -93,7 +95,7 @@ import type LocalTrackPublication from './track/LocalTrackPublication';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
-import type { Track } from './track/Track';
+import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
@@ -217,6 +219,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private _isClosed: boolean = true;
 
   private _isNewlyCreated: boolean = true;
+
+  /** Startup reservations supplied by the room; never wait for device capture. @internal */
+  initialPublications: PreparedPublicationState[] = [];
+
+  private initialTrackRequests: AddTrackRequest[] = [];
 
   private pendingTrackResolvers: {
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
@@ -399,9 +406,83 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // channels and fall back to in-band ones below if the server is too old.
           this.applyInitialPublisherLayout(true);
         }
-        const offer = await this.pcManager?.publisher.createInitialOffer();
-        if (offer) {
-          offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+        const canPreparePublications =
+          !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled;
+        const preparingPublications =
+          canPreparePublications &&
+          this.initialPublications.some((plan) => plan.canSendWithJoin && !plan.isCancelled);
+        try {
+          const reservations: {
+            plan: PreparedPublicationState;
+            transceiver: RTCRtpTransceiver;
+            stream: string;
+          }[] = [];
+          for (const plan of canPreparePublications ? this.initialPublications : []) {
+            if (!plan.canSendWithJoin || plan.isCancelled || plan.hasInitialSender) continue;
+            const stream = new MediaStream();
+            const transceiver = await this.pcManager!.addPublisherTransceiverOfKind(
+              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+              {
+                direction: 'sendonly',
+                streams: [stream],
+                sendEncodings: plan.encodings,
+              },
+            );
+            const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
+            const codecs = RTCRtpSender.getCapabilities(
+              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+            )!.codecs.filter(
+              (c) =>
+                c.mimeType.toLowerCase() === mime ||
+                (plan.kind === Track.Kind.Audio
+                  ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
+                  : c.mimeType.toLowerCase() === 'video/rtx'),
+            );
+            transceiver.setCodecPreferences(codecs);
+            reservations.push({ plan, transceiver, stream: stream.id });
+          }
+          const requests: AddTrackRequest[] = [];
+          const offer = await this.pcManager?.publisher.createInitialOffer((sdp) => {
+            const media = parseInitialSDP(sdp).media;
+            for (const { plan, transceiver, stream } of reservations) {
+              const section = media.find(
+                (m) => typeof m.msid === 'string' && m.msid.startsWith(`${stream} `),
+              );
+              const cid = section?.msid?.split(' ')[1];
+              if (!cid)
+                throw new UnexpectedConnectionState('prepared sender has no SDP track identity');
+              plan.assertActive();
+              plan.request.cid = cid;
+              if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
+              const accepted = this.waitForTrackPublished(plan.request);
+              plan.reserve({
+                engine: this,
+                transport: this.pcManager!.publisher,
+                transceiver,
+                accepted,
+              });
+              requests.push(plan.request);
+              if (plan.startBitrate) {
+                this.pcManager!.publisher.setTrackCodecBitrate({
+                  cid,
+                  codec: plan.codec,
+                  maxbr: plan.startBitrate / 1000,
+                });
+              }
+            }
+          });
+          if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+          this.initialTrackRequests = requests;
+        } catch (error) {
+          if (!preparingPublications) throw error;
+          // A browser unable to reserve a trackless sender must still be able to join.
+          this.log.warn('initial publication preparation failed; deferring publication', { error });
+          this.pcManager!.onStateChange = undefined;
+          await this.cleanupPeerConnections();
+          await this.configure();
+          this.applyInitialPublisherLayout(true);
+          const offer = await this.pcManager!.publisher.createInitialOffer();
+          if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
       }
 
@@ -420,6 +501,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         abortSignal,
         useV0Path,
         offerProto,
+        this.initialTrackRequests,
       );
       if (abortSignal?.aborted) {
         this.log.info('join cancelled after the signal join response');
@@ -485,6 +567,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       return { joinResponse, serverInfo };
     } catch (e) {
+      if (this.initialTrackRequests.length) {
+        for (const plan of this.initialPublications) plan.fallback();
+        this.initialTrackRequests = [];
+        if (this.pcManager) this.pcManager.onStateChange = undefined;
+        await this.cleanupPeerConnections();
+      }
       if (e instanceof ConnectionError) {
         if (e.reason === ConnectionErrorReason.ServerUnreachable) {
           this.log.warn(
@@ -539,6 +627,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
+    for (const plan of this.initialPublications) plan.fallback();
+    this.initialTrackRequests = [];
     this.dataChannels.teardown();
 
     await this.pcManager?.close();
@@ -567,6 +657,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
+    const accepted = this.waitForTrackPublished(req);
+    this.client.sendAddTrack(req);
+    return accepted;
+  }
+
+  /** Cancels only the waiter belonging to this publication. @internal */
+  cancelPendingTrack(cid: string) {
+    const pending = this.pendingTrackResolvers[cid];
+    delete this.pendingTrackResolvers[cid];
+    pending?.reject();
+  }
+
+  private waitForTrackPublished(req: AddTrackRequest): Promise<TrackInfo> {
     if (this.pendingTrackResolvers[req.cid]) {
       throw new TrackInvalidError('a track with the same ID has already been published');
     }
@@ -587,7 +690,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reject(new Error('Cancelled publication by calling unpublish'));
         },
       };
-      this.client.sendAddTrack(req);
     });
   }
 

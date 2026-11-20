@@ -31,6 +31,7 @@ import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-
 import TypedPromise from '../../utils/TypedPromise';
 import DeviceManager from '../DeviceManager';
 import { PCTransportState } from '../PCTransportManager';
+import { type PreparePublicationOptions, PreparedPublicationState } from '../PreparedPublication';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
 import {
@@ -55,6 +56,7 @@ import type {
   ScreenShareCaptureOptions,
   TrackPublishOptions,
   VideoCaptureOptions,
+  VideoCodec,
 } from '../track/options';
 import {
   getLogContextFromTrack,
@@ -73,6 +75,7 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isPermissionDeniedError,
+  isReactNative,
   isVideoTrack,
   isWeb,
   sleep,
@@ -88,6 +91,13 @@ import type RemoteParticipant from './RemoteParticipant';
  * @experimental
  */
 export interface VideoPublisher {
+  /** Computes a conservative, device-free initial video envelope. Unsupported configurations defer. */
+  prepareInitial?(
+    format: { width: number; height: number; frameRate?: number },
+    opts: TrackPublishOptions,
+    req: AddTrackRequest,
+  ): { encodings: RTCRtpEncodingParameters[]; startBitrate: number } | undefined;
+
   /**
    * Chooses the codec, settles simulcast and SVC and fills `req` (dimensions, layers, codecs).
    * Returns the encodings for the sender.
@@ -633,6 +643,101 @@ export class LocalParticipant extends Participant {
     return this.slots.videoPublisher;
   }
 
+  /** Builds a room-owned, device-free publication plan. @internal */
+  preparePublication(
+    specification: PreparePublicationOptions,
+    release: (prepared: PreparedPublicationState) => void,
+  ): PreparedPublicationState {
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions.publishDefaults,
+      ...specification.publishOptions,
+      source: specification.source,
+    };
+    if (
+      specification.source !== Track.Source.Microphone &&
+      specification.source !== Track.Source.Camera
+    ) {
+      throw new TrackInvalidError('only microphone and camera publications can be prepared');
+    }
+    if (specification.source === Track.Source.Microphone) {
+      if (
+        specification.format &&
+        specification.publishOptions?.forceStereo !== undefined &&
+        specification.publishOptions.forceStereo !== (specification.format.channelCount === 2)
+      ) {
+        throw new TrackInvalidError('audio format and forceStereo disagree');
+      }
+      opts.forceStereo = specification.format
+        ? specification.format.channelCount === 2
+        : (opts.forceStereo ?? false);
+    }
+    const req = new AddTrackRequest();
+    const video = specification.source === Track.Source.Camera;
+    if (
+      video &&
+      (![specification.format.width, specification.format.height].every(
+        (n) => Number.isFinite(n) && n > 0,
+      ) ||
+        (specification.format.frameRate !== undefined &&
+          (!Number.isFinite(specification.format.frameRate) ||
+            specification.format.frameRate <= 0)))
+    ) {
+      throw new TrackInvalidError(
+        'video format must have positive finite dimensions and frame rate',
+      );
+    }
+    const initialVideo =
+      specification.source === Track.Source.Camera
+        ? this.slots.videoPublisher?.prepareInitial?.(specification.format, opts, req)
+        : undefined;
+    const encodings = video
+      ? initialVideo?.encodings
+      : [
+          {
+            maxBitrate: opts.audioPreset?.maxBitrate,
+            priority: opts.audioPreset?.priority ?? 'high',
+            networkPriority: opts.audioPreset?.priority ?? 'high',
+          } as RTCRtpEncodingParameters,
+        ];
+    const codec = video ? (opts.videoCodec ?? 'vp8') : 'opus';
+    const available =
+      typeof RTCRtpSender !== 'undefined' &&
+      RTCRtpSender.getCapabilities?.(video ? 'video' : 'audio')?.codecs.some(
+        (c) => c.mimeType.toLowerCase() === `${video ? 'video' : 'audio'}/${codec}`,
+      );
+    const eligible =
+      !!available &&
+      !!encodings &&
+      !isReactNative() &&
+      !this.slots.e2eeManager &&
+      !this.slots.frameMetadataOptions &&
+      !opts.frameMetadata;
+    const prepared = new PreparedPublicationState(
+      specification.source === Track.Source.Camera
+        ? { ...specification, format: { ...specification.format } }
+        : { ...specification },
+      opts,
+      encodings ?? [],
+      codec,
+      eligible,
+      (track, plan) => this.publishOrRepublishTrack(track, opts, false, false, plan),
+      release,
+    );
+    if (specification.source === Track.Source.Camera) {
+      prepared.startBitrate = initialVideo?.startBitrate;
+      prepared.request.width = req.width;
+      prepared.request.height = req.height;
+      prepared.request.layers = req.layers;
+      prepared.request.simulcastCodecs = req.simulcastCodecs;
+    } else {
+      if (opts.forceStereo) prepared.request.audioFeatures.push(AudioTrackFeature.TF_STEREO);
+      if (opts.dtx === false) prepared.request.audioFeatures.push(AudioTrackFeature.TF_NO_DTX);
+      if (opts.preConnectBuffer)
+        prepared.request.audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
+    }
+    return prepared;
+  }
+
   /**
    * Publish a new track to the room
    * @param track
@@ -678,6 +783,7 @@ export class LocalParticipant extends Participant {
     options?: TrackPublishOptions,
     isRepublish = false,
     hasRetriedAfterNegotiationError = false,
+    prepared?: PreparedPublicationState,
   ): Promise<LocalTrackPublication> {
     if (isLocalAudioTrack(track)) {
       await track.setAudioContext(this.audioContext);
@@ -815,11 +921,11 @@ export class LocalParticipant extends Participant {
           if (publicationTimedOut) {
             return;
           }
-          const publication = await this.publish(track, opts, isStereo);
+          const publication = await this.publish(track, opts, isStereo, prepared);
           resolve(publication);
         } else {
           try {
-            const publication = await this.publish(track, opts, isStereo);
+            const publication = await this.publish(track, opts, isStereo, prepared);
             resolve(publication);
           } catch (e) {
             reject(e);
@@ -872,7 +978,13 @@ export class LocalParticipant extends Participant {
     return false;
   }
 
-  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+    prepared?: PreparedPublicationState,
+  ) {
+    const reserved = prepared ? await prepared.senderFor(track, this.engine) : undefined;
     if (!this.hasPermissionsToPublish(track)) {
       throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
     }
@@ -924,26 +1036,30 @@ export class LocalParticipant extends Participant {
       this.normalizeRequestedFrameMetadataOptions(track, opts);
 
     // create track publication from track
-    const req = new AddTrackRequest({
-      // get local track id for use during publishing
-      cid: track.mediaStreamTrack.id,
-      name: opts.name,
-      type: Track.kindToProto(track.kind),
-      muted: track.isMuted,
-      source: Track.sourceToProto(track.source),
-      disableDtx,
-      encryption: this.encryptionType,
-      stereo: isStereo,
-      disableRed: this.isE2EEEnabled || !(opts.red ?? true),
-      stream: opts?.stream,
-      backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
-      audioFeatures,
-      packetTrailerFeatures,
-    });
+    const req = reserved
+      ? prepared!.request
+      : new AddTrackRequest({
+          // get local track id for use during publishing
+          cid: track.mediaStreamTrack.id,
+          name: opts.name,
+          type: Track.kindToProto(track.kind),
+          muted: track.isMuted,
+          source: Track.sourceToProto(track.source),
+          disableDtx,
+          encryption: this.encryptionType,
+          stereo: isStereo,
+          disableRed: this.isE2EEEnabled || !(opts.red ?? true),
+          stream: opts?.stream,
+          backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
+          audioFeatures,
+          packetTrailerFeatures,
+        });
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
-    if (isLocalVideoTrack(track)) {
+    if (reserved) {
+      encodings = prepared!.encodings;
+    } else if (isLocalVideoTrack(track)) {
       encodings = await this.requireVideoPublisher().prepare(track, opts, req);
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
@@ -964,7 +1080,22 @@ export class LocalParticipant extends Participant {
         throw new UnexpectedConnectionState('pcManager is not ready');
       }
 
-      track.sender = await this.engine.createSender(track, opts, encodings);
+      if (reserved) {
+        prepared!.assertActive();
+        await reserved.transceiver.sender.replaceTrack(track.mediaStreamTrack);
+        prepared!.assertActive();
+        if (
+          this.engine !== reserved.engine ||
+          this.engine.isClosed ||
+          this.engine.pcManager?.publisher !== reserved.transport
+        ) {
+          throw new UnexpectedConnectionState('connection changed while attaching prepared media');
+        }
+        track.sender = reserved.transceiver.sender;
+        if (isLocalVideoTrack(track)) track.codec = prepared!.codec as VideoCodec;
+      } else {
+        track.sender = await this.engine.createSender(track, opts, encodings);
+      }
       if (isLocalVideoTrack(track)) {
         track.publishOptions = opts;
       }
@@ -1000,13 +1131,13 @@ export class LocalParticipant extends Participant {
         }
       }
 
-      await this.engine.negotiate();
+      if (!reserved) await this.engine.negotiate();
     };
 
     let ti: TrackInfo;
     const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
       try {
-        ti = await this.engine.addTrack(req);
+        ti = await (reserved ? reserved.accepted : this.engine.addTrack(req));
         resolve(ti);
       } catch (err) {
         if (track.sender && this.engine.pcManager?.publisher) {
@@ -1033,7 +1164,10 @@ export class LocalParticipant extends Participant {
         reject(err);
       }
     });
-    if (this.enabledPublishVideoCodecs.length > 0 && packetTrailerFeatures.length === 0) {
+    if (
+      reserved ||
+      (this.enabledPublishVideoCodecs.length > 0 && packetTrailerFeatures.length === 0)
+    ) {
       const rets = await Promise.all([addTrackPromise, negotiate()]);
       ti = rets[0];
     } else {
@@ -1046,6 +1180,7 @@ export class LocalParticipant extends Participant {
       await negotiate();
     }
 
+    prepared?.assertActive();
     const publication = new LocalTrackPublication(track.kind, ti, track, {
       loggerName: this.roomOptions.loggerName,
       loggerContextCb: () => this.logContext,
@@ -1056,6 +1191,12 @@ export class LocalParticipant extends Participant {
     // save options for when it needs to be republished again
     publication.options = opts;
     track.sid = ti.sid;
+    if (reserved) {
+      // Capture-dependent features and mute state are unavailable when constructing JOIN.
+      if (track.kind === Track.Kind.Audio)
+        this.engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
+      if (track.isMuted) this.engine.updateMuteStatus(ti.sid, true);
+    }
 
     // keep publish options on the video track so that it can recompute encoding
     // parameters when the MediaStreamTrack is restarted (e.g. after switching cameras).
@@ -1077,26 +1218,25 @@ export class LocalParticipant extends Participant {
     }
 
     this.addTrackPublication(publication);
-    // send event for publication
-    this.emit(ParticipantEvent.LocalTrackPublished, publication);
-
     if (
       isLocalAudioTrack(track) &&
       ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
     ) {
       const stream = track.getPreConnectBuffer();
       const mimeType = track.getPreConnectBufferMimeType();
-      // TODO: we're registering the listener after negotiation, so there might be a race
-      this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
-        if (pub.trackSid === ti.sid) {
-          if (!track.hasPreConnectBuffer) {
-            this.log.warn('subscribe event came to late, buffer already closed');
-            return;
-          }
-          this.log.debug('finished recording preconnect buffer', getLogContextFromTrack(track));
-          track.stopPreConnectBuffer();
-        }
-      });
+      const finishBuffer = () => {
+        this.off(ParticipantEvent.LocalTrackSubscribed, onSubscribed);
+        this.off(ParticipantEvent.LocalTrackUnpublished, onUnpublished);
+        track.stopPreConnectBuffer();
+      };
+      const onSubscribed = (pub: LocalTrackPublication) => {
+        if (pub.trackSid === ti.sid) finishBuffer();
+      };
+      const onUnpublished = (pub: LocalTrackPublication) => {
+        if (pub.trackSid === ti.sid) finishBuffer();
+      };
+      this.on(ParticipantEvent.LocalTrackSubscribed, onSubscribed);
+      this.on(ParticipantEvent.LocalTrackUnpublished, onUnpublished);
 
       if (stream) {
         const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
@@ -1145,6 +1285,9 @@ export class LocalParticipant extends Participant {
           });
       }
     }
+    // A subscription deferred during JOIN is replayed by the room synchronously here.
+    // Install buffer listeners first so that replay cannot be missed.
+    this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
   }
 
