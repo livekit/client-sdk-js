@@ -1,3 +1,4 @@
+import { SignalClientEvent } from '../../api/SignalClient';
 import { ConnectionState } from '../../room/CoreRoom';
 import { RoomEvent } from '../../room/events';
 import { Checker } from './Checker';
@@ -31,10 +32,7 @@ export class ReconnectCheck extends Checker {
       });
 
     room.engine.client.ws?.close();
-    const onClose = room.engine.client.onClose;
-    if (onClose) {
-      onClose('');
-    }
+    room.engine.client.emit(SignalClientEvent.Close, '');
 
     await reconnectTimeout;
 

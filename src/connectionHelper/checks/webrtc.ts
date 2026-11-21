@@ -1,3 +1,4 @@
+import { SignalClientEvent } from '../../api/SignalClient';
 import log from '../../logger';
 import { RoomEvent } from '../../room/events';
 import { Checker } from './Checker';
@@ -11,10 +12,8 @@ export class WebRTCCheck extends Checker {
     let hasTcp = false;
     let hasIpv4Udp = false;
     this.room.on(RoomEvent.SignalConnected, () => {
-      const prevTrickle = this.room.engine.client.onTrickle;
-
       const candidates: RTCIceCandidate[] = [];
-      this.room.engine.client.onTrickle = (sd, target) => {
+      this.room.engine.client.on(SignalClientEvent.Trickle, (sd) => {
         if (sd.candidate) {
           const candidate = new RTCIceCandidate(sd);
           candidates.push(candidate);
@@ -33,10 +32,7 @@ export class WebRTCCheck extends Checker {
           }
           this.appendMessage(str);
         }
-        if (prevTrickle) {
-          prevTrickle(sd, target);
-        }
-      };
+      });
 
       if (this.room.engine.pcManager?.subscriber) {
         this.room.engine.pcManager.subscriber.onIceCandidateError = (ev) => {
