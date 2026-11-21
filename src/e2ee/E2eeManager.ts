@@ -275,26 +275,29 @@ export class E2EEManager
   private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
     const { kind, data } = ev.data;
     switch (kind) {
-      case 'error':
+      case 'error': {
+        const error = new Error(data.error.message);
+        error.name = data.error.name;
         // If error has uuid, it's from an async operation (encrypt/decrypt).
         // Reject the corresponding future and let the caller decide how to log/handle;
         // logging here would duplicate whatever the caller does.
         if (data.uuid) {
           const decryptFuture = this.decryptDataRequests.get(data.uuid);
           if (decryptFuture?.reject) {
-            decryptFuture.reject(data.error);
+            decryptFuture.reject(error);
             break;
           }
 
           const encryptFuture = this.encryptDataRequests.get(data.uuid);
           if (encryptFuture?.reject) {
-            encryptFuture.reject(data.error);
+            encryptFuture.reject(error);
             break;
           }
         }
-        this.log.error(data.error.message);
-        this.emit(EncryptionEvent.EncryptionError, data.error, data.participantIdentity);
+        this.log.error(error.message);
+        this.emit(EncryptionEvent.EncryptionError, error, data.participantIdentity);
         break;
+      }
       case 'initAck':
         if (data.enabled) {
           this.keyProvider.getKeys().forEach((keyInfo) => {

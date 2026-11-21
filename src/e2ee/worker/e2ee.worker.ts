@@ -161,7 +161,10 @@ onmessage = (ev) => {
           postMessage({
             kind: 'error',
             data: {
-              error: error instanceof Error ? error : new Error(String(error)),
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message }
+                  : { name: 'Error', message: String(error) },
               uuid: data.uuid, // Include uuid to match with the pending request
             },
           } satisfies ErrorMessage);
@@ -363,7 +366,10 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
     const msg: ErrorMessage = {
       kind: 'error',
       data: {
-        error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`),
+        error: {
+          name: 'Error',
+          message: `${CryptorErrorReason[error.reason]}: ${error.message}`,
+        },
         participantIdentity: error.participantIdentity,
       },
     };
