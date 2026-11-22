@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { E2EEWorkerMessage } from '../types';
 import { createKeyMaterialFromString } from '../utils';
@@ -9,10 +9,34 @@ describe('e2ee worker', () => {
   const post = (msg: E2EEWorkerMessage) =>
     (globalThis.onmessage as (ev: { data: E2EEWorkerMessage }) => void)({ data: msg });
 
+  // Messages the worker posted back, like `worker.onmessage` on the main thread
+  let replies: E2EEWorkerMessage[] = [];
+
+  // The worker handles its messages one after the other. `enable` is acknowledged by echoing it
+  // back, so once the echo of this barrier arrives every message posted before it has been handled.
+  let barrierCount = 0;
+  const waitUntilWorkerHasProcessedAllMessages = async () => {
+    const participantIdentity = `barrier-${(barrierCount += 1)}`;
+    post({ kind: 'enable', data: { enabled: false, participantIdentity } });
+    await vi.waitFor(() =>
+      expect(
+        replies.some(
+          (r) => r.kind === 'enable' && r.data.participantIdentity === participantIdentity,
+        ),
+      ).toBe(true),
+    );
+  };
+
   beforeAll(async () => {
     // The test runs outside of a worker scope: give the worker a place to post its replies
-    globalThis.postMessage = () => {};
+    globalThis.postMessage = (msg: E2EEWorkerMessage) => {
+      replies.push(msg);
+    };
     await import('./e2ee.worker');
+  });
+
+  beforeEach(() => {
+    replies = [];
   });
 
   afterEach(() => {
@@ -72,8 +96,7 @@ describe('e2ee worker', () => {
     });
     post({ kind: 'removeTransform', data: { participantIdentity: 'remote', trackId: 'mic' } });
 
-    // The worker handles its messages one after the other: wait until it is through
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitUntilWorkerHasProcessedAllMessages();
 
     // Send a frame of 16 bytes on the local track
     senderInput.enqueue({
@@ -82,10 +105,9 @@ describe('e2ee worker', () => {
       type: 'key',
       getMetadata: () => ({}),
     } as RTCEncodedVideoFrame);
-    await new Promise((resolve) => setTimeout(resolve, 20));
 
     // The sent frame is longer, because encryption appends the IV and the trailer
-    expect(sentFrames).toHaveLength(1);
+    await vi.waitFor(() => expect(sentFrames).toHaveLength(1));
     expect(sentFrames[0].data.byteLength).toBeGreaterThan(16);
   });
 
@@ -133,8 +155,7 @@ describe('e2ee worker', () => {
       },
     });
 
-    // The worker handles its messages one after the other: wait until it is through
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitUntilWorkerHasProcessedAllMessages();
 
     // Receive a frame on the encrypted track
     receiverInput.enqueue({
@@ -143,9 +164,20 @@ describe('e2ee worker', () => {
       type: 'key',
       getMetadata: () => ({}),
     } as RTCEncodedVideoFrame);
-    await new Promise((resolve) => setTimeout(resolve, 20));
 
-    // The frame cannot be decrypted without a key, so it does not reach the decoder
+    // The frame cannot be decrypted without a key: the worker reports the missing key, and the frame
+    // does not reach the decoder
+    await vi.waitFor(() =>
+      expect(replies).toContainEqual(
+        expect.objectContaining({
+          kind: 'error',
+          data: expect.objectContaining({
+            participantIdentity: 'alice',
+            error: expect.objectContaining({ message: expect.stringContaining('MissingKey') }),
+          }),
+        }),
+      ),
+    );
     expect(decodedFrames).toStrictEqual([]);
   });
 });
