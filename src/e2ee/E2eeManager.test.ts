@@ -155,7 +155,7 @@ describe('E2EEManager worker errors', () => {
     manager.on(EncryptionEvent.EncryptionError, onError);
 
     const data = {
-      error: { name: 'Error', message: 'InvalidKey: no key' },
+      error: { name: 'Error', message: 'InvalidKey: no key', stack: 'stack from the worker' },
       participantIdentity: 'alice',
     };
     worker.onmessage!({ data: { kind: 'error', data } } as MessageEvent);
@@ -163,6 +163,7 @@ describe('E2EEManager worker errors', () => {
     const [error, identity] = onError.mock.calls[0];
     expect(error).toBeInstanceOf(Error);
     expect(error.message).toBe('InvalidKey: no key');
+    expect(error.stack).toBe('stack from the worker');
     expect(identity).toBe('alice');
     manager.dispose();
   });

@@ -278,6 +278,10 @@ export class E2EEManager
       case 'error': {
         const error = new Error(data.error.message);
         error.name = data.error.name;
+        if (data.error.stack) {
+          // the stack from the worker, which shows where the error started
+          error.stack = data.error.stack;
+        }
         // If error has uuid, it's from an async operation (encrypt/decrypt).
         // Reject the corresponding future and let the caller decide how to log/handle;
         // logging here would duplicate whatever the caller does.

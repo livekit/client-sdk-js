@@ -163,7 +163,7 @@ onmessage = (ev) => {
             data: {
               error:
                 error instanceof Error
-                  ? { name: error.name, message: error.message }
+                  ? { name: error.name, message: error.message, stack: error.stack }
                   : { name: 'Error', message: String(error) },
               uuid: data.uuid, // Include uuid to match with the pending request
             },
@@ -369,6 +369,7 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
         error: {
           name: 'Error',
           message: `${CryptorErrorReason[error.reason]}: ${error.message}`,
+          stack: error.stack,
         },
         participantIdentity: error.participantIdentity,
       },
