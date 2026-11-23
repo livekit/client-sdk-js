@@ -27,16 +27,19 @@ describe('e2ee worker', () => {
     );
   };
 
+  // The test runs outside of a worker scope: give the worker a place to post its replies
+  const recordReply = (msg: E2EEWorkerMessage) => {
+    replies.push(msg);
+  };
+
   beforeAll(async () => {
-    // The test runs outside of a worker scope: give the worker a place to post its replies
-    globalThis.postMessage = (msg: E2EEWorkerMessage) => {
-      replies.push(msg);
-    };
+    globalThis.postMessage = recordReply;
     await import('./e2ee.worker');
   });
 
   beforeEach(() => {
     replies = [];
+    globalThis.postMessage = recordReply;
   });
 
   afterEach(() => {
@@ -46,7 +49,6 @@ describe('e2ee worker', () => {
 
   it('replies to a failed data decryption when postMessage cannot clone an Error', async () => {
     // Safari before version 17 throws for a message that contains an Error
-    const replies: E2EEWorkerMessage[] = [];
     globalThis.postMessage = ((msg: E2EEWorkerMessage) => {
       const values = Object.values({ ...msg.data, ...(msg.data as { context?: object }).context });
       if (values.some((value) => value instanceof Error)) {
