@@ -118,7 +118,8 @@ export interface RatchetMessage extends BaseMessage {
 export interface ErrorMessage extends BaseMessage {
   kind: 'error';
   data: {
-    error: Error;
+    // A plain object, because Safari before version 17 cannot post an `Error` to the page
+    error: { name: string; message: string; stack?: string };
     participantIdentity?: string;
     uuid?: string; // Optional: used for async operation errors (decrypt/encrypt)
   };

@@ -17,6 +17,40 @@ describe('e2ee worker', () => {
 
   afterEach(() => {
     setLocalEncryptionEnabled(undefined);
+    globalThis.postMessage = () => {};
+  });
+
+  it('replies to a failed data decryption when postMessage cannot clone an Error', async () => {
+    // Safari before version 17 throws for a message that contains an Error
+    const replies: E2EEWorkerMessage[] = [];
+    globalThis.postMessage = ((msg: E2EEWorkerMessage) => {
+      const values = Object.values({ ...msg.data, ...(msg.data as { context?: object }).context });
+      if (values.some((value) => value instanceof Error)) {
+        throw new DOMException('The object can not be cloned.', 'DataCloneError');
+      }
+      replies.push(msg);
+    }) as typeof globalThis.postMessage;
+
+    post({
+      kind: 'init',
+      data: { keyProviderOptions: { ...KEY_PROVIDER_DEFAULTS, sharedKey: false }, loglevel: 4 },
+    });
+    // No key is set for this participant, so the decryption fails
+    post({
+      kind: 'decryptDataRequest',
+      data: {
+        uuid: 'request-1',
+        payload: new Uint8Array(32),
+        iv: new Uint8Array(12),
+        participantIdentity: 'no-key',
+        keyIndex: 0,
+      },
+    });
+
+    await vi.waitFor(() => {
+      const reply = replies.find((msg) => msg.kind === 'error');
+      expect(reply?.data).toMatchObject({ uuid: 'request-1', error: { name: expect.any(String) } });
+    });
   });
 
   it('keeps sender and receiver cryptors with the same track id apart', async () => {
