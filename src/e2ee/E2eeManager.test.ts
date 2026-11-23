@@ -147,6 +147,28 @@ describe('E2EEManager log-level listener lifecycle', () => {
  * actually want to verify: that the log-level listener wiring holds nothing
  * strongly.
  */
+describe('E2EEManager worker errors', () => {
+  it('emits an Error built from the plain object that the worker posts', () => {
+    const { room, worker, manager } = makeManager();
+    manager.setup(room);
+    const onError = vi.fn();
+    manager.on(EncryptionEvent.EncryptionError, onError);
+
+    const data = {
+      error: { name: 'Error', message: 'InvalidKey: no key', stack: 'stack from the worker' },
+      participantIdentity: 'alice',
+    };
+    worker.onmessage!({ data: { kind: 'error', data } } as MessageEvent);
+
+    const [error, identity] = onError.mock.calls[0];
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('InvalidKey: no key');
+    expect(error.stack).toBe('stack from the worker');
+    expect(identity).toBe('alice');
+    manager.dispose();
+  });
+});
+
 describe('E2EEManager GC cleanup', () => {
   const startingLevel = workerLogger.getLevel();
 

@@ -26,6 +26,7 @@ import type {
 import {
   isDeflateRawCompressionSupported,
   numberToBigInt,
+  randomUUID,
   readBytesInChunks,
   readableFromBytes,
   splitUtf8,
@@ -81,7 +82,7 @@ export default class OutgoingDataStreamManager {
 
   /** {@inheritDoc LocalParticipant.sendText} */
   async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
-    const streamId = crypto.randomUUID();
+    const streamId = randomUUID();
     const textInBytes = textEncoder.encode(text);
     const totalTextLength = textInBytes.byteLength;
     const compress = options?.compress ?? true;
@@ -136,7 +137,7 @@ export default class OutgoingDataStreamManager {
       }
     }
 
-    const fileIds = options?.attachments?.map(() => crypto.randomUUID());
+    const fileIds = options?.attachments?.map(() => randomUUID());
 
     // Progress is split evenly across the text part (slot 0) and one slot per attachment, then
     // normalized to a [0,1] fraction. Each slot climbs monotonically to 1, so the aggregate ends at
@@ -217,7 +218,7 @@ export default class OutgoingDataStreamManager {
    * inline single-packet fast path applies.
    */
   async sendBytes(bytes: Uint8Array, options?: SendBytesOptions): Promise<ByteStreamInfo> {
-    const streamId = crypto.randomUUID();
+    const streamId = randomUUID();
     const destinationIdentities = options?.destinationIdentities;
     const compress = options?.compress ?? true;
 
@@ -370,7 +371,7 @@ export default class OutgoingDataStreamManager {
    * @internal
    */
   async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
-    const streamId = options?.streamId ?? crypto.randomUUID();
+    const streamId = options?.streamId ?? randomUUID();
     const destinationIdentities = options?.destinationIdentities;
 
     const info: TextStreamInfo = {
@@ -442,7 +443,7 @@ export default class OutgoingDataStreamManager {
   }
 
   async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
-    const streamId = crypto.randomUUID();
+    const streamId = randomUUID();
     await this._sendFile(streamId, file, options);
     return { id: streamId };
   }
@@ -509,7 +510,7 @@ export default class OutgoingDataStreamManager {
   }
 
   async streamBytes(options?: StreamBytesOptions) {
-    const streamId = options?.streamId ?? crypto.randomUUID();
+    const streamId = options?.streamId ?? randomUUID();
     const destinationIdentities = options?.destinationIdentities;
 
     const info: ByteStreamInfo = {

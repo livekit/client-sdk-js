@@ -750,7 +750,7 @@ describe('RegionUrlProvider', () => {
       expect(region2).toBeTruthy();
     });
 
-    it('preserves cache when one instance fails to fetch', async () => {
+    it('falls back to the expired cache when the refresh fails', async () => {
       const mockSettings = createMockRegionSettings([
         { region: 'us-west', url: 'wss://us-west.livekit.cloud' },
       ]);
@@ -759,21 +759,41 @@ describe('RegionUrlProvider', () => {
         .mockResolvedValueOnce(
           createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
         )
-        .mockResolvedValueOnce(createMockResponse(500));
+        .mockResolvedValueOnce(createMockResponse(500))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'));
 
-      // First provider populates cache
       const provider1 = new RegionUrlProvider('wss://test.livekit.cloud', 'token1');
       await provider1.getNextBestRegionUrl();
 
-      // Advance time to expire cache
       vi.setSystemTime(Date.now() + 4000000);
 
-      // Second provider tries to fetch but fails
       const provider2 = new RegionUrlProvider('wss://test.livekit.cloud', 'token2');
-      await expect(provider2.getNextBestRegionUrl()).rejects.toThrow();
+      expect(await provider2.getNextBestRegionUrl()).toBe('wss://us-west.livekit.cloud');
 
-      // Cache should still be accessible by a third instance if still valid
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const provider3 = new RegionUrlProvider('wss://test.livekit.cloud', 'token3');
+      expect(await provider3.getNextBestRegionUrl()).toBe('wss://us-west.livekit.cloud');
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not fall back to the expired cache when the token is rejected', async () => {
+      const mockSettings = createMockRegionSettings([
+        { region: 'us-west', url: 'wss://us-west.livekit.cloud' },
+      ]);
+
+      fetchMock
+        .mockResolvedValueOnce(
+          createMockResponse(200, mockSettings, { 'Cache-Control': 'max-age=3600' }),
+        )
+        .mockResolvedValueOnce(createMockResponse(401));
+
+      await new RegionUrlProvider('wss://test.livekit.cloud', 'token1').getNextBestRegionUrl();
+
+      vi.setSystemTime(Date.now() + 4000000);
+
+      const provider2 = new RegionUrlProvider('wss://test.livekit.cloud', 'token2');
+      await expect(provider2.getNextBestRegionUrl()).rejects.toMatchObject({
+        reason: ConnectionErrorReason.NotAllowed,
+      });
     });
 
     it('handles token update correctly', async () => {

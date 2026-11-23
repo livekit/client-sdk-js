@@ -475,6 +475,21 @@ export function getDevicePixelRatio(): number {
  *   - -1 if v1 is less than v2
  *   - 0 if v1 and v2 are equal
  */
+/**
+ * A random version 4 UUID. `crypto.randomUUID` is missing in Safari before 15.4, so this falls
+ * back to `crypto.getRandomValues`.
+ */
+export function randomUUID(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function compareVersions(v1: string, v2: string): number {
   const parts1 = v1.split('.');
   const parts2 = v2.split('.');
