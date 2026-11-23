@@ -21,6 +21,7 @@ import {
   isSafariBased,
   isScriptTransformSupportedForWorker,
   isVideoTrack,
+  randomUUID,
 } from '../room/utils';
 import type { NonSharedUint8Array } from '../type-polyfills/non-shared-typed-arrays';
 import type { BaseKeyProvider } from './KeyProvider';
@@ -470,7 +471,7 @@ export class E2EEManager
     if (!this.worker) {
       throw Error('could not encrypt data, worker is missing');
     }
-    const uuid = crypto.randomUUID();
+    const uuid = randomUUID();
     const msg: EncryptDataRequestMessage = {
       kind: 'encryptDataRequest',
       data: {
@@ -497,7 +498,7 @@ export class E2EEManager
     if (!this.worker) {
       throw Error('could not handle encrypted data, worker is missing');
     }
-    const uuid = crypto.randomUUID();
+    const uuid = randomUUID();
     const msg: DecryptDataRequestMessage = {
       kind: 'decryptDataRequest',
       data: {

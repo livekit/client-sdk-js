@@ -143,4 +143,17 @@ describe('getAbortReasonAsString', () => {
   it('falls back when there is nothing to describe', () => {
     expect(getAbortReasonAsString(undefined, 'fallback')).toBe('fallback');
   });
+
+  it('falls back when the signal has no reason, as on Safari before 15.4', () => {
+    const controller = new AbortController();
+    controller.abort();
+    Object.defineProperty(controller.signal, 'reason', { value: undefined });
+    expect(getAbortReasonAsString(controller.signal, 'fallback')).toBe('fallback');
+  });
+
+  it('describes a reason that is a primitive other than a string', () => {
+    const controller = new AbortController();
+    controller.abort(42);
+    expect(getAbortReasonAsString(controller.signal, 'fallback')).toBe('42');
+  });
 });

@@ -9,7 +9,7 @@ import type {
   RoomExtension,
 } from '../extensions';
 import type { ChatMessage, SendTextOptions } from '../types';
-import { extractChatMessage } from '../utils';
+import { extractChatMessage, randomUUID } from '../utils';
 
 /**
  * Methods the legacy `chat` extension adds to the local participant.
@@ -65,7 +65,7 @@ export const chat = {
       localParticipant: {
         sendChatMessage: (text, options) =>
           send({
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             message: text,
             timestamp: Date.now(),
             attachedFiles: options?.attachments,

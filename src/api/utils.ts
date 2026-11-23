@@ -59,8 +59,11 @@ export function getAbortReasonAsString(
       return reason;
     case 'object':
       return reason instanceof Error ? reason.message : defaultMessage;
+    case 'undefined':
+      // Safari before 15.4 has no `AbortSignal.reason`
+      return defaultMessage;
     default:
-      return 'toString' in reason ? reason.toString() : defaultMessage;
+      return String(reason);
   }
 }
 

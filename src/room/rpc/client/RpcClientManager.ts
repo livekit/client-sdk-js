@@ -6,7 +6,7 @@ import { CLIENT_PROTOCOL_DATA_STREAM_RPC } from '../../../version';
 import { type TextStreamReader } from '../../data-stream/incoming/StreamReader';
 import type OutgoingDataStreamManager from '../../data-stream/outgoing/OutgoingDataStreamManager';
 import type Participant from '../../participant/Participant';
-import { Future, compareVersions } from '../../utils';
+import { Future, compareVersions, randomUUID } from '../../utils';
 import {
   MAX_V1_PAYLOAD_BYTES,
   type PerformRpcParams,
@@ -82,7 +82,7 @@ export default class RpcClientManager extends (EventEmitter as new () => TypedEm
     }
 
     const effectiveTimeoutMs = Math.max(responseTimeoutMs, minEffectiveTimeoutMs);
-    const id = crypto.randomUUID();
+    const id = randomUUID();
 
     const completionFuture = new Future<string, RpcError>();
 

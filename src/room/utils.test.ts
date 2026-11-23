@@ -19,6 +19,7 @@ import {
   isSVCSimulcastSupportedByServer,
   isStopTransceiverSupportedByServer,
   negotiateDependencyDescriptor,
+  randomUUID,
   resetDeflateRawCompressionSupportCache,
   splitUtf8,
   supportsAdaptiveStream,
@@ -662,5 +663,26 @@ describe('isBrowserSupported', () => {
 
     vi.stubGlobal('WeakRef', undefined);
     expect(isBrowserSupported()).toBe(false);
+  });
+});
+
+describe('randomUUID', () => {
+  const v4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  it('returns a version 4 UUID', () => {
+    expect(randomUUID()).toMatch(v4);
+  });
+
+  it('works without crypto.randomUUID, as on Safari before 15.4', () => {
+    const original = crypto.randomUUID;
+    // @ts-expect-error the property is not optional in the type
+    crypto.randomUUID = undefined;
+    try {
+      const a = randomUUID();
+      expect(a).toMatch(v4);
+      expect(randomUUID()).not.toBe(a);
+    } finally {
+      crypto.randomUUID = original;
+    }
   });
 });
