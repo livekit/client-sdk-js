@@ -46,11 +46,24 @@ workerLogger.setDefaultLevel('info');
 // setLogExtension consumer installed there. The main-thread workerLogger
 // re-emits them, which invokes both the console and the extension.
 workerLogger.methodFactory = (methodName) => (msg, context) => {
+  const plainContext: Record<string, unknown> = { ...context };
+  for (const [key, value] of Object.entries(plainContext)) {
+    if (value instanceof Error) {
+      plainContext[key] = toPlainError(value);
+    }
+  }
   postMessage({
     kind: 'log',
-    data: { level: methodName, msg, context },
+    data: { level: methodName, msg, context: context && plainContext },
   });
 };
+
+/** Safari before version 17 cannot post an `Error` to the page, so the worker posts this. */
+function toPlainError(error: unknown) {
+  return error instanceof Error
+    ? { name: error.name, message: error.message, stack: error.stack }
+    : { name: 'Error', message: String(error) };
+}
 workerLogger.setLevel(workerLogger.getLevel());
 
 onmessage = (ev) => {
@@ -161,10 +174,7 @@ onmessage = (ev) => {
           postMessage({
             kind: 'error',
             data: {
-              error:
-                error instanceof Error
-                  ? { name: error.name, message: error.message, stack: error.stack }
-                  : { name: 'Error', message: String(error) },
+              error: toPlainError(error),
               uuid: data.uuid, // Include uuid to match with the pending request
             },
           } satisfies ErrorMessage);
