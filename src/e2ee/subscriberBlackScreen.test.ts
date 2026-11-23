@@ -257,8 +257,7 @@ describe('subscriber black screen', () => {
         },
       });
       cryptor.setupTransform('decode', readable, new WritableStream(), 'TR_old', 'vp8');
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(cryptor.hasActiveTransform()).toBe(false);
+      await vi.waitFor(() => expect(cryptor.hasActiveTransform()).toBe(false));
 
       // transceiver reuse: same streams, new trackId. There is nothing the main
       // thread can hand us, so this has to be recoverable from the worker side.
@@ -412,9 +411,8 @@ describe('subscriber black screen', () => {
         type: 'key',
         getMetadata: () => ({}),
       } as RTCEncodedVideoFrame);
-      await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(frames).toHaveLength(1);
+      await vi.waitFor(() => expect(frames).toHaveLength(1));
     });
   });
 
