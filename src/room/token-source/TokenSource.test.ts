@@ -163,6 +163,22 @@ describe('TokenSource.endpoint', () => {
     }
   });
 
+  it('carries agentThreadId as the agent dispatch thread_id', async () => {
+    const { teardown, fetchMock } = mockGlobalFetchResponse();
+
+    try {
+      const tokenSource = TokenSource.endpoint('https://example.com/my/token/endpoint');
+      await tokenSource.fetch({ agentName: 'agent', agentThreadId: 'AT_QSDoLPvYKVYY' });
+      const body = JSON.parse((fetchMock.lastCall![1] as RequestInit).body as string);
+      expect(body.room_config.agents[0]).toStrictEqual({
+        agent_name: 'agent',
+        thread_id: 'AT_QSDoLPvYKVYY',
+      });
+    } finally {
+      teardown();
+    }
+  });
+
   it('deserializes response with extra unknown fields without error', async () => {
     const { teardown } = mockGlobalFetchResponse({
       server_url: 'wss://localhost:7000',

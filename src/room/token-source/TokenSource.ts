@@ -182,6 +182,14 @@ class TokenSourceEndpoint extends TokenSourceCached {
           request.roomConfig.agents[0].deployment = options.deployment!;
           break;
 
+        case 'agentThreadId':
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].threadId = options.agentThreadId!;
+          break;
+
         default:
           // ref: https://stackoverflow.com/a/58009992
           const exhaustiveCheckedKey: never = key;
