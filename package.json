@@ -93,7 +93,7 @@
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
-    "@livekit/protocol": "1.53.0",
+    "@livekit/protocol": "1.54.2",
     "@types/sdp-transform": "^2.15.0",
     "events": "^3.3.0",
     "jose": "^6.1.0",
