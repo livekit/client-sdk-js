@@ -93,6 +93,8 @@ describe('prepared publication lifecycle', () => {
     const attached = plan.attachTrack(track);
     await Promise.resolve();
     expect(publish).not.toHaveBeenCalled();
+    // capture finished first: the engine must still reserve the sender
+    expect(plan.isWaitingForSender).toBe(true);
     plan.skipReservation();
     expect(await attached).toBe(publication);
     expect(track.source).toBe(Track.Source.Microphone);

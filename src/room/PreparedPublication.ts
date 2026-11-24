@@ -82,6 +82,9 @@ export class PreparedPublicationState implements PreparedPublication {
 
   private committed = false;
 
+  /** Whether the engine reserved a sender or decided that it cannot. */
+  private settled = false;
+
   private ownsBuffer = false;
 
   private resolveRegistered!: () => void;
@@ -193,11 +196,14 @@ export class PreparedPublicationState implements PreparedPublication {
 
   /** Whether the engine still has to reserve a sender for this publication. */
   get isWaitingForSender() {
-    return !this.cancelled && !this.committed && !this.initial && !this.attaching;
+    // An attachment that started after registration settled publishes on its own; one that
+    // started earlier waits for this reservation.
+    return !this.cancelled && !this.committed && !this.initial && !(this.attaching && this.settled);
   }
 
   /** The connection cannot reserve a sender: attachment publishes as usual. */
   skipReservation() {
+    this.settled = true;
     this.resolveRegistered();
   }
 
@@ -211,6 +217,7 @@ export class PreparedPublicationState implements PreparedPublication {
   reserve(initial: InitialPublicationSender) {
     this.assertActive();
     this.initial = initial;
+    this.settled = true;
     this.resolveRegistered();
     initial.accepted.then(
       (info) => {
