@@ -73,6 +73,9 @@ export class PreparedPublicationState implements PreparedPublication {
 
   private initial?: InitialPublicationSender;
 
+  /** Server identity used to scope early subscription notifications to this reservation. */
+  initialTrackSid?: string;
+
   private boundTrack?: LocalTrack;
 
   private attaching?: Promise<LocalTrackPublication>;
@@ -206,18 +209,24 @@ export class PreparedPublicationState implements PreparedPublication {
   reserve(initial: InitialPublicationSender) {
     this.assertActive();
     this.initial = initial;
-    initial.accepted.catch((error) => {
-      // An abandoned attempt must not cancel a newer fallback or connection attempt.
-      if (this.initial === initial) {
-        this.cancelled = error instanceof Error ? error : new Error(String(error));
-        this.rejectCancelled(this.cancelled);
-        this.cancel().catch(() => {});
-      }
-    });
+    initial.accepted.then(
+      (info) => {
+        if (this.initial === initial) this.initialTrackSid = info.sid;
+      },
+      (error) => {
+        // An abandoned attempt must not cancel a newer fallback or connection attempt.
+        if (this.initial === initial) {
+          this.cancelled = error instanceof Error ? error : new Error(String(error));
+          this.rejectCancelled(this.cancelled);
+          this.cancel().catch(() => {});
+        }
+      },
+    );
   }
 
   /** Detaches a discarded connection attempt; attachment will use ordinary publication. */
   fallback() {
+    this.initialTrackSid = undefined;
     const initial = this.initial;
     this.initial = undefined;
     if (initial) initial.engine.cancelPendingTrack(this.request.cid);

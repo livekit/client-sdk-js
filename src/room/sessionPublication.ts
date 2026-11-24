@@ -1,9 +1,5 @@
 import type { RoomConnectOptions } from '../options';
-import type {
-  PreparePublicationOptions,
-  PreparedPublication,
-  PreparedPublicationState,
-} from './PreparedPublication';
+import type { PreparePublicationOptions, PreparedPublication } from './PreparedPublication';
 
 // Versioned protocol shared only with components-js. Not exported from either SDK entry.
 export const sessionPublicationKey = Symbol.for('livekit.internal.sessionPublication.v1');
@@ -15,6 +11,6 @@ export interface SessionPublicationBridge {
     url: string,
     token: string,
     options: RoomConnectOptions | undefined,
-    publications: readonly PreparedPublicationState[],
+    publications: readonly PreparedPublication[],
   ): Promise<void>;
 }

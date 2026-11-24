@@ -43,7 +43,11 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import { type PreparePublicationOptions, PreparedPublicationState } from './PreparedPublication';
+import {
+  type PreparePublicationOptions,
+  type PreparedPublication,
+  PreparedPublicationState,
+} from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -739,7 +743,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private readonly preparedPublications = new Set<PreparedPublicationState>();
 
-  private readonly pendingInitialTrackSubscriptions = new Set<string>();
+  private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
 
   /** Snapshot device-free intent for the internal Session bridge. */
   private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
@@ -748,7 +752,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
     const prepared = this.localParticipant.preparePublication(options, (p) => {
       this.preparedPublications.delete(p);
-      if (this.preparedPublications.size === 0) this.pendingInitialTrackSubscriptions.clear();
+      for (const [sid, owner] of this.pendingInitialTrackSubscriptions) {
+        if (owner === p) this.pendingInitialTrackSubscriptions.delete(sid);
+      }
       if (this.engine)
         this.engine.initialPublications = this.engine.initialPublications.filter(
           (plan) => plan !== p,
@@ -765,7 +771,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     url: string,
     token: string,
     opts: RoomConnectOptions | undefined,
-    initialPublications: readonly PreparedPublicationState[],
+    initialPublications: readonly PreparedPublication[],
   ): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
@@ -805,6 +811,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       unlockDisconnect();
       throw new UnexpectedConnectionState('a preparation can only be supplied once');
     }
+    const preparations: PreparedPublicationState[] = [];
     for (const prepared of initialPublications) {
       if (
         !(prepared instanceof PreparedPublicationState) ||
@@ -815,8 +822,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         unlockDisconnect();
         throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
       }
+      preparations.push(prepared);
     }
-    for (const prepared of initialPublications) prepared.claimed = true;
+    for (const prepared of preparations) prepared.claimed = true;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -871,13 +879,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         if (abortController.signal.aborted) {
           throw ConnectionError.cancelled('Connection attempt aborted');
         }
-        await this.attemptConnection(
-          regionUrl ?? url,
-          token,
-          opts,
-          abortController,
-          initialPublications,
-        );
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController, preparations);
         this.abortController = undefined;
         resolve();
       } catch (error) {
@@ -1777,10 +1779,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return;
     }
 
-    if (Array.from(this.preparedPublications).some((plan) => plan.claimed)) {
+    const preparation = Array.from(this.preparedPublications).find(
+      (plan) => plan.claimed && !plan.isCancelled && plan.initialTrackSid === subscribedSid,
+    );
+    if (preparation) {
       // Device permission can take arbitrarily long. The preparation/room lifecycle,
       // rather than the ordinary publish timeout, owns these deferred notifications.
-      this.pendingInitialTrackSubscriptions.add(subscribedSid);
+      this.pendingInitialTrackSubscriptions.set(subscribedSid, preparation);
       return;
     }
 

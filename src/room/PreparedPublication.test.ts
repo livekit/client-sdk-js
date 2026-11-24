@@ -191,6 +191,13 @@ describe('prepared publication lifecycle', () => {
         source: Track.Source.Microphone,
       }) as PreparedPublicationState;
       plan.claimed = true;
+      const other = bridge(room).prepare({ source: Track.Source.Microphone });
+      const { initial, engine } = fixture();
+      initial.accepted = Promise.resolve(new TrackInfo({ sid: 'early-sid' }));
+      engine.isClosed = true;
+      plan.reserve(initial);
+      plan.connectionReady();
+      await Promise.resolve();
       internals.setupLocalParticipantEvents();
       const subscribed = vi.fn();
       room.localParticipant.on(ParticipantEvent.LocalTrackSubscribed, subscribed);
@@ -203,11 +210,42 @@ describe('prepared publication lifecycle', () => {
       );
       await internals.onLocalTrackPublished(publication);
       expect(subscribed).toHaveBeenCalledTimes(cancelled ? 0 : 1);
+      await other.cancel();
       await plan.cancel();
       await room.dispose();
       vi.useRealTimers();
     },
   );
+  it('keeps unrelated subscription deferral bounded while capture is pending', async () => {
+    vi.useFakeTimers();
+    const room = new Room();
+    const plan = bridge(room).prepare({
+      source: Track.Source.Microphone,
+    }) as PreparedPublicationState;
+    plan.claimed = true;
+    const internals = room as unknown as {
+      setupLocalParticipantEvents(): void;
+      onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
+      pendingInitialTrackSubscriptions: Map<string, PreparedPublicationState>;
+    };
+    internals.setupLocalParticipantEvents();
+    const subscribed = vi.fn();
+    room.localParticipant.on(ParticipantEvent.LocalTrackSubscribed, subscribed);
+    const before = room.localParticipant.listenerCount(ParticipantEvent.LocalTrackPublished);
+    room.engine.emit(EngineEvent.LocalTrackSubscribed, 'unrelated-sid');
+    expect(internals.pendingInitialTrackSubscriptions.size).toBe(0);
+    expect(room.localParticipant.listenerCount(ParticipantEvent.LocalTrackPublished)).toBe(
+      before + 1,
+    );
+    await vi.advanceTimersByTimeAsync(11000);
+    expect(room.localParticipant.listenerCount(ParticipantEvent.LocalTrackPublished)).toBe(before);
+    await internals.onLocalTrackPublished(
+      new LocalTrackPublication(Track.Kind.Audio, new TrackInfo({ sid: 'unrelated-sid' })),
+    );
+    expect(subscribed).not.toHaveBeenCalled();
+    await plan.cancel();
+    await room.dispose();
+  });
   it('disconnect settles attachment and releases a reserved sender', async () => {
     const { plan, initial, track, engine, release } = fixture();
     plan.claimed = true;
@@ -254,7 +292,7 @@ function publicationFixture() {
   const engine = room.engine;
   const closed = vi.spyOn(engine, 'isClosed', 'get').mockReturnValue(false);
   Object.defineProperty(engine, 'pcManager', { value: { publisher: {} }, writable: true });
-  const sender = {} as RTCRtpSender;
+  const sender = { replaceTrack: vi.fn(async () => {}) } as unknown as RTCRtpSender;
   const ack = deferred<TrackInfo>();
   const answer = deferred<void>();
   const creating = deferred<RTCRtpSender>();
@@ -286,7 +324,19 @@ function publicationFixture() {
     await room.dispose();
     track.stop();
   };
-  return { room, participant, engine, track, sender, ack, answer, creating, plan, close };
+  return {
+    room,
+    participant,
+    engine,
+    track,
+    sender,
+    ack,
+    answer,
+    creating,
+    plan,
+    actualPublish,
+    close,
+  };
 }
 
 describe('prepared fallback uses transactional ordinary publication', () => {
@@ -337,30 +387,38 @@ describe('prepared fallback uses transactional ordinary publication', () => {
     expect(f.track.stop).not.toHaveBeenCalled();
     await f.close();
   });
-  it('installs buffer listeners before an early subscription is replayed at publication', async () => {
-    const f = publicationFixture();
-    const stopBuffer = vi.spyOn(f.track, 'stopPreConnectBuffer');
-    vi.spyOn(f.track, 'getPreConnectBuffer').mockReturnValue(undefined);
-    f.participant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
-      f.participant.emit(ParticipantEvent.LocalTrackSubscribed, publication);
-    });
-    const attaching = f.plan.attachTrack(f.track);
-    f.creating.resolve(f.sender);
-    f.ack.resolve(
-      new TrackInfo({ sid: 'TR_buffer', audioFeatures: [AudioTrackFeature.TF_PRECONNECT_BUFFER] }),
-    );
-    f.answer.resolve();
-    await attaching;
-    expect(stopBuffer).toHaveBeenCalledOnce();
-    expect(f.participant.listenerCount(ParticipantEvent.LocalTrackSubscribed)).toBe(0);
-    expect(f.participant.listenerCount(ParticipantEvent.LocalTrackUnpublished)).toBe(0);
-    expect(f.plan.isCommitted).toBe(true);
-    await f.plan.cancel();
-    expect(f.engine.removeTrack).not.toHaveBeenCalled();
-    // The fixture's publication is committed; dispose owns the room, not the plan.
-    f.participant.trackPublications.clear();
-    await f.close();
-  });
+  it.each([false, true])(
+    'installs buffer listeners before subscription replay, prepared: %s',
+    async (prepared) => {
+      const f = publicationFixture();
+      const stopBuffer = vi.spyOn(f.track, 'stopPreConnectBuffer');
+      vi.spyOn(f.track, 'getPreConnectBuffer').mockReturnValue(undefined);
+      f.participant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+        f.participant.emit(ParticipantEvent.LocalTrackSubscribed, publication);
+      });
+      const attaching = prepared
+        ? f.plan.attachTrack(f.track)
+        : f.actualPublish.publish(f.track, {}, false);
+      f.creating.resolve(f.sender);
+      f.ack.resolve(
+        new TrackInfo({
+          sid: 'TR_buffer',
+          audioFeatures: [AudioTrackFeature.TF_PRECONNECT_BUFFER],
+        }),
+      );
+      f.answer.resolve();
+      await attaching;
+      expect(stopBuffer).toHaveBeenCalledOnce();
+      expect(f.participant.listenerCount(ParticipantEvent.LocalTrackSubscribed)).toBe(0);
+      expect(f.participant.listenerCount(ParticipantEvent.LocalTrackUnpublished)).toBe(0);
+      expect(f.plan.isCommitted).toBe(prepared);
+      await f.plan.cancel();
+      expect(f.engine.removeTrack).not.toHaveBeenCalled();
+      // The fixture's publication is committed; dispose owns the room, not the plan.
+      f.participant.trackPublications.clear();
+      await f.close();
+    },
+  );
 });
 
 describe('prepared publication option normalization', () => {
