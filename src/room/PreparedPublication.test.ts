@@ -179,7 +179,11 @@ describe('prepared publication lifecycle', () => {
       const { plan, initial, track, engine, transceiver } = fixture();
       if (reason === 'codec')
         initial.accepted = Promise.resolve(new TrackInfo({ codecs: [{ mimeType: 'audio/pcmu' }] }));
-      if (reason === 'format') track.getSourceTrackSettings = () => ({ channelCount: 2 });
+      if (reason === 'format') {
+        // a stereo reservation needs a stereo capture
+        plan.options.forceStereo = true;
+        track.getSourceTrackSettings = () => ({ channelCount: 1 });
+      }
       plan.reserve(initial);
       plan.skipReservation();
       if (reason === 'connection') engine.pcManager.publisher = {};
@@ -504,6 +508,38 @@ describe('prepared publication option normalization', () => {
     expect(Symbol.for('livekit.internal.sessionPublication.v1') in room).toBe(false);
     await room.dispose();
   });
+  it.each([false, true])(
+    'reserves a track published before connect as publishTrack would publish it, muted: %s',
+    async (muted) => {
+      const room = new Room();
+      const capture = Object.assign(new EventTarget(), {
+        kind: 'audio',
+        id: 'early-mic',
+        label: 'early',
+        enabled: true,
+        muted: false,
+        readyState: 'live',
+        stop: vi.fn(),
+        getSettings: () => ({ channelCount: 2 }),
+        getConstraints: () => ({}),
+      }) as unknown as MediaStreamTrack;
+      const track = new LocalAudioTrack(capture);
+      track.source = Track.Source.Microphone;
+      if (muted) vi.spyOn(track, 'isMuted', 'get').mockReturnValue(true);
+      const publishing = room.localParticipant.publishTrack(track);
+      publishing.catch(() => {});
+      const reservations = (
+        room as unknown as { preparedPublications: Set<PreparedPublicationState> }
+      ).preparedPublications;
+      await vi.waitFor(() => expect(reservations.size).toBe(1));
+      const [plan] = reservations;
+      // forceStereo defaults to false, so a stereo capture publishes mono either way
+      expect(plan.request.stereo).toBe(false);
+      expect(plan.request.muted).toBe(muted);
+      await room.dispose();
+      await expect(publishing).rejects.toThrow();
+    },
+  );
   it('reserves a microphone in any state until the room is disposed', async () => {
     const room = new Room();
     const plan = room.localParticipant.reservePublication!({

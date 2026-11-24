@@ -2,9 +2,12 @@
 
 There is no public preparation API, connect option or private integration protocol.
 `setMicrophoneEnabled()` reserves the microphone publication while the device is still being
-captured, in any room state, so the publication does not wait for the device. Camera
-publication always waits for capture, because the captured dimensions can differ from the
-requested ones.
+captured, in any room state, so the publication does not wait for the device.
+`setCameraEnabled()` waits for capture, because the captured dimensions can differ from the
+requested ones. `publishTrack()` called before the signal connects reserves a microphone or
+camera track that already exists. Its format comes from the track, the stereo decision is the
+one `publishTrack()` makes anyway, and the AddTrack request carries the track's own mute state.
+Like any publication made before the signal connects, it gives up after 15 s.
 
 The reservation snapshots source, format and publication defaults/options. A reservation that
 exists when the JOIN offer is built goes into the JOIN: the engine adds a sendonly transceiver

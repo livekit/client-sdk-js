@@ -206,6 +206,11 @@ export class PreparedPublicationState implements PreparedPublication {
     return !!this.cancelled;
   }
 
+  /** Settles once the engine reserved a sender or decided that it cannot. */
+  get registration(): Promise<void> {
+    return this.registered;
+  }
+
   /** Whether the engine still has to reserve a sender for this publication. */
   get isWaitingForSender() {
     // An attachment that started after registration settled publishes on its own; one that
@@ -280,8 +285,10 @@ export class PreparedPublicationState implements PreparedPublication {
       this.specification.source === Track.Source.Camera
         ? (settings.width !== undefined && settings.width !== this.specification.format.width) ||
           (settings.height !== undefined && settings.height !== this.specification.format.height)
-        : settings.channelCount !== undefined &&
-          settings.channelCount !== (this.options.forceStereo ? 2 : 1);
+        : // a mono publication takes any capture, as publishing after capture does
+          !!this.options.forceStereo &&
+          settings.channelCount !== undefined &&
+          settings.channelCount < 2;
     if (
       engine.e2eeManager ||
       engine.frameMetadataOptions ||

@@ -508,10 +508,8 @@ export class LocalParticipant extends Participant {
 
               break;
             case Track.Source.Microphone: {
-              const channelCount = (options as AudioCaptureOptions | undefined)?.channelCount;
               prepared = this.reservePublication?.({
                 source: Track.Source.Microphone,
-                ...(channelCount === 1 || channelCount === 2 ? { format: { channelCount } } : {}),
                 publishOptions: { ...publishOptions },
               });
               localTracks = await this.createTracks({
@@ -770,6 +768,62 @@ export class LocalParticipant extends Participant {
   }
 
   /**
+   * Reserves the publication of a microphone or camera track that exists before the signal
+   * connects. The format comes from the track itself, so the reservation matches it exactly, and
+   * the reservation carries the track's own mute state. Returns undefined when the track cannot be
+   * reserved; it then publishes once the signal connects.
+   */
+  private reserveTrack(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+  ): Promise<LocalTrackPublication> | undefined {
+    const settings = track.getSourceTrackSettings();
+    const audio = track.kind === Track.Kind.Audio;
+    const source = audio ? Track.Source.Microphone : Track.Source.Camera;
+    if (track.source !== source && track.source !== Track.Source.Unknown) return;
+    let specification: PreparePublicationOptions;
+    if (audio) {
+      // stereo as publishTrack() decides it for the same track
+      specification = {
+        source: Track.Source.Microphone,
+        publishOptions: { ...opts, forceStereo: isStereo },
+      };
+    } else {
+      const { width, height, frameRate } = settings;
+      if (!width || !height) return;
+      specification = {
+        source: Track.Source.Camera,
+        format: { width, height, ...(frameRate ? { frameRate } : {}) },
+        publishOptions: opts,
+      };
+    }
+    const prepared = this.reservePublication?.(specification);
+    if (!prepared) return;
+    prepared.request.muted = track.isMuted;
+    // As for any publication made before the signal connects: give up after 15 s.
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      track.stop();
+      prepared.cancel().catch(() => {});
+    }, 15_000);
+    prepared.registration.then(
+      () => clearTimeout(timeout),
+      () => clearTimeout(timeout),
+    );
+    return prepared.attachTrack(track).catch((error: unknown) => {
+      if (timedOut) {
+        throw new PublishTrackError(
+          'publishing rejected as engine not connected within timeout',
+          408,
+        );
+      }
+      throw error;
+    });
+  }
+
+  /**
    * Publish a new track to the room
    * @param track
    * @param options
@@ -927,6 +981,15 @@ export class LocalParticipant extends Participant {
 
     if (opts.source) {
       track.source = opts.source;
+    }
+    // A track published before the signal connects is reserved, so it can go into the JOIN.
+    if (
+      !prepared &&
+      !isRepublish &&
+      this.engine.client.currentState !== SignalConnectionState.CONNECTED
+    ) {
+      const reserved = this.reserveTrack(track, opts, isStereo);
+      if (reserved) return reserved;
     }
     const publishPromise = new Promise<LocalTrackPublication>(async (resolve, reject) => {
       try {
@@ -1284,7 +1347,7 @@ export class LocalParticipant extends Participant {
       // reservation was announced muted.
       if (track.kind === Track.Kind.Audio)
         engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
-      if (!track.isMuted) engine.updateMuteStatus(ti.sid, false);
+      if (track.isMuted !== prepared!.request.muted) engine.updateMuteStatus(ti.sid, track.isMuted);
     }
 
     // keep publish options on the video track so that it can recompute encoding
