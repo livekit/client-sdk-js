@@ -767,6 +767,97 @@ export class LocalParticipant extends Participant {
     return prepared;
   }
 
+  /** The LocalTrack to publish for `track`, wrapping a MediaStreamTrack. Synchronous. */
+  private toLocalTrack(track: LocalTrack | MediaStreamTrack): LocalTrack {
+    let defaultConstraints: MediaTrackConstraints | undefined;
+    if (track instanceof MediaStreamTrack) {
+      defaultConstraints = track.getConstraints();
+    } else {
+      // we want to access constraints directly as `track.mediaStreamTrack`
+      // might be pointing to a non-device track (e.g. processed track) already
+      defaultConstraints = track.constraints;
+      let deviceKind: MediaDeviceKind | undefined = undefined;
+      switch (track.source) {
+        case Track.Source.Microphone:
+          deviceKind = 'audioinput';
+          break;
+        case Track.Source.Camera:
+          deviceKind = 'videoinput';
+        default:
+          break;
+      }
+      if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+        defaultConstraints = {
+          ...defaultConstraints,
+          deviceId: this.activeDeviceMap.get(deviceKind),
+        };
+      }
+    }
+    // convert raw media track into audio or video track
+    if (track instanceof MediaStreamTrack) {
+      switch (track.kind) {
+        case 'audio':
+          track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext, {
+            loggerName: this.roomOptions.loggerName,
+            loggerContextCb: () => this.logContext,
+          });
+          break;
+        case 'video':
+          track = getVideoCapture().createTrack(
+            track,
+            defaultConstraints,
+            true,
+            this.trackLoggerOptions,
+          );
+          break;
+        default:
+          throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
+      }
+    } else {
+      track.updateLoggerOptions({
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext,
+      });
+    }
+    return track;
+  }
+
+  /** The publish options for `track` and whether it publishes stereo. Synchronous. */
+  private publishOptionsFor(track: LocalTrack, options?: TrackPublishOptions) {
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions.publishDefaults,
+      ...options,
+    };
+    const isStereoInput =
+      ('channelCount' in track.mediaStreamTrack.getSettings() &&
+        // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
+        track.mediaStreamTrack.getSettings().channelCount === 2) ||
+      track.mediaStreamTrack.getConstraints().channelCount === 2;
+    const isStereo = opts.forceStereo ?? isStereoInput;
+
+    // disable dtx for stereo track if not enabled explicitly
+    if (isStereo) {
+      if (opts.dtx === undefined) {
+        this.log.debug(
+          `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+          getLogContextFromTrack(track),
+        );
+      }
+      if (opts.red === undefined) {
+        this.log.debug(
+          `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+        );
+      }
+      opts.dtx ??= false;
+      opts.red ??= false;
+    }
+
+    if (opts.source) {
+      track.source = opts.source;
+    }
+    return { opts, isStereo };
+  }
+
   /**
    * Reserves the publication of a microphone or camera track that exists before the signal
    * connects. The format comes from the track itself, so the reservation matches it exactly, and
@@ -870,6 +961,24 @@ export class LocalParticipant extends Participant {
     hasRetriedAfterNegotiationError = false,
     prepared?: PreparedPublicationState,
   ): Promise<LocalTrackPublication> {
+    // Before the signal connects, reserve here, ahead of every await below. connect() builds the
+    // JOIN offer only after awaits of its own, so even Promise.all([connect(), publishTrack()])
+    // puts the track into the JOIN.
+    if (
+      !prepared &&
+      !isRepublish &&
+      this.engine.client.currentState !== SignalConnectionState.CONNECTED
+    ) {
+      track = this.toLocalTrack(track);
+      const publishing =
+        this.pendingPublishPromises.has(track) ||
+        [...this.trackPublications.values()].some((pub) => pub.track === track);
+      if (!publishing) {
+        const { opts, isStereo } = this.publishOptionsFor(track, options);
+        const reserved = this.reserveTrack(track, opts, isStereo);
+        if (reserved) return reserved;
+      }
+    }
     if (isLocalAudioTrack(track)) {
       await track.setAudioContext(this.audioContext);
     }
@@ -881,56 +990,7 @@ export class LocalParticipant extends Participant {
     if (isLocalTrack(track) && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
-    let defaultConstraints: MediaTrackConstraints | undefined;
-    if (track instanceof MediaStreamTrack) {
-      defaultConstraints = track.getConstraints();
-    } else {
-      // we want to access constraints directly as `track.mediaStreamTrack`
-      // might be pointing to a non-device track (e.g. processed track) already
-      defaultConstraints = track.constraints;
-      let deviceKind: MediaDeviceKind | undefined = undefined;
-      switch (track.source) {
-        case Track.Source.Microphone:
-          deviceKind = 'audioinput';
-          break;
-        case Track.Source.Camera:
-          deviceKind = 'videoinput';
-        default:
-          break;
-      }
-      if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
-        defaultConstraints = {
-          ...defaultConstraints,
-          deviceId: this.activeDeviceMap.get(deviceKind),
-        };
-      }
-    }
-    // convert raw media track into audio or video track
-    if (track instanceof MediaStreamTrack) {
-      switch (track.kind) {
-        case 'audio':
-          track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext, {
-            loggerName: this.roomOptions.loggerName,
-            loggerContextCb: () => this.logContext,
-          });
-          break;
-        case 'video':
-          track = getVideoCapture().createTrack(
-            track,
-            defaultConstraints,
-            true,
-            this.trackLoggerOptions,
-          );
-          break;
-        default:
-          throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
-      }
-    } else {
-      track.updateLoggerOptions({
-        loggerName: this.roomOptions.loggerName,
-        loggerContextCb: () => this.logContext,
-      });
-    }
+    track = this.toLocalTrack(track);
 
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
@@ -951,46 +1011,7 @@ export class LocalParticipant extends Participant {
       return existingPublication;
     }
 
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions.publishDefaults,
-      ...options,
-    };
-    const isStereoInput =
-      ('channelCount' in track.mediaStreamTrack.getSettings() &&
-        // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
-        track.mediaStreamTrack.getSettings().channelCount === 2) ||
-      track.mediaStreamTrack.getConstraints().channelCount === 2;
-    const isStereo = opts.forceStereo ?? isStereoInput;
-
-    // disable dtx for stereo track if not enabled explicitly
-    if (isStereo) {
-      if (opts.dtx === undefined) {
-        this.log.debug(
-          `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-          getLogContextFromTrack(track),
-        );
-      }
-      if (opts.red === undefined) {
-        this.log.debug(
-          `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-        );
-      }
-      opts.dtx ??= false;
-      opts.red ??= false;
-    }
-
-    if (opts.source) {
-      track.source = opts.source;
-    }
-    // A track published before the signal connects is reserved, so it can go into the JOIN.
-    if (
-      !prepared &&
-      !isRepublish &&
-      this.engine.client.currentState !== SignalConnectionState.CONNECTED
-    ) {
-      const reserved = this.reserveTrack(track, opts, isStereo);
-      if (reserved) return reserved;
-    }
+    const { opts, isStereo } = this.publishOptionsFor(track, options);
     const publishPromise = new Promise<LocalTrackPublication>(async (resolve, reject) => {
       try {
         if (this.engine.client.currentState !== SignalConnectionState.CONNECTED) {

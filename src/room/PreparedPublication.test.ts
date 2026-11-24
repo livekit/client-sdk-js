@@ -531,7 +531,9 @@ describe('prepared publication option normalization', () => {
       const reservations = (
         room as unknown as { preparedPublications: Set<PreparedPublicationState> }
       ).preparedPublications;
-      await vi.waitFor(() => expect(reservations.size).toBe(1));
+      // Synchronously, before any await: connect() builds the JOIN offer only after its own
+      // awaits, so Promise.all([connect(), publishTrack()]) relies on this.
+      expect(reservations.size).toBe(1);
       const [plan] = reservations;
       // forceStereo defaults to false, so a stereo capture publishes mono either way
       expect(plan.request.stereo).toBe(false);

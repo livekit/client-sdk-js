@@ -32,6 +32,8 @@ const credentials = [process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET
 const micDelay = Number(process.env.MIC_DELAY_MS ?? 2000);
 const signalDelay = Number(process.env.SIGNAL_DELAY_MS ?? 75);
 const micStart = Number(process.env.MIC_START_MS ?? 0);
+// MIC_API=publishTrack: capture first, then Promise.all([connect(), publishTrack()]).
+const micApi = process.env.MIC_API ?? 'setMicrophoneEnabled';
 const bundle = await readFile(new URL('../dist/livekit-client.esm.mjs', import.meta.url));
 const server = createServer((request, response) => {
   response.setHeader('Content-Type', request.url === '/sdk.js' ? 'text/javascript' : 'text/html');
@@ -82,8 +84,19 @@ try {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const trace = await page.evaluate(
-      async ({ url, tokens, mode, micDelay, signalDelay, agentJoinAfter, realAgent, micStart }) => {
-        const { Room, RoomEvent, Track, LocalAudioTrack } = await import('/sdk.js');
+      async ({
+        url,
+        tokens,
+        mode,
+        micDelay,
+        signalDelay,
+        agentJoinAfter,
+        realAgent,
+        micStart,
+        micApi,
+      }) => {
+        const { Room, RoomEvent, Track, LocalAudioTrack, createLocalTracks } =
+          await import('/sdk.js');
         const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const t0 = performance.now();
         const trace = [{ t: 0, event: 'start', wall: new Date().toISOString() }];
@@ -208,13 +221,24 @@ try {
         // Any other mode: the microphone is announced muted as soon as the publisher is negotiated.
         if (mode === 'current') user.localParticipant.reservePublication = undefined;
         // MIC_START_MS: start the microphone that long after connect() instead of with it.
-        const connecting = user.connect(url, tokens.user);
-        if (micStart > 0) await delay(micStart);
-        log('user: setMicrophoneEnabled', { state: user.state });
-        const micDone = Promise.all([
-          connecting,
-          user.localParticipant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true }),
-        ]);
+        let micDone;
+        if (micApi === 'publishTrack') {
+          // A microphone captured beforehand, then Promise.all([connect(), publishTrack()]).
+          const [track] = await createLocalTracks({ audio: true });
+          log('user: publishTrack', { state: user.state });
+          micDone = Promise.all([
+            user.connect(url, tokens.user),
+            user.localParticipant.publishTrack(track, { preConnectBuffer: true }),
+          ]);
+        } else {
+          const connecting = user.connect(url, tokens.user);
+          if (micStart > 0) await delay(micStart);
+          log('user: setMicrophoneEnabled', { state: user.state });
+          micDone = Promise.all([
+            connecting,
+            user.localParticipant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true }),
+          ]);
+        }
         await Promise.all([micDone, agentDone]);
         await delay(300);
         await agent.disconnect();
@@ -230,6 +254,7 @@ try {
         agentJoinAfter: process.env.AGENT_JOIN === 'after',
         realAgent,
         micStart,
+        micApi,
       },
     );
     trace.sort((a, b) => a.t - b.t);
