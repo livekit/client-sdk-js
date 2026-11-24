@@ -1203,15 +1203,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
           },
         });
         postAction = async () => {
-          const onLeave = this.engine.client.onLeave;
-          if (onLeave) {
-            onLeave(
-              new LeaveRequest({
-                reason: DisconnectReason.CLIENT_INITIATED,
-                action: LeaveRequest_Action.RECONNECT,
-              }),
-            );
-          }
+          this.engine.client.emit(
+            'leave',
+            new LeaveRequest({
+              reason: DisconnectReason.CLIENT_INITIATED,
+              action: LeaveRequest_Action.RECONNECT,
+            }),
+          );
         };
         break;
       case 'subscriber-bandwidth':
