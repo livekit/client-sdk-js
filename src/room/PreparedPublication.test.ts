@@ -4,6 +4,7 @@ import {
   type InitialPublicationSender,
   type PreparePublicationOptions,
   PreparedPublicationState,
+  reservedSenderCid,
 } from './PreparedPublication';
 import { Room } from './Room';
 import { EngineEvent, ParticipantEvent, TrackEvent } from './events';
@@ -45,6 +46,7 @@ function fixture() {
     pcManager: { publisher: transport },
     cancelPendingTrack: vi.fn(),
     negotiate: vi.fn(async () => {}),
+    initialOfferAnswered: vi.fn(async () => true),
   };
   const transceiver = { stop: vi.fn(), sender: {} };
   const initial = {
@@ -59,6 +61,29 @@ function fixture() {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+});
+describe('reservedSenderCid', () => {
+  const sdp = [
+    'v=0',
+    'o=- 1 2 IN IP4 127.0.0.1',
+    's=-',
+    't=0 0',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'a=mid:0',
+    'a=recvonly',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'a=mid:1',
+    'a=sendonly',
+    'a=msid:reserved-stream reserved-track',
+    '',
+  ].join('\r\n');
+  it('reads the track id from the MSID of the reserved stream', () => {
+    expect(reservedSenderCid(sdp, 'reserved-stream')).toBe('reserved-track');
+  });
+  it('finds nothing for a stream that is not in the offer', () => {
+    expect(reservedSenderCid(sdp, 'other-stream')).toBeUndefined();
+    expect(reservedSenderCid('', 'reserved-stream')).toBeUndefined();
+  });
 });
 describe('prepared publication lifecycle', () => {
   it('does not request capture or publish while preparing', async () => {

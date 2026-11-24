@@ -45,7 +45,6 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { parse as parseInitialSDP } from 'sdp-transform';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -71,7 +70,7 @@ import { TTLMap } from '../utils/ttlmap';
 import { PROTOCOL_NEGOTIATED_DATA_CHANNELS } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
-import type { PreparedPublicationState } from './PreparedPublication';
+import { type PreparedPublicationState, reservedSenderCid } from './PreparedPublication';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DataChannelManager } from './data-channel/DataChannelManager';
 import type { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
@@ -227,6 +226,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   preparedPublications: Iterable<PreparedPublicationState> = [];
 
   private initialOfferId?: number;
+
+  /** AddTrack requests of the reservations that the current JOIN carries. */
+  private initialTrackRequests: AddTrackRequest[] = [];
 
   /**
    * Whether the current connection can register prepared publications: undefined until the JOIN
@@ -417,11 +419,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // channels and fall back to in-band ones below if the server is too old.
           this.applyInitialPublisherLayout(true);
         }
+        // Reservations made before connect() go into the JOIN, which saves a renegotiation.
+        const reservations =
+          !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled
+            ? await this.addReservedSenders()
+            : [];
         const offer = await this.pcManager?.publisher.createInitialOffer();
         if (offer) {
           offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
         this.initialOfferId = offer?.offerId;
+        this.initialTrackRequests = this.claimReservations(
+          reservations,
+          offer?.offer.sdp ?? '',
+          (req) => this.waitForTrackPublished(req),
+        );
       }
 
       if (abortSignal?.aborted) {
@@ -439,6 +451,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         abortSignal,
         useV0Path,
         offerProto,
+        this.initialTrackRequests,
       );
       if (abortSignal?.aborted) {
         this.log.info('join cancelled after the signal join response');
@@ -509,6 +522,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       return { joinResponse, serverInfo };
     } catch (e) {
+      if (this.initialTrackRequests.length) {
+        // the reserved senders belong to this attempt's peer connection
+        if (this.pcManager) this.pcManager.onStateChange = undefined;
+        await this.cleanupPeerConnections();
+      }
       if (e instanceof ConnectionError) {
         if (e.reason === ConnectionErrorReason.ServerUnreachable) {
           this.log.warn(
@@ -564,6 +582,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   async cleanupPeerConnections() {
     for (const plan of this.preparedPublications) plan.fallback();
+    this.initialTrackRequests = [];
     this.initialOfferId = undefined;
     this.canReserve = undefined;
     this.dataChannels.teardown();
@@ -613,39 +632,57 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const waiting = () => [...this.preparedPublications].filter((plan) => plan.isWaitingForSender);
     if (this.canReserve === undefined || !waiting().length) return;
     const publisher = this.pcManager?.publisher;
-    const initialOfferId = this.initialOfferId;
-    if (!this.canReserve || !publisher || initialOfferId === undefined) {
+    if (!this.canReserve || !publisher || this.initialOfferId === undefined) {
       for (const plan of waiting()) plan.skipReservation();
       return;
     }
-    // the initial offer becomes the local description only when its answer is applied
-    if (publisher.latestAcknowledgedOfferId < initialOfferId) {
-      const answered = await new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => done(false), this.peerConnectionTimeout);
-        const done = (result: boolean) => {
-          clearTimeout(timeout);
-          publisher.off(PCEvents.OfferAnswered, onAnswered);
-          resolve(result);
-        };
-        const onAnswered = (offerId: number) => {
-          if (offerId >= initialOfferId) done(true);
-        };
-        publisher.on(PCEvents.OfferAnswered, onAnswered);
-      });
-      if (!answered) return;
-    }
-    if (this.pcManager?.publisher !== publisher) return;
+    if (!(await this.initialOfferAnswered()) || this.pcManager?.publisher !== publisher) return;
+    for (const plan of waiting()) if (!plan.canReserve) plan.skipReservation();
+    const reservations = await this.addReservedSenders();
+    if (!reservations.length) return;
+    const requests = this.claimReservations(
+      reservations,
+      await publisher.createProbeOffer(),
+      (req) => this.addTrack(req),
+    );
+    if (requests.length) await this.negotiate();
+  }
 
+  /**
+   * Resolves true once the answer to the initial offer is applied, so the publisher has a local
+   * description that senders can be added to or removed from. Resolves false without an initial
+   * offer, or when no answer arrives within the peer connection timeout. @internal
+   */
+  async initialOfferAnswered(): Promise<boolean> {
+    const publisher = this.pcManager?.publisher;
+    const initialOfferId = this.initialOfferId;
+    if (!publisher || initialOfferId === undefined) return false;
+    if (publisher.latestAcknowledgedOfferId >= initialOfferId) return true;
+    return new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => done(false), this.peerConnectionTimeout);
+      const done = (result: boolean) => {
+        clearTimeout(timeout);
+        publisher.off(PCEvents.OfferAnswered, onAnswered);
+        resolve(result);
+      };
+      const onAnswered = (offerId: number) => {
+        if (offerId >= initialOfferId) done(true);
+      };
+      publisher.on(PCEvents.OfferAnswered, onAnswered);
+    });
+  }
+
+  /** Adds a sendonly sender without a track for each waiting publication that can be reserved. */
+  private async addReservedSenders() {
     const reservations: {
       plan: PreparedPublicationState;
       transceiver: RTCRtpTransceiver;
       stream: string;
     }[] = [];
-    for (const plan of waiting()) {
-      if (!plan.canReserve) {
-        plan.skipReservation();
-        continue;
-      }
+    const publisher = this.pcManager?.publisher;
+    if (!this.pcManager || !publisher) return reservations;
+    for (const plan of this.preparedPublications) {
+      if (!plan.isWaitingForSender || !plan.canReserve) continue;
       const stream = new MediaStream();
       const transceiver = await this.pcManager.addPublisherTransceiverOfKind(
         plan.kind === Track.Kind.Audio ? 'audio' : 'video',
@@ -665,14 +702,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiver.setCodecPreferences(codecs);
       reservations.push({ plan, transceiver, stream: stream.id });
     }
-    if (!reservations.length) return;
+    return reservations;
+  }
 
-    // the server matches the AddTrack request to the sender by the MSID track id in the offer
-    const media = parseInitialSDP(await publisher.createProbeOffer()).media;
+  /**
+   * Gives each reserved sender the CID that `sdp` shows for it and registers its AddTrack request
+   * through `register`. A sender without a CID in the offer is removed, and its publication waits
+   * for capture.
+   */
+  private claimReservations(
+    reservations: Awaited<ReturnType<RTCEngine['addReservedSenders']>>,
+    sdp: string,
+    register: (req: AddTrackRequest) => Promise<TrackInfo>,
+  ) {
+    const requests: AddTrackRequest[] = [];
+    const publisher = this.pcManager?.publisher;
+    if (!publisher) return requests;
     for (const { plan, transceiver, stream } of reservations) {
-      const cid = media
-        .find((m) => typeof m.msid === 'string' && m.msid.startsWith(`${stream} `))
-        ?.msid?.split(' ')[1];
+      const cid = reservedSenderCid(sdp, stream);
       if (!cid || plan.isCancelled) {
         publisher.releaseSender(transceiver);
         transceiver.stop();
@@ -688,10 +735,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         engine: this,
         transport: publisher,
         transceiver,
-        accepted: this.addTrack(plan.request),
+        accepted: register(plan.request),
       });
+      requests.push(plan.request);
     }
-    await this.negotiate();
+    return requests;
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {

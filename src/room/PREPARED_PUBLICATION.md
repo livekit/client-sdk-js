@@ -6,12 +6,13 @@ captured, in any room state, so the publication does not wait for the device. Ca
 publication always waits for capture, because the captured dimensions can differ from the
 requested ones.
 
-The reservation snapshots source, format and publication defaults/options. The engine registers
-waiting reservations as soon as the publisher is negotiated: at once when connected, right after
-the JOIN answer when connecting, and after the next connect when disconnected. Nothing is added
-to the JOIN. For each reservation it adds a sendonly transceiver without a track, reads the CID
-from the stream MSID in a probe offer, sends the AddTrack request with `muted: true` and
-renegotiates. Others see a muted microphone until capture attaches media with `replaceTrack`
+The reservation snapshots source, format and publication defaults/options. A reservation that
+exists when the JOIN offer is built goes into the JOIN: the engine adds a sendonly transceiver
+without a track, reads the CID from the stream MSID in the initial offer, and sends the AddTrack
+request with the JOIN. Any later reservation is registered as soon as the publisher is
+negotiated: right after the JOIN answer while connecting, at once when connected. It reads the CID
+from a probe offer, sends the AddTrack request and renegotiates. Every AddTrack request carries
+`muted: true`. Others see a muted microphone until capture attaches media with `replaceTrack`
 and unmutes it. Registrations run one at a time, so a reservation is never registered twice.
 Unsupported modes, codecs, encryption or changed formats use ordinary publication. Backup codec
 policy must be normalized before eligibility checks.

@@ -243,11 +243,11 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
 
 There is no preparation API. `setMicrophoneEnabled()` asks the room (`reservePublication`) to
 reserve a microphone sender from the capture and publish options, in any room state. The engine
-registers every waiting reservation as soon as the publisher is negotiated (`reservePublications`):
-at once when connected, right after the JOIN answer when connecting, after the next connect when
-disconnected. It adds a sender without a track, reads the CID from the stream MSID in a probe
-offer, sends the AddTrack request muted and renegotiates. Capture attaches with `replaceTrack` and
-unmutes. Nothing goes into the JOIN. `PreparedPublicationState` owns the sender until normal
+puts every reservation that exists when the JOIN offer is built into the JOIN, and registers later
+ones as soon as the publisher is negotiated (`reservePublications`). Each gets a sender without a
+track; the CID is the track id in its stream MSID (`reservedSenderCid`), read from the initial
+offer or a probe offer. AddTrack requests are sent muted. Capture attaches with `replaceTrack` and
+unmutes. `PreparedPublicationState` owns the sender until normal
 publication commits; room teardown or cancellation reconciles it. Camera publication always waits
 for capture. Legacy V0, Firefox, encryption, and unsupported configurations publish after capture.
 `scripts/trace-agent-subscription.mjs` compares this with publishing after capture.

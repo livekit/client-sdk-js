@@ -1,4 +1,5 @@
 import { AddTrackRequest, type TrackInfo } from '@livekit/protocol';
+import { parse } from 'sdp-transform';
 import { cloneDeep } from '../utils/cloneDeep';
 import type PCTransport from './PCTransport';
 import type RTCEngine from './RTCEngine';
@@ -7,6 +8,17 @@ import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions } from './track/options';
+
+/**
+ * The CID the server matches an AddTrack request to: the track id in the MSID of the sender whose
+ * stream is `streamId`, in the offer `sdp`.
+ */
+export function reservedSenderCid(sdp: string, streamId: string): string | undefined {
+  const msid = parse(sdp).media.find(
+    (m) => typeof m.msid === 'string' && m.msid.startsWith(`${streamId} `),
+  )?.msid;
+  return msid?.split(' ')[1];
+}
 
 /** Copy publication settings while preserving preset accessors used by ordinary publication. */
 export function snapshotPublishOptions(options: TrackPublishOptions): TrackPublishOptions {
@@ -309,6 +321,9 @@ export class PreparedPublicationState implements PreparedPublication {
   private async removeInitial() {
     const initial = this.initial;
     if (!initial) return;
+    // A sender that went into the JOIN may not be in a local description yet.
+    await initial.engine.initialOfferAnswered();
+    if (this.initial !== initial) return;
     this.initial = undefined;
     initial.engine.cancelPendingTrack(this.request.cid);
     if (initial.engine.isClosed || initial.engine.pcManager?.publisher !== initial.transport)
