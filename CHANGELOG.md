@@ -1,5 +1,18 @@
 # Change Log
 
+## 2.26.0
+
+### Minor Changes
+
+- Add `threadId` to `TokenSourceFetchOptions`, dispatching the agent against an existing durable thread via `RoomAgentDispatch.thread_id` - [#2297](https://github.com/livekit/client-sdk-js/pull/2297) ([@1egoman](https://github.com/1egoman))
+
+### Patch Changes
+
+- Report E2EE worker errors on Safari 16, where the worker cannot post an `Error` object to the page - [#2294](https://github.com/livekit/client-sdk-js/pull/2294) ([@lukasIO](https://github.com/lukasIO))
+- Leave test files and test helpers out of the published `src` folder. - [#2290](https://github.com/livekit/client-sdk-js/pull/2290) ([@lukasIO](https://github.com/lukasIO))
+- Fix an aborted connect and the features that need a UUID (data streams, RPC, chat, E2EE data) on Safari before 15.4 - [#2293](https://github.com/livekit/client-sdk-js/pull/2293) ([@lukasIO](https://github.com/lukasIO))
+- If the region settings endpoint is unreachable, use the expired region list instead of failing the connection. - [#2291](https://github.com/livekit/client-sdk-js/pull/2291) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.25.0
 
 ### Minor Changes
