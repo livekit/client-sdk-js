@@ -55,8 +55,9 @@ export type PreparePublicationOptions =
 /** A room-owned reservation; creating it never requests camera or microphone access. @internal */
 export interface PreparedPublication {
   /**
-   * Binds captured media after the room connects. Uses ordinary publication when the reservation
-   * cannot be negotiated or the captured format differs. Does not take ownership on failure.
+   * Binds captured media once the reservation is registered. Uses ordinary publication when the
+   * reservation cannot be negotiated or the captured format differs. Does not take ownership on
+   * failure.
    */
   attachTrack(track: LocalTrack): Promise<LocalTrackPublication>;
   /** Cancels an unbound reservation without disconnecting the room or stopping caller-owned media. */
@@ -133,7 +134,7 @@ export class PreparedPublicationState implements PreparedPublication {
       stereo: !!options.forceStereo,
       disableDtx: !(options.dtx ?? true),
       disableRed: !(options.red ?? true),
-      // others see a muted track until captured media attaches
+      // before capture, others see a muted track; reserveTrack() sets the track's own state
       muted: true,
     });
     this.registered = new Promise((resolve, reject) => {

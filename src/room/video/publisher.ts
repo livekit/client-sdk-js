@@ -502,7 +502,7 @@ export async function handleSubscribedQualityUpdate(
   }
 }
 
-/** Expand the default backup policy consistently for JOIN and ordinary publication. */
+/** Expand the default backup policy consistently for reserved and ordinary publication. */
 function normalizeBackupCodec(
   backup: TrackPublishOptions['backupCodec'],
 ): Exclude<TrackPublishOptions['backupCodec'], true> {

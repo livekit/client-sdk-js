@@ -735,9 +735,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
 
   /**
-   * Reserves a sender for a device that is still being captured, in any room state. The engine
-   * registers it as soon as the publisher is negotiated: at once when connected, right after the
-   * JOIN answer when connecting, and after the next connect when disconnected. Returns undefined
+   * Reserves a sender for a publication whose media is not attached yet, in any room state. A
+   * reservation made before the JOIN offer is built goes into the JOIN. A later one is registered
+   * right after the JOIN answer while connecting, or at once when connected. Returns undefined
    * when the publication cannot be prepared; the caller then publishes as usual.
    */
   private reservePublication = (

@@ -220,8 +220,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private _isNewlyCreated: boolean = true;
 
   /**
-   * The room's publications that wait for capture. The engine registers each one as soon as the
-   * publisher is negotiated. @internal
+   * The room's publications whose media is not attached yet. The JOIN carries the ones that exist
+   * when its offer is built; the engine registers the others as soon as the publisher is
+   * negotiated. @internal
    */
   preparedPublications: Iterable<PreparedPublicationState> = [];
 
@@ -613,11 +614,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /**
-   * Registers the prepared publications that wait for capture: once the JOIN answer is applied, add
-   * a sender without a track for each, read its CID from a probe offer, send its AddTrack request
-   * (muted) and renegotiate. Before the JOIN this does nothing; the call after the JOIN picks them
-   * up. On a connection that cannot reserve, they publish after capture as usual. Calls run one
-   * after another so a publication is never registered twice. @internal
+   * Registers the prepared publications that the JOIN did not carry: once the JOIN answer is
+   * applied, add a sender without a track for each, read its CID from a probe offer, send its
+   * AddTrack request and renegotiate. Before the JOIN completes this does nothing; the call after
+   * it registers the waiting ones. On a connection that cannot reserve, they publish as usual once
+   * their media attaches. Calls run one after another so a publication is never registered twice.
+   * @internal
    */
   reservePublications() {
     this.reservations = this.reservations

@@ -17,10 +17,8 @@ import { VideoPreset } from './track/options';
 type PreparingRoom = {
   prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState;
 };
-const bridge = (room: Room) => ({
-  prepare: (options: PreparePublicationOptions) =>
-    (room as unknown as PreparingRoom).prepareSessionPublication(options),
-});
+const prepare = (room: Room, options: PreparePublicationOptions) =>
+  (room as unknown as PreparingRoom).prepareSessionPublication(options);
 
 function fixture() {
   const publication = {} as LocalTrackPublication;
@@ -90,7 +88,7 @@ describe('prepared publication lifecycle', () => {
     const room = new Room();
     const createTracks = vi.spyOn(room.localParticipant, 'createTracks');
     const publish = vi.spyOn(room.localParticipant, 'publishTrack');
-    const plan = bridge(room).prepare({ source: Track.Source.Microphone });
+    const plan = prepare(room, { source: Track.Source.Microphone });
     expect(createTracks).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     await plan.cancel();
@@ -98,13 +96,13 @@ describe('prepared publication lifecycle', () => {
   });
   it('uses the declared audio format over default stereo settings', async () => {
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Microphone,
       format: { channelCount: 2 },
     }) as PreparedPublicationState;
     expect(plan.request.stereo).toBe(true);
     expect(() =>
-      bridge(room).prepare({
+      prepare(room, {
         source: Track.Source.Microphone,
         format: { channelCount: 2 },
         publishOptions: { forceStereo: false },
@@ -219,10 +217,10 @@ describe('prepared publication lifecycle', () => {
         setupLocalParticipantEvents(): void;
         onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
       };
-      const plan = bridge(room).prepare({
+      const plan = prepare(room, {
         source: Track.Source.Microphone,
       }) as PreparedPublicationState;
-      const other = bridge(room).prepare({ source: Track.Source.Microphone });
+      const other = prepare(room, { source: Track.Source.Microphone });
       const { initial, engine } = fixture();
       initial.accepted = Promise.resolve(new TrackInfo({ sid: 'early-sid' }));
       engine.isClosed = true;
@@ -250,7 +248,7 @@ describe('prepared publication lifecycle', () => {
   it('keeps unrelated subscription deferral bounded while capture is pending', async () => {
     vi.useFakeTimers();
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Microphone,
     }) as PreparedPublicationState;
     const internals = room as unknown as {
@@ -463,7 +461,7 @@ describe('prepared publication option normalization', () => {
         },
       });
       const format = { width: 1280, height: 720 };
-      const plan = bridge(room).prepare({
+      const plan = prepare(room, {
         source: Track.Source.Camera,
         format,
         publishOptions: {
@@ -492,7 +490,7 @@ describe('prepared publication option normalization', () => {
   );
   it('defers H264 with default VP8 backup to ordinary publication without dropping backup policy', async () => {
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Camera,
       format: { width: 640, height: 480 },
       publishOptions: { videoCodec: 'h264', backupCodec: true },
@@ -505,7 +503,6 @@ describe('prepared publication option normalization', () => {
   it('does not expose preparation methods on the application Room', async () => {
     const room = new Room();
     expect('preparePublication' in room).toBe(false);
-    expect(Symbol.for('livekit.internal.sessionPublication.v1') in room).toBe(false);
     await room.dispose();
   });
   it.each([false, true])(

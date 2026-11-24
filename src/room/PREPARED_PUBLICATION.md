@@ -14,16 +14,18 @@ exists when the JOIN offer is built goes into the JOIN: the engine adds a sendon
 without a track, reads the CID from the stream MSID in the initial offer, and sends the AddTrack
 request with the JOIN. Any later reservation is registered as soon as the publisher is
 negotiated: right after the JOIN answer while connecting, at once when connected. It reads the CID
-from a probe offer, sends the AddTrack request and renegotiates. Every AddTrack request carries
-`muted: true`. Others see a muted microphone until capture attaches media with `replaceTrack`
-and unmutes it. Registrations run one at a time, so a reservation is never registered twice.
+from a probe offer, sends the AddTrack request and renegotiates. A reservation made before
+capture carries `muted: true`, so others see a muted microphone until capture attaches media. The
+unmute goes out right before `replaceTrack`, because the SFU drops media of a track it thinks is
+muted. A reservation from `publishTrack()` carries the track's own mute state. Registrations run one at a time, so a reservation is never registered twice.
 Unsupported modes, codecs, encryption or changed formats use ordinary publication. Backup codec
 policy must be normalized before eligibility checks.
 
 PreparedPublicationState owns every speculative sender until publication commits,
 including fallback senders. Cancellation waits for any in-flight sender creation and
 negotiation, removes the sender and listeners, and clears pending registration before
-releasing the attempt. Caller-owned media is not stopped. Session stops media it captured.
+releasing the attempt. Caller-owned media is not stopped. `setMicrophoneEnabled()` stops media
+it captured when publishing fails.
 
 PCTransport records reserved outgoing transceivers separately from receive placeholders.
 A sender without a track is not sufficient to classify a section as receive-only.

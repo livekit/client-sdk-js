@@ -147,8 +147,8 @@ export class LocalParticipant extends Participant {
   pendingPublishing = new Set<Track.Source>();
 
   /**
-   * Set by the room: reserves a sender for a microphone that is still being captured, so the
-   * publication is announced (muted) without waiting for the device. @internal
+   * Set by the room: reserves a sender for a publication whose media is not attached yet, so it is
+   * announced without waiting for capture or for the connection. @internal
    */
   reservePublication?: (options: PreparePublicationOptions) => PreparedPublicationState | undefined;
 
@@ -1461,7 +1461,7 @@ export class LocalParticipant extends Participant {
           });
       }
     }
-    // A subscription deferred during JOIN is replayed by the room synchronously here.
+    // A subscription that arrived before the media attached is replayed by the room synchronously here.
     // Install buffer listeners first so that replay cannot be missed.
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
