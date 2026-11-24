@@ -43,11 +43,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import {
-  type PreparePublicationOptions,
-  type PreparedPublication,
-  PreparedPublicationState,
-} from './PreparedPublication';
+import { type PreparePublicationOptions, PreparedPublicationState } from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -330,7 +326,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options, this.slots);
-    this.localParticipant.prepareStartupPublication = this.prepareStartupPublication;
+    this.localParticipant.reservePublication = this.reservePublication;
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -535,6 +531,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.preparedPublications = this.preparedPublications;
     this.applySlotsToEngine();
 
     this.engine
@@ -737,28 +734,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
 
-  /** Microphone reservations made before connect() that the next connect() claims. */
-  private startupPublications: PreparedPublicationState[] = [];
-
   /**
-   * The reservations of the current connect(). The engine reads this same array, so a
-   * reservation added while connecting reaches the JOIN or the registration after it.
+   * Reserves a sender for a device that is still being captured, in any room state. The engine
+   * registers it as soon as the publisher is negotiated: at once when connected, right after the
+   * JOIN answer when connecting, and after the next connect when disconnected. Returns undefined
+   * when the publication cannot be prepared; the caller then publishes as usual.
    */
-  private connectingPublications: PreparedPublicationState[] = [];
-
-  /**
-   * Reserves a sender for a device that is still being captured, before the room is connected, so
-   * the publication is registered without waiting for the device. While disconnected, the next
-   * connect() claims it. While connecting, it goes into the JOIN if that is not built yet, and
-   * otherwise is registered once the JOIN answer is applied. Returns undefined when the
-   * publication cannot be prepared; the caller then publishes as usual.
-   */
-  private prepareStartupPublication = (
+  private reservePublication = (
     options: PreparePublicationOptions,
   ): PreparedPublicationState | undefined => {
-    const connecting = this.state === ConnectionState.Connecting;
     if (this.disposed) return;
-    if (!connecting && (this.connectFuture || this.state !== ConnectionState.Disconnected)) return;
     let prepared: PreparedPublicationState;
     try {
       prepared = this.prepareSessionPublication(options);
@@ -766,47 +751,26 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       this.log.debug('publication cannot be prepared', { ...this.logContext, error });
       return;
     }
-    if (connecting) {
-      prepared.claimed = true;
-      this.connectingPublications.push(prepared);
-      void this.engine.reservePublications();
-    } else {
-      this.startupPublications.push(prepared);
-    }
+    void this.engine?.reservePublications();
     return prepared;
   };
 
   /** Snapshot device-free publication intent. */
   private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
-    if (
-      this.disposed ||
-      (this.state !== ConnectionState.Disconnected && this.state !== ConnectionState.Connecting)
-    ) {
-      throw new UnexpectedConnectionState('prepare publications before the room is connected');
+    if (this.disposed) {
+      throw new UnexpectedConnectionState('room has been disposed');
     }
     const prepared = this.localParticipant.preparePublication(options, (p) => {
       this.preparedPublications.delete(p);
       for (const [sid, owner] of this.pendingInitialTrackSubscriptions) {
         if (owner === p) this.pendingInitialTrackSubscriptions.delete(sid);
       }
-      for (const list of [this.connectingPublications, this.engine?.initialPublications ?? []]) {
-        const index = list.indexOf(p);
-        if (index >= 0) list.splice(index, 1);
-      }
     });
     this.preparedPublications.add(prepared);
     return prepared;
   }
 
-  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> =>
-    this.connectWithPublications(url, token, opts, []);
-
-  private connectWithPublications = async (
-    url: string,
-    token: string,
-    opts: RoomConnectOptions | undefined,
-    initialPublications: readonly PreparedPublication[],
-  ): Promise<void> => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
     }
@@ -840,32 +804,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       unlockDisconnect();
       return this.connectFuture.promise;
     }
-
-    // setMicrophoneEnabled() calls made before this connect, including ones made while it waited
-    // for the disconnect lock above
-    initialPublications = [
-      ...initialPublications,
-      ...this.startupPublications.splice(0).filter((p) => !p.isCancelled && !p.claimed),
-    ];
-    if (new Set(initialPublications).size !== initialPublications.length) {
-      unlockDisconnect();
-      throw new UnexpectedConnectionState('a preparation can only be supplied once');
-    }
-    const preparations: PreparedPublicationState[] = [];
-    for (const prepared of initialPublications) {
-      if (
-        !(prepared instanceof PreparedPublicationState) ||
-        !this.preparedPublications.has(prepared) ||
-        prepared.claimed ||
-        prepared.isCancelled
-      ) {
-        unlockDisconnect();
-        throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
-      }
-      preparations.push(prepared);
-    }
-    for (const prepared of preparations) prepared.claimed = true;
-    this.connectingPublications = preparations;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -1082,8 +1020,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
-    // the same array: reservations made while connecting must reach this engine
-    engine.initialPublications = this.connectingPublications;
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;
@@ -1154,7 +1090,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
-    for (const prepared of this.preparedPublications) prepared.connectionReady();
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1821,7 +1756,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     const preparation = Array.from(this.preparedPublications).find(
-      (plan) => plan.claimed && !plan.isCancelled && plan.initialTrackSid === subscribedSid,
+      (plan) => !plan.isCancelled && plan.initialTrackSid === subscribedSid,
     );
     if (preparation) {
       // Device permission can take arbitrarily long. The preparation/room lifecycle,

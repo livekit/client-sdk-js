@@ -239,16 +239,15 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
 - Error classes use a `Reasoned` pattern: `DataTrackSubscribeError<Reason>` with a `reason` enum
   and static factory methods (`.timeout()`, `.cancelled()`, `.disconnected()`).
 
-### Initial prepared publications
+### Prepared publications
 
-There is no preparation API. `setMicrophoneEnabled()` called while the room is disconnected, before
-or alongside `connect()`, asks the room (`prepareStartupPublication`) to reserve a microphone sender
-from the capture and publish options; the next `connect()` claims it. Camera publication always
-waits for capture. The V1 offer builder derives each trackless sender's CID from its unique stream
-MSID before munging SDP. JOIN response waiters must exist before signaling opens.
-`PreparedPublicationState` owns the sender until normal publication commits; room teardown or
-cancellation reconciles it. Initial offers share codec and start-bitrate processing with later
-publisher offers. Legacy V0, Firefox, encryption, and unsupported configurations defer to ordinary
-publication. `engine.optimisticPublications` (prototype) registers the reserved senders right
-after the JOIN answer instead of in the JOIN; `scripts/trace-agent-subscription.mjs` compares the
-modes.
+There is no preparation API. `setMicrophoneEnabled()` asks the room (`reservePublication`) to
+reserve a microphone sender from the capture and publish options, in any room state. The engine
+registers every waiting reservation as soon as the publisher is negotiated (`reservePublications`):
+at once when connected, right after the JOIN answer when connecting, after the next connect when
+disconnected. It adds a sender without a track, reads the CID from the stream MSID in a probe
+offer, sends the AddTrack request muted and renegotiates. Capture attaches with `replaceTrack` and
+unmutes. Nothing goes into the JOIN. `PreparedPublicationState` owns the sender until normal
+publication commits; room teardown or cancellation reconciles it. Camera publication always waits
+for capture. Legacy V0, Firefox, encryption, and unsupported configurations publish after capture.
+`scripts/trace-agent-subscription.mjs` compares this with publishing after capture.

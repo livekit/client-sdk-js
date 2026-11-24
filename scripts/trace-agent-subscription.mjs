@@ -3,7 +3,7 @@
 //   node scripts/trace-agent-subscription.mjs
 // MIC_DELAY_MS simulates a pending permission prompt (default 2000). SIGNAL_DELAY_MS is the
 // one-way delay injected at the user's SDK signal dispatch (default 75, 150 ms RTT).
-// MODES sets the run order, e.g. MODES=prepared,current,optimistic. SUMMARY=1 prints one metrics
+// MODES sets the run order, e.g. MODES=reserved,current. SUMMARY=1 prints one metrics
 // row per run and the medians per mode instead of the full trace.
 // The "agent" is a second browser room with kind=agent that publishes an audio track once the
 // user joins and reports when the user subscribes to it, the gate the Python agent waits on
@@ -64,7 +64,7 @@ const browser = await chromium.launch({
 });
 const summary = {};
 try {
-  for (const mode of (process.env.MODES ?? 'current,prepared').split(',')) {
+  for (const mode of (process.env.MODES ?? 'current,reserved').split(',')) {
     const roomName = `trace-${mode}-${Date.now()}`;
     const tokens = {
       user: await token(roomName, 'user'),
@@ -99,7 +99,6 @@ try {
         };
 
         const user = new Room();
-        if (mode === 'optimistic') user.engine.optimisticPublications = true;
         const client = user.engine.client;
         const send = client.sendRequest.bind(client);
         const receive = client.handleSignalResponse.bind(client);
@@ -112,7 +111,16 @@ try {
           return response;
         };
         client.sendRequest = async (message, ...args) => {
-          log(`user → ${message.case}`, message.case === 'offer' ? { id: message.value.id } : {});
+          log(
+            `user → ${message.case}`,
+            message.case === 'offer'
+              ? { id: message.value.id }
+              : message.case === 'mute'
+                ? { muted: message.value.muted }
+                : message.case === 'addTrack'
+                  ? { muted: message.value.muted }
+                  : {},
+          );
           await delay(signalDelay);
           return send(message, ...args);
         };
@@ -196,9 +204,9 @@ try {
               log('agent: user subscribed → greeting can play');
             })();
 
-        // Session-style startup in every mode. prepared: the microphone sender goes in the JOIN.
-        // optimistic: right after the JOIN answer. current: no reservation, publish after capture.
-        if (mode === 'current') user.localParticipant.prepareStartupPublication = undefined;
+        // Session-style startup in every mode. current: no reservation, publish after capture.
+        // Any other mode: the microphone is announced muted as soon as the publisher is negotiated.
+        if (mode === 'current') user.localParticipant.reservePublication = undefined;
         // MIC_START_MS: start the microphone that long after connect() instead of with it.
         const connecting = user.connect(url, tokens.user);
         if (micStart > 0) await delay(micStart);

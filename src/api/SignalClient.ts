@@ -356,7 +356,6 @@ export class SignalClient {
     abortSignal?: AbortSignal,
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
-    addTrackRequests: AddTrackRequest[] = [],
   ): Promise<JoinResponse> {
     if (this.lifecycleState === 'disconnecting') {
       await this.settleInFlightClose();
@@ -371,15 +370,7 @@ export class SignalClient {
     }
     this.options = opts;
     try {
-      const res = await this.connect(
-        url,
-        token,
-        opts,
-        abortSignal,
-        useV0Path,
-        publisherOffer,
-        addTrackRequests,
-      );
+      const res = await this.connect(url, token, opts, abortSignal, useV0Path, publisherOffer);
       return res as JoinResponse;
     } catch (e) {
       // reported here rather than at each rejection site inside connect(), so that no failure
@@ -442,7 +433,6 @@ export class SignalClient {
     /** setting this to true results in dual peer connection mode being used */
     useV0Path: boolean = false,
     publisherOffer?: SessionDescription,
-    addTrackRequests: AddTrackRequest[] = [],
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     const unlock = await this.connectionLock.lock();
 
@@ -455,13 +445,7 @@ export class SignalClient {
       const clientInfo = getClientInfo(opts.clientInfoCapabilities);
       const params = useV0Path
         ? createConnectionParams(token, clientInfo, opts)
-        : await createJoinRequestConnectionParams(
-            token,
-            clientInfo,
-            opts,
-            publisherOffer,
-            addTrackRequests,
-          );
+        : await createJoinRequestConnectionParams(token, clientInfo, opts, publisherOffer);
       rtcUrl = createRtcUrl(url, params, useV0Path).toString();
       validateUrl = createValidateUrl(rtcUrl).toString();
     } catch (e) {
@@ -1499,7 +1483,6 @@ async function createJoinRequestConnectionParams(
   info: ClientInfo,
   opts: ConnectOpts,
   publisherOffer?: SessionDescription,
-  addTrackRequests: AddTrackRequest[] = [],
 ): Promise<URLSearchParams> {
   const params = new URLSearchParams();
   params.set('access_token', token);
@@ -1515,7 +1498,6 @@ async function createJoinRequestConnectionParams(
     reconnect: !!opts.reconnect,
     participantSid: opts.sid ? opts.sid : undefined,
     publisherOffer: publisherOffer,
-    addTrackRequests,
   });
   if (opts.reconnectReason) {
     joinRequest.reconnectReason = opts.reconnectReason;

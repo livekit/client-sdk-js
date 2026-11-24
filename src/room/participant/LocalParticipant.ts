@@ -147,12 +147,10 @@ export class LocalParticipant extends Participant {
   pendingPublishing = new Set<Track.Source>();
 
   /**
-   * Set by the room: reserves a sender for a microphone that is still being captured, before the
-   * room connects. @internal
+   * Set by the room: reserves a sender for a microphone that is still being captured, so the
+   * publication is announced (muted) without waiting for the device. @internal
    */
-  prepareStartupPublication?: (
-    options: PreparePublicationOptions,
-  ) => PreparedPublicationState | undefined;
+  reservePublication?: (options: PreparePublicationOptions) => PreparedPublicationState | undefined;
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
 
@@ -511,7 +509,7 @@ export class LocalParticipant extends Participant {
               break;
             case Track.Source.Microphone: {
               const channelCount = (options as AudioCaptureOptions | undefined)?.channelCount;
-              prepared = this.prepareStartupPublication?.({
+              prepared = this.reservePublication?.({
                 source: Track.Source.Microphone,
                 ...(channelCount === 1 || channelCount === 2 ? { format: { channelCount } } : {}),
                 publishOptions: { ...publishOptions },
@@ -973,7 +971,7 @@ export class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
-      // Session owns a prepared attempt's retry/cancellation lifecycle. Do not
+      // The reservation owns a prepared attempt's retry/cancellation lifecycle. Do not
       // leave it waiting indefinitely for an unrelated future engine restart.
       if (!prepared && !hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
         this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
@@ -1282,10 +1280,11 @@ export class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
     if (reserved) {
-      // Capture-dependent features and mute state are unavailable when constructing JOIN.
+      // Capture-dependent features are unknown when the sender is reserved, and the
+      // reservation was announced muted.
       if (track.kind === Track.Kind.Audio)
         engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
-      if (track.isMuted) engine.updateMuteStatus(ti.sid, true);
+      if (!track.isMuted) engine.updateMuteStatus(ti.sid, false);
     }
 
     // keep publish options on the video track so that it can recompute encoding

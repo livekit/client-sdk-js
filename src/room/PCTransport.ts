@@ -701,7 +701,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return { connectionStartBitrate, appliedVideoStartBitrate };
   }
 
-  async createInitialOffer(prepare?: (sdp: string) => void) {
+  async createInitialOffer() {
     const unlock = await this.offerLock.lock();
     try {
       if (this.pc.signalingState !== 'stable') {
@@ -712,7 +712,6 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
       this.latestOfferId = offerId;
       const offer = await this.pc.createOffer();
       const original = { sdp: offer.sdp, type: offer.type };
-      prepare?.(offer.sdp ?? '');
       const sdpParsed = parse(offer.sdp ?? '');
       const { appliedVideoStartBitrate } = this.preparePublisherOffer(sdpParsed, false, true);
       offer.sdp = write(sdpParsed);

@@ -89,9 +89,9 @@ try {
                   source === Track.Source.Camera
                     ? { videoCodec: 'vp8', simulcast: true }
                     : { red: false };
-                // prepared: setMicrophoneEnabled() before connect() reserves the sender.
+                // prepared: setMicrophoneEnabled() reserves the sender before capture.
                 // The baseline turns that reservation off.
-                if (!prepared) publisher.localParticipant.prepareStartupPublication = undefined;
+                if (!prepared) publisher.localParticipant.reservePublication = undefined;
                 // Permission/device initialization completes late, while JOIN runs independently.
                 let captureReadyMs;
                 let traceStart;

@@ -88,21 +88,19 @@ describe('prepared publication lifecycle', () => {
     await plan.cancel();
     await room.dispose();
   });
-  it('attaches only after the explicitly claimed connect is ready', async () => {
+  it('attaches only after the engine settled the registration', async () => {
     const { plan, track, publish, publication, release } = fixture();
     const attached = plan.attachTrack(track);
-    plan.connectionReady();
     await Promise.resolve();
     expect(publish).not.toHaveBeenCalled();
-    plan.claimed = true;
-    plan.connectionReady();
+    plan.skipReservation();
     expect(await attached).toBe(publication);
     expect(track.source).toBe(Track.Source.Microphone);
     expect(release).toHaveBeenCalledOnce();
     await plan.cancel();
     expect(publish).toHaveBeenCalledOnce();
   });
-  it('rejects cancellation promptly before JOIN settles and never stops caller media', async () => {
+  it('rejects cancellation before registration and never stops caller media', async () => {
     const { plan, track, publish, release } = fixture();
     const attached = plan.attachTrack(track);
     await plan.cancel();
@@ -124,12 +122,8 @@ describe('prepared publication lifecycle', () => {
   });
   it('tears down a negotiated reservation once and releases it', async () => {
     const { plan, initial, engine, transceiver, release } = fixture();
-    plan.claimed = true;
     plan.reserve(initial);
-    const cancelled = plan.cancel();
-    expect(transceiver.stop).not.toHaveBeenCalled();
-    plan.connectionReady();
-    await cancelled;
+    await plan.cancel();
     await plan.cancel();
     expect(transceiver.stop).toHaveBeenCalledOnce();
     expect(engine.negotiate).toHaveBeenCalledOnce();
@@ -156,12 +150,11 @@ describe('prepared publication lifecycle', () => {
     'falls back when %s no longer matches',
     async (reason) => {
       const { plan, initial, track, engine, transceiver } = fixture();
-      plan.claimed = true;
       if (reason === 'codec')
         initial.accepted = Promise.resolve(new TrackInfo({ codecs: [{ mimeType: 'audio/pcmu' }] }));
       if (reason === 'format') track.getSourceTrackSettings = () => ({ channelCount: 2 });
       plan.reserve(initial);
-      plan.connectionReady();
+      plan.skipReservation();
       if (reason === 'connection') engine.pcManager.publisher = {};
       expect(await plan.senderFor(track, initial.engine)).toBeUndefined();
       expect(transceiver.stop).toHaveBeenCalledTimes(reason === 'connection' ? 0 : 1);
@@ -172,7 +165,7 @@ describe('prepared publication lifecycle', () => {
     const { plan, initial } = fixture();
     await plan.cancel();
     expect(() => plan.reserve(initial)).toThrow('cancelled');
-    expect(plan.hasInitialSender).toBe(false);
+    expect(plan.isWaitingForSender).toBe(false);
   });
   it('owns only the preconnect recorder it starts', async () => {
     const { plan, track } = fixture();
@@ -198,13 +191,12 @@ describe('prepared publication lifecycle', () => {
       const plan = bridge(room).prepare({
         source: Track.Source.Microphone,
       }) as PreparedPublicationState;
-      plan.claimed = true;
       const other = bridge(room).prepare({ source: Track.Source.Microphone });
       const { initial, engine } = fixture();
       initial.accepted = Promise.resolve(new TrackInfo({ sid: 'early-sid' }));
       engine.isClosed = true;
       plan.reserve(initial);
-      plan.connectionReady();
+      plan.skipReservation();
       await Promise.resolve();
       internals.setupLocalParticipantEvents();
       const subscribed = vi.fn();
@@ -230,7 +222,6 @@ describe('prepared publication lifecycle', () => {
     const plan = bridge(room).prepare({
       source: Track.Source.Microphone,
     }) as PreparedPublicationState;
-    plan.claimed = true;
     const internals = room as unknown as {
       setupLocalParticipantEvents(): void;
       onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
@@ -256,7 +247,6 @@ describe('prepared publication lifecycle', () => {
   });
   it('disconnect settles attachment and releases a reserved sender', async () => {
     const { plan, initial, track, engine, release } = fixture();
-    plan.claimed = true;
     plan.reserve(initial);
     const attached = plan.attachTrack(track);
     engine.isClosed = true;
@@ -324,8 +314,7 @@ function publicationFixture() {
     false,
     (attachedTrack, prepared) => actualPublish.publish(attachedTrack, {}, false, prepared),
   );
-  plan.claimed = true;
-  plan.connectionReady();
+  plan.skipReservation();
   const close = async () => {
     engine.pcManager = undefined;
     closed.mockRestore();
@@ -477,7 +466,7 @@ describe('prepared publication option normalization', () => {
       format: { width: 640, height: 480 },
       publishOptions: { videoCodec: 'h264', backupCodec: true },
     }) as PreparedPublicationState;
-    expect(plan.canSendWithJoin).toBe(false);
+    expect(plan.canReserve).toBe(false);
     expect(plan.options.backupCodec).toEqual({ codec: 'vp8' });
     await plan.cancel();
     await room.dispose();
@@ -488,16 +477,17 @@ describe('prepared publication option normalization', () => {
     expect(Symbol.for('livekit.internal.sessionPublication.v1') in room).toBe(false);
     await room.dispose();
   });
-  it('reserves a microphone for the next connect only while disconnected', async () => {
+  it('reserves a microphone in any state until the room is disposed', async () => {
     const room = new Room();
-    const plan = room.localParticipant.prepareStartupPublication!({
+    const plan = room.localParticipant.reservePublication!({
       source: Track.Source.Microphone,
     });
     expect(plan).toBeInstanceOf(PreparedPublicationState);
+    expect(plan!.request.muted).toBe(true);
     await room.dispose();
     expect(plan!.isCancelled).toBe(true);
     expect(
-      room.localParticipant.prepareStartupPublication!({ source: Track.Source.Microphone }),
+      room.localParticipant.reservePublication!({ source: Track.Source.Microphone }),
     ).toBeUndefined();
   });
 });
