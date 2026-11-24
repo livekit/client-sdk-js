@@ -146,7 +146,19 @@ export class LocalParticipant extends Participant {
   /** @internal */
   pendingPublishing = new Set<Track.Source>();
 
+  /**
+   * Set by the room: reserves a sender for a publication whose media is not attached yet, so it is
+   * announced without waiting for capture or for the connection. @internal
+   */
+  reservePublication?: (options: PreparePublicationOptions) => PreparedPublicationState | undefined;
+
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
+
+  /** Tracks published before the signal connected, while their reservation is pending. */
+  private pendingReservations = new Map<
+    LocalTrack,
+    { prepared: PreparedPublicationState; publishing: Promise<LocalTrackPublication> }
+  >();
 
   private republishPromise: Promise<void> | undefined;
 
@@ -492,6 +504,8 @@ export class LocalParticipant extends Participant {
           return pendingTrack;
         }
         this.pendingPublishing.add(source);
+        let prepared: PreparedPublicationState | undefined;
+        let settleReservation: ((error: unknown) => unknown) | undefined;
         try {
           switch (source) {
             case Track.Source.Camera:
@@ -500,11 +514,17 @@ export class LocalParticipant extends Participant {
               });
 
               break;
-            case Track.Source.Microphone:
+            case Track.Source.Microphone: {
+              prepared = this.reservePublication?.({
+                source: Track.Source.Microphone,
+                publishOptions: { ...publishOptions },
+              });
+              settleReservation = prepared && this.limitRegistration(prepared);
               localTracks = await this.createTracks({
                 audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
               break;
+            }
             case Track.Source.ScreenShare:
               localTracks = await this.requireVideoPublisher().createScreenTracks({
                 ...(options as ScreenShareCaptureOptions | undefined),
@@ -520,6 +540,7 @@ export class LocalParticipant extends Participant {
           if (e instanceof Error) {
             this.emit(ParticipantEvent.MediaDevicesError, e, sourceToKind(source));
           }
+          prepared?.cancel().catch(() => {});
           this.pendingPublishing.delete(source);
           throw e;
         }
@@ -544,7 +565,11 @@ export class LocalParticipant extends Participant {
           for (const localTrack of localTracks) {
             this.log.info('publishing track', getLogContextFromTrack(localTrack));
 
-            publishPromises.push(this.publishTrack(localTrack, publishOptions));
+            publishPromises.push(
+              prepared && localTrack.kind === Track.Kind.Audio
+                ? prepared.attachTrack(localTrack)
+                : this.publishTrack(localTrack, publishOptions),
+            );
           }
           const publishedTracks = await Promise.all(publishPromises);
 
@@ -555,7 +580,7 @@ export class LocalParticipant extends Participant {
           localTracks?.forEach((tr) => {
             tr.stop();
           });
-          throw e;
+          throw settleReservation ? settleReservation(e) : e;
         } finally {
           this.pendingPublishing.delete(source);
         }
@@ -750,64 +775,8 @@ export class LocalParticipant extends Participant {
     return prepared;
   }
 
-  /**
-   * Publish a new track to the room
-   * @param track
-   * @param options
-   */
-  async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
-    return this.publishOrRepublishTrack(track, options);
-  }
-
-  /**
-   * Waits for the engine's next `Restarted` event. Unlike `engine.waitForRestarted`, this does
-   * not short-circuit when `pcState === Connected` — at the point this is called (right after a
-   * `NegotiationError`) the PC transport is still connected, but `fullReconnectOnNext` has been
-   * set and `attemptReconnect` is queued via setTimeout. We need to wait for that restart to
-   * actually complete (which clears `pendingTrackResolvers` via `cleanupClient`) before retrying.
-   */
-  private waitForNextEngineRestart(timeoutMs = 15_000): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        clearTimeout(timeout);
-        this.engine.off(EngineEvent.Restarted, onRestarted);
-        this.engine.off(EngineEvent.Closing, onClosing);
-      };
-      const onRestarted = () => {
-        cleanup();
-        resolve();
-      };
-      const onClosing = () => {
-        cleanup();
-        reject(new Error('engine closed before restart completed'));
-      };
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error('timed out waiting for engine restart'));
-      }, timeoutMs);
-      this.engine.once(EngineEvent.Restarted, onRestarted);
-      this.engine.once(EngineEvent.Closing, onClosing);
-    });
-  }
-
-  private async publishOrRepublishTrack(
-    track: LocalTrack | MediaStreamTrack,
-    options?: TrackPublishOptions,
-    isRepublish = false,
-    hasRetriedAfterNegotiationError = false,
-    prepared?: PreparedPublicationState,
-  ): Promise<LocalTrackPublication> {
-    if (isLocalAudioTrack(track)) {
-      await track.setAudioContext(this.audioContext);
-    }
-
-    await this.reconnectFuture?.promise;
-    if (this.republishPromise && !isRepublish) {
-      await this.republishPromise;
-    }
-    if (isLocalTrack(track) && this.pendingPublishPromises.has(track)) {
-      await this.pendingPublishPromises.get(track);
-    }
+  /** The LocalTrack to publish for `track`, wrapping a MediaStreamTrack. Synchronous. */
+  private toLocalTrack(track: LocalTrack | MediaStreamTrack): LocalTrack {
     let defaultConstraints: MediaTrackConstraints | undefined;
     if (track instanceof MediaStreamTrack) {
       defaultConstraints = track.getConstraints();
@@ -858,26 +827,11 @@ export class LocalParticipant extends Participant {
         loggerContextCb: () => this.logContext,
       });
     }
+    return track;
+  }
 
-    // is it already published? if so skip
-    let existingPublication: LocalTrackPublication | undefined;
-    this.trackPublications.forEach((publication) => {
-      if (!publication.track) {
-        return;
-      }
-      if (publication.track === track) {
-        existingPublication = <LocalTrackPublication>publication;
-      }
-    });
-
-    if (existingPublication) {
-      this.log.warn(
-        'track has already been published, skipping',
-        getLogContextFromTrack(existingPublication),
-      );
-      return existingPublication;
-    }
-
+  /** The publish options for `track` and whether it publishes stereo. Synchronous. */
+  private publishOptionsFor(track: LocalTrack, options?: TrackPublishOptions) {
     const opts: TrackPublishOptions = {
       ...this.roomOptions.publishDefaults,
       ...options,
@@ -909,6 +863,179 @@ export class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
+    return { opts, isStereo };
+  }
+
+  /**
+   * Reserves the publication of a microphone or camera track that exists before the signal
+   * connects. The format comes from the track itself, so the reservation matches it exactly, and
+   * the reservation carries the track's own mute state. Returns undefined when the track cannot be
+   * reserved; it then publishes once the signal connects.
+   */
+  private reserveTrack(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+  ): Promise<LocalTrackPublication> | undefined {
+    const settings = track.getSourceTrackSettings();
+    const audio = track.kind === Track.Kind.Audio;
+    const source = audio ? Track.Source.Microphone : Track.Source.Camera;
+    // A track without a source (a custom feed) stays untagged and publishes as usual, so the device
+    // controls never take it over.
+    if (track.source !== source) return;
+    let specification: PreparePublicationOptions;
+    if (audio) {
+      // stereo as publishTrack() decides it for the same track
+      specification = {
+        source: Track.Source.Microphone,
+        publishOptions: { ...opts, forceStereo: isStereo },
+      };
+    } else {
+      const { width, height, frameRate } = settings;
+      if (!width || !height) return;
+      specification = {
+        source: Track.Source.Camera,
+        format: { width, height, ...(frameRate ? { frameRate } : {}) },
+        publishOptions: opts,
+      };
+    }
+    const prepared = this.reservePublication?.(specification);
+    if (!prepared) return;
+    prepared.request.muted = track.isMuted;
+    const settle = this.limitRegistration(prepared, () => track.stop());
+    const publishing = prepared
+      .attachTrack(track)
+      .catch((error: unknown) => {
+        throw settle(error);
+      })
+      .finally(() => this.pendingReservations.delete(track));
+    // not in pendingPublishPromises: the publish continuation inside attachTrack() waits on those
+    this.pendingReservations.set(track, { prepared, publishing });
+    return publishing;
+  }
+
+  /**
+   * Gives up on a reservation that is not registered within 15 s, as any publication made before
+   * the signal connects does. Returns a function that turns the attachment's error into the
+   * timeout error when the limit ran out.
+   */
+  private limitRegistration(prepared: PreparedPublicationState, onTimeout?: () => void) {
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      onTimeout?.();
+      prepared.cancel().catch(() => {});
+    }, 15_000);
+    prepared.registration.then(
+      () => clearTimeout(timeout),
+      () => clearTimeout(timeout),
+    );
+    return (error: unknown) =>
+      timedOut
+        ? new PublishTrackError('publishing rejected as engine not connected within timeout', 408)
+        : error;
+  }
+
+  /**
+   * Publish a new track to the room
+   * @param track
+   * @param options
+   */
+  async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
+    return this.publishOrRepublishTrack(track, options);
+  }
+
+  /**
+   * Waits for the engine's next `Restarted` event. Unlike `engine.waitForRestarted`, this does
+   * not short-circuit when `pcState === Connected` — at the point this is called (right after a
+   * `NegotiationError`) the PC transport is still connected, but `fullReconnectOnNext` has been
+   * set and `attemptReconnect` is queued via setTimeout. We need to wait for that restart to
+   * actually complete (which clears `pendingTrackResolvers` via `cleanupClient`) before retrying.
+   */
+  private waitForNextEngineRestart(timeoutMs = 15_000): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.engine.off(EngineEvent.Restarted, onRestarted);
+        this.engine.off(EngineEvent.Closing, onClosing);
+      };
+      const onRestarted = () => {
+        cleanup();
+        resolve();
+      };
+      const onClosing = () => {
+        cleanup();
+        reject(new Error('engine closed before restart completed'));
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('timed out waiting for engine restart'));
+      }, timeoutMs);
+      this.engine.once(EngineEvent.Restarted, onRestarted);
+      this.engine.once(EngineEvent.Closing, onClosing);
+    });
+  }
+
+  private async publishOrRepublishTrack(
+    track: LocalTrack | MediaStreamTrack,
+    options?: TrackPublishOptions,
+    isRepublish = false,
+    hasRetriedAfterNegotiationError = false,
+    prepared?: PreparedPublicationState,
+  ): Promise<LocalTrackPublication> {
+    // Before the signal connects, reserve here, ahead of every await below. connect() builds the
+    // JOIN offer only after awaits of its own, so even Promise.all([connect(), publishTrack()])
+    // puts the track into the JOIN.
+    if (
+      !prepared &&
+      !isRepublish &&
+      this.engine.client.currentState !== SignalConnectionState.CONNECTED
+    ) {
+      track = this.toLocalTrack(track);
+      const reserved = this.pendingReservations.get(track);
+      if (reserved) return reserved.publishing;
+      const publishing =
+        this.pendingPublishPromises.has(track) ||
+        [...this.trackPublications.values()].some((pub) => pub.track === track);
+      if (!publishing) {
+        const { opts, isStereo } = this.publishOptionsFor(track, options);
+        const reserved = this.reserveTrack(track, opts, isStereo);
+        if (reserved) return reserved;
+      }
+    }
+    if (isLocalAudioTrack(track)) {
+      await track.setAudioContext(this.audioContext);
+    }
+
+    await this.reconnectFuture?.promise;
+    if (this.republishPromise && !isRepublish) {
+      await this.republishPromise;
+    }
+    if (isLocalTrack(track) && this.pendingPublishPromises.has(track)) {
+      await this.pendingPublishPromises.get(track);
+    }
+    track = this.toLocalTrack(track);
+
+    // is it already published? if so skip
+    let existingPublication: LocalTrackPublication | undefined;
+    this.trackPublications.forEach((publication) => {
+      if (!publication.track) {
+        return;
+      }
+      if (publication.track === track) {
+        existingPublication = <LocalTrackPublication>publication;
+      }
+    });
+
+    if (existingPublication) {
+      this.log.warn(
+        'track has already been published, skipping',
+        getLogContextFromTrack(existingPublication),
+      );
+      return existingPublication;
+    }
+
+    const { opts, isStereo } = this.publishOptionsFor(track, options);
     const publishPromise = new Promise<LocalTrackPublication>(async (resolve, reject) => {
       try {
         if (this.engine.client.currentState !== SignalConnectionState.CONNECTED) {
@@ -952,7 +1079,7 @@ export class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
-      // Session owns a prepared attempt's retry/cancellation lifecycle. Do not
+      // The reservation owns a prepared attempt's retry/cancellation lifecycle. Do not
       // leave it waiting indefinitely for an unrelated future engine restart.
       if (!prepared && !hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
         this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
@@ -1131,6 +1258,10 @@ export class LocalParticipant extends Participant {
 
       if (reserved) {
         prepared!.assertActive();
+        // The SFU drops media of a track it thinks is muted. Unmute before the first packet goes
+        // out, so both travel together. senderFor() already awaited the acceptance.
+        const { sid } = await reserved.accepted;
+        if (track.isMuted !== prepared!.request.muted) engine.updateMuteStatus(sid, track.isMuted);
         await reserved.transceiver.sender.replaceTrack(track.mediaStreamTrack);
         prepared!.assertActive();
         if (
@@ -1261,10 +1392,9 @@ export class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
     if (reserved) {
-      // Capture-dependent features and mute state are unavailable when constructing JOIN.
+      // Capture-dependent features are unknown when the sender is reserved.
       if (track.kind === Track.Kind.Audio)
         engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
-      if (track.isMuted) engine.updateMuteStatus(ti.sid, true);
     }
 
     // keep publish options on the video track so that it can recompute encoding
@@ -1355,7 +1485,7 @@ export class LocalParticipant extends Participant {
           });
       }
     }
-    // A subscription deferred during JOIN is replayed by the room synchronously here.
+    // A subscription that arrived before the media attached is replayed by the room synchronously here.
     // Install buffer listeners first so that replay cannot be missed.
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
@@ -1397,6 +1527,13 @@ export class LocalParticipant extends Participant {
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
     if (isLocalTrack(track)) {
+      // A track published before the signal connected keeps out of the room once its reservation
+      // is cancelled. If it already committed, it is unpublished below like any other.
+      const reservation = this.pendingReservations.get(track);
+      if (reservation) {
+        await reservation.prepared.cancel();
+        await reservation.publishing.catch(() => {});
+      }
       const publishPromise = this.pendingPublishPromises.get(track);
       if (publishPromise) {
         this.log.debug(

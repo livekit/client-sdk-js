@@ -43,11 +43,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import {
-  type PreparePublicationOptions,
-  type PreparedPublication,
-  PreparedPublicationState,
-} from './PreparedPublication';
+import { type PreparePublicationOptions, PreparedPublicationState } from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -80,7 +76,6 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
@@ -327,18 +322,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       ...options?.publishDefaults,
     };
 
-    Object.defineProperty(this, sessionPublicationKey, {
-      configurable: true,
-      value: {
-        prepare: (intent) => this.prepareSessionPublication(intent),
-        connect: (url, token, connectOptions, publications) =>
-          this.connectWithPublications(url, token, connectOptions, publications),
-      } satisfies SessionPublicationBridge,
-    });
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options, this.slots);
+    this.localParticipant.reservePublication = this.reservePublication;
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -543,6 +531,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.preparedPublications = this.preparedPublications;
     this.applySlotsToEngine();
 
     this.engine
@@ -745,34 +734,43 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
 
-  /** Snapshot device-free intent for the internal Session bridge. */
+  /**
+   * Reserves a sender for a publication whose media is not attached yet, in any room state. A
+   * reservation made before the JOIN offer is built goes into the JOIN. A later one is registered
+   * right after the JOIN answer while connecting, or at once when connected. Returns undefined
+   * when the publication cannot be prepared; the caller then publishes as usual.
+   */
+  private reservePublication = (
+    options: PreparePublicationOptions,
+  ): PreparedPublicationState | undefined => {
+    if (this.disposed) return;
+    let prepared: PreparedPublicationState;
+    try {
+      prepared = this.prepareSessionPublication(options);
+    } catch (error) {
+      this.log.debug('publication cannot be prepared', { ...this.logContext, error });
+      return;
+    }
+    void this.engine?.reservePublications();
+    return prepared;
+  };
+
+  /** Snapshot device-free publication intent. */
   private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
-    if (this.disposed || this.state !== ConnectionState.Disconnected) {
-      throw new UnexpectedConnectionState('prepare publications before connecting');
+    if (this.disposed) {
+      throw new UnexpectedConnectionState('room has been disposed');
     }
     const prepared = this.localParticipant.preparePublication(options, (p) => {
       this.preparedPublications.delete(p);
       for (const [sid, owner] of this.pendingInitialTrackSubscriptions) {
         if (owner === p) this.pendingInitialTrackSubscriptions.delete(sid);
       }
-      if (this.engine)
-        this.engine.initialPublications = this.engine.initialPublications.filter(
-          (plan) => plan !== p,
-        );
     });
     this.preparedPublications.add(prepared);
     return prepared;
   }
 
-  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> =>
-    this.connectWithPublications(url, token, opts, []);
-
-  private connectWithPublications = async (
-    url: string,
-    token: string,
-    opts: RoomConnectOptions | undefined,
-    initialPublications: readonly PreparedPublication[],
-  ): Promise<void> => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
     }
@@ -806,25 +804,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       unlockDisconnect();
       return this.connectFuture.promise;
     }
-
-    if (new Set(initialPublications).size !== initialPublications.length) {
-      unlockDisconnect();
-      throw new UnexpectedConnectionState('a preparation can only be supplied once');
-    }
-    const preparations: PreparedPublicationState[] = [];
-    for (const prepared of initialPublications) {
-      if (
-        !(prepared instanceof PreparedPublicationState) ||
-        !this.preparedPublications.has(prepared) ||
-        prepared.claimed ||
-        prepared.isCancelled
-      ) {
-        unlockDisconnect();
-        throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
-      }
-      preparations.push(prepared);
-    }
-    for (const prepared of preparations) prepared.claimed = true;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -879,7 +858,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         if (abortController.signal.aborted) {
           throw ConnectionError.cancelled('Connection attempt aborted');
         }
-        await this.attemptConnection(regionUrl ?? url, token, opts, abortController, preparations);
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
       } catch (error) {
@@ -1017,7 +996,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
-    initialPublications: readonly PreparedPublicationState[] = [],
   ) => {
     if (
       this.state === ConnectionState.Reconnecting ||
@@ -1042,7 +1020,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
-    engine.initialPublications = [...initialPublications];
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;
@@ -1113,7 +1090,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
-    for (const prepared of this.preparedPublications) prepared.connectionReady();
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1780,7 +1756,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
 
     const preparation = Array.from(this.preparedPublications).find(
-      (plan) => plan.claimed && !plan.isCancelled && plan.initialTrackSid === subscribedSid,
+      (plan) => !plan.isCancelled && plan.initialTrackSid === subscribedSid,
     );
     if (preparation) {
       // Device permission can take arbitrarily long. The preparation/room lifecycle,

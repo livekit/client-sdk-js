@@ -899,16 +899,16 @@ describe('audio NACK negotiation', () => {
       return { transport, initial: (await transport.createInitialOffer())! };
     };
 
-    it('applies video start bitrate and conforms placeholders on an initial reservation', async () => {
+    it('applies a reserved camera start bitrate set before the initial offer', async () => {
       const sdp = TWO_VIDEO_SECTIONS.replace('a=sendonly', 'a=recvonly').replace(
         'a=msid:PA_remote|camera other-track',
         '',
       );
       stubPeerConnectionReturning(sdp);
       const transport = new PCTransport(undefined, {}, { singlePeerConnection: true });
-      const initial = await transport.createInitialOffer(() => {
-        transport.setTrackCodecBitrate({ cid: 'camera-cid', codec: 'vp8', maxbr: 3000 });
-      });
+      // the engine registers a reservation's start bitrate before it builds the JOIN offer
+      transport.setTrackCodecBitrate({ cid: 'camera-cid', codec: 'vp8', maxbr: 3000 });
+      const initial = await transport.createInitialOffer();
       expect(initial?.offer.sdp).toContain('x-google-start-bitrate=');
       expect(transport.getLocalDescription()).toBeUndefined();
       const media = parse(initial!.offer.sdp!).media;

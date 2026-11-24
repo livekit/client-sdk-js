@@ -1,4 +1,5 @@
 import { AddTrackRequest, type TrackInfo } from '@livekit/protocol';
+import { parse } from 'sdp-transform';
 import { cloneDeep } from '../utils/cloneDeep';
 import type PCTransport from './PCTransport';
 import type RTCEngine from './RTCEngine';
@@ -7,6 +8,25 @@ import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions } from './track/options';
+
+/**
+ * The CID the server matches an AddTrack request to: the track id in the MSID of the sender whose
+ * stream is `streamId`, in the offer `sdp`.
+ */
+export function reservedSenderCid(sdp: string, streamId: string): string | undefined {
+  const msid = parse(sdp).media.find(
+    (m) => typeof m.msid === 'string' && m.msid.startsWith(`${streamId} `),
+  )?.msid;
+  return msid?.split(' ')[1];
+}
+
+/** A full reconnect dropped a reservation that an attachment was waiting on. */
+class ReservationDroppedError extends Error {
+  constructor() {
+    super('reservation dropped by a reconnect');
+    this.name = 'ReservationDroppedError';
+  }
+}
 
 /** Copy publication settings while preserving preset accessors used by ordinary publication. */
 export function snapshotPublishOptions(options: TrackPublishOptions): TrackPublishOptions {
@@ -43,8 +63,9 @@ export type PreparePublicationOptions =
 /** A room-owned reservation; creating it never requests camera or microphone access. @internal */
 export interface PreparedPublication {
   /**
-   * Binds captured media after the room connects. Uses ordinary publication when the reservation
-   * cannot be negotiated or the captured format differs. Does not take ownership on failure.
+   * Binds captured media once the reservation is registered. Uses ordinary publication when the
+   * reservation cannot be negotiated or the captured format differs. Does not take ownership on
+   * failure.
    */
   attachTrack(track: LocalTrack): Promise<LocalTrackPublication>;
   /** Cancels an unbound reservation without disconnecting the room or stopping caller-owned media. */
@@ -65,8 +86,6 @@ export class PreparedPublicationState implements PreparedPublication {
 
   readonly kind: Track.Kind;
 
-  claimed = false;
-
   startBitrate?: number;
 
   private cancelled?: Error;
@@ -84,15 +103,19 @@ export class PreparedPublicationState implements PreparedPublication {
 
   private committed = false;
 
+  /** Whether the engine reserved a sender or decided that it cannot. */
+  private settled = false;
+
   private ownsBuffer = false;
 
-  private resolveConnected!: () => void;
+  private resolveRegistered!: () => void;
 
-  private rejectConnected!: (error: Error) => void;
+  private rejectRegistered!: (error: Error) => void;
 
   private rejectCancelled!: (error: Error) => void;
 
-  private readonly connected: Promise<void>;
+  /** Settles once the engine reserved a sender, or decided that this connection cannot. */
+  private registered!: Promise<void>;
 
   private readonly cancellation: Promise<never>;
 
@@ -101,7 +124,8 @@ export class PreparedPublicationState implements PreparedPublication {
     readonly options: TrackPublishOptions,
     readonly encodings: RTCRtpEncodingParameters[],
     readonly codec: string,
-    readonly canSendWithJoin: boolean,
+    /** Whether a sender can be reserved before capture (codec, platform, encryption). */
+    readonly canReserve: boolean,
     private publish?: (
       track: LocalTrack,
       prepared: PreparedPublicationState,
@@ -118,16 +142,15 @@ export class PreparedPublicationState implements PreparedPublication {
       stereo: !!options.forceStereo,
       disableDtx: !(options.dtx ?? true),
       disableRed: !(options.red ?? true),
+      // before capture, others see a muted track; reserveTrack() sets the track's own state
+      muted: true,
     });
-    this.connected = new Promise((resolve, reject) => {
-      this.resolveConnected = resolve;
-      this.rejectConnected = reject;
-    });
+    this.resetRegistration();
     this.cancellation = new Promise((_, reject) => {
       this.rejectCancelled = reject;
     });
     // A caller may prepare now and attach much later, or never attach at all.
-    this.connected.catch(() => {});
+
     this.cancellation.catch(() => {});
   }
 
@@ -158,15 +181,23 @@ export class PreparedPublicationState implements PreparedPublication {
 
   private async attach(track: LocalTrack): Promise<LocalTrackPublication> {
     try {
-      await Promise.race([this.connected, this.cancellation]);
-      this.assertActive();
-      track.source = this.specification.source;
-      const publication = await this.publish!(track, this);
-      this.commit();
-      this.finish();
-      return publication;
+      for (;;) {
+        await Promise.race([this.registered, this.cancellation]);
+        this.assertActive();
+        track.source = this.specification.source;
+        try {
+          const publication = await this.publish!(track, this);
+          this.commit();
+          this.finish();
+          return publication;
+        } catch (error) {
+          // A full reconnect dropped the reservation while the attachment waited for it: wait for
+          // the registration on the new connection and publish again.
+          if (!(error instanceof ReservationDroppedError) || this.cancelled) throw error;
+        }
+      }
     } catch (error) {
-      // Reconciliation is room-owned and may wait for an in-flight JOIN to settle.
+      // cancellation removes the reserved sender
       this.cancel().catch(() => {});
       throw error;
     }
@@ -189,26 +220,36 @@ export class PreparedPublicationState implements PreparedPublication {
     return !!this.cancelled;
   }
 
-  /** Whether a connection attempt already owns the reservation. */
-  get hasInitialSender() {
-    return !!this.initial;
+  /** Settles once the engine reserved a sender or decided that it cannot. */
+  get registration(): Promise<void> {
+    return this.registered;
   }
 
-  /** Marks only preparations explicitly supplied to the successful connect. */
-  connectionReady() {
-    if (this.claimed) this.resolveConnected();
+  /** Whether the engine still has to reserve a sender for this publication. */
+  get isWaitingForSender() {
+    // An attachment that started after registration settled publishes on its own; one that
+    // started earlier waits for this reservation.
+    return !this.cancelled && !this.committed && !this.initial && !(this.attaching && this.settled);
+  }
+
+  /** The connection cannot reserve a sender: attachment publishes as usual. */
+  skipReservation() {
+    this.settled = true;
+    this.resolveRegistered();
   }
 
   /** Fails pending attachment even if capture has not completed yet. */
   disconnected() {
-    this.rejectConnected(new UnexpectedConnectionState('room disconnected before publication'));
+    this.rejectRegistered(new UnexpectedConnectionState('room disconnected before publication'));
     this.cancel().catch(() => {});
   }
 
-  /** Installs a response waiter before the JOIN request can reach the server. */
+  /** Takes ownership of a reserved sender whose AddTrack request is in flight. */
   reserve(initial: InitialPublicationSender) {
     this.assertActive();
     this.initial = initial;
+    this.settled = true;
+    this.resolveRegistered();
     initial.accepted.then(
       (info) => {
         if (this.initial === initial) this.initialTrackSid = info.sid;
@@ -229,7 +270,20 @@ export class PreparedPublicationState implements PreparedPublication {
     this.initialTrackSid = undefined;
     const initial = this.initial;
     this.initial = undefined;
-    if (initial) initial.engine.cancelPendingTrack(this.request.cid);
+    if (!initial) return;
+    // the next connection registers this publication again, and an attachment waits for that
+    if (!this.committed && !this.cancelled) this.resetRegistration();
+    initial.engine.cancelPendingTrack(this.request.cid);
+  }
+
+  private resetRegistration() {
+    this.settled = false;
+    this.registered = new Promise((resolve, reject) => {
+      this.resolveRegistered = resolve;
+      this.rejectRegistered = reject;
+    });
+    // A caller may prepare now and attach much later, or never attach at all.
+    this.registered.catch(() => {});
   }
 
   /** Returns a compatible reserved sender, otherwise removes it before ordinary publication. */
@@ -240,7 +294,14 @@ export class PreparedPublicationState implements PreparedPublication {
     this.assertActive();
     const initial = this.initial;
     if (!initial) return;
-    const info = await initial.accepted;
+    let info: TrackInfo;
+    try {
+      info = await initial.accepted;
+    } catch (error) {
+      // fallback() replaced the reservation: the attachment retries on the next connection
+      if (this.initial !== initial && !this.cancelled) throw new ReservationDroppedError();
+      throw error;
+    }
     this.assertActive();
     const settings = track.getSourceTrackSettings();
     const mime = `${this.kind}/${this.codec}`.toLowerCase();
@@ -258,8 +319,10 @@ export class PreparedPublicationState implements PreparedPublication {
       this.specification.source === Track.Source.Camera
         ? (settings.width !== undefined && settings.width !== this.specification.format.width) ||
           (settings.height !== undefined && settings.height !== this.specification.format.height)
-        : settings.channelCount !== undefined &&
-          settings.channelCount !== (this.options.forceStereo ? 2 : 1);
+        : // a mono publication takes any capture, as publishing after capture does
+          !!this.options.forceStereo &&
+          settings.channelCount !== undefined &&
+          settings.channelCount < 2;
     if (
       engine.e2eeManager ||
       engine.frameMetadataOptions ||
@@ -283,6 +346,7 @@ export class PreparedPublicationState implements PreparedPublication {
     if (this.committed) return Promise.resolve();
     if (!this.cancelled) this.cancelled = new TrackInvalidError('prepared publication cancelled');
     this.rejectCancelled(this.cancelled);
+    this.rejectRegistered(this.cancelled);
     if (this.ownsBuffer) {
       this.boundTrack?.stopPreConnectBuffer();
       this.ownsBuffer = false;
@@ -299,12 +363,8 @@ export class PreparedPublicationState implements PreparedPublication {
   private async removeInitial() {
     const initial = this.initial;
     if (!initial) return;
-    // Do not mutate a transceiver while its initial local description is still deferred.
-    try {
-      await this.connected;
-    } catch {
-      /* the connection's teardown owns the PC */
-    }
+    // A sender that went into the JOIN may not be in a local description yet.
+    await initial.engine.initialOfferAnswered();
     if (this.initial !== initial) return;
     this.initial = undefined;
     initial.engine.cancelPendingTrack(this.request.cid);

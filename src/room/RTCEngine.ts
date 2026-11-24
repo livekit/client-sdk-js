@@ -45,7 +45,6 @@ import {
   type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import { parse as parseInitialSDP } from 'sdp-transform';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
@@ -71,7 +70,7 @@ import { TTLMap } from '../utils/ttlmap';
 import { PROTOCOL_NEGOTIATED_DATA_CHANNELS } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
-import type { PreparedPublicationState } from './PreparedPublication';
+import { type PreparedPublicationState, reservedSenderCid } from './PreparedPublication';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { DataChannelManager } from './data-channel/DataChannelManager';
 import type { FlowControlledDataChannel } from './data-channel/FlowControlledDataChannel';
@@ -220,10 +219,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private _isNewlyCreated: boolean = true;
 
-  /** Startup reservations supplied by the room; never wait for device capture. @internal */
-  initialPublications: PreparedPublicationState[] = [];
+  /**
+   * The room's publications whose media is not attached yet. The JOIN carries the ones that exist
+   * when its offer is built; the engine registers the others as soon as the publisher is
+   * negotiated. @internal
+   */
+  preparedPublications: Iterable<PreparedPublicationState> = [];
 
+  private initialOfferId?: number;
+
+  /** AddTrack requests of the reservations that the current JOIN carries. */
   private initialTrackRequests: AddTrackRequest[] = [];
+
+  /**
+   * Whether the current connection can register prepared publications: undefined until the JOIN
+   * completes, then whether it is an offer-with-join connection without encryption.
+   */
+  private canReserve?: boolean;
+
+  private reservations: Promise<void> = Promise.resolve();
 
   private pendingTrackResolvers: {
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
@@ -406,85 +420,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // channels and fall back to in-band ones below if the server is too old.
           this.applyInitialPublisherLayout(true);
         }
-        const canPreparePublications =
-          !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled;
-        const preparingPublications =
-          canPreparePublications &&
-          this.initialPublications.some((plan) => plan.canSendWithJoin && !plan.isCancelled);
-        try {
-          const reservations: {
-            plan: PreparedPublicationState;
-            transceiver: RTCRtpTransceiver;
-            stream: string;
-          }[] = [];
-          for (const plan of canPreparePublications ? this.initialPublications : []) {
-            if (!plan.canSendWithJoin || plan.isCancelled || plan.hasInitialSender) continue;
-            const stream = new MediaStream();
-            const transceiver = await this.pcManager!.addPublisherTransceiverOfKind(
-              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-              {
-                direction: 'sendonly',
-                streams: [stream],
-                sendEncodings: plan.encodings,
-              },
-            );
-            const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
-            const codecs = RTCRtpSender.getCapabilities(
-              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-            )!.codecs.filter(
-              (c) =>
-                c.mimeType.toLowerCase() === mime ||
-                (plan.kind === Track.Kind.Audio
-                  ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
-                  : c.mimeType.toLowerCase() === 'video/rtx'),
-            );
-            this.pcManager!.publisher.reserveSender(transceiver);
-            transceiver.setCodecPreferences(codecs);
-            reservations.push({ plan, transceiver, stream: stream.id });
-          }
-          const requests: AddTrackRequest[] = [];
-          const offer = await this.pcManager?.publisher.createInitialOffer((sdp) => {
-            const media = parseInitialSDP(sdp).media;
-            for (const { plan, transceiver, stream } of reservations) {
-              const section = media.find(
-                (m) => typeof m.msid === 'string' && m.msid.startsWith(`${stream} `),
-              );
-              const cid = section?.msid?.split(' ')[1];
-              if (!cid)
-                throw new UnexpectedConnectionState('prepared sender has no SDP track identity');
-              plan.assertActive();
-              plan.request.cid = cid;
-              if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
-              const accepted = this.waitForTrackPublished(plan.request);
-              plan.reserve({
-                engine: this,
-                transport: this.pcManager!.publisher,
-                transceiver,
-                accepted,
-              });
-              requests.push(plan.request);
-              if (plan.startBitrate) {
-                this.pcManager!.publisher.setTrackCodecBitrate({
-                  cid,
-                  codec: plan.codec,
-                  maxbr: plan.startBitrate / 1000,
-                });
-              }
-            }
-          });
-          if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
-          this.initialTrackRequests = requests;
-        } catch (error) {
-          if (!preparingPublications) throw error;
-          // A browser unable to reserve a trackless sender must still be able to join.
-          this.log.warn('initial publication preparation failed; deferring publication', { error });
-          this.pcManager!.onStateChange = undefined;
-          await this.cleanupPeerConnections();
-          await this.configure();
-          this.applyInitialPublisherLayout(true);
-          const offer = await this.pcManager!.publisher.createInitialOffer();
-          if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+        // Reservations made before connect() go into the JOIN, which saves a renegotiation. They
+        // get their CIDs and start bitrates before the initial offer is built and munged.
+        this.initialTrackRequests =
+          !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled
+            ? await this.reserveSenders((req) => this.waitForTrackPublished(req))
+            : [];
+        const offer = await this.pcManager?.publisher.createInitialOffer();
+        if (offer) {
+          offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
+        this.initialOfferId = offer?.offerId;
       }
 
       if (abortSignal?.aborted) {
@@ -566,11 +512,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           .join(', ')}`,
       );
 
+      // Publications that wait for capture are registered as soon as the JOIN answer is applied.
+      this.canReserve =
+        sendOfferWithJoin && !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled;
+      void this.reservePublications();
+
       return { joinResponse, serverInfo };
     } catch (e) {
       if (this.initialTrackRequests.length) {
-        for (const plan of this.initialPublications) plan.fallback();
-        this.initialTrackRequests = [];
+        // the reserved senders belong to this attempt's peer connection
         if (this.pcManager) this.pcManager.onStateChange = undefined;
         await this.cleanupPeerConnections();
       }
@@ -628,8 +578,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
-    for (const plan of this.initialPublications) plan.fallback();
+    for (const plan of this.preparedPublications) plan.fallback();
     this.initialTrackRequests = [];
+    this.initialOfferId = undefined;
+    this.canReserve = undefined;
     this.dataChannels.teardown();
 
     await this.pcManager?.close();
@@ -655,6 +607,174 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.pendingTrackResolvers[cid].reject();
     }
     this.pendingTrackResolvers = {};
+  }
+
+  /**
+   * Registers the prepared publications that the JOIN did not carry: once the JOIN answer is
+   * applied, add a sender without a track for each, read its CID from a probe offer, send its
+   * AddTrack request and renegotiate. Before the JOIN completes this does nothing; the call after
+   * it registers the waiting ones. On a connection that cannot reserve, they publish as usual once
+   * their media attaches. Calls run one after another so a publication is never registered twice.
+   * @internal
+   */
+  reservePublications() {
+    this.reservations = this.reservations
+      .then(() => this.reserveWaitingPublications())
+      .catch((error) => {
+        this.log.warn('publication reservation failed; publishing after capture', { error });
+        // no publication may wait on a registration that is not coming
+        for (const plan of this.preparedPublications) {
+          if (plan.isWaitingForSender) plan.skipReservation();
+        }
+      });
+    return this.reservations;
+  }
+
+  private async reserveWaitingPublications() {
+    const waiting = () => [...this.preparedPublications].filter((plan) => plan.isWaitingForSender);
+    if (this.canReserve === undefined || !waiting().length) return;
+    const publisher = this.pcManager?.publisher;
+    if (!this.canReserve || !publisher || this.initialOfferId === undefined) {
+      for (const plan of waiting()) plan.skipReservation();
+      return;
+    }
+    if (!(await this.initialOfferAnswered()) || this.pcManager?.publisher !== publisher) return;
+    for (const plan of waiting()) if (!plan.canReserve) plan.skipReservation();
+    const requests = await this.reserveSenders((req) => this.addTrack(req));
+    if (requests.length) await this.negotiate();
+  }
+
+  /**
+   * Resolves true once the answer to the initial offer is applied, so the publisher has a local
+   * description that senders can be added to or removed from. Resolves false without an initial
+   * offer, or when no answer arrives within the peer connection timeout. @internal
+   */
+  async initialOfferAnswered(): Promise<boolean> {
+    const publisher = this.pcManager?.publisher;
+    const initialOfferId = this.initialOfferId;
+    if (!publisher || initialOfferId === undefined) return false;
+    if (publisher.latestAcknowledgedOfferId >= initialOfferId) return true;
+    return new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => done(false), this.peerConnectionTimeout);
+      const done = (result: boolean) => {
+        clearTimeout(timeout);
+        publisher.off(PCEvents.OfferAnswered, onAnswered);
+        resolve(result);
+      };
+      const onAnswered = (offerId: number) => {
+        if (offerId >= initialOfferId) done(true);
+      };
+      publisher.on(PCEvents.OfferAnswered, onAnswered);
+    });
+  }
+
+  /**
+   * Adds a sender for each waiting publication that can be reserved, reads their CIDs from a probe
+   * offer and registers them through `register`. Returns the AddTrack requests of the reservations
+   * that succeeded.
+   */
+  private async reserveSenders(register: (req: AddTrackRequest) => Promise<TrackInfo>) {
+    const reservations = await this.addReservedSenders();
+    if (!reservations.length) return [];
+    let sdp = '';
+    try {
+      // the browser keeps a sender's MSID across offers, so the next offer shows the same CID
+      sdp = (await this.pcManager?.publisher.createProbeOffer()) ?? '';
+    } catch (error) {
+      this.log.warn('could not read reserved senders from a probe offer', { error });
+    }
+    // without an offer, every reservation fails its CID lookup and waits for capture
+    return this.claimReservations(reservations, sdp, register);
+  }
+
+  /** Adds a sendonly sender without a track for each waiting publication that can be reserved. */
+  private async addReservedSenders() {
+    const reservations: {
+      plan: PreparedPublicationState;
+      transceiver: RTCRtpTransceiver;
+      stream: string;
+    }[] = [];
+    const publisher = this.pcManager?.publisher;
+    if (!this.pcManager || !publisher) return reservations;
+    for (const plan of this.preparedPublications) {
+      if (!plan.isWaitingForSender || !plan.canReserve) continue;
+      let transceiver: RTCRtpTransceiver | undefined;
+      try {
+        const stream = new MediaStream();
+        transceiver = await this.pcManager.addPublisherTransceiverOfKind(
+          plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+          { direction: 'sendonly', streams: [stream], sendEncodings: plan.encodings },
+        );
+        const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
+        const codecs = RTCRtpSender.getCapabilities(
+          plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+        )!.codecs.filter(
+          (c) =>
+            c.mimeType.toLowerCase() === mime ||
+            (plan.kind === Track.Kind.Audio
+              ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
+              : c.mimeType.toLowerCase() === 'video/rtx'),
+        );
+        publisher.reserveSender(transceiver);
+        transceiver.setCodecPreferences(codecs);
+        reservations.push({ plan, transceiver, stream: stream.id });
+      } catch (error) {
+        // A browser that cannot reserve a sender still joins; the publication waits for capture.
+        this.log.warn('publication reservation failed; publishing after capture', { error });
+        if (transceiver) {
+          publisher.releaseSender(transceiver);
+          transceiver.stop();
+        }
+        plan.skipReservation();
+      }
+    }
+    return reservations;
+  }
+
+  /**
+   * Gives each reserved sender the CID that `sdp` shows for it and registers its AddTrack request
+   * through `register`. When that fails for a reservation, for example because the offer shows no
+   * CID for its sender, the sender is removed and the publication waits for capture.
+   */
+  private claimReservations(
+    reservations: Awaited<ReturnType<RTCEngine['addReservedSenders']>>,
+    sdp: string,
+    register: (req: AddTrackRequest) => Promise<TrackInfo>,
+  ) {
+    const requests: AddTrackRequest[] = [];
+    const publisher = this.pcManager?.publisher;
+    if (!publisher) return requests;
+    for (const { plan, transceiver, stream } of reservations) {
+      try {
+        const cid = reservedSenderCid(sdp, stream);
+        if (!cid) throw new UnexpectedConnectionState('reserved sender has no CID in the offer');
+        plan.request.cid = cid;
+        if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
+        if (plan.startBitrate) {
+          publisher.setTrackCodecBitrate({
+            cid,
+            codec: plan.codec,
+            maxbr: plan.startBitrate / 1000,
+          });
+        }
+        plan.reserve({
+          engine: this,
+          transport: publisher,
+          transceiver,
+          accepted: register(plan.request),
+        });
+        requests.push(plan.request);
+      } catch (error) {
+        if (!plan.isCancelled) {
+          this.log.warn('publication reservation failed; publishing after capture', { error });
+        }
+        if (plan.request.cid) this.cancelPendingTrack(plan.request.cid);
+        publisher.releaseSender(transceiver);
+        transceiver.stop();
+        if (!plan.isCancelled) plan.skipReservation();
+      }
+    }
+    return requests;
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {

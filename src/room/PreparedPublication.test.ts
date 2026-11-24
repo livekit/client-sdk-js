@@ -1,17 +1,27 @@
 import { AudioTrackFeature, ParticipantPermission, TrackInfo } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type InitialPublicationSender, PreparedPublicationState } from './PreparedPublication';
+import {
+  type InitialPublicationSender,
+  type PreparePublicationOptions,
+  PreparedPublicationState,
+  reservedSenderCid,
+} from './PreparedPublication';
+import RTCEngine from './RTCEngine';
 import { Room } from './Room';
+import { roomOptionDefaults } from './defaults';
+import { PublishTrackError } from './errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from './events';
-import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
 import { VideoPreset } from './track/options';
 
-const bridge = (room: Room) =>
-  (room as unknown as Record<symbol, SessionPublicationBridge>)[sessionPublicationKey];
+type PreparingRoom = {
+  prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState;
+};
+const prepare = (room: Room, options: PreparePublicationOptions) =>
+  (room as unknown as PreparingRoom).prepareSessionPublication(options);
 
 function fixture() {
   const publication = {} as LocalTrackPublication;
@@ -37,6 +47,7 @@ function fixture() {
     pcManager: { publisher: transport },
     cancelPendingTrack: vi.fn(),
     negotiate: vi.fn(async () => {}),
+    initialOfferAnswered: vi.fn(async () => true),
   };
   const transceiver = { stop: vi.fn(), sender: {} };
   const initial = {
@@ -52,12 +63,35 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
+describe('reservedSenderCid', () => {
+  const sdp = [
+    'v=0',
+    'o=- 1 2 IN IP4 127.0.0.1',
+    's=-',
+    't=0 0',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'a=mid:0',
+    'a=recvonly',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'a=mid:1',
+    'a=sendonly',
+    'a=msid:reserved-stream reserved-track',
+    '',
+  ].join('\r\n');
+  it('reads the track id from the MSID of the reserved stream', () => {
+    expect(reservedSenderCid(sdp, 'reserved-stream')).toBe('reserved-track');
+  });
+  it('finds nothing for a stream that is not in the offer', () => {
+    expect(reservedSenderCid(sdp, 'other-stream')).toBeUndefined();
+    expect(reservedSenderCid('', 'reserved-stream')).toBeUndefined();
+  });
+});
 describe('prepared publication lifecycle', () => {
   it('does not request capture or publish while preparing', async () => {
     const room = new Room();
     const createTracks = vi.spyOn(room.localParticipant, 'createTracks');
     const publish = vi.spyOn(room.localParticipant, 'publishTrack');
-    const plan = bridge(room).prepare({ source: Track.Source.Microphone });
+    const plan = prepare(room, { source: Track.Source.Microphone });
     expect(createTracks).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     await plan.cancel();
@@ -65,13 +99,13 @@ describe('prepared publication lifecycle', () => {
   });
   it('uses the declared audio format over default stereo settings', async () => {
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Microphone,
       format: { channelCount: 2 },
     }) as PreparedPublicationState;
     expect(plan.request.stereo).toBe(true);
     expect(() =>
-      bridge(room).prepare({
+      prepare(room, {
         source: Track.Source.Microphone,
         format: { channelCount: 2 },
         publishOptions: { forceStereo: false },
@@ -80,21 +114,21 @@ describe('prepared publication lifecycle', () => {
     await plan.cancel();
     await room.dispose();
   });
-  it('attaches only after the explicitly claimed connect is ready', async () => {
+  it('attaches only after the engine settled the registration', async () => {
     const { plan, track, publish, publication, release } = fixture();
     const attached = plan.attachTrack(track);
-    plan.connectionReady();
     await Promise.resolve();
     expect(publish).not.toHaveBeenCalled();
-    plan.claimed = true;
-    plan.connectionReady();
+    // capture finished first: the engine must still reserve the sender
+    expect(plan.isWaitingForSender).toBe(true);
+    plan.skipReservation();
     expect(await attached).toBe(publication);
     expect(track.source).toBe(Track.Source.Microphone);
     expect(release).toHaveBeenCalledOnce();
     await plan.cancel();
     expect(publish).toHaveBeenCalledOnce();
   });
-  it('rejects cancellation promptly before JOIN settles and never stops caller media', async () => {
+  it('rejects cancellation before registration and never stops caller media', async () => {
     const { plan, track, publish, release } = fixture();
     const attached = plan.attachTrack(track);
     await plan.cancel();
@@ -116,12 +150,8 @@ describe('prepared publication lifecycle', () => {
   });
   it('tears down a negotiated reservation once and releases it', async () => {
     const { plan, initial, engine, transceiver, release } = fixture();
-    plan.claimed = true;
     plan.reserve(initial);
-    const cancelled = plan.cancel();
-    expect(transceiver.stop).not.toHaveBeenCalled();
-    plan.connectionReady();
-    await cancelled;
+    await plan.cancel();
     await plan.cancel();
     expect(transceiver.stop).toHaveBeenCalledOnce();
     expect(engine.negotiate).toHaveBeenCalledOnce();
@@ -148,12 +178,15 @@ describe('prepared publication lifecycle', () => {
     'falls back when %s no longer matches',
     async (reason) => {
       const { plan, initial, track, engine, transceiver } = fixture();
-      plan.claimed = true;
       if (reason === 'codec')
         initial.accepted = Promise.resolve(new TrackInfo({ codecs: [{ mimeType: 'audio/pcmu' }] }));
-      if (reason === 'format') track.getSourceTrackSettings = () => ({ channelCount: 2 });
+      if (reason === 'format') {
+        // a stereo reservation needs a stereo capture
+        plan.options.forceStereo = true;
+        track.getSourceTrackSettings = () => ({ channelCount: 1 });
+      }
       plan.reserve(initial);
-      plan.connectionReady();
+      plan.skipReservation();
       if (reason === 'connection') engine.pcManager.publisher = {};
       expect(await plan.senderFor(track, initial.engine)).toBeUndefined();
       expect(transceiver.stop).toHaveBeenCalledTimes(reason === 'connection' ? 0 : 1);
@@ -164,7 +197,7 @@ describe('prepared publication lifecycle', () => {
     const { plan, initial } = fixture();
     await plan.cancel();
     expect(() => plan.reserve(initial)).toThrow('cancelled');
-    expect(plan.hasInitialSender).toBe(false);
+    expect(plan.isWaitingForSender).toBe(false);
   });
   it('owns only the preconnect recorder it starts', async () => {
     const { plan, track } = fixture();
@@ -187,16 +220,15 @@ describe('prepared publication lifecycle', () => {
         setupLocalParticipantEvents(): void;
         onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
       };
-      const plan = bridge(room).prepare({
+      const plan = prepare(room, {
         source: Track.Source.Microphone,
       }) as PreparedPublicationState;
-      plan.claimed = true;
-      const other = bridge(room).prepare({ source: Track.Source.Microphone });
+      const other = prepare(room, { source: Track.Source.Microphone });
       const { initial, engine } = fixture();
       initial.accepted = Promise.resolve(new TrackInfo({ sid: 'early-sid' }));
       engine.isClosed = true;
       plan.reserve(initial);
-      plan.connectionReady();
+      plan.skipReservation();
       await Promise.resolve();
       internals.setupLocalParticipantEvents();
       const subscribed = vi.fn();
@@ -219,10 +251,9 @@ describe('prepared publication lifecycle', () => {
   it('keeps unrelated subscription deferral bounded while capture is pending', async () => {
     vi.useFakeTimers();
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Microphone,
     }) as PreparedPublicationState;
-    plan.claimed = true;
     const internals = room as unknown as {
       setupLocalParticipantEvents(): void;
       onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
@@ -248,7 +279,6 @@ describe('prepared publication lifecycle', () => {
   });
   it('disconnect settles attachment and releases a reserved sender', async () => {
     const { plan, initial, track, engine, release } = fixture();
-    plan.claimed = true;
     plan.reserve(initial);
     const attached = plan.attachTrack(track);
     engine.isClosed = true;
@@ -316,8 +346,7 @@ function publicationFixture() {
     false,
     (attachedTrack, prepared) => actualPublish.publish(attachedTrack, {}, false, prepared),
   );
-  plan.claimed = true;
-  plan.connectionReady();
+  plan.skipReservation();
   const close = async () => {
     engine.pcManager = undefined;
     closed.mockRestore();
@@ -435,7 +464,7 @@ describe('prepared publication option normalization', () => {
         },
       });
       const format = { width: 1280, height: 720 };
-      const plan = bridge(room).prepare({
+      const plan = prepare(room, {
         source: Track.Source.Camera,
         format,
         publishOptions: {
@@ -464,12 +493,12 @@ describe('prepared publication option normalization', () => {
   );
   it('defers H264 with default VP8 backup to ordinary publication without dropping backup policy', async () => {
     const room = new Room();
-    const plan = bridge(room).prepare({
+    const plan = prepare(room, {
       source: Track.Source.Camera,
       format: { width: 640, height: 480 },
       publishOptions: { videoCodec: 'h264', backupCodec: true },
     }) as PreparedPublicationState;
-    expect(plan.canSendWithJoin).toBe(false);
+    expect(plan.canReserve).toBe(false);
     expect(plan.options.backupCodec).toEqual({ codec: 'vp8' });
     await plan.cancel();
     await room.dispose();
@@ -477,7 +506,401 @@ describe('prepared publication option normalization', () => {
   it('does not expose preparation methods on the application Room', async () => {
     const room = new Room();
     expect('preparePublication' in room).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(room, sessionPublicationKey)?.enumerable).toBe(false);
+    await room.dispose();
+  });
+  it.each([false, true])(
+    'reserves a track published before connect as publishTrack would publish it, muted: %s',
+    async (muted) => {
+      const room = new Room();
+      const capture = Object.assign(new EventTarget(), {
+        kind: 'audio',
+        id: 'early-mic',
+        label: 'early',
+        enabled: true,
+        muted: false,
+        readyState: 'live',
+        stop: vi.fn(),
+        getSettings: () => ({ channelCount: 2 }),
+        getConstraints: () => ({}),
+      }) as unknown as MediaStreamTrack;
+      const track = new LocalAudioTrack(capture);
+      track.source = Track.Source.Microphone;
+      if (muted) vi.spyOn(track, 'isMuted', 'get').mockReturnValue(true);
+      const publishing = room.localParticipant.publishTrack(track);
+      publishing.catch(() => {});
+      const reservations = (
+        room as unknown as { preparedPublications: Set<PreparedPublicationState> }
+      ).preparedPublications;
+      // Synchronously, before any await: connect() builds the JOIN offer only after its own
+      // awaits, so Promise.all([connect(), publishTrack()]) relies on this.
+      expect(reservations.size).toBe(1);
+      const [plan] = reservations;
+      // forceStereo defaults to false, so a stereo capture publishes mono either way
+      expect(plan.request.stereo).toBe(false);
+      expect(plan.request.muted).toBe(muted);
+      await room.dispose();
+      await expect(publishing).rejects.toThrow();
+    },
+  );
+  it('reserves a microphone in any state until the room is disposed', async () => {
+    const room = new Room();
+    const plan = room.localParticipant.reservePublication!({
+      source: Track.Source.Microphone,
+    });
+    expect(plan).toBeInstanceOf(PreparedPublicationState);
+    expect(plan!.request.muted).toBe(true);
+    await room.dispose();
+    expect(plan!.isCancelled).toBe(true);
+    expect(
+      room.localParticipant.reservePublication!({ source: Track.Source.Microphone }),
+    ).toBeUndefined();
+  });
+});
+
+/** An engine whose publisher is a stub, with the JOIN answered and reservation allowed. */
+function reservingEngine() {
+  const engine = new RTCEngine(roomOptionDefaults);
+  const transceivers: { stream: { id: string }; stop: () => void }[] = [];
+  let streams = 0;
+  vi.stubGlobal(
+    'MediaStream',
+    class {
+      id = `stream-${++streams}`;
+    },
+  );
+  vi.stubGlobal('RTCRtpSender', {
+    getCapabilities: () => ({ codecs: [{ mimeType: 'audio/opus' }, { mimeType: 'audio/red' }] }),
+  });
+  const offerFor = () =>
+    [
+      'v=0',
+      'o=- 1 2 IN IP4 127.0.0.1',
+      's=-',
+      't=0 0',
+      ...transceivers.flatMap((t, i) => [
+        'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+        `a=mid:${i}`,
+        'a=sendonly',
+        `a=msid:${t.stream.id} track-${i}`,
+      ]),
+      '',
+    ].join('\r\n');
+  const publisher = {
+    latestAcknowledgedOfferId: 1,
+    reserveSender: vi.fn(),
+    releaseSender: vi.fn(),
+    setTrackCodecBitrate: vi.fn(),
+    createProbeOffer: vi.fn(async () => offerFor()),
+    on: vi.fn(),
+    off: vi.fn(),
+  };
+  const pcManager = {
+    publisher,
+    addPublisherTransceiverOfKind: vi.fn(
+      async (_kind: string, init: { streams: { id: string }[] }) => {
+        const transceiver = {
+          stream: init.streams[0],
+          setCodecPreferences: vi.fn(),
+          stop: vi.fn(),
+          sender: {},
+        };
+        transceivers.push(transceiver);
+        return transceiver;
+      },
+    ),
+  };
+  Object.defineProperty(engine, 'pcManager', { value: pcManager, writable: true });
+  const internals = engine as unknown as {
+    initialOfferId?: number;
+    canReserve?: boolean;
+    addReservedSenders(): Promise<unknown[]>;
+    reserveSenders(
+      register: (req: { cid: string }) => Promise<TrackInfo>,
+    ): Promise<{ cid: string }[]>;
+    claimReservations(
+      reservations: unknown[],
+      sdp: string,
+      register: (req: { cid: string }) => Promise<TrackInfo>,
+    ): { cid: string }[];
+  };
+  internals.initialOfferId = 1;
+  internals.canReserve = true;
+  const negotiate = vi.spyOn(engine, 'negotiate').mockResolvedValue(undefined);
+  const addTrack = vi
+    .spyOn(engine, 'addTrack')
+    .mockImplementation(async (req) => new TrackInfo({ sid: `TR_${req.cid}` }));
+  const plan = () => {
+    const prepared = new PreparedPublicationState(
+      { source: Track.Source.Microphone },
+      {},
+      [],
+      'opus',
+      true,
+      vi.fn(),
+    );
+    engine.preparedPublications = [prepared];
+    return prepared;
+  };
+  return {
+    engine,
+    internals,
+    publisher,
+    pcManager,
+    transceivers,
+    offerFor,
+    negotiate,
+    addTrack,
+    plan,
+  };
+}
+
+describe('engine reservation', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('puts a reservation into the JOIN with the CID from the initial offer', async () => {
+    const { internals, offerFor, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    const reservations = await internals.addReservedSenders();
+    const register = vi.fn(async () => new TrackInfo({ sid: 'TR_join' }));
+    const requests = internals.claimReservations(reservations, offerFor(), register);
+    expect(requests.map((r) => r.cid)).toEqual(['track-0']);
+    expect(register).toHaveBeenCalledOnce();
+    expect(addTrack).not.toHaveBeenCalled();
+    expect(prepared.isWaitingForSender).toBe(false);
+    await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('sets a reserved camera start bitrate with its CID before the JOIN offer is built', async () => {
+    const { engine, internals, publisher } = reservingEngine();
+    const camera = new PreparedPublicationState(
+      { source: Track.Source.Camera, format: { width: 640, height: 480 } },
+      {},
+      [],
+      'vp8',
+      true,
+      vi.fn(),
+    );
+    camera.startBitrate = 1_500_000;
+    engine.preparedPublications = [camera];
+    const requests = await internals.reserveSenders(async () => new TrackInfo({ sid: 'TR_cam' }));
+    expect(requests.map((r) => r.cid)).toEqual(['track-0']);
+    expect(publisher.setTrackCodecBitrate).toHaveBeenCalledWith({
+      cid: 'track-0',
+      codec: 'vp8',
+      maxbr: 1500,
+    });
+  });
+
+  it('lets the JOIN go ahead when a sender cannot be reserved', async () => {
+    const { internals, pcManager, plan } = reservingEngine();
+    const prepared = plan();
+    pcManager.addPublisherTransceiverOfKind.mockRejectedValueOnce(
+      new Error('no trackless senders'),
+    );
+    await expect(internals.addReservedSenders()).resolves.toEqual([]);
+    await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('removes a sender whose CID is missing from the offer', async () => {
+    const { internals, publisher, transceivers, plan } = reservingEngine();
+    const prepared = plan();
+    const reservations = await internals.addReservedSenders();
+    const register = vi.fn();
+    expect(internals.claimReservations(reservations, '', register)).toEqual([]);
+    expect(register).not.toHaveBeenCalled();
+    expect(transceivers[0].stop).toHaveBeenCalledOnce();
+    expect(publisher.releaseSender).toHaveBeenCalledOnce();
+    await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('registers a waiting reservation once after the JOIN, even when asked twice', async () => {
+    const { engine, negotiate, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    await Promise.all([engine.reservePublications(), engine.reservePublications()]);
+    expect(addTrack).toHaveBeenCalledOnce();
+    expect(addTrack.mock.calls[0][0].cid).toBe('track-0');
+    expect(negotiate).toHaveBeenCalledOnce();
+    expect(prepared.isWaitingForSender).toBe(false);
+  });
+
+  it('does nothing before the JOIN completes', async () => {
+    const { engine, internals, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    internals.canReserve = undefined;
+    await engine.reservePublications();
+    expect(addTrack).not.toHaveBeenCalled();
+    expect(prepared.isWaitingForSender).toBe(true);
+  });
+
+  it('settles reservations on a connection that cannot reserve', async () => {
+    const { engine, internals, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    internals.canReserve = false;
+    await engine.reservePublications();
+    expect(addTrack).not.toHaveBeenCalled();
+    await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('settles reservations when the probe offer fails', async () => {
+    const { engine, publisher, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    publisher.createProbeOffer.mockRejectedValueOnce(new Error('offer failed'));
+    await engine.reservePublications();
+    expect(addTrack).not.toHaveBeenCalled();
+    await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('keeps an attachment that waits for acceptance across a full reconnect', async () => {
+    const { engine, addTrack } = reservingEngine();
+    // real response waiters, so that the reconnect's fallback() rejects the pending one
+    const waiters = engine as unknown as {
+      waitForTrackPublished(req: { cid: string }): Promise<TrackInfo>;
+      pendingTrackResolvers: Record<string, { resolve(info: TrackInfo): void }>;
+    };
+    addTrack.mockImplementation((req) => waiters.waitForTrackPublished(req));
+    const publish = vi.fn(async (attached: LocalTrack, plan: PreparedPublicationState) => {
+      const sender = await plan.senderFor(attached, engine);
+      return { sender } as unknown as LocalTrackPublication;
+    });
+    const prepared = new PreparedPublicationState(
+      { source: Track.Source.Microphone },
+      {},
+      [],
+      'opus',
+      true,
+      publish,
+    );
+    engine.preparedPublications = [prepared];
+    await engine.reservePublications();
+    const track = {
+      kind: Track.Kind.Audio,
+      getSourceTrackSettings: () => ({ channelCount: 1 }),
+      stop: vi.fn(),
+    } as unknown as LocalTrack;
+    const attaching = prepared.attachTrack(track);
+    // capture is attached and waits for the server to accept the first registration
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce());
+    // what cleanupPeerConnections() does on a full reconnect
+    prepared.fallback();
+    await engine.reservePublications();
+    waiters.pendingTrackResolvers['track-1'].resolve(new TrackInfo({ sid: 'TR_new' }));
+    const publication = (await attaching) as unknown as {
+      sender?: { accepted: Promise<TrackInfo> };
+    };
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(prepared.isCancelled).toBe(false);
+    expect((await publication.sender!.accepted).sid).toBe('TR_new');
+  });
+
+  it('registers a reservation again after a full reconnect dropped its sender', async () => {
+    const { engine, addTrack, plan } = reservingEngine();
+    const prepared = plan();
+    await engine.reservePublications();
+    // what cleanupPeerConnections() does on a full reconnect
+    prepared.fallback();
+    expect(prepared.isWaitingForSender).toBe(true);
+    await engine.reservePublications();
+    expect(addTrack).toHaveBeenCalledTimes(2);
+    expect(prepared.isWaitingForSender).toBe(false);
+  });
+});
+
+describe('publishTrack() before the signal connects', () => {
+  function track(source: Track.Source) {
+    const capture = Object.assign(new EventTarget(), {
+      kind: 'audio',
+      id: `early-${source}`,
+      label: 'early',
+      enabled: true,
+      muted: false,
+      readyState: 'live',
+      stop: vi.fn(),
+      getSettings: () => ({ channelCount: 1 }),
+      getConstraints: () => ({}),
+    }) as unknown as MediaStreamTrack;
+    const local = new LocalAudioTrack(capture);
+    local.source = source;
+    return local;
+  }
+  const reservationsOf = (room: Room) =>
+    (room as unknown as { preparedPublications: Set<PreparedPublicationState> })
+      .preparedPublications;
+
+  it('cancels the reservation when the track is unpublished before connect', async () => {
+    const room = new Room();
+    const microphone = track(Track.Source.Microphone);
+    const publishing = room.localParticipant.publishTrack(microphone);
+    const rejected = expect(publishing).rejects.toThrow('cancelled');
+    const [reservation] = reservationsOf(room);
+    expect(await room.localParticipant.unpublishTrack(microphone)).toBeUndefined();
+    await rejected;
+    expect(reservation.isCancelled).toBe(true);
+    expect(reservationsOf(room).size).toBe(0);
+    await room.dispose();
+  });
+
+  it('reuses the pending reservation when the same track is published again', async () => {
+    const room = new Room();
+    const microphone = track(Track.Source.Microphone);
+    const first = room.localParticipant.publishTrack(microphone);
+    const second = room.localParticipant.publishTrack(microphone);
+    first.catch(() => {});
+    second.catch(() => {});
+    expect(reservationsOf(room).size).toBe(1);
+    await room.dispose();
+  });
+
+  it('does not reserve a track without a source, so device controls keep away from it', async () => {
+    const room = new Room();
+    const feed = track(Track.Source.Unknown);
+    room.localParticipant.publishTrack(feed).catch(() => {});
+    expect(reservationsOf(room).size).toBe(0);
+    expect(feed.source).toBe(Track.Source.Unknown);
+    await room.dispose();
+  });
+});
+
+describe('15 s limit for publications reserved before the signal connects', () => {
+  function capturedMicrophone() {
+    const capture = Object.assign(new EventTarget(), {
+      kind: 'audio',
+      id: 'pending-mic',
+      label: 'pending',
+      enabled: true,
+      muted: false,
+      readyState: 'live',
+      stop: vi.fn(),
+      getSettings: () => ({ channelCount: 1 }),
+      getConstraints: () => ({}),
+    }) as unknown as MediaStreamTrack;
+    const track = new LocalAudioTrack(capture);
+    track.source = Track.Source.Microphone;
+    vi.spyOn(track, 'stop');
+    return track;
+  }
+
+  it('rejects publishTrack() and stops the track', async () => {
+    vi.useFakeTimers();
+    const room = new Room();
+    const track = capturedMicrophone();
+    const publishing = room.localParticipant.publishTrack(track);
+    const rejected = expect(publishing).rejects.toBeInstanceOf(PublishTrackError);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    expect(track.stop).toHaveBeenCalled();
+    await room.dispose();
+  });
+
+  it('rejects setMicrophoneEnabled() and stops the captured track', async () => {
+    vi.useFakeTimers();
+    const room = new Room();
+    const track = capturedMicrophone();
+    vi.spyOn(room.localParticipant, 'createTracks').mockResolvedValue([track]);
+    const enabling = room.localParticipant.setMicrophoneEnabled(true);
+    const rejected = expect(enabling).rejects.toBeInstanceOf(PublishTrackError);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    expect(track.stop).toHaveBeenCalled();
     await room.dispose();
   });
 });

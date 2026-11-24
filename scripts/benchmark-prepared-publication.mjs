@@ -7,8 +7,6 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 
 const url = process.env.LIVEKIT_URL ?? 'ws://127.0.0.1:7880';
-// For a server restricted to H264, verify VP8 reservations fall back instead of blocking JOIN.
-const expectCodecFallback = process.env.PREPARED_EXPECT_CODEC_FALLBACK === '1';
 const apiKey = process.env.LIVEKIT_API_KEY ?? 'devkey';
 const apiSecret = process.env.LIVEKIT_API_SECRET ?? 'secret';
 const bundle = await readFile(new URL('../dist/livekit-client.esm.mjs', import.meta.url));
@@ -45,7 +43,7 @@ try {
           await page.goto(`http://127.0.0.1:${server.address().port}`);
           const row = await page.evaluate(
             async ({ url, tokens, singlePeerConnection, prepared, kind }) => {
-              const { Room, RoomEvent, Track, createLocalTracks } = await import('/sdk.js');
+              const { Room, RoomEvent, Track } = await import('/sdk.js');
               const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
               const waitFor = async (predicate) => {
                 const deadline = performance.now() + 10000;
@@ -81,7 +79,6 @@ try {
                 pending.add(task);
                 void task.finally(() => pending.delete(task));
               };
-              let tracks = [];
               try {
                 await subscriber.connect(url, tokens[1]);
                 const sources =
@@ -92,59 +89,47 @@ try {
                   source === Track.Source.Camera
                     ? { videoCodec: 'vp8', simulcast: true }
                     : { red: false };
-                const reservations = new Map(
-                  prepared
-                    ? sources.map((source) => [
-                        source,
-                        publisher[Symbol.for('livekit.internal.sessionPublication.v1')].prepare({
-                          source,
-                          ...(source === Track.Source.Camera
-                            ? { format: { width: 640, height: 480, frameRate: 30 } }
-                            : {}),
-                          publishOptions: publicationOptions(source),
-                        }),
-                      ])
-                    : [],
-                );
-                const started = performance.now();
+                // prepared: setMicrophoneEnabled() reserves the sender before capture.
+                // The baseline turns that reservation off.
+                if (!prepared) publisher.localParticipant.reservePublication = undefined;
                 // Permission/device initialization completes late, while JOIN runs independently.
-                const capture = (async () => {
+                let captureReadyMs;
+                let traceStart;
+                let pendingCaptures = sources.length;
+                const getUserMedia = navigator.mediaDevices.getUserMedia.bind(
+                  navigator.mediaDevices,
+                );
+                navigator.mediaDevices.getUserMedia = async (constraints) => {
                   await delay(650);
-                  return await createLocalTracks({
-                    audio: kind !== 'video' && { channelCount: 1 },
-                    video: kind !== 'audio' && {
-                      resolution: { width: 640, height: 480, frameRate: 30 },
-                    },
-                  });
-                })();
-                const connecting = prepared
-                  ? publisher[Symbol.for('livekit.internal.sessionPublication.v1')].connect(
-                      url,
-                      tokens[0],
-                      undefined,
-                      [...reservations.values()],
-                    )
-                  : publisher.connect(url, tokens[0]);
-                await connecting;
+                  const stream = await getUserMedia(constraints);
+                  if (--pendingCaptures === 0) {
+                    captureReadyMs = performance.now() - started;
+                    traceStart = trace.length;
+                  }
+                  return stream;
+                };
+                const started = performance.now();
+                const publishing = Promise.all(
+                  sources.map((source) =>
+                    source === Track.Source.Camera
+                      ? publisher.localParticipant.setCameraEnabled(
+                          true,
+                          { resolution: { width: 640, height: 480, frameRate: 30 } },
+                          publicationOptions(source),
+                        )
+                      : publisher.localParticipant.setMicrophoneEnabled(
+                          true,
+                          { channelCount: 1 },
+                          publicationOptions(source),
+                        ),
+                  ),
+                );
+                await publisher.connect(url, tokens[0]);
                 const connectedMs = performance.now() - started;
                 const initialVideoStartBitrate = publisher.engine.pcManager.publisher
                   .getLocalDescription()
                   ?.sdp.includes('x-google-start-bitrate=');
-                tracks = await capture;
-                const captureReadyMs = performance.now() - started;
-                const traceStart = trace.length;
-                await Promise.all(
-                  tracks.map((track) => {
-                    const source =
-                      track.kind === Track.Kind.Video
-                        ? Track.Source.Camera
-                        : Track.Source.Microphone;
-                    const reservation = reservations.get(source);
-                    return reservation
-                      ? reservation.attachTrack(track)
-                      : publisher.localParticipant.publishTrack(track, publicationOptions(source));
-                  }),
-                );
+                await publishing;
                 const publishedMs = performance.now() - started;
                 await waitFor(async () => {
                   if (remotes.size !== sources.length) return false;
@@ -186,7 +171,6 @@ try {
               } finally {
                 await publisher.disconnect();
                 await subscriber.disconnect();
-                tracks.forEach((track) => track.stop());
                 await Promise.all(pending);
                 await publisher.dispose();
                 await subscriber.dispose();
@@ -195,11 +179,15 @@ try {
             { url, tokens, singlePeerConnection, prepared, kind },
           );
           console.log(JSON.stringify(row));
-          assert.ok(
-            row.connectedMs < row.captureReadyMs,
-            'JOIN must finish without device acquisition',
-          );
-          if (prepared && singlePeerConnection && !(expectCodecFallback && kind !== 'audio'))
+          // In dual-PC mode a connect() that runs with setMicrophoneEnabled() waits for capture,
+          // also in 2.25.0, so only single PC can show that JOIN does not wait for the device.
+          if (singlePeerConnection)
+            assert.ok(
+              row.connectedMs < row.captureReadyMs,
+              'JOIN must finish without device acquisition',
+            );
+          // Only the microphone is reserved; the camera always publishes after capture.
+          if (prepared && singlePeerConnection && kind === 'audio')
             assert.deepEqual(
               row.publicationSignals,
               [],
@@ -219,8 +207,7 @@ try {
     }
   }
   for (const row of rows.filter(
-    (row) =>
-      row.prepared && row.singlePeerConnection && !(expectCodecFallback && row.kind !== 'audio'),
+    (row) => row.prepared && row.singlePeerConnection && row.kind === 'audio',
   )) {
     const baseline = rows.find(
       (other) =>
