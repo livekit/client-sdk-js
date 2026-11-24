@@ -31,6 +31,7 @@ const httpUrl = url.replace(/^ws/, 'http');
 const credentials = [process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET];
 const micDelay = Number(process.env.MIC_DELAY_MS ?? 2000);
 const signalDelay = Number(process.env.SIGNAL_DELAY_MS ?? 75);
+const micStart = Number(process.env.MIC_START_MS ?? 0);
 const bundle = await readFile(new URL('../dist/livekit-client.esm.mjs', import.meta.url));
 const server = createServer((request, response) => {
   response.setHeader('Content-Type', request.url === '/sdk.js' ? 'text/javascript' : 'text/html');
@@ -81,7 +82,7 @@ try {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const trace = await page.evaluate(
-      async ({ url, tokens, mode, micDelay, signalDelay, agentJoinAfter, realAgent }) => {
+      async ({ url, tokens, mode, micDelay, signalDelay, agentJoinAfter, realAgent, micStart }) => {
         const { Room, RoomEvent, Track, LocalAudioTrack } = await import('/sdk.js');
         const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const t0 = performance.now();
@@ -198,8 +199,12 @@ try {
         // Session-style startup in every mode. prepared: the microphone sender goes in the JOIN.
         // optimistic: right after the JOIN answer. current: no reservation, publish after capture.
         if (mode === 'current') user.localParticipant.prepareStartupPublication = undefined;
+        // MIC_START_MS: start the microphone that long after connect() instead of with it.
+        const connecting = user.connect(url, tokens.user);
+        if (micStart > 0) await delay(micStart);
+        log('user: setMicrophoneEnabled', { state: user.state });
         const micDone = Promise.all([
-          user.connect(url, tokens.user),
+          connecting,
           user.localParticipant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true }),
         ]);
         await Promise.all([micDone, agentDone]);
@@ -216,6 +221,7 @@ try {
         signalDelay,
         agentJoinAfter: process.env.AGENT_JOIN === 'after',
         realAgent,
+        micStart,
       },
     );
     trace.sort((a, b) => a.t - b.t);

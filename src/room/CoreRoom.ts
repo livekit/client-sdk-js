@@ -741,38 +741,58 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   private startupPublications: PreparedPublicationState[] = [];
 
   /**
-   * Reserves a sender for a device that is still being captured while the room is disconnected,
-   * so the next connect() can register it without waiting for the device. Returns undefined when
-   * the publication cannot be prepared; the caller then publishes as usual.
+   * The reservations of the current connect(). The engine reads this same array, so a
+   * reservation added while connecting reaches the JOIN or the registration after it.
+   */
+  private connectingPublications: PreparedPublicationState[] = [];
+
+  /**
+   * Reserves a sender for a device that is still being captured, before the room is connected, so
+   * the publication is registered without waiting for the device. While disconnected, the next
+   * connect() claims it. While connecting, it goes into the JOIN if that is not built yet, and
+   * otherwise is registered once the JOIN answer is applied. Returns undefined when the
+   * publication cannot be prepared; the caller then publishes as usual.
    */
   private prepareStartupPublication = (
     options: PreparePublicationOptions,
   ): PreparedPublicationState | undefined => {
-    if (this.disposed || this.connectFuture || this.state !== ConnectionState.Disconnected) return;
+    const connecting = this.state === ConnectionState.Connecting;
+    if (this.disposed) return;
+    if (!connecting && (this.connectFuture || this.state !== ConnectionState.Disconnected)) return;
+    let prepared: PreparedPublicationState;
     try {
-      const prepared = this.prepareSessionPublication(options);
-      this.startupPublications.push(prepared);
-      return prepared;
+      prepared = this.prepareSessionPublication(options);
     } catch (error) {
       this.log.debug('publication cannot be prepared', { ...this.logContext, error });
       return;
     }
+    if (connecting) {
+      prepared.claimed = true;
+      this.connectingPublications.push(prepared);
+      void this.engine.reservePublications();
+    } else {
+      this.startupPublications.push(prepared);
+    }
+    return prepared;
   };
 
   /** Snapshot device-free publication intent. */
   private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
-    if (this.disposed || this.state !== ConnectionState.Disconnected) {
-      throw new UnexpectedConnectionState('prepare publications before connecting');
+    if (
+      this.disposed ||
+      (this.state !== ConnectionState.Disconnected && this.state !== ConnectionState.Connecting)
+    ) {
+      throw new UnexpectedConnectionState('prepare publications before the room is connected');
     }
     const prepared = this.localParticipant.preparePublication(options, (p) => {
       this.preparedPublications.delete(p);
       for (const [sid, owner] of this.pendingInitialTrackSubscriptions) {
         if (owner === p) this.pendingInitialTrackSubscriptions.delete(sid);
       }
-      if (this.engine)
-        this.engine.initialPublications = this.engine.initialPublications.filter(
-          (plan) => plan !== p,
-        );
+      for (const list of [this.connectingPublications, this.engine?.initialPublications ?? []]) {
+        const index = list.indexOf(p);
+        if (index >= 0) list.splice(index, 1);
+      }
     });
     this.preparedPublications.add(prepared);
     return prepared;
@@ -845,6 +865,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       preparations.push(prepared);
     }
     for (const prepared of preparations) prepared.claimed = true;
+    this.connectingPublications = preparations;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -899,7 +920,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         if (abortController.signal.aborted) {
           throw ConnectionError.cancelled('Connection attempt aborted');
         }
-        await this.attemptConnection(regionUrl ?? url, token, opts, abortController, preparations);
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
       } catch (error) {
@@ -1037,7 +1058,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
-    initialPublications: readonly PreparedPublicationState[] = [],
   ) => {
     if (
       this.state === ConnectionState.Reconnecting ||
@@ -1062,7 +1082,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
-    engine.initialPublications = [...initialPublications];
+    // the same array: reservations made while connecting must reach this engine
+    engine.initialPublications = this.connectingPublications;
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;

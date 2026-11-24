@@ -233,6 +233,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private initialOfferId?: number;
 
+  /** Whether this connection can register prepared senders after the JOIN. */
+  private canReserveAfterJoin = false;
+
+  private reservations: Promise<void> = Promise.resolve();
+
   private pendingTrackResolvers: {
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
   } = {};
@@ -443,6 +448,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.applyInitialPublisherLayout(true);
           const offer = await this.pcManager!.publisher.createInitialOffer();
           if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+          this.initialOfferId = offer?.offerId;
         }
       }
 
@@ -525,17 +531,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           .join(', ')}`,
       );
 
-      if (
-        this.optimisticPublications &&
-        sendOfferWithJoin &&
-        !this.e2eeManager &&
-        !this.frameMetadataOptions &&
-        !opts.e2eeEnabled
-      ) {
-        this.reservePublicationsAfterJoin().catch((error) =>
-          this.log.warn('optimistic publication failed; deferring publication', { error }),
-        );
-      }
+      // Publications prepared too late for the JOIN (or kept out of it) are registered as soon
+      // as the JOIN answer is applied.
+      this.canReserveAfterJoin =
+        sendOfferWithJoin && !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled;
+      if (this.canReserveAfterJoin) void this.reservePublications();
 
       return { joinResponse, serverInfo };
     } catch (e) {
@@ -601,6 +601,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async cleanupPeerConnections() {
     for (const plan of this.initialPublications) plan.fallback();
     this.initialTrackRequests = [];
+    this.initialOfferId = undefined;
+    this.canReserveAfterJoin = false;
     this.dataChannels.teardown();
 
     await this.pcManager?.close();
@@ -700,23 +702,39 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /**
-   * Prototype of optimistic publication: once the JOIN answer is applied, add the reserved senders,
-   * send their AddTrack requests and renegotiate, all before capture completes.
+   * Registers prepared publications that are not in the JOIN: once the JOIN answer is applied, add
+   * their senders, send their AddTrack requests and renegotiate, all before capture completes.
+   * Before the JOIN is sent this does nothing, because the JOIN or the pass after it picks them up.
+   * Calls run one after another so a publication is never reserved twice. @internal
    */
+  reservePublications() {
+    this.reservations = this.reservations
+      .then(() => this.reservePublicationsAfterJoin())
+      .catch((error) =>
+        this.log.warn('publication reservation failed; publishing after capture', { error }),
+      );
+    return this.reservations;
+  }
+
   private async reservePublicationsAfterJoin() {
     const publisher = this.pcManager?.publisher;
     const initialOfferId = this.initialOfferId;
-    if (!publisher || initialOfferId === undefined) return;
+    if (!this.canReserveAfterJoin || !publisher || initialOfferId === undefined) return;
     // the initial offer becomes the local description only when its answer is applied
     if (publisher.latestAcknowledgedOfferId < initialOfferId) {
-      await new Promise<void>((resolve) => {
-        const onAnswered = (offerId: number) => {
-          if (offerId < initialOfferId) return;
+      const answered = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => done(false), this.peerConnectionTimeout);
+        const done = (result: boolean) => {
+          clearTimeout(timeout);
           publisher.off(PCEvents.OfferAnswered, onAnswered);
-          resolve();
+          resolve(result);
+        };
+        const onAnswered = (offerId: number) => {
+          if (offerId >= initialOfferId) done(true);
         };
         publisher.on(PCEvents.OfferAnswered, onAnswered);
       });
+      if (!answered) return;
     }
     if (this.pcManager?.publisher !== publisher) return;
     const reservations = await this.addReservedTransceivers();
