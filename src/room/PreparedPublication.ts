@@ -313,6 +313,7 @@ export class PreparedPublicationState implements PreparedPublication {
     if (this.committed) return Promise.resolve();
     if (!this.cancelled) this.cancelled = new TrackInvalidError('prepared publication cancelled');
     this.rejectCancelled(this.cancelled);
+    this.rejectRegistered(this.cancelled);
     if (this.ownsBuffer) {
       this.boundTrack?.stopPreConnectBuffer();
       this.ownsBuffer = false;

@@ -624,9 +624,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   reservePublications() {
     this.reservations = this.reservations
       .then(() => this.reserveWaitingPublications())
-      .catch((error) =>
-        this.log.warn('publication reservation failed; publishing after capture', { error }),
-      );
+      .catch((error) => {
+        this.log.warn('publication reservation failed; publishing after capture', { error });
+        // no publication may wait on a registration that is not coming
+        for (const plan of this.preparedPublications) {
+          if (plan.isWaitingForSender) plan.skipReservation();
+        }
+      });
     return this.reservations;
   }
 
@@ -642,11 +646,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     for (const plan of waiting()) if (!plan.canReserve) plan.skipReservation();
     const reservations = await this.addReservedSenders();
     if (!reservations.length) return;
-    const requests = this.claimReservations(
-      reservations,
-      await publisher.createProbeOffer(),
-      (req) => this.addTrack(req),
-    );
+    let sdp = '';
+    try {
+      sdp = await publisher.createProbeOffer();
+    } catch (error) {
+      this.log.warn('could not read reserved senders from a probe offer', { error });
+    }
+    // without an offer, every reservation fails its CID lookup and waits for capture
+    const requests = this.claimReservations(reservations, sdp, (req) => this.addTrack(req));
     if (requests.length) await this.negotiate();
   }
 
@@ -685,32 +692,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager || !publisher) return reservations;
     for (const plan of this.preparedPublications) {
       if (!plan.isWaitingForSender || !plan.canReserve) continue;
-      const stream = new MediaStream();
-      const transceiver = await this.pcManager.addPublisherTransceiverOfKind(
-        plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-        { direction: 'sendonly', streams: [stream], sendEncodings: plan.encodings },
-      );
-      const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
-      const codecs = RTCRtpSender.getCapabilities(
-        plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-      )!.codecs.filter(
-        (c) =>
-          c.mimeType.toLowerCase() === mime ||
-          (plan.kind === Track.Kind.Audio
-            ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
-            : c.mimeType.toLowerCase() === 'video/rtx'),
-      );
-      publisher.reserveSender(transceiver);
-      transceiver.setCodecPreferences(codecs);
-      reservations.push({ plan, transceiver, stream: stream.id });
+      let transceiver: RTCRtpTransceiver | undefined;
+      try {
+        const stream = new MediaStream();
+        transceiver = await this.pcManager.addPublisherTransceiverOfKind(
+          plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+          { direction: 'sendonly', streams: [stream], sendEncodings: plan.encodings },
+        );
+        const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
+        const codecs = RTCRtpSender.getCapabilities(
+          plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+        )!.codecs.filter(
+          (c) =>
+            c.mimeType.toLowerCase() === mime ||
+            (plan.kind === Track.Kind.Audio
+              ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
+              : c.mimeType.toLowerCase() === 'video/rtx'),
+        );
+        publisher.reserveSender(transceiver);
+        transceiver.setCodecPreferences(codecs);
+        reservations.push({ plan, transceiver, stream: stream.id });
+      } catch (error) {
+        // A browser that cannot reserve a sender still joins; the publication waits for capture.
+        this.log.warn('publication reservation failed; publishing after capture', { error });
+        if (transceiver) {
+          publisher.releaseSender(transceiver);
+          transceiver.stop();
+        }
+        plan.skipReservation();
+      }
     }
     return reservations;
   }
 
   /**
    * Gives each reserved sender the CID that `sdp` shows for it and registers its AddTrack request
-   * through `register`. A sender without a CID in the offer is removed, and its publication waits
-   * for capture.
+   * through `register`. When that fails for a reservation, for example because the offer shows no
+   * CID for its sender, the sender is removed and the publication waits for capture.
    */
   private claimReservations(
     reservations: Awaited<ReturnType<RTCEngine['addReservedSenders']>>,
@@ -721,25 +739,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const publisher = this.pcManager?.publisher;
     if (!publisher) return requests;
     for (const { plan, transceiver, stream } of reservations) {
-      const cid = reservedSenderCid(sdp, stream);
-      if (!cid || plan.isCancelled) {
+      try {
+        const cid = reservedSenderCid(sdp, stream);
+        if (!cid) throw new UnexpectedConnectionState('reserved sender has no CID in the offer');
+        plan.request.cid = cid;
+        if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
+        if (plan.startBitrate) {
+          publisher.setTrackCodecBitrate({
+            cid,
+            codec: plan.codec,
+            maxbr: plan.startBitrate / 1000,
+          });
+        }
+        plan.reserve({
+          engine: this,
+          transport: publisher,
+          transceiver,
+          accepted: register(plan.request),
+        });
+        requests.push(plan.request);
+      } catch (error) {
+        if (!plan.isCancelled) {
+          this.log.warn('publication reservation failed; publishing after capture', { error });
+        }
+        if (plan.request.cid) this.cancelPendingTrack(plan.request.cid);
         publisher.releaseSender(transceiver);
         transceiver.stop();
         if (!plan.isCancelled) plan.skipReservation();
-        continue;
       }
-      plan.request.cid = cid;
-      if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
-      if (plan.startBitrate) {
-        publisher.setTrackCodecBitrate({ cid, codec: plan.codec, maxbr: plan.startBitrate / 1000 });
-      }
-      plan.reserve({
-        engine: this,
-        transport: publisher,
-        transceiver,
-        accepted: register(plan.request),
-      });
-      requests.push(plan.request);
     }
     return requests;
   }

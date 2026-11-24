@@ -499,6 +499,7 @@ export class LocalParticipant extends Participant {
         }
         this.pendingPublishing.add(source);
         let prepared: PreparedPublicationState | undefined;
+        let settleReservation: ((error: unknown) => unknown) | undefined;
         try {
           switch (source) {
             case Track.Source.Camera:
@@ -512,6 +513,7 @@ export class LocalParticipant extends Participant {
                 source: Track.Source.Microphone,
                 publishOptions: { ...publishOptions },
               });
+              settleReservation = prepared && this.limitRegistration(prepared);
               localTracks = await this.createTracks({
                 audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
@@ -572,7 +574,7 @@ export class LocalParticipant extends Participant {
           localTracks?.forEach((tr) => {
             tr.stop();
           });
-          throw e;
+          throw settleReservation ? settleReservation(e) : e;
         } finally {
           this.pendingPublishing.delete(source);
         }
@@ -892,26 +894,32 @@ export class LocalParticipant extends Participant {
     const prepared = this.reservePublication?.(specification);
     if (!prepared) return;
     prepared.request.muted = track.isMuted;
-    // As for any publication made before the signal connects: give up after 15 s.
+    const settle = this.limitRegistration(prepared, () => track.stop());
+    return prepared.attachTrack(track).catch((error: unknown) => {
+      throw settle(error);
+    });
+  }
+
+  /**
+   * Gives up on a reservation that is not registered within 15 s, as any publication made before
+   * the signal connects does. Returns a function that turns the attachment's error into the
+   * timeout error when the limit ran out.
+   */
+  private limitRegistration(prepared: PreparedPublicationState, onTimeout?: () => void) {
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
-      track.stop();
+      onTimeout?.();
       prepared.cancel().catch(() => {});
     }, 15_000);
     prepared.registration.then(
       () => clearTimeout(timeout),
       () => clearTimeout(timeout),
     );
-    return prepared.attachTrack(track).catch((error: unknown) => {
-      if (timedOut) {
-        throw new PublishTrackError(
-          'publishing rejected as engine not connected within timeout',
-          408,
-        );
-      }
-      throw error;
-    });
+    return (error: unknown) =>
+      timedOut
+        ? new PublishTrackError('publishing rejected as engine not connected within timeout', 408)
+        : error;
   }
 
   /**
