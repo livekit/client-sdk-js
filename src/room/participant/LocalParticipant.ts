@@ -1234,6 +1234,10 @@ export class LocalParticipant extends Participant {
 
       if (reserved) {
         prepared!.assertActive();
+        // The SFU drops media of a track it thinks is muted. Unmute before the first packet goes
+        // out, so both travel together. senderFor() already awaited the acceptance.
+        const { sid } = await reserved.accepted;
+        if (track.isMuted !== prepared!.request.muted) engine.updateMuteStatus(sid, track.isMuted);
         await reserved.transceiver.sender.replaceTrack(track.mediaStreamTrack);
         prepared!.assertActive();
         if (
@@ -1364,11 +1368,9 @@ export class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
     if (reserved) {
-      // Capture-dependent features are unknown when the sender is reserved, and the
-      // reservation was announced muted.
+      // Capture-dependent features are unknown when the sender is reserved.
       if (track.kind === Track.Kind.Audio)
         engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
-      if (track.isMuted !== prepared!.request.muted) engine.updateMuteStatus(ti.sid, track.isMuted);
     }
 
     // keep publish options on the video track so that it can recompute encoding
