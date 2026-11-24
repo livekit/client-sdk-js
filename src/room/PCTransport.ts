@@ -292,6 +292,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return this._pc;
   }
 
+  /** An offer that is never applied, for reading sender identities (MSIDs). */
+  async createProbeOffer() {
+    return (await this.pc.createOffer()).sdp ?? '';
+  }
+
   private config?: RTCConfiguration;
 
   private log = log;

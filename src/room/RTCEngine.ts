@@ -225,6 +225,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private initialTrackRequests: AddTrackRequest[] = [];
 
+  /**
+   * Prototype: register prepared senders right after the JOIN answer instead of in the JOIN.
+   * @internal
+   */
+  optimisticPublications = false;
+
+  private initialOfferId?: number;
+
   private pendingTrackResolvers: {
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
   } = {};
@@ -412,67 +420,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           canPreparePublications &&
           this.initialPublications.some((plan) => plan.canSendWithJoin && !plan.isCancelled);
         try {
-          const reservations: {
-            plan: PreparedPublicationState;
-            transceiver: RTCRtpTransceiver;
-            stream: string;
-          }[] = [];
-          for (const plan of canPreparePublications ? this.initialPublications : []) {
-            if (!plan.canSendWithJoin || plan.isCancelled || plan.hasInitialSender) continue;
-            const stream = new MediaStream();
-            const transceiver = await this.pcManager!.addPublisherTransceiverOfKind(
-              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-              {
-                direction: 'sendonly',
-                streams: [stream],
-                sendEncodings: plan.encodings,
-              },
-            );
-            const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
-            const codecs = RTCRtpSender.getCapabilities(
-              plan.kind === Track.Kind.Audio ? 'audio' : 'video',
-            )!.codecs.filter(
-              (c) =>
-                c.mimeType.toLowerCase() === mime ||
-                (plan.kind === Track.Kind.Audio
-                  ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
-                  : c.mimeType.toLowerCase() === 'video/rtx'),
-            );
-            this.pcManager!.publisher.reserveSender(transceiver);
-            transceiver.setCodecPreferences(codecs);
-            reservations.push({ plan, transceiver, stream: stream.id });
-          }
-          const requests: AddTrackRequest[] = [];
+          const reservations =
+            canPreparePublications && !this.optimisticPublications
+              ? await this.addReservedTransceivers()
+              : [];
+          let requests: AddTrackRequest[] = [];
           const offer = await this.pcManager?.publisher.createInitialOffer((sdp) => {
-            const media = parseInitialSDP(sdp).media;
-            for (const { plan, transceiver, stream } of reservations) {
-              const section = media.find(
-                (m) => typeof m.msid === 'string' && m.msid.startsWith(`${stream} `),
-              );
-              const cid = section?.msid?.split(' ')[1];
-              if (!cid)
-                throw new UnexpectedConnectionState('prepared sender has no SDP track identity');
-              plan.assertActive();
-              plan.request.cid = cid;
-              if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
-              const accepted = this.waitForTrackPublished(plan.request);
-              plan.reserve({
-                engine: this,
-                transport: this.pcManager!.publisher,
-                transceiver,
-                accepted,
-              });
-              requests.push(plan.request);
-              if (plan.startBitrate) {
-                this.pcManager!.publisher.setTrackCodecBitrate({
-                  cid,
-                  codec: plan.codec,
-                  maxbr: plan.startBitrate / 1000,
-                });
-              }
-            }
+            requests = this.claimReservations(reservations, sdp, (req) =>
+              this.waitForTrackPublished(req),
+            );
           });
           if (offer) offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
+          this.initialOfferId = offer?.offerId;
           this.initialTrackRequests = requests;
         } catch (error) {
           if (!preparingPublications) throw error;
@@ -566,6 +525,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           .join(', ')}`,
       );
 
+      if (
+        this.optimisticPublications &&
+        sendOfferWithJoin &&
+        !this.e2eeManager &&
+        !this.frameMetadataOptions &&
+        !opts.e2eeEnabled
+      ) {
+        this.reservePublicationsAfterJoin().catch((error) =>
+          this.log.warn('optimistic publication failed; deferring publication', { error }),
+        );
+      }
+
       return { joinResponse, serverInfo };
     } catch (e) {
       if (this.initialTrackRequests.length) {
@@ -655,6 +626,104 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.pendingTrackResolvers[cid].reject();
     }
     this.pendingTrackResolvers = {};
+  }
+
+  /** Adds a trackless sendonly transceiver for every prepared publication not yet reserved. */
+  private async addReservedTransceivers() {
+    const reservations: {
+      plan: PreparedPublicationState;
+      transceiver: RTCRtpTransceiver;
+      stream: string;
+    }[] = [];
+    for (const plan of this.initialPublications) {
+      if (!plan.canSendWithJoin || plan.isCancelled || plan.hasInitialSender) continue;
+      const stream = new MediaStream();
+      const transceiver = await this.pcManager!.addPublisherTransceiverOfKind(
+        plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+        {
+          direction: 'sendonly',
+          streams: [stream],
+          sendEncodings: plan.encodings,
+        },
+      );
+      const mime = `${plan.kind}/${plan.codec}`.toLowerCase();
+      const codecs = RTCRtpSender.getCapabilities(
+        plan.kind === Track.Kind.Audio ? 'audio' : 'video',
+      )!.codecs.filter(
+        (c) =>
+          c.mimeType.toLowerCase() === mime ||
+          (plan.kind === Track.Kind.Audio
+            ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
+            : c.mimeType.toLowerCase() === 'video/rtx'),
+      );
+      this.pcManager!.publisher.reserveSender(transceiver);
+      transceiver.setCodecPreferences(codecs);
+      reservations.push({ plan, transceiver, stream: stream.id });
+    }
+    return reservations;
+  }
+
+  /** Derives each reserved sender's CID from its MSID in `sdp` and registers the publication. */
+  private claimReservations(
+    reservations: Awaited<ReturnType<RTCEngine['addReservedTransceivers']>>,
+    sdp: string,
+    register: (req: AddTrackRequest) => Promise<TrackInfo>,
+  ) {
+    const media = parseInitialSDP(sdp).media;
+    const requests: AddTrackRequest[] = [];
+    for (const { plan, transceiver, stream } of reservations) {
+      const section = media.find(
+        (m) => typeof m.msid === 'string' && m.msid.startsWith(`${stream} `),
+      );
+      const cid = section?.msid?.split(' ')[1];
+      if (!cid) throw new UnexpectedConnectionState('prepared sender has no SDP track identity');
+      plan.assertActive();
+      plan.request.cid = cid;
+      if (plan.request.simulcastCodecs[0]) plan.request.simulcastCodecs[0].cid = cid;
+      const accepted = register(plan.request);
+      plan.reserve({
+        engine: this,
+        transport: this.pcManager!.publisher,
+        transceiver,
+        accepted,
+      });
+      requests.push(plan.request);
+      if (plan.startBitrate) {
+        this.pcManager!.publisher.setTrackCodecBitrate({
+          cid,
+          codec: plan.codec,
+          maxbr: plan.startBitrate / 1000,
+        });
+      }
+    }
+    return requests;
+  }
+
+  /**
+   * Prototype of optimistic publication: once the JOIN answer is applied, add the reserved senders,
+   * send their AddTrack requests and renegotiate, all before capture completes.
+   */
+  private async reservePublicationsAfterJoin() {
+    const publisher = this.pcManager?.publisher;
+    const initialOfferId = this.initialOfferId;
+    if (!publisher || initialOfferId === undefined) return;
+    // the initial offer becomes the local description only when its answer is applied
+    if (publisher.latestAcknowledgedOfferId < initialOfferId) {
+      await new Promise<void>((resolve) => {
+        const onAnswered = (offerId: number) => {
+          if (offerId < initialOfferId) return;
+          publisher.off(PCEvents.OfferAnswered, onAnswered);
+          resolve();
+        };
+        publisher.on(PCEvents.OfferAnswered, onAnswered);
+      });
+    }
+    if (this.pcManager?.publisher !== publisher) return;
+    const reservations = await this.addReservedTransceivers();
+    if (!reservations.length) return;
+    const sdp = await publisher.createProbeOffer();
+    this.claimReservations(reservations, sdp, (req) => this.addTrack(req));
+    await this.negotiate();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
