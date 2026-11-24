@@ -1,4 +1,4 @@
-import { type MediaDescription, parse } from 'sdp-transform';
+import { type MediaDescription, parse, write } from 'sdp-transform';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PCTransport, {
   applyVideoStartBitrate,
@@ -938,5 +938,43 @@ describe('audio NACK negotiation', () => {
 
       expect(transport.getLocalDescription()?.sdp).toBe(AUDIO_OFFER_IN_EVERY_DIRECTION);
     });
+  });
+});
+
+describe('trackless outgoing microphone codec settings', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('preserves the reserved microphone answer and conforms receive placeholders to it', async () => {
+    const incoming = { mid: '1', sender: { track: null } } as unknown as RTCRtpTransceiver;
+    const outgoing = { mid: '0', sender: { track: null } } as unknown as RTCRtpTransceiver;
+    let applied = '';
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class {
+        signalingState = 'have-local-offer';
+
+        getTransceivers() {
+          return [incoming, outgoing];
+        }
+
+        async setRemoteDescription(description: RTCSessionDescriptionInit) {
+          applied = description.sdp!;
+        }
+      },
+    );
+    const transport = new PCTransport();
+    transport.reserveSender(outgoing);
+    // Put receive defaults first: treating every trackless sender as a placeholder
+    // would otherwise overwrite the microphone's negotiated Opus configuration.
+    const parsed = parse(PUBLISHER_SDP);
+    const mic = parsed.media.find((m) => `${m.mid}` === '0')!;
+    mic.fmtp.find((f) => f.payload === 111)!.config = 'minptime=10;stereo=1;usedtx=1';
+    parsed.media = [parsed.media[1], parsed.media[0], ...parsed.media.slice(2)];
+    await transport.setRemoteDescription({ type: 'answer', sdp: write(parsed) }, 1);
+    const answer = parse(applied).media;
+    expect(paramSet(fmtpOf(answer, '0', 111)!)).toContain('stereo=1');
+    expect(paramSet(fmtpOf(answer, '0', 111)!)).toContain('usedtx=1');
+    expect(fmtpOf(answer, '1', 111)).toBe(fmtpOf(answer, '0', 111));
+    transport.releaseSender(outgoing);
+    expect(placeholderMidsFromTransceivers([incoming, outgoing])).toEqual(new Set(['0', '1']));
   });
 });

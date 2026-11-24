@@ -56,6 +56,7 @@ export function createVideoPublisher(room: CoreRoom, log: StructuredLogger): Vid
     prepareInitial(format, opts, req) {
       // SVC and additional-codec policy depend on server capabilities learned after JOIN.
       opts.videoCodec ??= defaultVideoCodec;
+      opts.backupCodec = normalizeBackupCodec(opts.backupCodec);
       if (
         !['vp8', 'h264'].includes(opts.videoCodec) ||
         opts.scalabilityMode ||
@@ -191,9 +192,7 @@ export function createVideoPublisher(room: CoreRoom, log: StructuredLogger): Vid
       req.simulcastCodecs = [primaryCodec];
 
       // set up backup
-      if (opts.backupCodec === true) {
-        opts.backupCodec = { codec: defaultVideoCodec };
-      }
+      opts.backupCodec = normalizeBackupCodec(opts.backupCodec);
       if (
         opts.backupCodec &&
         videoCodec !== opts.backupCodec.codec &&
@@ -501,4 +500,11 @@ export async function handleSubscribedQualityUpdate(
       await publishAdditionalCodecForTrack(room, log, pub.videoTrack, codec, pub.options);
     }
   }
+}
+
+/** Expand the default backup policy consistently for JOIN and ordinary publication. */
+function normalizeBackupCodec(
+  backup: TrackPublishOptions['backupCodec'],
+): Exclude<TrackPublishOptions['backupCodec'], true> {
+  return backup === true ? { codec: defaultVideoCodec } : backup;
 }

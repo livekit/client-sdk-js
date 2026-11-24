@@ -43,11 +43,7 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
-import {
-  type PreparePublicationOptions,
-  type PreparedPublication,
-  PreparedPublicationState,
-} from './PreparedPublication';
+import { type PreparePublicationOptions, PreparedPublicationState } from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -80,6 +76,7 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
@@ -326,6 +323,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       ...options?.publishDefaults,
     };
 
+    Object.defineProperty(this, sessionPublicationKey, {
+      configurable: true,
+      value: {
+        prepare: (intent) => this.prepareSessionPublication(intent),
+        connect: (url, token, connectOptions, publications) =>
+          this.connectWithPublications(url, token, connectOptions, publications),
+      } satisfies SessionPublicationBridge,
+    });
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
@@ -736,8 +741,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private readonly pendingInitialTrackSubscriptions = new Set<string>();
 
-  /** Prepares publication metadata without opening a device. Supply the handle to connect. @experimental */
-  preparePublication(options: PreparePublicationOptions): PreparedPublication {
+  /** Snapshot device-free intent for the internal Session bridge. */
+  private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
     if (this.disposed || this.state !== ConnectionState.Disconnected) {
       throw new UnexpectedConnectionState('prepare publications before connecting');
     }
@@ -753,7 +758,15 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     return prepared;
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> =>
+    this.connectWithPublications(url, token, opts, []);
+
+  private connectWithPublications = async (
+    url: string,
+    token: string,
+    opts: RoomConnectOptions | undefined,
+    initialPublications: readonly PreparedPublicationState[],
+  ): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
     }
@@ -788,7 +801,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return this.connectFuture.promise;
     }
 
-    const initialPublications = opts?.initialPublications ?? [];
     if (new Set(initialPublications).size !== initialPublications.length) {
       unlockDisconnect();
       throw new UnexpectedConnectionState('a preparation can only be supplied once');
@@ -804,8 +816,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
       }
     }
-    for (const prepared of opts?.initialPublications ?? [])
-      (prepared as PreparedPublicationState).claimed = true;
+    for (const prepared of initialPublications) prepared.claimed = true;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -860,7 +871,13 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         if (abortController.signal.aborted) {
           throw ConnectionError.cancelled('Connection attempt aborted');
         }
-        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
+        await this.attemptConnection(
+          regionUrl ?? url,
+          token,
+          opts,
+          abortController,
+          initialPublications,
+        );
         this.abortController = undefined;
         resolve();
       } catch (error) {
@@ -998,6 +1015,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
+    initialPublications: readonly PreparedPublicationState[] = [],
   ) => {
     if (
       this.state === ConnectionState.Reconnecting ||
@@ -1022,8 +1040,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
-    engine.initialPublications = (this.connOptions.initialPublications ??
-      []) as PreparedPublicationState[];
+    engine.initialPublications = [...initialPublications];
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;
@@ -1095,7 +1112,6 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     for (const prepared of this.preparedPublications) prepared.connectionReady();
-    this.connOptions.initialPublications = undefined;
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();

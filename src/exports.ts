@@ -227,9 +227,3 @@ export {
   type SerializerOutput,
   serializers,
 } from './utils/serializer';
-
-export type {
-  PreparedPublication,
-  PreparePublicationOptions,
-  PreparedVideoFormat,
-} from './room/PreparedPublication';

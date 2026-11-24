@@ -806,6 +806,19 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
     return answer;
   }
 
+  /** Transceivers reserved for outgoing media before capture completes. */
+  private readonly reservedSenders = new WeakSet<RTCRtpTransceiver>();
+
+  /** Keep a trackless outgoing reservation distinct from receive placeholders. @internal */
+  reserveSender(transceiver: RTCRtpTransceiver) {
+    this.reservedSenders.add(transceiver);
+  }
+
+  /** Release outgoing intent when the reservation is discarded. @internal */
+  releaseSender(transceiver: RTCRtpTransceiver) {
+    this.reservedSenders.delete(transceiver);
+  }
+
   /**
    * Returns the mids of transceivers that carry no outgoing track on this
    * (publisher) connection: the pre-populated placeholders added by
@@ -815,7 +828,7 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
    * so a shared payload type stays consistent across the bundle.
    */
   private getPlaceholderMids(): Set<string> {
-    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? []);
+    return placeholderMidsFromTransceivers(this._pc?.getTransceivers() ?? [], this.reservedSenders);
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -1241,10 +1254,11 @@ export function ensureAudioNackAndStereo(
  */
 export function placeholderMidsFromTransceivers(
   transceivers: readonly RTCRtpTransceiver[],
+  reservedSenders: WeakSet<RTCRtpTransceiver> = new WeakSet(),
 ): Set<string> {
   const mids = new Set<string>();
   for (const transceiver of transceivers) {
-    if (transceiver.mid && !transceiver.sender.track) {
+    if (transceiver.mid && !transceiver.sender.track && !reservedSenders.has(transceiver)) {
       mids.add(transceiver.mid);
     }
   }

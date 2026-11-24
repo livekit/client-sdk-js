@@ -438,6 +438,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
                   ? !plan.request.disableRed && c.mimeType.toLowerCase() === 'audio/red'
                   : c.mimeType.toLowerCase() === 'video/rtx'),
             );
+            this.pcManager!.publisher.reserveSender(transceiver);
             transceiver.setCodecPreferences(codecs);
             reservations.push({ plan, transceiver, stream: stream.id });
           }

@@ -1,4 +1,4 @@
 ---
-'livekit-client': minor
+'livekit-client': patch
 ---
-Add experimental device-free publication preparation so initial microphone and camera senders can join with the room and attach captured media without another publication negotiation.
+Prepare initial Session publications internally so room connection can proceed alongside device capture and attach eligible tracks without another publication negotiation.

@@ -1,11 +1,17 @@
-import { TrackInfo } from '@livekit/protocol';
+import { AudioTrackFeature, ParticipantPermission, TrackInfo } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type InitialPublicationSender, PreparedPublicationState } from './PreparedPublication';
 import { Room } from './Room';
-import { EngineEvent, ParticipantEvent } from './events';
+import { EngineEvent, ParticipantEvent, TrackEvent } from './events';
+import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
+import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
+import { VideoPreset } from './track/options';
+
+const bridge = (room: Room) =>
+  (room as unknown as Record<symbol, SessionPublicationBridge>)[sessionPublicationKey];
 
 function fixture() {
   const publication = {} as LocalTrackPublication;
@@ -25,7 +31,7 @@ function fixture() {
     getSourceTrackSettings: () => ({ channelCount: 1 }),
     stop: vi.fn(),
   } as unknown as LocalTrack;
-  const transport = {};
+  const transport = { releaseSender: vi.fn() };
   const engine = {
     isClosed: false,
     pcManager: { publisher: transport },
@@ -51,7 +57,7 @@ describe('prepared publication lifecycle', () => {
     const room = new Room();
     const createTracks = vi.spyOn(room.localParticipant, 'createTracks');
     const publish = vi.spyOn(room.localParticipant, 'publishTrack');
-    const plan = room.preparePublication({ source: Track.Source.Microphone });
+    const plan = bridge(room).prepare({ source: Track.Source.Microphone });
     expect(createTracks).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
     await plan.cancel();
@@ -59,13 +65,13 @@ describe('prepared publication lifecycle', () => {
   });
   it('uses the declared audio format over default stereo settings', async () => {
     const room = new Room();
-    const plan = room.preparePublication({
+    const plan = bridge(room).prepare({
       source: Track.Source.Microphone,
       format: { channelCount: 2 },
     }) as PreparedPublicationState;
     expect(plan.request.stereo).toBe(true);
     expect(() =>
-      room.preparePublication({
+      bridge(room).prepare({
         source: Track.Source.Microphone,
         format: { channelCount: 2 },
         publishOptions: { forceStereo: false },
@@ -181,7 +187,7 @@ describe('prepared publication lifecycle', () => {
         setupLocalParticipantEvents(): void;
         onLocalTrackPublished(publication: LocalTrackPublication): Promise<void>;
       };
-      const plan = room.preparePublication({
+      const plan = bridge(room).prepare({
         source: Track.Source.Microphone,
       }) as PreparedPublicationState;
       plan.claimed = true;
@@ -212,5 +218,208 @@ describe('prepared publication lifecycle', () => {
     await expect(attached).rejects.toThrow();
     await plan.cancel();
     expect(release).toHaveBeenCalledOnce();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((a, b) => {
+    resolve = a;
+    reject = b;
+  });
+  return { promise, resolve, reject };
+}
+
+function publicationFixture() {
+  const room = new Room();
+  const participant = room.localParticipant;
+  participant.permissions = new ParticipantPermission({ canPublish: true });
+  participant.setEnabledPublishCodecs([{ mime: 'video/vp8', fmtpLine: '' }]);
+  const capture = Object.assign(new EventTarget(), {
+    kind: 'audio',
+    id: 'captured-mic',
+    label: 'capture',
+    enabled: true,
+    muted: false,
+    readyState: 'live',
+    stop: vi.fn(),
+    getSettings: () => ({ channelCount: 1 }),
+    getConstraints: () => ({}),
+  }) as unknown as MediaStreamTrack;
+  const track = new LocalAudioTrack(capture);
+  track.source = Track.Source.Microphone;
+  vi.spyOn(track, 'startMonitor').mockImplementation(() => {});
+  vi.spyOn(track, 'stop');
+  const engine = room.engine;
+  const closed = vi.spyOn(engine, 'isClosed', 'get').mockReturnValue(false);
+  Object.defineProperty(engine, 'pcManager', { value: { publisher: {} }, writable: true });
+  const sender = {} as RTCRtpSender;
+  const ack = deferred<TrackInfo>();
+  const answer = deferred<void>();
+  const creating = deferred<RTCRtpSender>();
+  vi.spyOn(engine, 'addTrack').mockReturnValue(ack.promise);
+  vi.spyOn(engine, 'createSender').mockReturnValue(creating.promise);
+  vi.spyOn(engine, 'negotiate').mockResolvedValue(undefined).mockReturnValueOnce(answer.promise);
+  vi.spyOn(engine, 'removeTrack').mockReturnValue(true);
+  const actualPublish = participant as unknown as {
+    publish(
+      track: LocalTrack,
+      options: {},
+      stereo: boolean,
+      prepared?: PreparedPublicationState,
+    ): Promise<LocalTrackPublication>;
+  };
+  const plan = new PreparedPublicationState(
+    { source: Track.Source.Microphone },
+    {},
+    [],
+    'opus',
+    false,
+    (attachedTrack, prepared) => actualPublish.publish(attachedTrack, {}, false, prepared),
+  );
+  plan.claimed = true;
+  plan.connectionReady();
+  const close = async () => {
+    engine.pcManager = undefined;
+    closed.mockRestore();
+    await room.dispose();
+    track.stop();
+  };
+  return { room, participant, engine, track, sender, ack, answer, creating, plan, close };
+}
+
+describe('prepared fallback uses transactional ordinary publication', () => {
+  it.each(['registration', 'negotiation'])(
+    'removes the sender and listeners when cancelled during %s',
+    async (phase) => {
+      const f = publicationFixture();
+      const attaching = f.plan.attachTrack(f.track);
+      const rejected = expect(attaching).rejects.toThrow('cancelled');
+      await vi.waitFor(() => expect(f.engine.createSender).toHaveBeenCalledOnce());
+      f.creating.resolve(f.sender);
+      await vi.waitFor(() => expect(f.engine.negotiate).toHaveBeenCalledOnce());
+      if (phase === 'registration') f.answer.resolve();
+      else f.ack.resolve(new TrackInfo({ sid: 'TR_fallback' }));
+      let cancelled = false;
+      const cancelling = f.plan.cancel().then(() => {
+        cancelled = true;
+      });
+      await Promise.resolve();
+      expect(cancelled).toBe(false);
+      f.ack.resolve(new TrackInfo({ sid: 'TR_fallback' }));
+      f.answer.resolve();
+      await rejected;
+      await cancelling;
+      expect(f.engine.removeTrack).toHaveBeenCalledWith(f.sender);
+      expect(f.track.sender).toBeUndefined();
+      expect(f.participant.trackPublications.size).toBe(0);
+      expect(f.track.listenerCount(TrackEvent.Muted)).toBe(0);
+      expect(f.track.stop).not.toHaveBeenCalled();
+      await f.close();
+    },
+  );
+  it('waits for late sender creation before rolling back a rejected registration', async () => {
+    const f = publicationFixture();
+    const attaching = f.plan.attachTrack(f.track);
+    const rejected = expect(attaching).rejects.toThrow('rejected');
+    await vi.waitFor(() => expect(f.engine.createSender).toHaveBeenCalledOnce());
+    f.ack.reject(new Error('rejected'));
+    await Promise.resolve();
+    expect(f.engine.removeTrack).not.toHaveBeenCalled();
+    f.creating.resolve(f.sender);
+    f.answer.resolve();
+    await rejected;
+    await f.plan.cancel();
+    expect(f.engine.removeTrack).toHaveBeenCalledWith(f.sender);
+    expect(f.track.sender).toBeUndefined();
+    expect(f.participant.trackPublications.size).toBe(0);
+    expect(f.track.stop).not.toHaveBeenCalled();
+    await f.close();
+  });
+  it('installs buffer listeners before an early subscription is replayed at publication', async () => {
+    const f = publicationFixture();
+    const stopBuffer = vi.spyOn(f.track, 'stopPreConnectBuffer');
+    vi.spyOn(f.track, 'getPreConnectBuffer').mockReturnValue(undefined);
+    f.participant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+      f.participant.emit(ParticipantEvent.LocalTrackSubscribed, publication);
+    });
+    const attaching = f.plan.attachTrack(f.track);
+    f.creating.resolve(f.sender);
+    f.ack.resolve(
+      new TrackInfo({ sid: 'TR_buffer', audioFeatures: [AudioTrackFeature.TF_PRECONNECT_BUFFER] }),
+    );
+    f.answer.resolve();
+    await attaching;
+    expect(stopBuffer).toHaveBeenCalledOnce();
+    expect(f.participant.listenerCount(ParticipantEvent.LocalTrackSubscribed)).toBe(0);
+    expect(f.participant.listenerCount(ParticipantEvent.LocalTrackUnpublished)).toBe(0);
+    expect(f.plan.isCommitted).toBe(true);
+    await f.plan.cancel();
+    expect(f.engine.removeTrack).not.toHaveBeenCalled();
+    // The fixture's publication is committed; dispose owns the room, not the plan.
+    f.participant.trackPublications.clear();
+    await f.close();
+  });
+});
+
+describe('prepared publication option normalization', () => {
+  it.each(['defaults', 'caller'])(
+    'snapshots nested %s settings and declared format',
+    async (origin) => {
+      const encoding = { maxBitrate: 500000 };
+      const layers = [new VideoPreset(320, 180, 100000)];
+      const room = new Room({
+        publishDefaults: {
+          videoEncoding: encoding,
+          videoSimulcastLayers: layers,
+          audioPreset: { maxBitrate: 32000 },
+        },
+      });
+      const format = { width: 1280, height: 720 };
+      const plan = bridge(room).prepare({
+        source: Track.Source.Camera,
+        format,
+        publishOptions: {
+          simulcast: false,
+          backupCodec: false,
+          ...(origin === 'caller' ? { videoEncoding: encoding } : {}),
+        },
+      }) as PreparedPublicationState;
+      expect(plan.options.videoSimulcastLayers![0].resolution).toEqual(layers[0].resolution);
+      const before = JSON.stringify({
+        request: plan.request,
+        encodings: plan.encodings,
+        options: plan.options,
+      });
+      encoding.maxBitrate = 1500000;
+      layers[0].encoding.maxBitrate = 900000;
+      room.options.publishDefaults.audioPreset!.maxBitrate = 96000;
+      format.width = 640;
+      expect(
+        JSON.stringify({ request: plan.request, encodings: plan.encodings, options: plan.options }),
+      ).toBe(before);
+      expect(plan.specification.format).toEqual({ width: 1280, height: 720 });
+      await plan.cancel();
+      await room.dispose();
+    },
+  );
+  it('defers H264 with default VP8 backup to ordinary publication without dropping backup policy', async () => {
+    const room = new Room();
+    const plan = bridge(room).prepare({
+      source: Track.Source.Camera,
+      format: { width: 640, height: 480 },
+      publishOptions: { videoCodec: 'h264', backupCodec: true },
+    }) as PreparedPublicationState;
+    expect(plan.canSendWithJoin).toBe(false);
+    expect(plan.options.backupCodec).toEqual({ codec: 'vp8' });
+    await plan.cancel();
+    await room.dispose();
+  });
+  it('does not expose preparation methods on the application Room', async () => {
+    const room = new Room();
+    expect('preparePublication' in room).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(room, sessionPublicationKey)?.enumerable).toBe(false);
+    await room.dispose();
   });
 });

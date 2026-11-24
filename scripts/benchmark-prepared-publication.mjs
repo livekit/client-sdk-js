@@ -96,7 +96,7 @@ try {
                   prepared
                     ? sources.map((source) => [
                         source,
-                        publisher.preparePublication({
+                        publisher[Symbol.for('livekit.internal.sessionPublication.v1')].prepare({
                           source,
                           ...(source === Track.Source.Camera
                             ? { format: { width: 640, height: 480, frameRate: 30 } }
@@ -117,9 +117,14 @@ try {
                     },
                   });
                 })();
-                const connecting = publisher.connect(url, tokens[0], {
-                  initialPublications: [...reservations.values()],
-                });
+                const connecting = prepared
+                  ? publisher[Symbol.for('livekit.internal.sessionPublication.v1')].connect(
+                      url,
+                      tokens[0],
+                      undefined,
+                      [...reservations.values()],
+                    )
+                  : publisher.connect(url, tokens[0]);
                 await connecting;
                 const connectedMs = performance.now() - started;
                 const initialVideoStartBitrate = publisher.engine.pcManager.publisher

@@ -1,4 +1,5 @@
 import { AddTrackRequest, type TrackInfo } from '@livekit/protocol';
+import { cloneDeep } from '../utils/cloneDeep';
 import type PCTransport from './PCTransport';
 import type RTCEngine from './RTCEngine';
 import { TrackInvalidError, UnexpectedConnectionState } from './errors';
@@ -7,6 +8,17 @@ import type LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions } from './track/options';
 
+/** Copy publication settings while preserving preset accessors used by ordinary publication. */
+export function snapshotPublishOptions(options: TrackPublishOptions): TrackPublishOptions {
+  const copy = cloneDeep(options);
+  for (const key of ['videoSimulcastLayers', 'screenShareSimulcastLayers'] as const) {
+    options[key]?.forEach((preset, index) => {
+      Object.setPrototypeOf(copy[key]![index], Object.getPrototypeOf(preset));
+    });
+  }
+  return copy;
+}
+
 /** The video format to reserve before opening a camera. */
 export interface PreparedVideoFormat {
   width: number;
@@ -14,7 +26,7 @@ export interface PreparedVideoFormat {
   frameRate?: number;
 }
 
-/** Publication intent that can be resolved without requesting device access. @experimental */
+/** Publication intent that can be resolved without requesting device access. @internal */
 export type PreparePublicationOptions =
   | {
       source: Track.Source.Microphone;
@@ -28,7 +40,7 @@ export type PreparePublicationOptions =
       publishOptions?: TrackPublishOptions;
     };
 
-/** A room-owned reservation; creating it never requests camera or microphone access. @experimental */
+/** A room-owned reservation; creating it never requests camera or microphone access. @internal */
 export interface PreparedPublication {
   /**
    * Binds captured media after the room connects. Uses ordinary publication when the reservation
@@ -147,8 +159,7 @@ export class PreparedPublicationState implements PreparedPublication {
       this.assertActive();
       track.source = this.specification.source;
       const publication = await this.publish!(track, this);
-      this.committed = true;
-      this.initial = undefined;
+      this.commit();
       this.finish();
       return publication;
     } catch (error) {
@@ -156,6 +167,18 @@ export class PreparedPublicationState implements PreparedPublication {
       this.cancel().catch(() => {});
       throw error;
     }
+  }
+
+  /** Transfer the sender to ordinary publication before emitting application events. */
+  commit() {
+    this.committed = true;
+    if (this.initial) this.initial.transport.releaseSender(this.initial.transceiver);
+    this.initial = undefined;
+  }
+
+  /** Whether ordinary publication now owns the sender. */
+  get isCommitted() {
+    return this.committed;
   }
 
   /** Whether this preparation was cancelled before it entered an offer. */
@@ -255,7 +278,12 @@ export class PreparedPublicationState implements PreparedPublication {
       this.boundTrack?.stopPreConnectBuffer();
       this.ownsBuffer = false;
     }
-    this.cancelling ??= this.removeInitial().finally(() => this.finish());
+    // In fallback mode the ordinary publisher may still be creating a sender. Its
+    // rollback must settle before cancellation releases ownership of this attempt.
+    this.cancelling ??= this.removeInitial()
+      .then(() => this.attaching?.catch(() => {}))
+      .then(() => {})
+      .finally(() => this.finish());
     return this.cancelling;
   }
 
@@ -274,6 +302,7 @@ export class PreparedPublicationState implements PreparedPublication {
     if (initial.engine.isClosed || initial.engine.pcManager?.publisher !== initial.transport)
       return;
     if (this.boundTrack?.sender === initial.transceiver.sender) this.boundTrack.sender = undefined;
+    initial.transport.releaseSender(initial.transceiver);
     initial.transceiver.stop();
     try {
       await initial.engine.negotiate();

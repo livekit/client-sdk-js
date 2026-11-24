@@ -29,9 +29,14 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import type { NonSharedUint8Array } from '../../type-polyfills/non-shared-typed-arrays';
 import TypedPromise from '../../utils/TypedPromise';
+import { cloneDeep } from '../../utils/cloneDeep';
 import DeviceManager from '../DeviceManager';
 import { PCTransportState } from '../PCTransportManager';
-import { type PreparePublicationOptions, PreparedPublicationState } from '../PreparedPublication';
+import {
+  type PreparePublicationOptions,
+  PreparedPublicationState,
+  snapshotPublishOptions,
+} from '../PreparedPublication';
 import type RTCEngine from '../RTCEngine';
 import { DataChannelKind } from '../RTCEngine';
 import {
@@ -645,14 +650,17 @@ export class LocalParticipant extends Participant {
 
   /** Builds a room-owned, device-free publication plan. @internal */
   preparePublication(
-    specification: PreparePublicationOptions,
+    input: PreparePublicationOptions,
     release: (prepared: PreparedPublicationState) => void,
   ): PreparedPublicationState {
-    const opts: TrackPublishOptions = {
+    const specification = cloneDeep(input);
+    if (input.publishOptions)
+      specification.publishOptions = snapshotPublishOptions(input.publishOptions);
+    const opts: TrackPublishOptions = snapshotPublishOptions({
       ...this.roomOptions.publishDefaults,
       ...specification.publishOptions,
       source: specification.source,
-    };
+    });
     if (
       specification.source !== Track.Source.Microphone &&
       specification.source !== Track.Source.Camera
@@ -670,6 +678,10 @@ export class LocalParticipant extends Participant {
       opts.forceStereo = specification.format
         ? specification.format.channelCount === 2
         : (opts.forceStereo ?? false);
+      if (opts.forceStereo) {
+        opts.dtx ??= false;
+        opts.red ??= false;
+      }
     }
     const req = new AddTrackRequest();
     const video = specification.source === Track.Source.Camera;
@@ -908,7 +920,7 @@ export class LocalParticipant extends Participant {
 
           const timeout = setTimeout(() => {
             publicationTimedOut = true;
-            track.stop();
+            if (!prepared) track.stop();
             reject(
               new PublishTrackError(
                 'publishing rejected as engine not connected within timeout',
@@ -940,7 +952,9 @@ export class LocalParticipant extends Participant {
       const publication = await publishPromise;
       return publication;
     } catch (e) {
-      if (!hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
+      // Session owns a prepared attempt's retry/cancellation lifecycle. Do not
+      // leave it waiting indefinitely for an unrelated future engine restart.
+      if (!prepared && !hasRetriedAfterNegotiationError && e instanceof NegotiationError) {
         this.log.warn('negotiation due to track publish failed, retrying after reconnect', {
           error: e,
         });
@@ -984,7 +998,42 @@ export class LocalParticipant extends Participant {
     isStereo: boolean,
     prepared?: PreparedPublicationState,
   ) {
-    const reserved = prepared ? await prepared.senderFor(track, this.engine) : undefined;
+    const engine = this.engine;
+    try {
+      return await this.publishImpl(track, opts, isStereo, prepared);
+    } catch (error) {
+      if (prepared && !prepared.isCommitted) {
+        track.off(TrackEvent.Muted, this.onTrackMuted);
+        track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+        track.off(TrackEvent.Ended, this.handleTrackEnded);
+        track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+        track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+        track.off(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
+        engine.cancelPendingTrack(track.mediaStreamTrack.id);
+        engine.cancelPendingTrack(prepared.request.cid);
+        const sender = track.sender;
+        track.sender = undefined;
+        if (sender && !engine.isClosed) {
+          try {
+            engine.removeTrack(sender);
+            await engine.negotiate();
+          } catch (cleanupError) {
+            this.log.warn('failed to reconcile cancelled publication', { error: cleanupError });
+          }
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async publishImpl(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    isStereo: boolean,
+    prepared?: PreparedPublicationState,
+  ) {
+    const engine = this.engine;
+    const reserved = prepared ? await prepared.senderFor(track, engine) : undefined;
     if (!this.hasPermissionsToPublish(track)) {
       throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
     }
@@ -1071,12 +1120,12 @@ export class LocalParticipant extends Participant {
       ];
     }
 
-    if (!this.engine || this.engine.isClosed) {
+    if (!engine || engine.isClosed) {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
     const negotiate = async () => {
-      if (!this.engine.pcManager) {
+      if (!engine.pcManager) {
         throw new UnexpectedConnectionState('pcManager is not ready');
       }
 
@@ -1085,16 +1134,16 @@ export class LocalParticipant extends Participant {
         await reserved.transceiver.sender.replaceTrack(track.mediaStreamTrack);
         prepared!.assertActive();
         if (
-          this.engine !== reserved.engine ||
-          this.engine.isClosed ||
-          this.engine.pcManager?.publisher !== reserved.transport
+          engine !== reserved.engine ||
+          engine.isClosed ||
+          engine.pcManager?.publisher !== reserved.transport
         ) {
           throw new UnexpectedConnectionState('connection changed while attaching prepared media');
         }
         track.sender = reserved.transceiver.sender;
         if (isLocalVideoTrack(track)) track.codec = prepared!.codec as VideoCodec;
       } else {
-        track.sender = await this.engine.createSender(track, opts, encodings);
+        track.sender = await engine.createSender(track, opts, encodings);
       }
       if (isLocalVideoTrack(track)) {
         track.publishOptions = opts;
@@ -1115,14 +1164,14 @@ export class LocalParticipant extends Participant {
              fix the issue.
            */
           let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+          for (const transceiver of engine.pcManager.publisher.getTransceivers()) {
             if (transceiver.sender === track.sender) {
               trackTransceiver = transceiver;
               break;
             }
           }
           if (trackTransceiver) {
-            this.engine.pcManager.publisher.setTrackCodecBitrate({
+            engine.pcManager.publisher.setTrackCodecBitrate({
               transceiver: trackTransceiver,
               codec: 'opus',
               maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
@@ -1131,27 +1180,27 @@ export class LocalParticipant extends Participant {
         }
       }
 
-      if (!reserved) await this.engine.negotiate();
+      if (!reserved) await engine.negotiate();
     };
 
     let ti: TrackInfo;
     const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
       try {
-        ti = await (reserved ? reserved.accepted : this.engine.addTrack(req));
+        ti = await (reserved ? reserved.accepted : engine.addTrack(req));
         resolve(ti);
       } catch (err) {
-        if (track.sender && this.engine.pcManager?.publisher) {
+        if (track.sender && engine.pcManager?.publisher) {
           try {
             // the pending resolver of this request is gone before this catch runs, so
             // engine.removeTrack does not reject it again
-            this.engine.removeTrack(track.sender);
+            engine.removeTrack(track.sender);
           } catch (e) {
             this.log.error(e);
           }
           // as in unpublishTrack: a stopped sender rejects replaceTrack, which mute and
           // restartTrack call
           track.sender = undefined;
-          await this.engine.negotiate().catch((negotiateErr) => {
+          await engine.negotiate().catch((negotiateErr) => {
             this.log.error(
               'failed to negotiate after removing track due to failed add track request',
               {
@@ -1168,8 +1217,25 @@ export class LocalParticipant extends Participant {
       reserved ||
       (this.enabledPublishVideoCodecs.length > 0 && packetTrailerFeatures.length === 0)
     ) {
-      const rets = await Promise.all([addTrackPromise, negotiate()]);
-      ti = rets[0];
+      // A prepared attempt owns both operations until they settle: cleanup must
+      // not race a sender that createSender() has not returned yet.
+      if (prepared) {
+        const settle = <T>(promise: Promise<T>) =>
+          promise.then(
+            (value) => ({ ok: true as const, value }),
+            (error: unknown) => ({ ok: false as const, error }),
+          );
+        const [registration, negotiation] = await Promise.all([
+          settle(addTrackPromise),
+          settle(negotiate()),
+        ]);
+        if (!registration.ok) throw registration.error;
+        if (!negotiation.ok) throw negotiation.error;
+        ti = registration.value;
+      } else {
+        const rets = await Promise.all([addTrackPromise, negotiate()]);
+        ti = rets[0];
+      }
     } else {
       ti = await addTrackPromise;
       if (isLocalVideoTrack(track)) {
@@ -1181,6 +1247,9 @@ export class LocalParticipant extends Participant {
     }
 
     prepared?.assertActive();
+    if (prepared && (this.engine !== engine || engine.isClosed)) {
+      throw new UnexpectedConnectionState('connection changed while publishing prepared media');
+    }
     const publication = new LocalTrackPublication(track.kind, ti, track, {
       loggerName: this.roomOptions.loggerName,
       loggerContextCb: () => this.logContext,
@@ -1194,8 +1263,8 @@ export class LocalParticipant extends Participant {
     if (reserved) {
       // Capture-dependent features and mute state are unavailable when constructing JOIN.
       if (track.kind === Track.Kind.Audio)
-        this.engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
-      if (track.isMuted) this.engine.updateMuteStatus(ti.sid, true);
+        engine.client.sendUpdateLocalAudioTrack(ti.sid, audioFeatures);
+      if (track.isMuted) engine.updateMuteStatus(ti.sid, true);
     }
 
     // keep publish options on the video track so that it can recompute encoding
@@ -1212,11 +1281,12 @@ export class LocalParticipant extends Participant {
     this.log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
     if (isLocalVideoTrack(track)) {
-      track.startMonitor(this.engine.client);
+      track.startMonitor(engine.client);
     } else if (isLocalAudioTrack(track)) {
       track.startMonitor();
     }
 
+    prepared?.commit();
     this.addTrackPublication(publication);
     if (
       isLocalAudioTrack(track) &&
