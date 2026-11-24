@@ -1,4 +1,5 @@
 import {
+  AddTrackRequest,
   ClientInfo_Capability,
   ClientInfo_SDK,
   DisconnectReason,
@@ -6,6 +7,7 @@ import {
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
+  SessionDescription,
   SignalRequest,
   SignalResponse,
   WrappedJoinRequest,
@@ -336,6 +338,37 @@ describe('SignalClient.connect', () => {
 
       const result = await signalClient.join('wss://test.livekit.io', 'test-token', defaultOptions);
       expect(result).toEqual(joinResponse);
+    });
+
+    it('bundles publication metadata with the publisher offer in JOIN', async () => {
+      let capturedUrl = '';
+      mockWebSocketStream({
+        connection: createMockConnection(
+          createMockReadableStream([createSignalResponse('join', createJoinResponse())]),
+        ),
+        onUrl: (url) => {
+          capturedUrl = url;
+        },
+      });
+      const request = new AddTrackRequest({
+        cid: 'sdp-track-id',
+        name: 'microphone',
+        stereo: true,
+        disableDtx: true,
+      });
+      const offer = new SessionDescription({ type: 'offer', sdp: 'test-offer', id: 1 });
+      await signalClient.join(
+        'wss://test.livekit.io',
+        'test-token',
+        defaultOptions,
+        undefined,
+        false,
+        offer,
+        [request],
+      );
+      const joined = await decodeJoinRequestFromUrl(capturedUrl);
+      expect(joined.addTrackRequests).toEqual([request]);
+      expect(joined.publisherOffer).toEqual(offer);
     });
 
     it('does not advertise packet trailer capability by default', async () => {

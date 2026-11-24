@@ -53,6 +53,39 @@ export function createVideoPublisher(room: CoreRoom, log: StructuredLogger): Vid
   const roomOptions = room.options;
 
   return {
+    prepareInitial(format, opts, req) {
+      // SVC and additional-codec policy depend on server capabilities learned after JOIN.
+      opts.videoCodec ??= defaultVideoCodec;
+      opts.backupCodec = normalizeBackupCodec(opts.backupCodec);
+      if (
+        !['vp8', 'h264'].includes(opts.videoCodec) ||
+        opts.scalabilityMode ||
+        (typeof opts.backupCodec === 'object' && opts.backupCodec.codec !== opts.videoCodec)
+      )
+        return;
+      req.width = format.width;
+      req.height = format.height;
+      if (format.frameRate && opts.videoEncoding) {
+        opts.videoEncoding = {
+          ...opts.videoEncoding,
+          maxFramerate: opts.videoEncoding.maxFramerate ?? format.frameRate,
+        };
+      }
+      const encodings = computeVideoEncodings(false, format.width, format.height, opts);
+      if (format.frameRate) {
+        for (const encoding of encodings)
+          encoding.maxFramerate = Math.min(
+            encoding.maxFramerate ?? format.frameRate,
+            format.frameRate,
+          );
+      }
+      req.layers = videoLayersFromEncodings(format.width, format.height, encodings);
+      req.simulcastCodecs = [new SimulcastCodec({ codec: opts.videoCodec, layers: req.layers })];
+      return {
+        encodings,
+        startBitrate: computeStartTargetBitrate(opts.videoCodec, opts, encodings),
+      };
+    },
     async prepare(track, opts, req) {
       // read at publish time: the e2ee extension can install after video
       if (!isE2EESimulcastSupported() && room.hasE2EESetup) {
@@ -159,9 +192,7 @@ export function createVideoPublisher(room: CoreRoom, log: StructuredLogger): Vid
       req.simulcastCodecs = [primaryCodec];
 
       // set up backup
-      if (opts.backupCodec === true) {
-        opts.backupCodec = { codec: defaultVideoCodec };
-      }
+      opts.backupCodec = normalizeBackupCodec(opts.backupCodec);
       if (
         opts.backupCodec &&
         videoCodec !== opts.backupCodec.codec &&
@@ -469,4 +500,11 @@ export async function handleSubscribedQualityUpdate(
       await publishAdditionalCodecForTrack(room, log, pub.videoTrack, codec, pub.options);
     }
   }
+}
+
+/** Expand the default backup policy consistently for JOIN and ordinary publication. */
+function normalizeBackupCodec(
+  backup: TrackPublishOptions['backupCodec'],
+): Exclude<TrackPublishOptions['backupCodec'], true> {
+  return backup === true ? { codec: defaultVideoCodec } : backup;
 }

@@ -43,6 +43,11 @@ import TypedPromise from '../utils/TypedPromise';
 import { getBrowser } from '../utils/browserParser';
 import { BackOffStrategy } from './BackOffStrategy';
 import DeviceManager from './DeviceManager';
+import {
+  type PreparePublicationOptions,
+  type PreparedPublication,
+  PreparedPublicationState,
+} from './PreparedPublication';
 import RTCEngine, { type RegionStrategy } from './RTCEngine';
 import { DEFAULT_MAX_AGE_MS, RegionUrlProvider } from './RegionUrlProvider';
 import type { DataChannelKind } from './data-channel/types';
@@ -75,6 +80,7 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
@@ -321,6 +327,14 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       ...options?.publishDefaults,
     };
 
+    Object.defineProperty(this, sessionPublicationKey, {
+      configurable: true,
+      value: {
+        prepare: (intent) => this.prepareSessionPublication(intent),
+        connect: (url, token, connectOptions, publications) =>
+          this.connectWithPublications(url, token, connectOptions, publications),
+      } satisfies SessionPublicationBridge,
+    });
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
@@ -451,6 +465,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return;
     }
     this.disposed = true;
+    for (const prepared of this.preparedPublications) prepared.disconnected();
     if (this.state !== ConnectionState.Disconnected) {
       await this.disconnect();
     }
@@ -726,7 +741,38 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     }
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  private readonly preparedPublications = new Set<PreparedPublicationState>();
+
+  private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
+
+  /** Snapshot device-free intent for the internal Session bridge. */
+  private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
+    if (this.disposed || this.state !== ConnectionState.Disconnected) {
+      throw new UnexpectedConnectionState('prepare publications before connecting');
+    }
+    const prepared = this.localParticipant.preparePublication(options, (p) => {
+      this.preparedPublications.delete(p);
+      for (const [sid, owner] of this.pendingInitialTrackSubscriptions) {
+        if (owner === p) this.pendingInitialTrackSubscriptions.delete(sid);
+      }
+      if (this.engine)
+        this.engine.initialPublications = this.engine.initialPublications.filter(
+          (plan) => plan !== p,
+        );
+    });
+    this.preparedPublications.add(prepared);
+    return prepared;
+  }
+
+  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> =>
+    this.connectWithPublications(url, token, opts, []);
+
+  private connectWithPublications = async (
+    url: string,
+    token: string,
+    opts: RoomConnectOptions | undefined,
+    initialPublications: readonly PreparedPublication[],
+  ): Promise<void> => {
     if (this.disposed) {
       throw new UnexpectedConnectionState('room has been disposed');
     }
@@ -760,6 +806,25 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       unlockDisconnect();
       return this.connectFuture.promise;
     }
+
+    if (new Set(initialPublications).size !== initialPublications.length) {
+      unlockDisconnect();
+      throw new UnexpectedConnectionState('a preparation can only be supplied once');
+    }
+    const preparations: PreparedPublicationState[] = [];
+    for (const prepared of initialPublications) {
+      if (
+        !(prepared instanceof PreparedPublicationState) ||
+        !this.preparedPublications.has(prepared) ||
+        prepared.claimed ||
+        prepared.isCancelled
+      ) {
+        unlockDisconnect();
+        throw new UnexpectedConnectionState('preparation must be unused and belong to this room');
+      }
+      preparations.push(prepared);
+    }
+    for (const prepared of preparations) prepared.claimed = true;
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== ensureTrailingSlash(url)) {
@@ -814,7 +879,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
         if (abortController.signal.aborted) {
           throw ConnectionError.cancelled('Connection attempt aborted');
         }
-        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController, preparations);
         this.abortController = undefined;
         resolve();
       } catch (error) {
@@ -952,6 +1017,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
+    initialPublications: readonly PreparedPublicationState[] = [],
   ) => {
     if (
       this.state === ConnectionState.Reconnecting ||
@@ -976,6 +1042,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     );
 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
+    engine.initialPublications = [...initialPublications];
 
     if (this.connOptions.rtcConfig) {
       engine.rtcConfig = this.connOptions.rtcConfig;
@@ -1046,6 +1113,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       window.addEventListener('freeze', this.onPageLeave);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
+    for (const prepared of this.preparedPublications) prepared.connectionReady();
     this.emit(RoomEvent.Connected);
     BackOffStrategy.getInstance().resetFailedConnectionAttempts(url);
     this.registerConnectionReconcile();
@@ -1063,6 +1131,7 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
+        for (const prepared of this.preparedPublications) prepared.disconnected();
         this.log.debug('already disconnected');
         return;
       }
@@ -1708,6 +1777,16 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return;
     }
 
+    const preparation = Array.from(this.preparedPublications).find(
+      (plan) => plan.claimed && !plan.isCancelled && plan.initialTrackSid === subscribedSid,
+    );
+    if (preparation) {
+      // Device permission can take arbitrarily long. The preparation/room lifecycle,
+      // rather than the ordinary publish timeout, owns these deferred notifications.
+      this.pendingInitialTrackSubscriptions.set(subscribedSid, preparation);
+      return;
+    }
+
     // the track publication may not be registered yet if the server signals
     // the subscription before publishTrack has finished adding the publication.
     // defer with a timeout until LocalTrackPublished fires for the matching trackSid
@@ -1814,6 +1893,9 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
+    this.pendingInitialTrackSubscriptions.clear();
+    for (const prepared of this.preparedPublications) prepared.disconnected();
+
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
@@ -2785,6 +2867,8 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
     pub.track?.getProcessor()?.onPublish?.(this);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+    if (this.pendingInitialTrackSubscriptions.delete(pub.trackSid))
+      this.emitLocalTrackSubscribed(pub);
 
     if (isLocalAudioTrack(pub.track)) {
       const trackIsSilent = await pub.track.checkForSilence();
