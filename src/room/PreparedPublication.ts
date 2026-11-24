@@ -20,6 +20,14 @@ export function reservedSenderCid(sdp: string, streamId: string): string | undef
   return msid?.split(' ')[1];
 }
 
+/** A full reconnect dropped a reservation that an attachment was waiting on. */
+class ReservationDroppedError extends Error {
+  constructor() {
+    super('reservation dropped by a reconnect');
+    this.name = 'ReservationDroppedError';
+  }
+}
+
 /** Copy publication settings while preserving preset accessors used by ordinary publication. */
 export function snapshotPublishOptions(options: TrackPublishOptions): TrackPublishOptions {
   const copy = cloneDeep(options);
@@ -107,7 +115,7 @@ export class PreparedPublicationState implements PreparedPublication {
   private rejectCancelled!: (error: Error) => void;
 
   /** Settles once the engine reserved a sender, or decided that this connection cannot. */
-  private readonly registered: Promise<void>;
+  private registered!: Promise<void>;
 
   private readonly cancellation: Promise<never>;
 
@@ -137,15 +145,12 @@ export class PreparedPublicationState implements PreparedPublication {
       // before capture, others see a muted track; reserveTrack() sets the track's own state
       muted: true,
     });
-    this.registered = new Promise((resolve, reject) => {
-      this.resolveRegistered = resolve;
-      this.rejectRegistered = reject;
-    });
+    this.resetRegistration();
     this.cancellation = new Promise((_, reject) => {
       this.rejectCancelled = reject;
     });
     // A caller may prepare now and attach much later, or never attach at all.
-    this.registered.catch(() => {});
+
     this.cancellation.catch(() => {});
   }
 
@@ -176,13 +181,21 @@ export class PreparedPublicationState implements PreparedPublication {
 
   private async attach(track: LocalTrack): Promise<LocalTrackPublication> {
     try {
-      await Promise.race([this.registered, this.cancellation]);
-      this.assertActive();
-      track.source = this.specification.source;
-      const publication = await this.publish!(track, this);
-      this.commit();
-      this.finish();
-      return publication;
+      for (;;) {
+        await Promise.race([this.registered, this.cancellation]);
+        this.assertActive();
+        track.source = this.specification.source;
+        try {
+          const publication = await this.publish!(track, this);
+          this.commit();
+          this.finish();
+          return publication;
+        } catch (error) {
+          // A full reconnect dropped the reservation while the attachment waited for it: wait for
+          // the registration on the new connection and publish again.
+          if (!(error instanceof ReservationDroppedError) || this.cancelled) throw error;
+        }
+      }
     } catch (error) {
       // cancellation removes the reserved sender
       this.cancel().catch(() => {});
@@ -257,7 +270,20 @@ export class PreparedPublicationState implements PreparedPublication {
     this.initialTrackSid = undefined;
     const initial = this.initial;
     this.initial = undefined;
-    if (initial) initial.engine.cancelPendingTrack(this.request.cid);
+    if (!initial) return;
+    // the next connection registers this publication again, and an attachment waits for that
+    if (!this.committed && !this.cancelled) this.resetRegistration();
+    initial.engine.cancelPendingTrack(this.request.cid);
+  }
+
+  private resetRegistration() {
+    this.settled = false;
+    this.registered = new Promise((resolve, reject) => {
+      this.resolveRegistered = resolve;
+      this.rejectRegistered = reject;
+    });
+    // A caller may prepare now and attach much later, or never attach at all.
+    this.registered.catch(() => {});
   }
 
   /** Returns a compatible reserved sender, otherwise removes it before ordinary publication. */
@@ -268,7 +294,14 @@ export class PreparedPublicationState implements PreparedPublication {
     this.assertActive();
     const initial = this.initial;
     if (!initial) return;
-    const info = await initial.accepted;
+    let info: TrackInfo;
+    try {
+      info = await initial.accepted;
+    } catch (error) {
+      // fallback() replaced the reservation: the attachment retries on the next connection
+      if (this.initial !== initial && !this.cancelled) throw new ReservationDroppedError();
+      throw error;
+    }
     this.assertActive();
     const settings = track.getSourceTrackSettings();
     const mime = `${this.kind}/${this.codec}`.toLowerCase();

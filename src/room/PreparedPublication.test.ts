@@ -750,6 +750,48 @@ describe('engine reservation', () => {
     await expect(prepared.registration).resolves.toBeUndefined();
   });
 
+  it('keeps an attachment that waits for acceptance across a full reconnect', async () => {
+    const { engine, addTrack } = reservingEngine();
+    // real response waiters, so that the reconnect's fallback() rejects the pending one
+    const waiters = engine as unknown as {
+      waitForTrackPublished(req: { cid: string }): Promise<TrackInfo>;
+      pendingTrackResolvers: Record<string, { resolve(info: TrackInfo): void }>;
+    };
+    addTrack.mockImplementation((req) => waiters.waitForTrackPublished(req));
+    const publish = vi.fn(async (attached: LocalTrack, plan: PreparedPublicationState) => {
+      const sender = await plan.senderFor(attached, engine);
+      return { sender } as unknown as LocalTrackPublication;
+    });
+    const prepared = new PreparedPublicationState(
+      { source: Track.Source.Microphone },
+      {},
+      [],
+      'opus',
+      true,
+      publish,
+    );
+    engine.preparedPublications = [prepared];
+    await engine.reservePublications();
+    const track = {
+      kind: Track.Kind.Audio,
+      getSourceTrackSettings: () => ({ channelCount: 1 }),
+      stop: vi.fn(),
+    } as unknown as LocalTrack;
+    const attaching = prepared.attachTrack(track);
+    // capture is attached and waits for the server to accept the first registration
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce());
+    // what cleanupPeerConnections() does on a full reconnect
+    prepared.fallback();
+    await engine.reservePublications();
+    waiters.pendingTrackResolvers['track-1'].resolve(new TrackInfo({ sid: 'TR_new' }));
+    const publication = (await attaching) as unknown as {
+      sender?: { accepted: Promise<TrackInfo> };
+    };
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(prepared.isCancelled).toBe(false);
+    expect((await publication.sender!.accepted).sid).toBe('TR_new');
+  });
+
   it('registers a reservation again after a full reconnect dropped its sender', async () => {
     const { engine, addTrack, plan } = reservingEngine();
     const prepared = plan();
