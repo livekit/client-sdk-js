@@ -241,12 +241,14 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
 
 ### Initial prepared publications
 
-The versioned `livekit.internal.sessionPublication.v1` symbol bridges Components Session startup
-without public preparation methods, types or connect options. Its room-owned preparation snapshots
-device-free intent; the V1 offer builder derives each
-trackless sender's CID from its unique stream MSID before munging SDP. JOIN response waiters
-must exist before signaling opens. `PreparedPublicationState` owns the sender until normal
-publication commits; room teardown or cancellation reconciles it. Initial offers share codec
-and start-bitrate processing with later publisher offers. Session integration lives in the
-components repo and must start JOIN independently of capture. Legacy V0, Firefox, encryption,
-and unsupported configurations defer to ordinary publication.
+There is no preparation API. `setMicrophoneEnabled()` called while the room is disconnected, before
+or alongside `connect()`, asks the room (`prepareStartupPublication`) to reserve a microphone sender
+from the capture and publish options; the next `connect()` claims it. Camera publication always
+waits for capture. The V1 offer builder derives each trackless sender's CID from its unique stream
+MSID before munging SDP. JOIN response waiters must exist before signaling opens.
+`PreparedPublicationState` owns the sender until normal publication commits; room teardown or
+cancellation reconciles it. Initial offers share codec and start-bitrate processing with later
+publisher offers. Legacy V0, Firefox, encryption, and unsupported configurations defer to ordinary
+publication. `engine.optimisticPublications` (prototype) registers the reserved senders right
+after the JOIN answer instead of in the JOIN; `scripts/trace-agent-subscription.mjs` compares the
+modes.

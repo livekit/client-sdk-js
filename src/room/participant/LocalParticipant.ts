@@ -146,6 +146,14 @@ export class LocalParticipant extends Participant {
   /** @internal */
   pendingPublishing = new Set<Track.Source>();
 
+  /**
+   * Set by the room: reserves a sender for a microphone that is still being captured, before the
+   * room connects. @internal
+   */
+  prepareStartupPublication?: (
+    options: PreparePublicationOptions,
+  ) => PreparedPublicationState | undefined;
+
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
 
   private republishPromise: Promise<void> | undefined;
@@ -492,6 +500,7 @@ export class LocalParticipant extends Participant {
           return pendingTrack;
         }
         this.pendingPublishing.add(source);
+        let prepared: PreparedPublicationState | undefined;
         try {
           switch (source) {
             case Track.Source.Camera:
@@ -500,11 +509,18 @@ export class LocalParticipant extends Participant {
               });
 
               break;
-            case Track.Source.Microphone:
+            case Track.Source.Microphone: {
+              const channelCount = (options as AudioCaptureOptions | undefined)?.channelCount;
+              prepared = this.prepareStartupPublication?.({
+                source: Track.Source.Microphone,
+                ...(channelCount === 1 || channelCount === 2 ? { format: { channelCount } } : {}),
+                publishOptions: { ...publishOptions },
+              });
               localTracks = await this.createTracks({
                 audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
               break;
+            }
             case Track.Source.ScreenShare:
               localTracks = await this.requireVideoPublisher().createScreenTracks({
                 ...(options as ScreenShareCaptureOptions | undefined),
@@ -520,6 +536,7 @@ export class LocalParticipant extends Participant {
           if (e instanceof Error) {
             this.emit(ParticipantEvent.MediaDevicesError, e, sourceToKind(source));
           }
+          prepared?.cancel().catch(() => {});
           this.pendingPublishing.delete(source);
           throw e;
         }
@@ -544,7 +561,11 @@ export class LocalParticipant extends Participant {
           for (const localTrack of localTracks) {
             this.log.info('publishing track', getLogContextFromTrack(localTrack));
 
-            publishPromises.push(this.publishTrack(localTrack, publishOptions));
+            publishPromises.push(
+              prepared && localTrack.kind === Track.Kind.Audio
+                ? prepared.attachTrack(localTrack)
+                : this.publishTrack(localTrack, publishOptions),
+            );
           }
           const publishedTracks = await Promise.all(publishPromises);
 

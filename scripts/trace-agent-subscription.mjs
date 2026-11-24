@@ -195,26 +195,13 @@ try {
               log('agent: user subscribed → greeting can play');
             })();
 
-        let micDone;
-        if (mode === 'current') {
-          micDone = Promise.all([
-            user.connect(url, tokens.user),
-            user.localParticipant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true }),
-          ]);
-        } else {
-          // prepared: senders in the JOIN. optimistic: senders right after the JOIN answer.
-          const bridge = user[Symbol.for('livekit.internal.sessionPublication.v1')];
-          const microphone = bridge.prepare({
-            source: Track.Source.Microphone,
-            publishOptions: { preConnectBuffer: true },
-          });
-          micDone = Promise.all([
-            bridge.connect(url, tokens.user, undefined, [microphone]),
-            user.localParticipant
-              .createTracks({ audio: true })
-              .then(([track]) => microphone.attachTrack(track)),
-          ]);
-        }
+        // Session-style startup in every mode. prepared: the microphone sender goes in the JOIN.
+        // optimistic: right after the JOIN answer. current: no reservation, publish after capture.
+        if (mode === 'current') user.localParticipant.prepareStartupPublication = undefined;
+        const micDone = Promise.all([
+          user.connect(url, tokens.user),
+          user.localParticipant.setMicrophoneEnabled(true, undefined, { preConnectBuffer: true }),
+        ]);
         await Promise.all([micDone, agentDone]);
         await delay(300);
         await agent.disconnect();

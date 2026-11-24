@@ -80,7 +80,6 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import { summarizeStatsReport } from './statsSummary';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
@@ -327,18 +326,11 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       ...options?.publishDefaults,
     };
 
-    Object.defineProperty(this, sessionPublicationKey, {
-      configurable: true,
-      value: {
-        prepare: (intent) => this.prepareSessionPublication(intent),
-        connect: (url, token, connectOptions, publications) =>
-          this.connectWithPublications(url, token, connectOptions, publications),
-      } satisfies SessionPublicationBridge,
-    });
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options, this.slots);
+    this.localParticipant.prepareStartupPublication = this.prepareStartupPublication;
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -745,7 +737,29 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
 
   private readonly pendingInitialTrackSubscriptions = new Map<string, PreparedPublicationState>();
 
-  /** Snapshot device-free intent for the internal Session bridge. */
+  /** Microphone reservations made before connect() that the next connect() claims. */
+  private startupPublications: PreparedPublicationState[] = [];
+
+  /**
+   * Reserves a sender for a device that is still being captured while the room is disconnected,
+   * so the next connect() can register it without waiting for the device. Returns undefined when
+   * the publication cannot be prepared; the caller then publishes as usual.
+   */
+  private prepareStartupPublication = (
+    options: PreparePublicationOptions,
+  ): PreparedPublicationState | undefined => {
+    if (this.disposed || this.connectFuture || this.state !== ConnectionState.Disconnected) return;
+    try {
+      const prepared = this.prepareSessionPublication(options);
+      this.startupPublications.push(prepared);
+      return prepared;
+    } catch (error) {
+      this.log.debug('publication cannot be prepared', { ...this.logContext, error });
+      return;
+    }
+  };
+
+  /** Snapshot device-free publication intent. */
   private prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState {
     if (this.disposed || this.state !== ConnectionState.Disconnected) {
       throw new UnexpectedConnectionState('prepare publications before connecting');
@@ -807,6 +821,12 @@ export class CoreRoom extends (EventEmitter as new () => TypedEmitter<RoomEventC
       return this.connectFuture.promise;
     }
 
+    // setMicrophoneEnabled() calls made before this connect, including ones made while it waited
+    // for the disconnect lock above
+    initialPublications = [
+      ...initialPublications,
+      ...this.startupPublications.splice(0).filter((p) => !p.isCancelled && !p.claimed),
+    ];
     if (new Set(initialPublications).size !== initialPublications.length) {
       unlockDisconnect();
       throw new UnexpectedConnectionState('a preparation can only be supplied once');

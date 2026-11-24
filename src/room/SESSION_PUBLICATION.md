@@ -1,19 +1,13 @@
 # Internal Session publication startup
 
-Applications keep their existing Components Session configuration. There is no public
-preparation API or initial-publication connect option. Session starts room connection
-and device capture concurrently; credential acquisition and JOIN never wait for a device.
+There is no public preparation API, connect option or private integration protocol. An app (or
+the Components Session) calls `setMicrophoneEnabled()` together with `connect()`, as it already
+does. While the room is disconnected, that call asks the room to reserve a microphone sender from
+the capture and publish options, and the next `connect()` claims the reservation. JOIN never waits
+for the device. Calls made while connecting or connected publish as before. Camera publication
+always waits for capture, because the captured dimensions can differ from the requested ones.
 
-Components and the SDK share a versioned internal symbol,
-`Symbol.for('livekit.internal.sessionPublication.v1')`. The room installs a non-enumerable
-bridge with prepare/connect operations. It is absent from the public entry exports and
-Room declarations. Components uses ordinary publication when the bridge is unavailable.
-This is a private integration protocol, not a supported application API. Components checks its
-structural contract against this SDK source with `scripts/check-session-publication-contract.mjs`.
-Automatic preparation is currently microphone-only. Camera capture still runs alongside
-connection, but uses ordinary publication because ideal dimensions can differ from capture.
-
-The bridge snapshots source, format and publication defaults/options. Eligible V1
+The reservation snapshots source, format and publication defaults/options. Eligible V1
 single-PC connects reserve trackless outgoing transceivers, register response waiters
 before signaling, and include publication requests with the initial offer. Capture
 later attaches media. Unsupported modes, codecs, encryption or changed formats use

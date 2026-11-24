@@ -1,17 +1,25 @@
 import { AudioTrackFeature, ParticipantPermission, TrackInfo } from '@livekit/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type InitialPublicationSender, PreparedPublicationState } from './PreparedPublication';
+import {
+  type InitialPublicationSender,
+  type PreparePublicationOptions,
+  PreparedPublicationState,
+} from './PreparedPublication';
 import { Room } from './Room';
 import { EngineEvent, ParticipantEvent, TrackEvent } from './events';
-import { type SessionPublicationBridge, sessionPublicationKey } from './sessionPublication';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import { Track } from './track/Track';
 import { VideoPreset } from './track/options';
 
-const bridge = (room: Room) =>
-  (room as unknown as Record<symbol, SessionPublicationBridge>)[sessionPublicationKey];
+type PreparingRoom = {
+  prepareSessionPublication(options: PreparePublicationOptions): PreparedPublicationState;
+};
+const bridge = (room: Room) => ({
+  prepare: (options: PreparePublicationOptions) =>
+    (room as unknown as PreparingRoom).prepareSessionPublication(options),
+});
 
 function fixture() {
   const publication = {} as LocalTrackPublication;
@@ -477,7 +485,19 @@ describe('prepared publication option normalization', () => {
   it('does not expose preparation methods on the application Room', async () => {
     const room = new Room();
     expect('preparePublication' in room).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(room, sessionPublicationKey)?.enumerable).toBe(false);
+    expect(Symbol.for('livekit.internal.sessionPublication.v1') in room).toBe(false);
     await room.dispose();
+  });
+  it('reserves a microphone for the next connect only while disconnected', async () => {
+    const room = new Room();
+    const plan = room.localParticipant.prepareStartupPublication!({
+      source: Track.Source.Microphone,
+    });
+    expect(plan).toBeInstanceOf(PreparedPublicationState);
+    await room.dispose();
+    expect(plan!.isCancelled).toBe(true);
+    expect(
+      room.localParticipant.prepareStartupPublication!({ source: Track.Source.Microphone }),
+    ).toBeUndefined();
   });
 });
