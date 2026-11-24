@@ -159,27 +159,50 @@ class TokenSourceEndpoint extends TokenSourceCached {
           break;
 
         case 'agentName':
+          // An explicit `undefined` (object shorthand keeps the key) must not force an agent dispatch
+          // into existence: protobuf rejects `undefined` for the string field and the whole request
+          // fails to serialize. Skip the field instead.
+          if (typeof options.agentName === 'undefined') {
+            break;
+          }
           request.roomConfig = request.roomConfig ?? new RoomConfiguration();
           if (request.roomConfig.agents.length === 0) {
             request.roomConfig.agents.push(new RoomAgentDispatch());
           }
-          request.roomConfig.agents[0].agentName = options.agentName!;
+          request.roomConfig.agents[0].agentName = options.agentName;
           break;
 
         case 'agentMetadata':
+          if (typeof options.agentMetadata === 'undefined') {
+            break;
+          }
           request.roomConfig = request.roomConfig ?? new RoomConfiguration();
           if (request.roomConfig.agents.length === 0) {
             request.roomConfig.agents.push(new RoomAgentDispatch());
           }
-          request.roomConfig.agents[0].metadata = options.agentMetadata!;
+          request.roomConfig.agents[0].metadata = options.agentMetadata;
           break;
 
         case 'deployment':
+          if (typeof options.deployment === 'undefined') {
+            break;
+          }
           request.roomConfig = request.roomConfig ?? new RoomConfiguration();
           if (request.roomConfig.agents.length === 0) {
             request.roomConfig.agents.push(new RoomAgentDispatch());
           }
-          request.roomConfig.agents[0].deployment = options.deployment!;
+          request.roomConfig.agents[0].deployment = options.deployment;
+          break;
+
+        case 'threadId':
+          if (typeof options.threadId === 'undefined') {
+            break;
+          }
+          request.roomConfig = request.roomConfig ?? new RoomConfiguration();
+          if (request.roomConfig.agents.length === 0) {
+            request.roomConfig.agents.push(new RoomAgentDispatch());
+          }
+          request.roomConfig.agents[0].threadId = options.threadId;
           break;
 
         default:

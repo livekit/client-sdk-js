@@ -65,6 +65,7 @@ export function areTokenSourceFetchOptionsEqual(
       case 'agentName':
       case 'agentMetadata':
       case 'deployment':
+      case 'threadId':
         if (a[key] !== b[key]) {
           return false;
         }
