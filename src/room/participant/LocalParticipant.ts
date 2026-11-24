@@ -154,6 +154,12 @@ export class LocalParticipant extends Participant {
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
 
+  /** Tracks published before the signal connected, while their reservation is pending. */
+  private pendingReservations = new Map<
+    LocalTrack,
+    { prepared: PreparedPublicationState; publishing: Promise<LocalTrackPublication> }
+  >();
+
   private republishPromise: Promise<void> | undefined;
 
   private cameraError: Error | undefined;
@@ -874,7 +880,9 @@ export class LocalParticipant extends Participant {
     const settings = track.getSourceTrackSettings();
     const audio = track.kind === Track.Kind.Audio;
     const source = audio ? Track.Source.Microphone : Track.Source.Camera;
-    if (track.source !== source && track.source !== Track.Source.Unknown) return;
+    // A track without a source (a custom feed) stays untagged and publishes as usual, so the device
+    // controls never take it over.
+    if (track.source !== source) return;
     let specification: PreparePublicationOptions;
     if (audio) {
       // stereo as publishTrack() decides it for the same track
@@ -895,9 +903,15 @@ export class LocalParticipant extends Participant {
     if (!prepared) return;
     prepared.request.muted = track.isMuted;
     const settle = this.limitRegistration(prepared, () => track.stop());
-    return prepared.attachTrack(track).catch((error: unknown) => {
-      throw settle(error);
-    });
+    const publishing = prepared
+      .attachTrack(track)
+      .catch((error: unknown) => {
+        throw settle(error);
+      })
+      .finally(() => this.pendingReservations.delete(track));
+    // not in pendingPublishPromises: the publish continuation inside attachTrack() waits on those
+    this.pendingReservations.set(track, { prepared, publishing });
+    return publishing;
   }
 
   /**
@@ -978,6 +992,8 @@ export class LocalParticipant extends Participant {
       this.engine.client.currentState !== SignalConnectionState.CONNECTED
     ) {
       track = this.toLocalTrack(track);
+      const reserved = this.pendingReservations.get(track);
+      if (reserved) return reserved.publishing;
       const publishing =
         this.pendingPublishPromises.has(track) ||
         [...this.trackPublications.values()].some((pub) => pub.track === track);
@@ -1511,6 +1527,13 @@ export class LocalParticipant extends Participant {
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
     if (isLocalTrack(track)) {
+      // A track published before the signal connected keeps out of the room once its reservation
+      // is cancelled. If it already committed, it is unpublished below like any other.
+      const reservation = this.pendingReservations.get(track);
+      if (reservation) {
+        await reservation.prepared.cancel();
+        await reservation.publishing.catch(() => {});
+      }
       const publishPromise = this.pendingPublishPromises.get(track);
       if (publishPromise) {
         this.log.debug(

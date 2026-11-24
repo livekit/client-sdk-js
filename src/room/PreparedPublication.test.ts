@@ -614,6 +614,9 @@ function reservingEngine() {
     initialOfferId?: number;
     canReserve?: boolean;
     addReservedSenders(): Promise<unknown[]>;
+    reserveSenders(
+      register: (req: { cid: string }) => Promise<TrackInfo>,
+    ): Promise<{ cid: string }[]>;
     claimReservations(
       reservations: unknown[],
       sdp: string,
@@ -665,6 +668,27 @@ describe('engine reservation', () => {
     expect(addTrack).not.toHaveBeenCalled();
     expect(prepared.isWaitingForSender).toBe(false);
     await expect(prepared.registration).resolves.toBeUndefined();
+  });
+
+  it('sets a reserved camera start bitrate with its CID before the JOIN offer is built', async () => {
+    const { engine, internals, publisher } = reservingEngine();
+    const camera = new PreparedPublicationState(
+      { source: Track.Source.Camera, format: { width: 640, height: 480 } },
+      {},
+      [],
+      'vp8',
+      true,
+      vi.fn(),
+    );
+    camera.startBitrate = 1_500_000;
+    engine.preparedPublications = [camera];
+    const requests = await internals.reserveSenders(async () => new TrackInfo({ sid: 'TR_cam' }));
+    expect(requests.map((r) => r.cid)).toEqual(['track-0']);
+    expect(publisher.setTrackCodecBitrate).toHaveBeenCalledWith({
+      cid: 'track-0',
+      codec: 'vp8',
+      maxbr: 1500,
+    });
   });
 
   it('lets the JOIN go ahead when a sender cannot be reserved', async () => {
@@ -736,6 +760,61 @@ describe('engine reservation', () => {
     await engine.reservePublications();
     expect(addTrack).toHaveBeenCalledTimes(2);
     expect(prepared.isWaitingForSender).toBe(false);
+  });
+});
+
+describe('publishTrack() before the signal connects', () => {
+  function track(source: Track.Source) {
+    const capture = Object.assign(new EventTarget(), {
+      kind: 'audio',
+      id: `early-${source}`,
+      label: 'early',
+      enabled: true,
+      muted: false,
+      readyState: 'live',
+      stop: vi.fn(),
+      getSettings: () => ({ channelCount: 1 }),
+      getConstraints: () => ({}),
+    }) as unknown as MediaStreamTrack;
+    const local = new LocalAudioTrack(capture);
+    local.source = source;
+    return local;
+  }
+  const reservationsOf = (room: Room) =>
+    (room as unknown as { preparedPublications: Set<PreparedPublicationState> })
+      .preparedPublications;
+
+  it('cancels the reservation when the track is unpublished before connect', async () => {
+    const room = new Room();
+    const microphone = track(Track.Source.Microphone);
+    const publishing = room.localParticipant.publishTrack(microphone);
+    const rejected = expect(publishing).rejects.toThrow('cancelled');
+    const [reservation] = reservationsOf(room);
+    expect(await room.localParticipant.unpublishTrack(microphone)).toBeUndefined();
+    await rejected;
+    expect(reservation.isCancelled).toBe(true);
+    expect(reservationsOf(room).size).toBe(0);
+    await room.dispose();
+  });
+
+  it('reuses the pending reservation when the same track is published again', async () => {
+    const room = new Room();
+    const microphone = track(Track.Source.Microphone);
+    const first = room.localParticipant.publishTrack(microphone);
+    const second = room.localParticipant.publishTrack(microphone);
+    first.catch(() => {});
+    second.catch(() => {});
+    expect(reservationsOf(room).size).toBe(1);
+    await room.dispose();
+  });
+
+  it('does not reserve a track without a source, so device controls keep away from it', async () => {
+    const room = new Room();
+    const feed = track(Track.Source.Unknown);
+    room.localParticipant.publishTrack(feed).catch(() => {});
+    expect(reservationsOf(room).size).toBe(0);
+    expect(feed.source).toBe(Track.Source.Unknown);
+    await room.dispose();
   });
 });
 

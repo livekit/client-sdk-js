@@ -420,21 +420,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // channels and fall back to in-band ones below if the server is too old.
           this.applyInitialPublisherLayout(true);
         }
-        // Reservations made before connect() go into the JOIN, which saves a renegotiation.
-        const reservations =
+        // Reservations made before connect() go into the JOIN, which saves a renegotiation. They
+        // get their CIDs and start bitrates before the initial offer is built and munged.
+        this.initialTrackRequests =
           !this.e2eeManager && !this.frameMetadataOptions && !opts.e2eeEnabled
-            ? await this.addReservedSenders()
+            ? await this.reserveSenders((req) => this.waitForTrackPublished(req))
             : [];
         const offer = await this.pcManager?.publisher.createInitialOffer();
         if (offer) {
           offerProto = toProtoSessionDescription(offer.offer, offer.offerId);
         }
         this.initialOfferId = offer?.offerId;
-        this.initialTrackRequests = this.claimReservations(
-          reservations,
-          offer?.offer.sdp ?? '',
-          (req) => this.waitForTrackPublished(req),
-        );
       }
 
       if (abortSignal?.aborted) {
@@ -644,16 +640,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     if (!(await this.initialOfferAnswered()) || this.pcManager?.publisher !== publisher) return;
     for (const plan of waiting()) if (!plan.canReserve) plan.skipReservation();
-    const reservations = await this.addReservedSenders();
-    if (!reservations.length) return;
-    let sdp = '';
-    try {
-      sdp = await publisher.createProbeOffer();
-    } catch (error) {
-      this.log.warn('could not read reserved senders from a probe offer', { error });
-    }
-    // without an offer, every reservation fails its CID lookup and waits for capture
-    const requests = this.claimReservations(reservations, sdp, (req) => this.addTrack(req));
+    const requests = await this.reserveSenders((req) => this.addTrack(req));
     if (requests.length) await this.negotiate();
   }
 
@@ -679,6 +666,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       };
       publisher.on(PCEvents.OfferAnswered, onAnswered);
     });
+  }
+
+  /**
+   * Adds a sender for each waiting publication that can be reserved, reads their CIDs from a probe
+   * offer and registers them through `register`. Returns the AddTrack requests of the reservations
+   * that succeeded.
+   */
+  private async reserveSenders(register: (req: AddTrackRequest) => Promise<TrackInfo>) {
+    const reservations = await this.addReservedSenders();
+    if (!reservations.length) return [];
+    let sdp = '';
+    try {
+      // the browser keeps a sender's MSID across offers, so the next offer shows the same CID
+      sdp = (await this.pcManager?.publisher.createProbeOffer()) ?? '';
+    } catch (error) {
+      this.log.warn('could not read reserved senders from a probe offer', { error });
+    }
+    // without an offer, every reservation fails its CID lookup and waits for capture
+    return this.claimReservations(reservations, sdp, register);
   }
 
   /** Adds a sendonly sender without a track for each waiting publication that can be reserved. */
