@@ -238,18 +238,3 @@ Managers (e.g. `RpcClientManager`, `RpcServerManager`, `OutgoingDataTrackManager
   `resolve`/`reject` callbacks and a `.promise` property.
 - Error classes use a `Reasoned` pattern: `DataTrackSubscribeError<Reason>` with a `reason` enum
   and static factory methods (`.timeout()`, `.cancelled()`, `.disconnected()`).
-
-### Prepared publications
-
-There is no preparation API. `setMicrophoneEnabled()` asks the room (`reservePublication`) to
-reserve a microphone sender from the capture and publish options, in any room state. The engine
-puts every reservation that exists when the JOIN offer is built into the JOIN, and registers later
-ones as soon as the publisher is negotiated (`reservePublications`). Each gets a sender without a
-track; the CID is the track id in its stream MSID (`reservedSenderCid`), read from the initial
-offer or a probe offer. A reservation made before capture is sent muted; capture unmutes it right
-before `replaceTrack`, because the SFU drops media of a muted track. `PreparedPublicationState` owns the sender until normal
-publication commits; room teardown or cancellation reconciles it. `publishTrack()` before the
-signal connects reserves microphone and camera tracks too (`reserveTrack`), with the format,
-stereo decision and mute state of the real track, and gives up after 15 s like any early publish.
-`setCameraEnabled()` still waits for capture, because the captured dimensions are unknown before.
-Legacy V0, Firefox, encryption, and unsupported configurations publish after capture.
