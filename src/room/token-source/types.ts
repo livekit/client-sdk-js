@@ -66,7 +66,7 @@ export type TokenSourceFetchOptions = {
   deployment?: string;
   /** The durable agent thread (an `AT_` id) the dispatched agent's call reads and writes, set as
    * `RoomAgentDispatch.thread_id`. Leave unset for a call with no durable thread. */
-  agentThreadId?: string;
+  threadId?: string;
 };
 
 /** A Configurable TokenSource is a token source that takes a

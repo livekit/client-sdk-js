@@ -163,17 +163,52 @@ describe('TokenSource.endpoint', () => {
     }
   });
 
-  it('carries agentThreadId as the agent dispatch thread_id', async () => {
+  it('carries threadId as the agent dispatch thread_id', async () => {
     const { teardown, fetchMock } = mockGlobalFetchResponse();
 
     try {
       const tokenSource = TokenSource.endpoint('https://example.com/my/token/endpoint');
-      await tokenSource.fetch({ agentName: 'agent', agentThreadId: 'AT_QSDoLPvYKVYY' });
+      await tokenSource.fetch({ agentName: 'agent', threadId: 'AT_QSDoLPvYKVYY' });
       const body = JSON.parse((fetchMock.lastCall![1] as RequestInit).body as string);
       expect(body.room_config.agents[0]).toStrictEqual({
         agent_name: 'agent',
         thread_id: 'AT_QSDoLPvYKVYY',
       });
+    } finally {
+      teardown();
+    }
+  });
+
+  it('skips agent dispatch fields explicitly set to undefined', async () => {
+    const { teardown, fetchMock } = mockGlobalFetchResponse();
+
+    try {
+      const tokenSource = TokenSource.endpoint('https://example.com/my/token/endpoint');
+      // An unset thread id paired with an agent name: the dispatch carries only the agent name, and
+      // the request serializes (protobuf rejects `undefined` for the string field otherwise).
+      await tokenSource.fetch({ agentName: 'agent', threadId: undefined });
+      const body = JSON.parse((fetchMock.lastCall![1] as RequestInit).body as string);
+      expect(body.room_config.agents[0]).toStrictEqual({ agent_name: 'agent' });
+    } finally {
+      teardown();
+    }
+  });
+
+  it('creates no agent dispatch when every agent field is undefined', async () => {
+    const { teardown, fetchMock } = mockGlobalFetchResponse();
+
+    try {
+      const tokenSource = TokenSource.endpoint('https://example.com/my/token/endpoint');
+      await tokenSource.fetch({
+        roomName: 'my-room',
+        agentName: undefined,
+        agentMetadata: undefined,
+        deployment: undefined,
+        threadId: undefined,
+      });
+      const body = JSON.parse((fetchMock.lastCall![1] as RequestInit).body as string);
+      expect(body.room_name).toStrictEqual('my-room');
+      expect(body.room_config).toBeUndefined();
     } finally {
       teardown();
     }
